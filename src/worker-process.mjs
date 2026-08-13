@@ -26,11 +26,16 @@ process.on("message", async (message) => {
   }
 });
 
-async function execute(capability) {
+async function execute(capability, task) {
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability);
   if (capability.startsWith("repository.")) return executeRepositoryCapability(capability);
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   switch (capability) {
+    case "assistant.respond":
+      return {
+        verified: true,
+        summary: `I saved this assignment in our durable conversation: ${String(task?.requestedOutcome ?? "Continue the assignment").replace(/\s+/g, " ").trim().slice(0, 240)}. I will keep the context available while you are away.`,
+      };
     case "system.health":
       return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };
     case "manifest.validate":

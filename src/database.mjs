@@ -272,10 +272,22 @@ export class RuntimeDatabase {
     if (!new Set(["completed", "failed", "waiting", "cancelled"]).has(status)) throw new TypeError("Terminal task status is invalid.");
     if (resultSummary !== null) bounded(resultSummary, 2000, "result summary");
     if (errorCode !== null) bounded(errorCode, 80, "error code");
+    const task = this.getTask(id);
     const now = new Date().toISOString();
     const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
       WHERE id=? AND status IN ('running','verifying')`).run(status, resultSummary, errorCode, now, id);
-    if (changed.changes === 1) this.#event(`task.${status}`, id, { errorCode });
+    if (changed.changes === 1) {
+      this.#event(`task.${status}`, id, { errorCode });
+      if (task?.conversationId) {
+        const content = status === "completed"
+          ? (resultSummary ?? "Task completed and verified.")
+          : `Task ${status}${errorCode ? `: ${errorCode}` : "."}`;
+        this.addConversationMessage({
+          conversationId: task.conversationId, taskId: id,
+          role: status === "completed" ? "assistant" : "system", content,
+        });
+      }
+    }
     return this.getTask(id);
   }
 

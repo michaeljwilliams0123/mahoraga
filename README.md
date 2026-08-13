@@ -27,10 +27,10 @@ suites are source material for later worker migration.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- Control Center 4.2 is an operating cockpit rather than a status page: all
-  navigation views work, tasks can be dispatched/cancelled/retried, workers can
-  be probed/restarted, assignments retain discourse, improvement candidates can
-  be decided, and diagnostics expose the durable event ledger.
+- Control Center 5.0 uses a ChatGPT-style chat-first workspace with conversation
+  history, automatic worker routing, durable message threads, worker receipts in
+  the conversation, and a bottom composer. Task, worker, connection, improvement,
+  and diagnostic controls remain available as compact workspace views.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.

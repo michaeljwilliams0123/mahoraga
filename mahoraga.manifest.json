@@ -6,7 +6,7 @@
   "environment": "production",
   "versions": {
     "runtime": "3.2.0",
-    "controlCenter": "4.2.0",
+    "controlCenter": "5.0.0",
     "cloudControlPlane": "3.0.1",
     "taskSchema": "3",
     "workerContract": "2"
@@ -68,8 +68,8 @@
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "enterprise", "local-only"],
-      "capabilities": ["system.health", "manifest.validate"],
-      "acceptedTaskTypes": ["health", "manifest"],
+      "capabilities": ["assistant.respond", "system.health", "manifest.validate"],
+      "acceptedTaskTypes": ["assistant", "health", "manifest"],
       "timeoutMs": 15000,
       "concurrency": 1,
       "healthProbe": "system.health",

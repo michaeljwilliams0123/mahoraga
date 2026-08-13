@@ -51,6 +51,26 @@ test("Control Center creates and continues a durable assignment thread", async (
   assert.deepEqual(messages.messages.map((item) => item.content), ["Continue while I am away.", "Additional input."]);
 });
 
+test("completed worker receipts return to the chat conversation", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const conversation = await (await fetch(`${base}/api/conversations`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: "Chat receipt", initialMessage: "Is the runtime healthy?" }),
+  })).json();
+  const created = await (await fetch(`${base}/api/tasks`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", conversationId: conversation.conversation.id, idempotencyKey: `chat-${Date.now()}` }),
+  })).json();
+  await waitFor(async () => {
+    const tasks = await (await fetch(`${base}/api/tasks`)).json();
+    return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
+  });
+  const messages = await (await fetch(`${base}/api/conversations/${conversation.conversation.id}/messages`)).json();
+  assert.deepEqual(messages.messages.map((item) => item.role), ["user", "assistant"]);
+  assert.match(messages.messages[1].content, /runtime is responsive/);
+});
+
 async function waitFor(check, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) { const value = await check(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 100)); }
