@@ -25,7 +25,7 @@
   },
   "queue": {
     "provider": "dataverse",
-    "state": "awaiting-environment-confirmation",
+    "state": "environment-confirmed-awaiting-publisher-and-authentication",
     "environmentName": "Vaco (default) (Upgrade)",
     "environmentId": "Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d",
     "environmentUrl": "https://org9aade5b6.crm.dynamics.com/",
@@ -260,14 +260,14 @@
     },
     {
       "id": "microsoft-task-queue",
-      "state": "awaiting-environment-confirmation",
+      "state": "environment-confirmed-awaiting-publisher-and-authentication",
       "endpointClass": "dataverse",
       "authenticationState": "not-configured",
       "capabilities": ["queue.submit", "queue.claim", "queue.complete", "queue.status"],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
-      "error": "target-environment-and-solution-not-confirmed",
-      "notes": "Dataverse target discovery succeeded for Vaco (default) (Upgrade) at https://org9aade5b6.crm.dynamics.com/. Schema creation is pending explicit confirmation of this production environment and the proposed MahoragaPlatform solution."
+      "error": "publisher-prefix-and-reusable-authentication-pending",
+      "notes": "The user confirmed Vaco (default) (Upgrade), https://org9aade5b6.crm.dynamics.com/, and the MahoragaPlatform solution on 2026-08-13. Creation now awaits the permanent publisher prefix and completion of Microsoft device authentication."
     },
     {
       "id": "chatgpt-browser-surface",
