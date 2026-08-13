@@ -10,3 +10,9 @@ node_modules/
 .env
 .env.*
 !.env.example
+.token_cache.bin
+.dataverse/
+state/dataverse-token-cache/
+scripts/__pycache__/
+*.pyc
+solutions/*.zip

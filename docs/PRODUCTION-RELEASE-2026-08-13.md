@@ -45,3 +45,19 @@ Assignment threads and messages are now durable SQLite records. Task envelopes
 carry their conversation history to workers. Workers can request information,
 move the task to `waiting_for_user`, and resume the same task after the user
 responds. The Control Center exposes thread creation and message continuation.
+
+## Microsoft execution plane implementation
+
+- The official Microsoft Dataverse Python SDK `1.0.0` is installed in the
+  pinned workspace runtime.
+- The official Microsoft Dataverse CLI `1.0.63` is installed locally under
+  `tools/dataverse-cli`; no system-wide Node installation is required.
+- `scripts/deploy_dataverse_queue.py` creates or reuses the confirmed publisher,
+  `MahoragaPlatform` solution, queue table, and correlation alternate key.
+- `scripts/microsoft_queue_worker.py` implements one outbound-only poll, claim,
+  local dispatch, and result-recording cycle.
+- The process-isolated `microsoft-queue` worker is registered but disabled until
+  the permanent publisher prefix and reusable Microsoft authentication cache are
+  confirmed.
+- No public write MCP, inbound Windows listener, reverse tunnel, or repository
+  secret was introduced.

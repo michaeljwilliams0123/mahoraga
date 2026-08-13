@@ -160,6 +160,20 @@
       "executionPlane": "licensed-cloud"
     },
     {
+      "id": "microsoft-queue",
+      "label": "Microsoft Queue Worker",
+      "version": "3.2.0",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": ["enterprise"],
+      "capabilities": ["queue.status", "queue.poll"],
+      "acceptedTaskTypes": ["microsoft-queue"],
+      "timeoutMs": 60000,
+      "concurrency": 1,
+      "healthProbe": "queue.status",
+      "executionPlane": "licensed-cloud"
+    },
+    {
       "id": "copilot-studio",
       "label": "Copilot Studio Agent",
       "version": "3.2.0",

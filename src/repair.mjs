@@ -9,6 +9,7 @@ export const ESSENTIAL_FILES = [
   "src/config.mjs",
   "src/browser-worker.mjs",
   "src/database.mjs",
+  "src/microsoft-queue-worker.mjs",
   "src/repair.mjs",
   "src/router.mjs",
   "src/repository-worker.mjs",

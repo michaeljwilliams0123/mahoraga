@@ -2,6 +2,7 @@ import { loadManifest } from "./config.mjs";
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 import { executeBrowserCapability, shutdownBrowser } from "./browser-worker.mjs";
 import { executeRepositoryCapability } from "./repository-worker.mjs";
+import { executeMicrosoftQueueCapability } from "./microsoft-queue-worker.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -28,6 +29,7 @@ process.on("message", async (message) => {
 async function execute(capability) {
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability);
   if (capability.startsWith("repository.")) return executeRepositoryCapability(capability);
+  if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   switch (capability) {
     case "system.health":
       return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };

@@ -1,0 +1,26 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .:
+    dependencies:
+      '@microsoft/dataverse':
+        specifier: latest
+        version: 1.0.63
+
+packages:
+
+  '@microsoft/dataverse@1.0.63':
+    resolution: {integrity: sha512-gjva9njJFc1dubaa9UgDuowqr/aST5/ayxZ/yTCqHdqduoyb60KDGXw7BnhGBFA0K9U0Gq3px0hH+6h3RtEZow==}
+    engines: {node: '>=16.0.0'}
+    cpu: [x64, arm64]
+    os: [win32, darwin, linux]
+    hasBin: true
+
+snapshots:
+
+  '@microsoft/dataverse@1.0.63': {}

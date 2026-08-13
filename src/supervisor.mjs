@@ -8,7 +8,7 @@ const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database }) {
-    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.lastRepairBucket = null;
+    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.lastRepairBucket = null; this.lastQueueBucket = null;
   }
 
   start() {
@@ -16,6 +16,7 @@ export class Supervisor extends EventEmitter {
     for (const definition of this.manifest.workers.filter((item) => item.enabled)) this.#spawn(definition);
     this.database.recoverExpired();
     this.#scheduleAutomaticRepair();
+    this.#scheduleMicrosoftQueuePoll();
     this.timer = setInterval(() => this.#tick(), 500);
     this.timer.unref();
   }
@@ -108,6 +109,7 @@ export class Supervisor extends EventEmitter {
   #tick() {
     this.database.recoverExpired();
     this.#scheduleAutomaticRepair();
+    this.#scheduleMicrosoftQueuePoll();
     const now = Date.now();
     for (const state of this.workers.values()) {
       if (state.lastHeartbeatAt && now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs) {
@@ -140,6 +142,20 @@ export class Supervisor extends EventEmitter {
       dataClass: "local-only",
       requestedMode: "local",
       idempotencyKey: `automatic-operational-repair:${bucket}`,
+    });
+  }
+
+  #scheduleMicrosoftQueuePoll() {
+    if (!this.manifest.featureFlags?.microsoftQueueWorker) return;
+    const worker = this.manifest.workers.find((item) => item.id === "microsoft-queue" && item.enabled);
+    if (!worker) return;
+    const bucket = Math.floor(Date.now() / this.manifest.queue.pollIntervalMs);
+    if (bucket === this.lastQueueBucket) return;
+    this.lastQueueBucket = bucket;
+    this.database.submitTask({
+      capability: "queue.poll", dataClass: "enterprise", requestedMode: "hybrid",
+      executionPlane: "licensed-cloud", priority: "critical",
+      idempotencyKey: `microsoft-queue-poll:${bucket}`,
     });
   }
 }

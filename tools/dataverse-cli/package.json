@@ -1,0 +1,8 @@
+{
+  "name": "mahoraga-dataverse-cli-runtime",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@microsoft/dataverse": "latest"
+  }
+}
