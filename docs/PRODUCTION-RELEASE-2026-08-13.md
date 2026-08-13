@@ -5,7 +5,7 @@
 - Runtime: Mahoraga `3.1.0`
 - Control Center: `4.0.0` at `http://127.0.0.1:4782`
 - Branch: `agent/mahoraga-3-1-production-workers`
-- Commits: `9f6c9d1`, `32cf541`, `c68fd60`
+- Commits: `9f6c9d1`, `32cf541`, `c68fd60`, `0e14247`
 - Rollback: stop production, switch to the preceding commit, refresh the release
   baseline, then run `scripts/start-production.ps1`.
 
