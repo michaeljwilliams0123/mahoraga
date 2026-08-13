@@ -26,6 +26,10 @@
   "queue": {
     "provider": "dataverse",
     "state": "awaiting-environment-confirmation",
+    "environmentName": "Vaco (default) (Upgrade)",
+    "environmentId": "Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d",
+    "environmentUrl": "https://org9aade5b6.crm.dynamics.com/",
+    "solutionName": "MahoragaPlatform",
     "pollIntervalMs": 5000,
     "leaseMs": 60000,
     "maximumAttempts": 3,
@@ -247,7 +251,7 @@
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "target-environment-and-solution-not-confirmed",
-      "notes": "Dataverse is selected as the durable Microsoft task ledger. Schema creation is pending the mandatory target environment and solution confirmation."
+      "notes": "Dataverse target discovery succeeded for Vaco (default) (Upgrade) at https://org9aade5b6.crm.dynamics.com/. Schema creation is pending explicit confirmation of this production environment and the proposed MahoragaPlatform solution."
     }
   ]
 }

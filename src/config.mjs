@@ -52,6 +52,10 @@ export function validateManifest(value) {
   if (!isRecord(value.queue)) throw new TypeError("Queue configuration is missing.");
   bounded(value.queue.provider, 40, "queue provider");
   bounded(value.queue.state, 80, "queue state");
+  bounded(value.queue.environmentName, 100, "queue environment name");
+  bounded(value.queue.environmentId, 80, "queue environment id");
+  if (!/^https:\/\/[a-z0-9-]+\.crm\.dynamics\.com\/$/i.test(value.queue.environmentUrl)) throw new TypeError("Queue environment URL is invalid.");
+  slug(value.queue.solutionName.toLowerCase(), "queue solution name");
   bounded(value.queue.relayId, 64, "queue relay id");
   integer(value.queue.pollIntervalMs, 1000, 300000, "queue pollIntervalMs");
   integer(value.queue.leaseMs, 5000, 3600000, "queue leaseMs");
