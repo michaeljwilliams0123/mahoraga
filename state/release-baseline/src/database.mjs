@@ -210,6 +210,26 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
   }
 
+  retryTask(id) {
+    bounded(id, 80, "task id");
+    const now = new Date().toISOString();
+    const changed = this.db.prepare(`UPDATE tasks SET status='queued', assigned_worker=NULL, attempt_count=0,
+      lease_expires_at=NULL, result_summary=NULL, error_code=NULL, updated_at=?
+      WHERE id=? AND status IN ('failed','waiting','cancelled')`).run(now, id);
+    if (changed.changes === 1) this.#event("task.retried", id, { requestedBy: "control-center" });
+    return this.getTask(id);
+  }
+
+  cancelTask(id) {
+    bounded(id, 80, "task id");
+    const now = new Date().toISOString();
+    const changed = this.db.prepare(`UPDATE tasks SET status='cancelled', lease_expires_at=NULL,
+      error_code='cancelled-by-user', updated_at=? WHERE id=?
+      AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user')`).run(now, id);
+    if (changed.changes === 1) this.#event("task.cancelled", id, { requestedBy: "control-center" });
+    return this.getTask(id);
+  }
+
   listEvents(limit = 200) {
     const size = Math.max(1, Math.min(Number(limit) || 200, 1000));
     return this.db.prepare("SELECT * FROM events ORDER BY sequence DESC LIMIT ?").all(size).map((row) => ({

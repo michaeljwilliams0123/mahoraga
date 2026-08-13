@@ -10,6 +10,7 @@ const STATIC = new Map([
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
   ["/discourse.css", ["discourse.css", "text/css; charset=utf-8"]],
+  ["/control.css", ["control.css", "text/css; charset=utf-8"]],
 ]);
 
 export function createControlServer({ manifest, database, supervisor }) {
@@ -21,6 +22,10 @@ export function createControlServer({ manifest, database, supervisor }) {
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/tasks") return json(response, 200, { tasks: database.listTasks() });
       if (request.method === "GET" && url.pathname === "/api/events") return json(response, 200, { events: database.listEvents() });
+      if (request.method === "GET" && url.pathname === "/api/improvements") return json(response, 200, { improvements: database.listImprovements() });
+      if (request.method === "GET" && url.pathname === "/api/diagnostics") return json(response, 200, {
+        generatedAt: new Date().toISOString(), workers: database.listWorkerState(), events: database.listEvents(300),
+      });
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
@@ -53,7 +58,18 @@ export function createControlServer({ manifest, database, supervisor }) {
         const body = await bodyJson(request);
         return json(response, 200, { task: database.resumeTaskWithInput(taskInput[1], body.content) });
       }
-      if (request.method === "GET" && url.pathname === "/api/improvements") return json(response, 200, { improvements: database.listImprovements() });
+      const taskAction = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/(retry|cancel)$/);
+      if (request.method === "POST" && taskAction) {
+        const task = taskAction[2] === "retry" ? database.retryTask(taskAction[1]) : database.cancelTask(taskAction[1]);
+        if (!task) return json(response, 404, { error: "task-not-found" });
+        return json(response, 200, { task });
+      }
+      const workerAction = url.pathname.match(/^\/api\/workers\/([a-z][a-z0-9-]{0,63})\/(restart|probe)$/);
+      if (request.method === "POST" && workerAction) {
+        const result = workerAction[2] === "restart" ? supervisor.restartWorker(workerAction[1]) : supervisor.probeWorker(workerAction[1]);
+        if (!result) return json(response, 404, { error: "worker-not-found-or-disabled" });
+        return json(response, 202, { [workerAction[2] === "restart" ? "worker" : "task"]: result });
+      }
       if (request.method === "POST" && url.pathname === "/api/improvements") {
         const body = await bodyJson(request);
         return json(response, 202, { improvement: database.proposeImprovement(body) });

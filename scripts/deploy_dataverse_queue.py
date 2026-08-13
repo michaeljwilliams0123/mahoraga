@@ -5,7 +5,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.getcwd(), "scripts"))
-from auth import get_client
+from auth import get_client, load_env
 
 
 def required(name):
@@ -21,6 +21,7 @@ def first(result):
 
 
 def main():
+    load_env()
     prefix = required("PUBLISHER_PREFIX").lower()
     publisher_name = required("PUBLISHER_UNIQUE_NAME")
     solution_name = required("SOLUTION_NAME")
@@ -93,7 +94,12 @@ def main():
 
     keys = list(client.tables.get_alternate_keys(logical))
     key_name = f"{prefix}_MahoragaTask_CorrelationKey"
-    if not any(item.schema_name.lower() == key_name.lower() for item in keys):
+    def schema_name(item):
+        if isinstance(item, dict):
+            return item.get("SchemaName") or item.get("schema_name") or ""
+        return getattr(item, "schema_name", "")
+
+    if not any(schema_name(item).lower() == key_name.lower() for item in keys):
         client.tables.create_alternate_key(
             logical, key_name, [f"{prefix}_correlationkey"],
             display_name="Mahoraga Task Correlation Key",

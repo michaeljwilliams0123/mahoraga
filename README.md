@@ -27,8 +27,10 @@ suites are source material for later worker migration.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- A sleek local cockpit showing workers, connections, tasks, failures, and
-  improvement candidates.
+- Control Center 4.2 is an operating cockpit rather than a status page: all
+  navigation views work, tasks can be dispatched/cancelled/retried, workers can
+  be probed/restarted, assignments retain discourse, improvement candidates can
+  be decided, and diagnostics expose the durable event ledger.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.
@@ -67,8 +69,9 @@ localhost health endpoint before returning.
   Lenovo page is a device user guide and provides no supported AI automation API.
 - Browser Worker: enabled in production. Desktop Worker remains off pending its
   process contract and application-specific receipts.
-- Microsoft 365 queue: Dataverse is selected; activation awaits explicit
-  confirmation of the exact environment URL and solution before schema creation.
+- Microsoft 365 queue: Vaco (default) (Upgrade), MahoragaPlatform, and the
+  permanent `mhg_` publisher are confirmed. Activation awaits completion of the
+  reusable Dataverse CLI authentication now in progress.
 
 ## Update model
 

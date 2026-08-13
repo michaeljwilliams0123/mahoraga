@@ -42,6 +42,31 @@ export class Supervisor extends EventEmitter {
     }));
   }
 
+  restartWorker(workerId) {
+    const state = this.workers.get(workerId);
+    if (!state) return null;
+    if (state.currentTaskId) this.database.recoverWorkerTasks(workerId, "operator-restart");
+    this.workers.delete(workerId);
+    state.currentTaskId = null;
+    state.process.kill();
+    this.#spawn(state.definition, 0);
+    return this.status().find((item) => item.workerId === workerId) ?? null;
+  }
+
+  probeWorker(workerId) {
+    const definition = this.manifest.workers.find((item) => item.id === workerId && item.enabled);
+    if (!definition) return null;
+    return this.database.submitTask({
+      capability: definition.healthProbe,
+      dataClass: definition.dataClasses[0],
+      requestedMode: this.manifest.defaultAutonomyMode,
+      executionPlane: definition.executionPlane,
+      priority: "high",
+      idempotencyKey: `operator-probe:${workerId}:${Date.now()}`,
+      requestedOutcome: `Verify ${definition.label} is operational`,
+    });
+  }
+
   #spawn(definition, restartCount = 0) {
     const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,

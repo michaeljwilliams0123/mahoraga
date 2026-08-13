@@ -19,8 +19,11 @@ export const ESSENTIAL_FILES = [
   "src/worker-process.mjs",
   "web/index.html",
   "web/app.js",
+  "web/control.css",
   "web/discourse.css",
   "web/styles.css",
+  "scripts/auth.py",
+  "scripts/microsoft_queue_worker.py",
   "scripts/start-production.ps1",
 ];
 
