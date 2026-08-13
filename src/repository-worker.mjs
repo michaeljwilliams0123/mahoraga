@@ -24,7 +24,7 @@ export async function executeRepositoryCapability(capability) {
     const tests = await run(process.execPath, ["--test", "--test-isolation=none"], 120000, ROOT);
     return {
       verified: true,
-      summary: tail(`${validation.stdout}\n${tests.stdout}`, 1800) || "Repository verification passed.",
+      summary: singleLine(tail(`${validation.stdout}\n${tests.stdout}`, 1800)) || "Repository verification passed.",
       exitCode: tests.exitCode,
     };
   }
@@ -48,3 +48,4 @@ function run(executable, args, timeoutMs, cwd = ROOT) {
 }
 
 function tail(value, limit) { return String(value).slice(-limit); }
+function singleLine(value) { return String(value).replace(/\s+/g, " ").trim(); }

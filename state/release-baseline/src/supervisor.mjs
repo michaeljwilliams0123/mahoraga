@@ -47,8 +47,18 @@ export class Supervisor extends EventEmitter {
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null };
     this.workers.set(definition.id, state);
     this.database.setWorkerState({ workerId: definition.id, status: "starting", pid: child.pid, restartCount });
-    child.on("message", (message) => this.#message(state, message));
+    child.on("message", (message) => this.#safeMessage(state, message));
     child.on("exit", (code) => this.#exit(state, code));
+  }
+
+  #safeMessage(state, message) {
+    try {
+      this.#message(state, message);
+    } catch {
+      if (message?.taskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-message-rejected");
+      state.status = "crashed";
+      state.process.kill();
+    }
   }
 
   #message(state, message) {
@@ -65,7 +75,7 @@ export class Supervisor extends EventEmitter {
       if (message.result?.verified === false) {
         this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
       } else {
-        this.database.finishTask(message.taskId, { status: "completed", resultSummary: message.result?.summary ?? "Task completed and verified." });
+        this.database.finishTask(message.taskId, { status: "completed", resultSummary: normalizeSummary(message.result?.summary) });
       }
       this.#release(state);
     } else if (message?.type === "task.failed") {
@@ -126,4 +136,9 @@ export class Supervisor extends EventEmitter {
       idempotencyKey: `automatic-operational-repair:${bucket}`,
     });
   }
+}
+
+export function normalizeSummary(value) {
+  const summary = typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 2000) : "";
+  return summary || "Task completed and verified.";
 }

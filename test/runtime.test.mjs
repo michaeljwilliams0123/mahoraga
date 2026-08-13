@@ -4,6 +4,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { startRuntime } from "../src/runtime.mjs";
+import { normalizeSummary } from "../src/supervisor.mjs";
+
+test("worker receipts are bounded to a safe single line before persistence", () => {
+  const summary = normalizeSummary(`passed\n${"verified ".repeat(400)}`);
+  assert.equal(/[\r\n]/.test(summary), false);
+  assert.ok(summary.length <= 2000);
+});
 
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
