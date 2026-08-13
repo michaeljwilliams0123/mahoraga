@@ -37,6 +37,20 @@ test("improvement decisions fail closed without the candidate-specific approval 
   assert.equal(approved.improvement.status, "approved");
 });
 
+test("Control Center creates and continues a durable assignment thread", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const created = await (await fetch(`${base}/api/conversations`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ title: "Persistent assignment", initialMessage: "Continue while I am away." }),
+  })).json();
+  await fetch(`${base}/api/conversations/${created.conversation.id}/messages`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: "Additional input.", role: "user" }),
+  });
+  const messages = await (await fetch(`${base}/api/conversations/${created.conversation.id}/messages`)).json();
+  assert.deepEqual(messages.messages.map((item) => item.content), ["Continue while I am away.", "Additional input."]);
+});
+
 async function waitFor(check, timeoutMs = 8000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) { const value = await check(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 100)); }

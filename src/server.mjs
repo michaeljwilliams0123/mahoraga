@@ -9,6 +9,7 @@ const STATIC = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
+  ["/discourse.css", ["discourse.css", "text/css; charset=utf-8"]],
 ]);
 
 export function createControlServer({ manifest, database, supervisor }) {
@@ -20,16 +21,37 @@ export function createControlServer({ manifest, database, supervisor }) {
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/tasks") return json(response, 200, { tasks: database.listTasks() });
       if (request.method === "GET" && url.pathname === "/api/events") return json(response, 200, { events: database.listEvents() });
+      if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
+      if (request.method === "POST" && url.pathname === "/api/conversations") {
+        const body = await bodyJson(request);
+        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null }) });
+      }
+      const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
+      if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
+      if (request.method === "POST" && conversationMessages) {
+        const body = await bodyJson(request);
+        return json(response, 201, { message: database.addConversationMessage({ conversationId: conversationMessages[1], taskId: body.taskId ?? null, role: body.role ?? "user", content: body.content, requiresResponse: body.requiresResponse ?? false }) });
+      }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
+        const conversationId = body.conversationId ?? database.createConversation({
+          title: body.requestedOutcome ?? body.capability,
+          initialMessage: body.initialMessage ?? `Run ${body.capability}`,
+        }).id;
         const task = database.submitTask({
           capability: body.capability, dataClass: body.dataClass ?? "synthetic",
           requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
           correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
           executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
           maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts,
+          conversationId,
         });
         return json(response, 202, { task });
+      }
+      const taskInput = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/input$/);
+      if (request.method === "POST" && taskInput) {
+        const body = await bodyJson(request);
+        return json(response, 200, { task: database.resumeTaskWithInput(taskInput[1], body.content) });
       }
       if (request.method === "GET" && url.pathname === "/api/improvements") return json(response, 200, { improvements: database.listImprovements() });
       if (request.method === "POST" && url.pathname === "/api/improvements") {
@@ -62,9 +84,10 @@ export function statusPayload(manifest, database, supervisor) {
       scanIntervalMs: manifest.repair.scanIntervalMs,
     },
     runtime: { host: manifest.runtime.host, port: manifest.runtime.port, healthy: true },
-    taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
+    taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
     workers: supervisor.status(), capabilities: capabilityIndex(manifest), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
+    conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
   };
 }
 

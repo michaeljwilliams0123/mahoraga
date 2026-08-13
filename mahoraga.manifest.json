@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.1.0",
-    "controlCenter": "4.0.0",
+    "runtime": "3.2.0",
+    "controlCenter": "4.1.0",
     "cloudControlPlane": "3.0.1",
-    "taskSchema": "2",
-    "workerContract": "1"
+    "taskSchema": "3",
+    "workerContract": "2"
   },
   "updateAuthority": "user-only",
   "defaultAutonomyMode": "hybrid",
@@ -44,7 +44,9 @@
     "microsoftQueueWorker": false,
     "authenticatedExecutionPlane": false,
     "openAIProvider": false,
-    "a2aFederation": false
+    "a2aFederation": false,
+    "persistentDiscourse": true,
+    "humanWaitState": true
   },
   "repair": {
     "enabled": true,
@@ -62,7 +64,7 @@
     {
       "id": "local-core",
       "label": "Local Core",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "enterprise", "local-only"],
@@ -76,7 +78,7 @@
     {
       "id": "repository",
       "label": "Repository Worker",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "local-only"],
@@ -90,7 +92,7 @@
     {
       "id": "self-healer",
       "label": "Offline Self-Healer",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "enterprise", "local-only"],
@@ -104,7 +106,7 @@
     {
       "id": "local-reasoner",
       "label": "LM Studio Reasoner",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": false,
       "costClass": "local-model",
       "dataClasses": ["synthetic", "personal", "local-only"],
@@ -118,7 +120,7 @@
     {
       "id": "browser",
       "label": "Browser Worker",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal"],
@@ -132,7 +134,7 @@
     {
       "id": "desktop",
       "label": "Desktop Worker",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": false,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "local-only"],
@@ -146,7 +148,7 @@
     {
       "id": "microsoft365",
       "label": "Microsoft 365 Worker",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": false,
       "costClass": "licensed-cloud",
       "dataClasses": ["enterprise"],
@@ -160,7 +162,7 @@
     {
       "id": "copilot-studio",
       "label": "Copilot Studio Agent",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": false,
       "costClass": "licensed-cloud",
       "dataClasses": ["enterprise"],
@@ -174,7 +176,7 @@
     {
       "id": "lenovo-ai",
       "label": "Lenovo AI Now Adapter",
-      "version": "3.1.0",
+      "version": "3.2.0",
       "enabled": false,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "local-only"],
@@ -252,6 +254,28 @@
       "latencyMs": null,
       "error": "target-environment-and-solution-not-confirmed",
       "notes": "Dataverse target discovery succeeded for Vaco (default) (Upgrade) at https://org9aade5b6.crm.dynamics.com/. Schema creation is pending explicit confirmation of this production environment and the proposed MahoragaPlatform solution."
+    },
+    {
+      "id": "chatgpt-browser-surface",
+      "state": "provider-contract-mapped",
+      "endpointClass": "local-application-provider",
+      "authenticationState": "inherits-approved-browser-session",
+      "capabilities": ["browser.tabs", "browser.open", "browser.navigate", "browser.read", "browser.inspect", "browser.click", "browser.type", "browser.select", "browser.upload", "browser.download", "browser.wait", "browser.screenshot", "browser.network", "browser.console", "browser.close"],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "mahoraga-provider-adapter-not-yet-bound",
+      "notes": "Mahoraga maps the supported browser interaction contract without copying plugin internals. The current production Browser Worker implements loopback status and smoke; signed-session provider binding is the next adapter increment."
+    },
+    {
+      "id": "windows-computer-use",
+      "state": "provider-contract-mapped-implementation-pending",
+      "endpointClass": "local-windows-automation",
+      "authenticationState": "interactive-user-session-required",
+      "capabilities": ["desktop.apps", "desktop.inspect", "desktop.interact"],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "desktop-worker-disabled",
+      "notes": "The Desktop Worker contract follows unique-window selection, point-in-time observation, one action, immediate re-observation, and verified completion."
     }
   ]
 }

@@ -1,4 +1,4 @@
-# Mahoraga 3.1 — Production runtime
+# Mahoraga 3.2 — Production runtime
 
 Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
 the PowerShell/WPF application host with a Node.js supervisor, process-isolated
@@ -21,6 +21,12 @@ suites are source material for later worker migration.
   and Control Center rendering receipts. No public debugging endpoint is exposed.
 - A bounded Repository Worker for status, inspection, recent history, and the
   repository's fixed verification command.
+- Durable assignment conversations, worker questions, and user replies. A task
+  can enter `waiting_for_user`, survive restart, and resume without losing its
+  correlation ID or conversation history.
+- Provider-neutral browser, signed-Chrome, and Windows desktop capability
+  contracts. Mahoraga maps supported behavior without copying proprietary
+  plugin implementations.
 - A sleek local cockpit showing workers, connections, tasks, failures, and
   improvement candidates.
 - Candidate improvements that cannot be approved without a candidate-specific

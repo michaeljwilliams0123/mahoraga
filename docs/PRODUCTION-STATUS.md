@@ -2,7 +2,7 @@
 
 ## Local runtime
 
-- Version: `3.1.0`
+- Version: `3.2.0`
 - Phase: `production`
 - Cockpit: `http://127.0.0.1:4782`
 - Runtime: live and responding
@@ -12,6 +12,8 @@
 - Startup: current-user scheduled task `Mahoraga Production Runtime` installed
 - Task contract: correlation IDs, priority, leases, maximum attempts,
   verification state, immediate crash recovery, and append-only event receipts
+- Discourse: durable conversations, messages, worker questions, human wait
+  state, and queue resume are enabled in Control Center `4.1.0`
 - Update authority: user-only; there is no autonomous core activation route
 
 ## Microsoft production plane

@@ -18,6 +18,7 @@ export const ESSENTIAL_FILES = [
   "src/worker-process.mjs",
   "web/index.html",
   "web/app.js",
+  "web/discourse.css",
   "web/styles.css",
   "scripts/start-production.ps1",
 ];

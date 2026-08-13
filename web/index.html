@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Mahoraga Control Center</title>
   <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/discourse.css">
 </head>
 <body>
   <div class="shell">
@@ -30,6 +31,15 @@
         <article class="panel"><div class="panel-title"><div><p class="eyebrow">CONNECTIONS</p><h3>External surfaces</h3></div></div><div id="connection-list" class="connection-list"></div></article>
       </section>
       <section class="panel tasks"><div class="panel-title"><div><p class="eyebrow">ACTIVITY</p><h3>Recent tasks</h3></div><button id="refresh">Refresh</button></div><div id="task-list"><p class="empty">No tasks yet.</p></div></section>
+      <section class="panel discourse"><div class="panel-title"><div><p class="eyebrow">PERSISTENT DISCOURSE</p><h3>Assignment threads</h3></div><span id="conversation-summary">Loading</span></div>
+        <form id="conversation-form">
+          <select id="conversation-select" aria-label="Assignment thread"><option value="">New assignment</option></select>
+          <input id="conversation-title" maxlength="200" placeholder="Assignment title">
+          <textarea id="conversation-message" maxlength="12000" placeholder="Give Mahoraga context, instructions, or an answer. This survives runtime restarts." required></textarea>
+          <button type="submit">Save message</button>
+        </form>
+        <div id="conversation-messages"><p class="empty">Start an assignment thread to preserve context while you are away.</p></div>
+      </section>
     </main>
   </div>
   <script src="/app.js"></script>

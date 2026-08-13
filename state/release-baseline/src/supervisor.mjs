@@ -71,6 +71,11 @@ export class Supervisor extends EventEmitter {
       state.status = state.busy ? "busy" : "healthy";
       this.database.setWorkerState({ workerId: state.definition.id, status: state.status, pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
     } else if (message?.type === "task.completed") {
+      if (message.result?.waitingForUser === true) {
+        this.database.waitTaskForUser(message.taskId, normalizeSummary(message.result?.prompt ?? "Additional input is required."));
+        this.#release(state);
+        return;
+      }
       this.database.markVerifying(message.taskId, `${state.definition.id}:${state.definition.version}`);
       if (message.result?.verified === false) {
         this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
@@ -120,7 +125,8 @@ export class Supervisor extends EventEmitter {
         continue;
       }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
-      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task });
+      const envelope = task.conversationId ? { ...task, messages: this.database.listConversationMessages(task.conversationId) } : task;
+      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
     }
   }
 

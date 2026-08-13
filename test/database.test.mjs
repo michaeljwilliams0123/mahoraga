@@ -47,3 +47,15 @@ test("improvements require an explicit decision before state changes", (t) => {
   assert.equal(improvement.status, "proposed");
   assert.equal(database.decideImprovement(improvement.id, "approved").status, "approved");
 });
+
+test("assignment discourse persists and waiting tasks resume with user input", (t) => {
+  const database = databaseFixture(t);
+  const conversation = database.createConversation({ title: "Browser assignment", initialMessage: "Open the approved workspace." });
+  const task = database.submitTask({ capability: "browser.status", dataClass: "synthetic", idempotencyKey: "discourse-task", conversationId: conversation.id });
+  database.claimNext({ workerId: "browser", capabilities: ["browser.status"], leaseMs: 5000 });
+  assert.equal(database.waitTaskForUser(task.id, "Which approved tab should I use?").status, "waiting_for_user");
+  assert.equal(database.resumeTaskWithInput(task.id, "Use the Control Center tab.").status, "queued");
+  const messages = database.listConversationMessages(conversation.id);
+  assert.deepEqual(messages.map((item) => item.role), ["user", "worker", "user"]);
+  assert.equal(messages[1].requiresResponse, true);
+});

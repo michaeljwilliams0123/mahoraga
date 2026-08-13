@@ -1,9 +1,9 @@
-# Mahoraga 3.1 production release — 2026-08-13
+# Mahoraga 3.2 production release — 2026-08-13
 
 ## Deployment
 
-- Runtime: Mahoraga `3.1.0`
-- Control Center: `4.0.0` at `http://127.0.0.1:4782`
+- Runtime: Mahoraga `3.2.0`
+- Control Center: `4.1.0` at `http://127.0.0.1:4782`
 - Branch: `agent/mahoraga-3-1-production-workers`
 - Commits: `9f6c9d1`, `32cf541`, `c68fd60`, `0e14247`
 - Rollback: stop production, switch to the preceding commit, refresh the release
@@ -38,3 +38,10 @@ and the Control Center remained healthy.
 - Proposed unmanaged solution: `MahoragaPlatform`
 - State: awaiting explicit environment and solution confirmation before the first
   Dataverse mutation.
+
+## Persistent discourse
+
+Assignment threads and messages are now durable SQLite records. Task envelopes
+carry their conversation history to workers. Workers can request information,
+move the task to `waiting_for_user`, and resume the same task after the user
+responds. The Control Center exposes thread creation and message continuation.
