@@ -4,7 +4,6 @@ import path from "node:path";
 import { ROOT } from "./config.mjs";
 
 const GIT = process.env.MAHORAGA_GIT_EXECUTABLE || "git";
-const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
 export async function executeRepositoryCapability(capability) {
   if (capability === "repository.inspect") {
@@ -21,8 +20,13 @@ export async function executeRepositoryCapability(capability) {
     return { verified: true, summary: result.stdout.trim() || "Repository has no commits yet.", exitCode: result.exitCode };
   }
   if (capability === "repository.verify") {
-    const result = await run(NPM, ["run", "verify"], 120000, ROOT);
-    return { verified: true, summary: tail(result.stdout, 1800) || "Repository verification passed.", exitCode: result.exitCode };
+    const validation = await run(process.execPath, ["src/cli.mjs", "validate"], 30000, ROOT);
+    const tests = await run(process.execPath, ["--test", "--test-isolation=none"], 120000, ROOT);
+    return {
+      verified: true,
+      summary: tail(`${validation.stdout}\n${tests.stdout}`, 1800) || "Repository verification passed.",
+      exitCode: tests.exitCode,
+    };
   }
   throw new Error("unsupported-capability");
 }
