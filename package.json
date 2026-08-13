@@ -1,0 +1,18 @@
+{
+  "name": "project-mahoraga-v2",
+  "version": "3.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs start",
+    "start:production": "node src/cli.mjs start",
+    "status": "node src/cli.mjs status",
+    "submit:health": "node src/cli.mjs submit system.health",
+    "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
+    "test": "node --test --test-isolation=none",
+    "verify": "node src/cli.mjs validate && node --test --test-isolation=none"
+  }
+}

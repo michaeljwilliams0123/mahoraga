@@ -1,0 +1,44 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import path from "node:path";
+import os from "node:os";
+import { startRuntime } from "../src/runtime.mjs";
+
+test("runtime serves the cockpit API and completes a health task", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).workers.some((worker) => ["healthy", "busy"].includes(worker.status)));
+  const created = await (await fetch(`${base}/api/tasks`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: `test-${Date.now()}` }),
+  })).json();
+  const completed = await waitFor(async () => {
+    const tasks = await (await fetch(`${base}/api/tasks`)).json();
+    return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
+  });
+  assert.match(completed.resultSummary, /runtime is responsive/);
+});
+
+test("improvement decisions fail closed without the candidate-specific approval header", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const proposed = await (await fetch(`${base}/api/improvements`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Candidate", summary: "Tested proposal" }) })).json();
+  const denied = await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision: "approved" }) });
+  assert.equal(denied.status, 403);
+  const approved = await (await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { "content-type": "application/json", "x-mahoraga-approval": proposed.improvement.id }, body: JSON.stringify({ decision: "approved" }) })).json();
+  assert.equal(approved.improvement.status, "approved");
+});
+
+async function waitFor(check, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) { const value = await check(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 100)); }
+  throw new Error("Timed out waiting for runtime state.");
+}
+
+async function runtimeFixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-runtime-"));
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite") });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  return { runtime, root };
+}

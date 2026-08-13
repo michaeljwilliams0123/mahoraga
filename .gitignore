@@ -1,0 +1,11 @@
+state/*.sqlite*
+state/*.pid
+state/*.log
+state/browser-profile/
+state/cache/
+state/checkpoints/
+state/repairs/
+node_modules/
+.env
+.env.*
+!.env.example

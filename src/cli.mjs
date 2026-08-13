@@ -1,0 +1,27 @@
+import path from "node:path";
+import { loadManifest, ROOT } from "./config.mjs";
+import { RuntimeDatabase } from "./database.mjs";
+import { startRuntime } from "./runtime.mjs";
+
+const [command = "start", argument] = process.argv.slice(2);
+
+if (command === "validate") {
+  const manifest = await loadManifest();
+  console.log(`Manifest valid: ${manifest.product} ${manifest.version} (${manifest.phase})`);
+} else if (command === "start") {
+  const runtime = await startRuntime();
+  console.log(`Mahoraga ${runtime.manifest.version} is ready at http://${runtime.address.address}:${runtime.address.port}`);
+  const shutdown = async () => { await runtime.stop(); process.exit(0); };
+  process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
+} else if (command === "status" || command === "submit") {
+  const manifest = await loadManifest();
+  const database = new RuntimeDatabase(path.join(ROOT, manifest.runtime.database));
+  try {
+    if (command === "status") console.log(JSON.stringify({ tasks: database.listTasks(20), workers: database.listWorkerState(), improvements: database.listImprovements() }, null, 2));
+    else console.log(JSON.stringify(database.submitTask({ capability: argument ?? "system.health", dataClass: "synthetic", requestedMode: manifest.defaultAutonomyMode }), null, 2));
+  } finally { database.close(); }
+} else {
+  console.error("Usage: node src/cli.mjs [start|validate|status|submit <capability>]");
+  process.exitCode = 2;
+}
+

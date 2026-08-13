@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Mahoraga Control Center</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside>
+      <div class="brand"><span class="mark">M</span><div><b>MAHORAGA</b><small>CONTROL CENTER</small></div></div>
+      <nav><button class="active">Overview</button><button>Tasks</button><button>Workers</button><button>Connections</button><button>Improvements</button><button>Diagnostics</button></nav>
+      <div class="authority"><span></span><div><b>User-controlled updates</b><small>Activation requires your greenlight</small></div></div>
+    </aside>
+    <main>
+      <header><div><p class="eyebrow">LOCAL RUNTIME</p><h1>Good evening, Mike.</h1><p>Mahoraga is running as isolated workers with durable recovery.</p></div><div class="mode"><small>AUTONOMY MODE</small><b id="mode">LOCAL</b></div></header>
+      <section class="hero">
+        <div><p class="eyebrow">SYSTEM STATUS</p><h2 id="health">Starting…</h2><p id="version">Loading the canonical manifest.</p></div>
+        <button id="health-task">Run health task <span>→</span></button>
+      </section>
+      <section class="metrics">
+        <article><small>ACTIVE WORKERS</small><strong id="workers">—</strong><p>Process-isolated and monitored</p></article>
+        <article><small>QUEUED TASKS</small><strong id="queued">—</strong><p>Durable across restarts</p></article>
+        <article><small>AWAITING YOU</small><strong id="improvements">—</strong><p>Improvement candidates</p></article>
+        <article><small>FAILED TASKS</small><strong id="failed">—</strong><p>Recorded for diagnosis</p></article>
+      </section>
+      <section class="grid">
+        <article class="panel"><div class="panel-title"><div><p class="eyebrow">WORKER MESH</p><h3>Runtime agents</h3></div><span id="worker-summary">Checking</span></div><div id="worker-list" class="worker-list"></div></article>
+        <article class="panel"><div class="panel-title"><div><p class="eyebrow">CONNECTIONS</p><h3>External surfaces</h3></div></div><div id="connection-list" class="connection-list"></div></article>
+      </section>
+      <section class="panel tasks"><div class="panel-title"><div><p class="eyebrow">ACTIVITY</p><h3>Recent tasks</h3></div><button id="refresh">Refresh</button></div><div id="task-list"><p class="empty">No tasks yet.</p></div></section>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
