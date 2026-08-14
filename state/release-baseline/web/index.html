@@ -18,6 +18,7 @@
         <button data-view="chat" class="active"><span>◫</span> Chat</button>
         <button data-view="tasks"><span>✓</span> Tasks</button>
         <button data-view="workers"><span>◇</span> Workers</button>
+        <button data-view="capabilities"><span>⌗</span> Capabilities</button>
         <button data-view="connections"><span>⌁</span> Connections</button>
         <button data-view="improvements"><span>✦</span> Improvements</button>
         <button data-view="diagnostics"><span>⌘</span> Diagnostics</button>
@@ -61,6 +62,11 @@
       <section class="page operations-page" data-page="workers">
         <header class="page-header"><div><p>PROCESS SUPERVISOR</p><h1>Workers</h1><span>Probe or restart isolated execution processes.</span></div><button data-refresh>Refresh</button></header>
         <div class="card-grid" id="worker-list"></div>
+      </section>
+
+      <section class="page operations-page" data-page="capabilities">
+        <header class="page-header"><div><p>CAPABILITY ROUTER</p><h1>Capabilities</h1><span>See exactly how Mahoraga chooses tools, permissions, cost, reliability, and fallbacks.</span></div><button data-refresh>Refresh</button></header>
+        <div class="card-grid" id="capability-list"></div>
       </section>
 
       <section class="page operations-page" data-page="connections">

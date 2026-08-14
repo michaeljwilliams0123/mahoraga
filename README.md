@@ -1,4 +1,4 @@
-# Mahoraga 3.2 — Production runtime
+# Mahoraga 3.3 — Target-state release candidate
 
 Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
 the PowerShell/WPF application host with a Node.js supervisor, process-isolated
@@ -12,6 +12,9 @@ suites are source material for later worker migration.
 
 - Canonical `mahoraga.manifest.json` for workers, connections, cost routing, and
   update authority.
+- Explainable capability registry and ranked routing using interface type, live
+  availability, cost, permissions, reliability, attended-desktop requirements,
+  and explicit fallback workers.
 - Localhost-only control server at `http://127.0.0.1:4782`.
 - Permanent supervisor with worker heartbeats, crash restart, bounded retry, and
   durable task leases.

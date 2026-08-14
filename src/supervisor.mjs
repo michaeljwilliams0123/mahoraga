@@ -158,7 +158,7 @@ export class Supervisor extends EventEmitter {
       if (!state.ready || state.busy) continue;
       const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
       if (!task) continue;
-      const route = routeTask(this.manifest, task);
+      const route = routeTask(this.manifest, task, { workerStates: this.status() });
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         this.database.finishTask(task.id, { status: "waiting", errorCode: route.reason ?? "routing-changed" });
         continue;

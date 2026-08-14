@@ -8,6 +8,8 @@ export const MANIFEST_BACKUP_PATH = path.join(ROOT, "state", "last-known-good.ma
 
 const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only"]);
 const COST_CLASSES = new Set(["deterministic", "local-model", "licensed-cloud", "metered-cloud"]);
+const INTERFACE_TYPES = new Set(["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"]);
+const AVAILABILITY_STATES = new Set(["healthy", "busy", "starting", "configured", "disabled"]);
 
 export async function loadManifest(file = MANIFEST_PATH) {
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
@@ -75,6 +77,16 @@ export function validateManifest(value) {
   if (!/^state\/[a-z0-9._/-]+$/i.test(value.repair.baselineDirectory) || value.repair.baselineDirectory.includes("..")) {
     throw new TypeError("Repair baseline must stay inside state/.");
   }
+  if (!isRecord(value.routingPolicy)) throw new TypeError("Routing policy is missing.");
+  if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length !== INTERFACE_TYPES.size ||
+      new Set(value.routingPolicy.interfaceOrder).size !== INTERFACE_TYPES.size || value.routingPolicy.interfaceOrder.some((item) => !INTERFACE_TYPES.has(item))) {
+    throw new TypeError("Routing interface order is invalid.");
+  }
+  if (!Array.isArray(value.routingPolicy.availabilityOrder) || value.routingPolicy.availabilityOrder.length !== AVAILABILITY_STATES.size ||
+      new Set(value.routingPolicy.availabilityOrder).size !== AVAILABILITY_STATES.size || value.routingPolicy.availabilityOrder.some((item) => !AVAILABILITY_STATES.has(item))) {
+    throw new TypeError("Routing availability order is invalid.");
+  }
+  integer(value.routingPolicy.minimumReliability, 0, 100, "routing minimumReliability");
   if (!/^state\/[a-z0-9._-]+\.sqlite$/i.test(value.runtime.database)) throw new TypeError("Database path must stay inside state/.");
   if (!isRecord(value.costModes) || !Array.isArray(value.costModes[value.defaultAutonomyMode])) {
     throw new TypeError("Default autonomy mode is invalid.");
@@ -111,6 +123,17 @@ export function validateManifest(value) {
     integer(worker.concurrency, 1, 16, "worker concurrency");
     capability(worker.healthProbe);
     bounded(worker.executionPlane, 40, "worker execution plane");
+    if (!isRecord(worker.routing) || !INTERFACE_TYPES.has(worker.routing.interfaceType)) throw new TypeError(`Worker ${worker.id} interface type is invalid.`);
+    slug(worker.routing.permissionClass, "worker permission class");
+    integer(worker.routing.reliability, 0, 100, `worker ${worker.id} reliability`);
+    if (typeof worker.routing.requiresAttendedDesktop !== "boolean") throw new TypeError(`Worker ${worker.id} attended desktop flag is invalid.`);
+    if (!Array.isArray(worker.routing.fallbackWorkerIds) || worker.routing.fallbackWorkerIds.length > 8) throw new TypeError(`Worker ${worker.id} fallbacks are invalid.`);
+    worker.routing.fallbackWorkerIds.forEach((item) => slug(item, "fallback worker id"));
+  }
+  for (const worker of value.workers) {
+    if (worker.routing.fallbackWorkerIds.includes(worker.id) || worker.routing.fallbackWorkerIds.some((item) => !ids.has(item))) {
+      throw new TypeError(`Worker ${worker.id} fallback references are invalid.`);
+    }
   }
   if (!Array.isArray(value.connections)) throw new TypeError("Connections must be an array.");
   for (const connection of value.connections) {

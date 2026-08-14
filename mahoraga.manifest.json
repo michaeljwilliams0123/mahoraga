@@ -1,13 +1,14 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.2.0",
+  "version": "3.3.0-rc.1",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.2.0",
-    "controlCenter": "5.0.0",
+    "runtime": "3.3.0-rc.1",
+    "controlCenter": "5.1.0-rc.1",
     "cloudControlPlane": "3.0.1",
+    "capabilityRegistry": "1.0.0",
     "taskSchema": "3",
     "workerContract": "2"
   },
@@ -55,6 +56,11 @@
     "baselineDirectory": "state/release-baseline",
     "coreUpdateAuthority": "user-only"
   },
+  "routingPolicy": {
+    "interfaceOrder": ["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"],
+    "availabilityOrder": ["healthy", "busy", "starting", "configured", "disabled"],
+    "minimumReliability": 60
+  },
   "costModes": {
     "local": ["deterministic", "local-model"],
     "hybrid": ["deterministic", "local-model", "licensed-cloud"],
@@ -73,7 +79,14 @@
       "timeoutMs": 15000,
       "concurrency": 1,
       "healthProbe": "system.health",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "deterministic-worker",
+        "permissionClass": "bounded-local",
+        "reliability": 99,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": []
+      }
     },
     {
       "id": "repository",
@@ -87,7 +100,14 @@
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "repository.status",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "bounded-repository",
+        "reliability": 98,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": []
+      }
     },
     {
       "id": "self-healer",
@@ -101,7 +121,14 @@
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "repair.scan",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "deterministic-worker",
+        "permissionClass": "operational-repair-only",
+        "reliability": 99,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": []
+      }
     },
     {
       "id": "local-reasoner",
@@ -115,7 +142,14 @@
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "reason.local",
-      "executionPlane": "local-model"
+      "executionPlane": "local-model",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "bounded-local-model",
+        "reliability": 80,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": ["lenovo-ai"]
+      }
     },
     {
       "id": "browser",
@@ -129,7 +163,14 @@
       "timeoutMs": 45000,
       "concurrency": 1,
       "healthProbe": "browser.status",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "desktop-automation",
+        "permissionClass": "bounded-browser-session",
+        "reliability": 90,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": ["desktop"]
+      }
     },
     {
       "id": "desktop",
@@ -143,7 +184,14 @@
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "desktop.inspect",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "desktop-automation",
+        "permissionClass": "interactive-desktop",
+        "reliability": 75,
+        "requiresAttendedDesktop": true,
+        "fallbackWorkerIds": []
+      }
     },
     {
       "id": "microsoft365",
@@ -157,7 +205,14 @@
       "timeoutMs": 120000,
       "concurrency": 2,
       "healthProbe": "graph.read",
-      "executionPlane": "licensed-cloud"
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "microsoft-tenant",
+        "reliability": 92,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": ["copilot-studio"]
+      }
     },
     {
       "id": "microsoft-queue",
@@ -171,7 +226,14 @@
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "queue.status",
-      "executionPlane": "licensed-cloud"
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "connector",
+        "permissionClass": "microsoft-tenant-queue",
+        "reliability": 96,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": []
+      }
     },
     {
       "id": "copilot-studio",
@@ -185,7 +247,14 @@
       "timeoutMs": 180000,
       "concurrency": 2,
       "healthProbe": "studio.delegate",
-      "executionPlane": "licensed-cloud"
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "connector",
+        "permissionClass": "microsoft-connected-agent",
+        "reliability": 70,
+        "requiresAttendedDesktop": false,
+        "fallbackWorkerIds": ["microsoft365"]
+      }
     },
     {
       "id": "lenovo-ai",
@@ -199,7 +268,14 @@
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "lenovo.preview",
-      "executionPlane": "local"
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "application-extension",
+        "permissionClass": "device-local",
+        "reliability": 65,
+        "requiresAttendedDesktop": true,
+        "fallbackWorkerIds": ["local-reasoner"]
+      }
     }
   ],
   "connections": [
