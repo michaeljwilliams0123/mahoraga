@@ -6,6 +6,7 @@ export const ESSENTIAL_FILES = [
   "mahoraga.manifest.json",
   "package.json",
   "src/cli.mjs",
+  "src/capability-registry.mjs",
   "src/config.mjs",
   "src/browser-worker.mjs",
   "src/database.mjs",

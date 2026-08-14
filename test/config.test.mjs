@@ -14,6 +14,8 @@ test("canonical manifest defines user-only update authority and localhost runtim
   assert.ok(manifest.workers.some((worker) => worker.id === "browser" && worker.enabled));
   assert.ok(manifest.workers.some((worker) => worker.id === "repository" && worker.enabled));
   assert.deepEqual(manifest.repair.automaticRiskClasses, ["operational"]);
+  assert.equal(manifest.routingPolicy.interfaceOrder[0], "native-api");
+  assert.ok(manifest.workers.every((worker) => worker.routing.reliability >= 0));
 });
 
 test("manifest rejects public listeners and non-user update authority", async () => {
@@ -23,4 +25,10 @@ test("manifest rejects public listeners and non-user update authority", async ()
   manifest.runtime.host = "127.0.0.1";
   manifest.updateAuthority = "automatic";
   assert.throws(() => validateManifest(manifest), /user-only/);
+});
+
+test("manifest rejects unknown routing fallbacks", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers[0].routing.fallbackWorkerIds = ["missing-worker"];
+  assert.throws(() => validateManifest(manifest), /fallback references/);
 });

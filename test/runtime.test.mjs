@@ -16,6 +16,12 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
   await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).workers.some((worker) => ["healthy", "busy"].includes(worker.status)));
+  const status = await (await fetch(`${base}/api/status`)).json();
+  const healthCapability = status.capabilities.find((item) => item.capability === "system.health");
+  assert.equal(healthCapability.permissionClass, "bounded-local");
+  assert.equal(healthCapability.availability, "healthy");
+  assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
+  assert.match(await (await fetch(base)).text(), /data-page="capabilities"/);
   const created = await (await fetch(`${base}/api/tasks`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: `test-${Date.now()}` }),

@@ -89,10 +89,11 @@ export function createControlServer({ manifest, database, supervisor }) {
 
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
+  const workers = supervisor.status();
   return {
     product: manifest.product, version: manifest.version, versions: manifest.versions, phase: manifest.phase,
     environment: manifest.environment, featureFlags: manifest.featureFlags, queue: manifest.queue,
-    updateAuthority: manifest.updateAuthority, autonomyMode: manifest.defaultAutonomyMode,
+    updateAuthority: manifest.updateAuthority, autonomyMode: manifest.defaultAutonomyMode, routingPolicy: manifest.routingPolicy,
     repairPolicy: {
       enabled: manifest.repair.enabled,
       automaticRiskClasses: manifest.repair.automaticRiskClasses,
@@ -101,7 +102,7 @@ export function statusPayload(manifest, database, supervisor) {
     },
     runtime: { host: manifest.runtime.host, port: manifest.runtime.port, healthy: true },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
-    workers: supervisor.status(), capabilities: capabilityIndex(manifest), connections: manifest.connections,
+    workers, capabilities: capabilityIndex(manifest, workers), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
   };

@@ -26,7 +26,7 @@ async function refresh(quiet = true) {
 }
 
 function render() {
-  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderWorkers(); renderConnections(); renderImprovements(); renderDiagnostics();
+  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
 }
 
 function renderRuntime() {
@@ -85,6 +85,14 @@ function taskCard(task) {
 }
 
 function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' · ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} · Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
+
+function renderCapabilityRegistry() {
+  $('capability-list').innerHTML = state.status.capabilities.map((item) => {
+    const runnable = item.enabled && !['crashed', 'hung', 'quarantined', 'stopped', 'disabled'].includes(item.availability);
+    const fallbacks = item.fallbackWorkerIds.length ? item.fallbackWorkerIds.map(label).join(', ') : 'None';
+    return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.interfaceType)} · ${escapeHtml(item.costClass)}</p><h3>${escapeHtml(item.capability)}</h3></div><span class="badge ${escapeHtml(item.availability)}">${escapeHtml(item.availability)}</span></div><p>${escapeHtml(item.workerLabel)} · ${escapeHtml(item.permissionClass)}</p><small>Reliability ${item.reliability}% · ${item.requiresAttendedDesktop ? 'Attended desktop required' : 'Can run unattended'} · Fallback: ${escapeHtml(fallbacks)}</small><div class="card-actions"><button data-capability-action="${escapeHtml(item.capability)}" ${runnable ? '' : 'disabled'}>Run capability</button></div></article>`;
+  }).join('');
+}
 
 function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => { const probe = connection.capabilities.find((capability) => state.status.capabilities.some((item) => item.enabled && item.capability === capability)); return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${connection.error ? 'disabled' : 'ready'}">${escapeHtml(connection.state)}</span></div><p>${escapeHtml(connection.notes || '')}</p><small>Auth: ${escapeHtml(connection.authenticationState)}${connection.lastSuccessfulCheck ? ` · Checked ${formatTime(connection.lastSuccessfulCheck)}` : ''}</small>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe)}">Run ${escapeHtml(probe)}</button>` : '<button disabled>No local probe</button>'}</div></article>`; }).join(''); }
 
