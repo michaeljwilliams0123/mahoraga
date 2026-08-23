@@ -21,6 +21,15 @@ test("task submission is idempotent and durable", (t) => {
   assert.equal(database.listTasks().length, 1);
 });
 
+test("an idempotency key cannot silently alias a different task request", (t) => {
+  const database = databaseFixture(t);
+  database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: "request-identity" });
+  assert.throws(() => database.submitTask({
+    capability: "manifest.validate", dataClass: "synthetic", requestedMode: "local", idempotencyKey: "request-identity",
+  }), /Idempotency key conflicts with a different task request/);
+  assert.equal(database.listTasks().length, 1);
+});
+
 test("expired running tasks recover to queued", (t) => {
   const database = databaseFixture(t);
   const task = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: "recover-me" });

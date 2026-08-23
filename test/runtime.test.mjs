@@ -40,6 +40,27 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.match(completed.resultSummary, /runtime is responsive/);
 });
 
+test("task API retries are idempotent without duplicate conversation side effects", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const idempotencyKey = `api-idempotency-${Date.now()}`;
+  const request = { capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey };
+  const submit = () => fetch(`${base}/api/tasks`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request),
+  });
+  const first = await (await submit()).json();
+  const second = await (await submit()).json();
+  assert.equal(second.task.id, first.task.id);
+  const conversations = await (await fetch(`${base}/api/conversations`)).json();
+  assert.equal(conversations.conversations.length, 1);
+  const conflict = await fetch(`${base}/api/tasks`, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...request, capability: "manifest.validate" }),
+  });
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).error, "idempotency-conflict");
+});
+
 test("improvement decisions fail closed without the candidate-specific approval header", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;

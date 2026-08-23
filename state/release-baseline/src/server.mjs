@@ -26,7 +26,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
-        const correlationId = body.correlationId ?? `pcx-${randomUUID()}`;
+        const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-${randomUUID()}`;
         const task = submitTask(database, manifest, { ...body, correlationId, executionPlane: "primary-codex-local", taskType: body.taskType ?? "primary-codex" });
         return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
       }
@@ -39,7 +39,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/builder") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
-        const correlationId = body.correlationId ?? `pcx-builder-${randomUUID()}`;
+        const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-builder-${randomUUID()}`;
         const task = submitTask(database, manifest, builderIntakeBody(body, correlationId));
         const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: body.authoritySessionId ?? null });
         return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "prepared", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment prepared; direct execution remains disabled." }), task });
@@ -112,6 +112,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       }
       json(response, 404, { error: "not-found" });
     } catch (error) {
+      if (error?.code === "idempotency-conflict") return json(response, 409, { error: "idempotency-conflict" });
       json(response, 400, { error: classify(error) });
     }
   });
@@ -140,10 +141,15 @@ export function statusPayload(manifest, database, supervisor) {
 }
 
 function submitTask(database, manifest, body) {
-  const conversationId = body.conversationId === false ? null : body.conversationId ?? database.createConversation({
-    title: body.requestedOutcome ?? body.capability,
-    initialMessage: body.initialMessage ?? `Run ${body.capability}`,
-  }).id;
+  const existing = body.idempotencyKey ? database.getTaskByIdempotencyKey(body.idempotencyKey) : null;
+  let conversationId;
+  if (body.conversationId === false) conversationId = null;
+  else if (body.conversationId !== undefined) conversationId = body.conversationId;
+  else if (existing) conversationId = existing.conversationId;
+  else conversationId = database.createConversation({
+      title: body.requestedOutcome ?? body.capability,
+      initialMessage: body.initialMessage ?? `Run ${body.capability}`,
+    }).id;
   return database.submitTask({
     capability: body.capability, dataClass: body.dataClass ?? "synthetic",
     requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
