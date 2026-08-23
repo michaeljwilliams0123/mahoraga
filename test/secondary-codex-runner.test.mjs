@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import path from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import os from "node:os";
 import {
   SECONDARY_CODEX_ARGS,
+  SecondaryCodexRunner,
   assertChangedPathsAllowed,
   buildSecondaryCodexPrompt,
+  codexSubscriptionEnvironment,
   parsePorcelainPaths,
   projectForAssignment,
   validateSecondaryRunnerConfig,
@@ -26,7 +31,7 @@ const config = () => ({
   projects: [{
     taskArea: "side-project-alpha",
     repository: "https://github.com/example/side-project.git",
-    checkout: "C:\\Projects\\side-project",
+    checkout: path.resolve("side-project"),
     defaultBranch: "main",
     allowedPaths: ["src", "test", "docs"],
     maxRuntimeMinutes: 60,
@@ -60,4 +65,45 @@ test("actual changed paths include both sides of a rename and enforce the allowl
 test("Codex automation is ephemeral and workspace-write bounded", () => {
   assert.deepEqual(SECONDARY_CODEX_ARGS, ["exec", "--sandbox", "workspace-write", "--ephemeral"]);
   assert.equal(SECONDARY_CODEX_ARGS.includes("danger-full-access"), false);
+});
+
+test("Codex execution cannot inherit API keys or credential-like environment values", () => {
+  assert.deepEqual(codexSubscriptionEnvironment({
+    PATH: "C:\\Tools",
+    USERPROFILE: "C:\\Users\\operator",
+    OPENAI_API_KEY: "separate-billing",
+    CODEX_API_KEY: "separate-billing",
+    GITHUB_TOKEN: "repository-secret",
+    GH_PAT: "repository-secret",
+    AWS_ACCESS_KEY_ID: "cloud-secret",
+    SSH_PRIVATE_KEY: "private-key",
+    CHATGPT_SESSION: "web-session",
+    SERVICE_PASSWORD: "personal-secret",
+  }), {
+    PATH: "C:\\Tools",
+    USERPROFILE: "C:\\Users\\operator",
+  });
+});
+
+test("the runner binds the immutable assignment before model execution", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-runner-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const calls = [];
+  const run = async (command, args, options) => {
+    calls.push({ command, args, options });
+    if (command === "git" && args.includes("status")) return { stdout: "", stderr: "" };
+    if (command === "git" && args.includes("rev-parse")) return { stdout: "1234567890abcdef\n", stderr: "" };
+    return { stdout: "", stderr: "" };
+  };
+  const runner = new SecondaryCodexRunner({ root, run, now: () => new Date("2026-08-23T00:00:00.000Z") });
+  const record = assignment();
+  const project = config().projects[0];
+  const result = await runner.executeAssignment(record, project, 1);
+  assert.equal(result.returnCommit, "1234567890abcdef");
+  const worktree = path.join(root, "state", "secondary-worktrees", `${record.assignmentId}-attempt-1`);
+  const stored = JSON.parse(await readFile(path.join(worktree, "coordination", "assignments", `${record.assignmentId}.json`), "utf8"));
+  assert.deepEqual(stored, record);
+  const bindCommit = calls.findIndex(({ args }) => args?.includes(`[SECONDARY] Bind ${record.assignmentId} assignment`));
+  const codex = calls.findIndex(({ command }) => command === "codex");
+  assert.ok(bindCommit >= 0 && bindCommit < codex);
 });

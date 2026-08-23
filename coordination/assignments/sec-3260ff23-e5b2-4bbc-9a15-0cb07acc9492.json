@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-3260ff23-e5b2-4bbc-9a15-0cb07acc9492",
+  "correlationId": "sec-3260ff23-e5b2-4bbc-9a15-0cb07acc9492",
+  "title": "Activate bidirectional Codex controllership",
+  "taskArea": "secondary-connectivity",
+  "expectedTask": "Synchronize the plugin-connected local Codex to this immutable base, run node src/cli.mjs validate, node scripts/coordination.mjs validate, and node --test --test-isolation=none, then return only the bounded generated result record through the outbound runner. Do not modify application code, repository settings, credentials, chats, or unrelated context.",
+  "expectedBaseCommit": "dca2e27a4680931ea36fc482e3ecaa1f3939d196",
+  "returnBranch": "secondary/sec-3260ff23-e5b2-4bbc-9a15-0cb07acc9492",
+  "allowedPaths": [
+    "coordination/results"
+  ],
+  "createdBy": "secondary-codex",
+  "assignedTo": "main-codex",
+  "createdAt": "2026-08-23T06:58:11.416Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}

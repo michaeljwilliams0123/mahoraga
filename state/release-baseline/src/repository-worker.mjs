@@ -3,6 +3,7 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 import { validateManifest } from "./config.mjs";
+import { validateActualChanges, validateAssignmentRecord, validateResultRecord } from "./coordination-records.mjs";
 
 const GIT = process.env.MAHORAGA_GIT_EXECUTABLE || "git";
 
@@ -66,32 +67,54 @@ export async function executeRepositoryCapability(capability, task = {}) {
   throw new Error("unsupported-capability");
 }
 
-async function validateSecondaryReturn({ assignmentId, expectedBaseCommit, returnCommit }) {
+async function validateSecondaryReturn({ assignmentId, expectedBaseCommit, returnCommit: branchHead }) {
   try {
     const remoteHead = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin", `refs/heads/secondary/${assignmentId}`], 30000);
-    if (remoteHead.stdout.trim().split(/\s+/)[0]?.toLowerCase() !== returnCommit) throw new Error("secondary-return-head-changed");
+    if (remoteHead.stdout.trim().split(/\s+/)[0]?.toLowerCase() !== branchHead) throw new Error("secondary-return-head-changed");
     await run(GIT, ["-C", ROOT, "fetch", "--no-tags", "--no-write-fetch-head", "origin", `refs/heads/secondary/${assignmentId}`], 30000);
-    await run(GIT, ["-C", ROOT, "cat-file", "-e", `${returnCommit}^{commit}`], 15000);
-    await run(GIT, ["-C", ROOT, "merge-base", "--is-ancestor", expectedBaseCommit, returnCommit], 15000);
-    await run(GIT, ["-C", ROOT, "diff", "--check", `${expectedBaseCommit}..${returnCommit}`], 30000);
-    const changed = await run(GIT, ["-C", ROOT, "diff", "--name-only", `${expectedBaseCommit}..${returnCommit}`], 30000);
-    const changedFiles = changed.stdout.split(/\r?\n/).filter(Boolean);
+    await run(GIT, ["-C", ROOT, "cat-file", "-e", `${branchHead}^{commit}`], 15000);
+    await run(GIT, ["-C", ROOT, "merge-base", "--is-ancestor", expectedBaseCommit, branchHead], 15000);
+    await run(GIT, ["-C", ROOT, "diff", "--check", `${expectedBaseCommit}..${branchHead}`], 30000);
+    const mailbox = await mailboxReturn({ assignmentId, expectedBaseCommit, branchHead });
+    const changed = await run(GIT, ["-C", ROOT, "diff", "--name-only", `${expectedBaseCommit}..${branchHead}`], 30000);
+    const changedFiles = mailbox?.changedFiles ?? changed.stdout.split(/\r?\n/).filter(Boolean);
     if (changedFiles.length > 128) throw new Error("secondary-changed-file-limit-exceeded");
-    const manifestSource = await run(GIT, ["-C", ROOT, "show", `${returnCommit}:mahoraga.manifest.json`], 30000);
+    const manifestSource = await run(GIT, ["-C", ROOT, "show", `${branchHead}:mahoraga.manifest.json`], 30000);
     validateManifest(JSON.parse(manifestSource.stdout));
     return {
       verified: true,
-      summary: `Secondary return ${returnCommit.slice(0, 12)} verified against base ${expectedBaseCommit.slice(0, 12)}; ${changedFiles.length} changed file(s).`,
+      summary: `Secondary return ${branchHead.slice(0, 12)} verified against base ${expectedBaseCommit.slice(0, 12)}; ${changedFiles.length} implementation file(s)${mailbox ? " with strict mailbox binding" : ""}.`,
       secondaryValidation: assignmentId,
       changedFiles: changedFiles.slice(0, 128),
     };
   } catch {
     return {
       verified: false,
-      summary: `Secondary return ${returnCommit.slice(0, 12)} failed deterministic commit validation against base ${expectedBaseCommit.slice(0, 12)}.`,
+      summary: `Secondary return ${branchHead.slice(0, 12)} failed deterministic commit validation against base ${expectedBaseCommit.slice(0, 12)}.`,
       secondaryValidation: assignmentId,
     };
   }
+}
+
+async function mailboxReturn({ assignmentId, expectedBaseCommit, branchHead }) {
+  const assignmentPath = `coordination/assignments/${assignmentId}.json`;
+  let localSource;
+  try { localSource = await readFile(path.join(ROOT, assignmentPath), "utf8"); }
+  catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+  const assignment = validateAssignmentRecord(JSON.parse(localSource));
+  if (assignment.expectedBaseCommit !== expectedBaseCommit) throw new Error("secondary-mailbox-base-conflict");
+  const branchAssignment = validateAssignmentRecord(JSON.parse((await run(GIT, ["-C", ROOT, "show", `${branchHead}:${assignmentPath}`], 30000)).stdout));
+  if (JSON.stringify(branchAssignment) !== JSON.stringify(assignment)) throw new Error("secondary-mailbox-assignment-changed");
+  const resultPath = `coordination/results/${assignmentId}.json`;
+  const result = validateResultRecord(JSON.parse((await run(GIT, ["-C", ROOT, "show", `${branchHead}:${resultPath}`], 30000)).stdout), assignment);
+  await run(GIT, ["-C", ROOT, "cat-file", "-e", `${result.returnCommit}^{commit}`], 15000);
+  await run(GIT, ["-C", ROOT, "merge-base", "--is-ancestor", expectedBaseCommit, result.returnCommit], 15000);
+  await run(GIT, ["-C", ROOT, "merge-base", "--is-ancestor", result.returnCommit, branchHead], 15000);
+  const implementation = (await run(GIT, ["-C", ROOT, "diff", "--name-only", `${expectedBaseCommit}..${result.returnCommit}`], 30000)).stdout.split(/\r?\n/).filter(Boolean);
+  const changedFiles = validateActualChanges(implementation, result, assignment, [assignmentPath]);
+  const metadata = (await run(GIT, ["-C", ROOT, "diff", "--name-only", `${result.returnCommit}..${branchHead}`], 30000)).stdout.split(/\r?\n/).filter(Boolean);
+  if (metadata.length !== 1 || metadata[0] !== resultPath) throw new Error("secondary-mailbox-result-commit-not-isolated");
+  return { changedFiles };
 }
 
 export function secondaryValidationContext(task) {

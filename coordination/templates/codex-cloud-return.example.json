@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-12345678-1234-1234-1234-123456789abc",
+  "idempotencyKey": "mahoraga-private-bridge-v1",
+  "state": "completed",
+  "issueNumber": 1,
+  "pullRequestNumber": 2,
+  "baseCommit": "91b48883f97e3551553b3545beed9cc83dec26dc",
+  "headCommit": "1234567890abcdef1234567890abcdef12345678",
+  "changedFiles": [
+    "src/example.mjs",
+    "test/example.test.mjs"
+  ],
+  "verification": [
+    "npm run verify"
+  ],
+  "summary": "Implemented and verified the bounded repository change.",
+  "completedAt": "2026-08-23T00:30:00.000Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}

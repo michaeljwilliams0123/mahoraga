@@ -105,6 +105,24 @@ export function pathAllowed(file, allowedPaths) {
   return allowedPaths.some((allowed) => file === allowed || file.startsWith(`${allowed}/`));
 }
 
+export function validateActualChanges(actualFiles, result, assignment, protocolFiles = []) {
+  const expected = validateAssignmentRecord(assignment);
+  const returned = validateResultRecord(result, expected);
+  paths(actualFiles, 256, "actual changed files", true);
+  paths(protocolFiles, 4, "coordination protocol files", true);
+  const protocol = new Set(protocolFiles);
+  const implementationFiles = actualFiles.filter((file) => !protocol.has(file));
+  for (const file of implementationFiles) if (!pathAllowed(file, expected.allowedPaths)) {
+    throw new TypeError(`Actual changed file is outside assignment scope: ${file}`);
+  }
+  const actual = [...implementationFiles].sort();
+  const claimed = [...returned.changedFiles].sort();
+  if (actual.length !== claimed.length || actual.some((file, index) => file !== claimed[index])) {
+    throw new TypeError("Result changed files do not match the actual Git diff.");
+  }
+  return Object.freeze(actual);
+}
+
 function exactRecord(value, keys, label) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError(`Coordination ${label} must be an object.`);
   for (const key of Object.keys(value)) if (!keys.has(key)) throw new TypeError(`Coordination ${label} field is not allowed: ${key}`);
