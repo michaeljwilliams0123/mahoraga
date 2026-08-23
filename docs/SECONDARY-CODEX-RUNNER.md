@@ -32,6 +32,12 @@ analysis as long as the expected work and allowed paths are explicit.
   secondary machine's narrower-or-equal project allowlist before any push.
 - Retries are bounded, overlapping runs are suppressed by Task Scheduler, and
   only `secondary/<assignment-id>` may be pushed.
+- Every poll records a bounded timestamp and outcome in ignored local runtime
+  state. The Control Center Coordination view exposes only that sanitized
+  heartbeat, never the configured checkout path or a credential.
+- Each execution uses a unique isolated worktree path, so an interrupted clone
+  cannot poison a later attempt. An operator may explicitly re-arm one exhausted
+  assignment without editing the state file.
 
 ## One-time activation on the secondary PC
 
@@ -80,4 +86,9 @@ Run an immediate poll or inspect bounded status with:
 ```powershell
 node .\scripts\secondary-codex-runner.mjs run-once
 node .\scripts\secondary-codex-runner.mjs status
+node .\scripts\secondary-codex-runner.mjs retry --id "sec-..."
 ```
+
+`retry` fails closed if the assignment is unknown, outside a registered task
+area, or already has a remote return branch. It clears only the selected local
+attempt record; the immutable GitHub assignment is unchanged.

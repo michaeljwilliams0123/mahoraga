@@ -10,11 +10,13 @@ const options = parseOptions(tokens);
 if (command === "configure") await configure();
 else if (command === "status") await status();
 else if (command === "run-once") await runOnce();
+else if (command === "retry") await retry();
 else {
   console.log(`Usage:
   node scripts/secondary-codex-runner.mjs configure --task-area <slug> --repository <github-https-url> --checkout <absolute-path> --allowed-paths <csv> [--default-branch main] [--max-runtime-minutes 60] [--enabled true]
   node scripts/secondary-codex-runner.mjs status
-  node scripts/secondary-codex-runner.mjs run-once`);
+  node scripts/secondary-codex-runner.mjs run-once
+  node scripts/secondary-codex-runner.mjs retry --id <sec-id>`);
 }
 
 async function configure() {
@@ -48,6 +50,10 @@ async function runOnce() {
   const result = await new SecondaryCodexRunner().runOnce();
   console.log(JSON.stringify(result, null, 2));
   if (result.status === "failed" || result.status === "unavailable") process.exitCode = 1;
+}
+
+async function retry() {
+  console.log(JSON.stringify(await new SecondaryCodexRunner().retry(required("id")), null, 2));
 }
 
 async function loadOptionalConfig() {
