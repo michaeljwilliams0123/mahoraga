@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 import { capabilityIndex } from "./router.mjs";
+import { randomUUID } from "node:crypto";
+import { bearerMatches } from "./local-auth.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -13,13 +15,20 @@ const STATIC = new Map([
   ["/control.css", ["control.css", "text/css; charset=utf-8"]],
 ]);
 
-export function createControlServer({ manifest, database, supervisor }) {
+export function createControlServer({ manifest, database, supervisor, primaryCodexToken }) {
   return createServer(async (request, response) => {
     try {
       setHeaders(response);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && STATIC.has(url.pathname)) return staticFile(response, ...STATIC.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        const correlationId = body.correlationId ?? `pcx-${randomUUID()}`;
+        const task = submitTask(database, manifest, { ...body, correlationId, executionPlane: "primary-codex-local", taskType: body.taskType ?? "primary-codex" });
+        return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
+      }
       if (request.method === "GET" && url.pathname === "/api/tasks") return json(response, 200, { tasks: database.listTasks() });
       if (request.method === "GET" && url.pathname === "/api/events") return json(response, 200, { events: database.listEvents() });
       if (request.method === "GET" && url.pathname === "/api/improvements") return json(response, 200, { improvements: database.listImprovements() });
@@ -39,18 +48,7 @@ export function createControlServer({ manifest, database, supervisor }) {
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
-        const conversationId = body.conversationId ?? database.createConversation({
-          title: body.requestedOutcome ?? body.capability,
-          initialMessage: body.initialMessage ?? `Run ${body.capability}`,
-        }).id;
-        const task = database.submitTask({
-          capability: body.capability, dataClass: body.dataClass ?? "synthetic",
-          requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
-          correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
-          executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
-          maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts,
-          conversationId,
-        });
+        const task = submitTask(database, manifest, body);
         return json(response, 202, { task });
       }
       const taskInput = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/input$/);
@@ -99,12 +97,26 @@ export function statusPayload(manifest, database, supervisor) {
       coreUpdateAuthority: manifest.repair.coreUpdateAuthority,
       scanIntervalMs: manifest.repair.scanIntervalMs,
     },
-    runtime: { host: manifest.runtime.host, port: manifest.runtime.port, healthy: true },
+    runtime: { host: manifest.runtime.host, port: manifest.runtime.port, ...supervisor.health() },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
     workers: supervisor.status(), capabilities: capabilityIndex(manifest), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
   };
+}
+
+function submitTask(database, manifest, body) {
+  const conversationId = body.conversationId ?? database.createConversation({
+    title: body.requestedOutcome ?? body.capability,
+    initialMessage: body.initialMessage ?? `Run ${body.capability}`,
+  }).id;
+  return database.submitTask({
+    capability: body.capability, dataClass: body.dataClass ?? "synthetic",
+    requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
+    correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
+    executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
+    maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts, conversationId,
+  });
 }
 
 function setHeaders(response) {

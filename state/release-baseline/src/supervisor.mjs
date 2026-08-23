@@ -8,11 +8,12 @@ const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database }) {
-    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.lastRepairBucket = null; this.lastQueueBucket = null;
+    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null;
   }
 
   start() {
     this.stopping = false;
+    this.startedAt = new Date().toISOString();
     for (const definition of this.manifest.workers.filter((item) => item.enabled)) this.#spawn(definition);
     this.database.recoverExpired();
     this.#scheduleAutomaticRepair();
@@ -25,6 +26,7 @@ export class Supervisor extends EventEmitter {
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.startedAt = null;
     for (const state of this.workers.values()) {
       if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-stopping");
       state.process.send?.({ type: "shutdown" });
@@ -40,6 +42,16 @@ export class Supervisor extends EventEmitter {
       currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
       timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities,
     }));
+  }
+
+  health(now = Date.now()) {
+    const enabled = this.manifest.workers.filter((worker) => worker.enabled);
+    const workers = this.status();
+    const unhealthy = enabled.filter((definition) => {
+      const state = workers.find((worker) => worker.workerId === definition.id);
+      return !state || !["healthy", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
+    }).map((worker) => worker.id);
+    return { supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt, healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0, unhealthyWorkers: unhealthy };
   }
 
   restartWorker(workerId) {

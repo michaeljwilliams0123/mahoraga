@@ -1,6 +1,7 @@
 state/*.sqlite*
 state/*.pid
 state/*.log
+state/*.token
 state/last-known-good.manifest.json
 state/browser-profile/
 state/cache/

@@ -3,13 +3,15 @@ import { loadManifest, ROOT } from "./config.mjs";
 import { RuntimeDatabase } from "./database.mjs";
 import { Supervisor } from "./supervisor.mjs";
 import { createControlServer } from "./server.mjs";
+import { loadPrimaryCodexToken } from "./local-auth.mjs";
 
 export async function startRuntime({ port, databaseFile } = {}) {
   const manifest = await loadManifest();
   const database = new RuntimeDatabase(databaseFile ?? path.join(ROOT, manifest.runtime.database));
   const supervisor = new Supervisor({ manifest, database });
+  const primaryCodexToken = await loadPrimaryCodexToken();
   supervisor.start();
-  const server = createControlServer({ manifest, database, supervisor });
+  const server = createControlServer({ manifest, database, supervisor, primaryCodexToken });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port ?? manifest.runtime.port, manifest.runtime.host, resolve);

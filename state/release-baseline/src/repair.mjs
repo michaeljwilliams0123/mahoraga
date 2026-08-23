@@ -1,4 +1,4 @@
-import { copyFile, mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 
@@ -7,6 +7,7 @@ export const ESSENTIAL_FILES = [
   "package.json",
   "src/cli.mjs",
   "src/config.mjs",
+  "src/local-auth.mjs",
   "src/browser-worker.mjs",
   "src/database.mjs",
   "src/microsoft-queue-worker.mjs",
@@ -42,18 +43,18 @@ export async function scanRepairState(manifest) {
 export async function applyAutomaticRepairs(manifest) {
   await Promise.all(["state", "state/cache", "state/checkpoints", "state/repairs"].map((relative) => mkdir(path.join(ROOT, relative), { recursive: true })));
   const baselineRoot = path.join(ROOT, manifest.repair.baselineDirectory);
-  const repaired = [];
+  const staged = [];
   const unresolved = [];
   for (const relative of ESSENTIAL_FILES) {
     const live = path.join(ROOT, relative);
     const baseline = path.join(baselineRoot, relative);
     if (await healthyFile(live)) continue;
     if (!(await healthyFile(baseline))) { unresolved.push(relative); continue; }
-    await mkdir(path.dirname(live), { recursive: true });
-    await copyFile(baseline, live);
-    repaired.push(relative);
+    const candidate = path.join(ROOT, "state", "repairs", `core-${Date.now()}-${relative.replace(/[\\/]/g, "_")}.json`);
+    await writeFile(candidate, JSON.stringify({ kind: "core-source-repair", relative, baseline: path.relative(ROOT, baseline), stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: manifest.repair.coreUpdateAuthority }, null, 2));
+    staged.push(relative);
   }
-  return { verified: unresolved.length === 0, repaired, unresolved, summary: `Operational self-repair completed: ${repaired.length} restored, ${unresolved.length} unresolved.` };
+  return { verified: unresolved.length === 0, repaired: [], staged, unresolved, summary: `Operational repair completed; ${staged.length} core repair candidate(s) staged for explicit activation and ${unresolved.length} unresolved.` };
 }
 
 async function healthyFile(file) {

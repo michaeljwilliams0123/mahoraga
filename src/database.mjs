@@ -77,9 +77,19 @@ export class RuntimeDatabase {
         created_at TEXT NOT NULL,
         FOREIGN KEY(conversation_id) REFERENCES conversations(id)
       );
+      CREATE TABLE IF NOT EXISTS execution_receipts (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        correlation_id TEXT NOT NULL,
+        phase TEXT NOT NULL,
+        verifier TEXT NOT NULL,
+        summary TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
     `);
     this.#ensureTaskColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
@@ -278,6 +288,7 @@ export class RuntimeDatabase {
       WHERE id=? AND status IN ('running','verifying')`).run(status, resultSummary, errorCode, now, id);
     if (changed.changes === 1) {
       this.#event(`task.${status}`, id, { errorCode });
+      this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.` });
       if (task?.conversationId) {
         const content = status === "completed"
           ? (resultSummary ?? "Task completed and verified.")
@@ -289,6 +300,16 @@ export class RuntimeDatabase {
       }
     }
     return this.getTask(id);
+  }
+
+  recordReceipt({ task, phase, verifier, summary }) {
+    if (!task) throw new TypeError("Task is required for a receipt.");
+    bounded(phase, 40, "receipt phase"); bounded(verifier, 80, "receipt verifier"); bounded(summary, 2000, "receipt summary");
+    const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
+    this.db.prepare("INSERT INTO execution_receipts(id,task_id,correlation_id,phase,verifier,summary,created_at) VALUES(?,?,?,?,?,?,?)")
+      .run(id, task.id, task.correlationId, phase, verifier, summary, createdAt);
+    this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase, verifier });
+    return { id, taskId: task.id, correlationId: task.correlationId, phase, verifier, summary, createdAt };
   }
 
   recoverExpired(now = new Date()) {

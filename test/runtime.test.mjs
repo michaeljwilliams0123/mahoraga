@@ -5,11 +5,18 @@ import path from "node:path";
 import os from "node:os";
 import { startRuntime } from "../src/runtime.mjs";
 import { normalizeSummary } from "../src/supervisor.mjs";
+import { bearerMatches } from "../src/local-auth.mjs";
 
 test("worker receipts are bounded to a safe single line before persistence", () => {
   const summary = normalizeSummary(`passed\n${"verified ".repeat(400)}`);
   assert.equal(/[\r\n]/.test(summary), false);
   assert.ok(summary.length <= 2000);
+});
+
+test("Primary Codex intake bearer comparison fails closed", () => {
+  assert.equal(bearerMatches({ headers: {} }, "x".repeat(32)), false);
+  assert.equal(bearerMatches({ headers: { authorization: `Bearer ${"x".repeat(32)}` } }, "x".repeat(32)), true);
+  assert.equal(bearerMatches({ headers: { authorization: "Bearer wrong" } }, "x".repeat(32)), false);
 });
 
 test("runtime serves the cockpit API and completes a health task", async (t) => {

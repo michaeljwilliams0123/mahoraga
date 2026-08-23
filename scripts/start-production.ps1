@@ -16,21 +16,6 @@ if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
 
 New-Item -ItemType Directory -Path $state -Force | Out-Null
 
-$baseline = Join-Path $state 'release-baseline'
-if (Test-Path -LiteralPath $baseline -PathType Container) {
-    Get-ChildItem -LiteralPath $baseline -File -Recurse | ForEach-Object {
-        $relative = $_.FullName.Substring($baseline.Length).TrimStart([IO.Path]::DirectorySeparatorChar)
-        $destination = Join-Path $root $relative
-        $needsRestore = -not (Test-Path -LiteralPath $destination -PathType Leaf)
-        if (-not $needsRestore) { $needsRestore = (Get-Item -LiteralPath $destination).Length -eq 0 }
-        if ($needsRestore) {
-            $parent = Split-Path -Parent $destination
-            New-Item -ItemType Directory -Path $parent -Force | Out-Null
-            Copy-Item -LiteralPath $_.FullName -Destination $destination -Force
-        }
-    }
-}
-
 try {
     $existing = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
     if ($existing.product -eq 'Mahoraga') {
