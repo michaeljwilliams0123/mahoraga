@@ -7,11 +7,13 @@ export function workspaceAgentCredentialState(worker, env = process.env) {
   const adapter = requireAdapter(worker);
   const accessToken = env[adapter.accessTokenEnvironmentVariable];
   const triggerId = env[adapter.triggerIdEnvironmentVariable];
-  const accessTokenConfigured = typeof accessToken === "string" && accessToken.length >= 20;
+  const platformApiKeyRejected = typeof accessToken === "string" && /^sk-/i.test(accessToken);
+  const accessTokenConfigured = typeof accessToken === "string" && accessToken.length >= 20 && !platformApiKeyRejected;
   const triggerIdConfigured = typeof triggerId === "string" && /^agtch_[A-Za-z0-9_-]{3,160}$/.test(triggerId);
   return {
     ready: accessTokenConfigured && triggerIdConfigured,
     accessTokenConfigured,
+    platformApiKeyRejected,
     triggerIdConfigured,
     responseRetrievalAvailable: false,
     resultTransport: "github-secondary-branch",
@@ -64,8 +66,10 @@ export async function executeWorkspaceAgentCapability(capability, task, worker, 
     return {
       verified: credentials.ready,
       summary: credentials.ready
-        ? "Workspace Agent trigger credentials are configured; a live trigger is still required to prove entitlement and execution."
-        : "Workspace Agent cloud lane is staged but disabled until AGENT_ACCESS_TOKEN and WORKSPACE_AGENT_TRIGGER_ID are stored securely.",
+        ? "Workspace-Agent-scoped trigger credentials are configured; a live trigger is still required to prove workspace entitlement and execution."
+        : credentials.platformApiKeyRejected
+          ? "Workspace Agent cloud lane rejected an OpenAI Platform API key; configure a Workspace-Agent-scoped access token from the ChatGPT workspace admin flow."
+          : "Workspace Agent cloud lane is staged but disabled until an admin-provisioned AGENT_ACCESS_TOKEN and WORKSPACE_AGENT_TRIGGER_ID are stored securely.",
       providerHealth: credentials,
     };
   }
