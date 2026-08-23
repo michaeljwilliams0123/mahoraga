@@ -1,0 +1,20 @@
+#!/bin/sh
+zero=0000000000000000000000000000000000000000
+
+while read local_ref local_sha remote_ref remote_sha
+do
+  case "$remote_ref" in
+    refs/heads/main|refs/heads/agent/mahoraga-3-1-production-workers)
+      if [ "$local_sha" = "$zero" ]; then
+        echo "Mahoraga history guard: protected branch deletion is blocked." >&2
+        exit 1
+      fi
+      if [ "$remote_sha" != "$zero" ] && ! git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+        echo "Mahoraga history guard: non-fast-forward updates are blocked." >&2
+        exit 1
+      fi
+      ;;
+  esac
+done
+
+exit 0

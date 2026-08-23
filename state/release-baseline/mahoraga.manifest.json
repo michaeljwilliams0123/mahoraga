@@ -41,6 +41,7 @@
   "featureFlags": {
     "browserWorker": true,
     "repositoryWorker": true,
+    "githubCopilotWorker": false,
     "desktopWorker": false,
     "microsoftQueueWorker": false,
     "authenticatedExecutionPlane": false,
@@ -185,6 +186,42 @@
         "latencyMs": 500,
         "maximumWorkload": 1,
         "fallbackWorkerIds": ["desktop"]
+      }
+    },
+    {
+      "id": "github-copilot",
+      "label": "GitHub Copilot CLI",
+      "version": "1.0.80",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": ["synthetic"],
+      "capabilities": ["copilot.health", "copilot.execute"],
+      "acceptedTaskTypes": ["copilot"],
+      "timeoutMs": 300000,
+      "concurrency": 1,
+      "healthProbe": "copilot.health",
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "bounded-copilot-cli",
+        "reliability": 85,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "github-copilot-cli",
+        "executable": "copilot",
+        "workingDirectory": ".",
+        "allowedPaths": ["src", "test", "docs", "scripts", "package.json", "mahoraga.manifest.json"],
+        "allowedTools": ["read", "search", "write", "shell(git status)", "shell(git diff)", "shell(npm run verify)", "shell(npm test)"],
+        "remoteSession": false,
+        "remoteExport": false,
+        "disableBuiltinMcps": true,
+        "disallowTempDir": true,
+        "maxOutputBytes": 32768
       }
     },
     {
@@ -352,6 +389,17 @@
       "latencyMs": null,
       "error": "no-supported-programmatic-interface-verified",
       "notes": "The supplied Lenovo link is a device user guide, not a supported AI automation API."
+    },
+    {
+      "id": "github-copilot-cli",
+      "state": "installed-auth-unverified-quota-exhausted",
+      "endpointClass": "local-cli-provider",
+      "authenticationState": "unverified",
+      "capabilities": ["copilot.health", "copilot.execute"],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "live-ai-request-not-performed-monthly-quota-exhausted",
+      "notes": "The bounded CLI adapter is disabled until an operator verifies authentication and quota with an approved live task. It fixes the repository working directory, disables remote session/export and built-in MCPs, disallows temporary directories, and uses an explicit tool allowlist."
     },
     {
       "id": "chrome-devtools",

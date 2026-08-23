@@ -7,6 +7,7 @@ export const ESSENTIAL_FILES = [
   "package.json",
   "src/cli.mjs",
   "src/capability-registry.mjs",
+  "src/copilot-worker.mjs",
   "src/config.mjs",
   "src/local-auth.mjs",
   "src/browser-worker.mjs",

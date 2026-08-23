@@ -20,13 +20,23 @@ export async function executeRepositoryCapability(capability) {
     return { verified: true, summary: result.stdout.trim() || "Repository has no commits yet.", exitCode: result.exitCode };
   }
   if (capability === "repository.remote") {
-    const [head, branch, remote] = await Promise.all([
+    const [head, branch, remote, commit] = await Promise.all([
       run(GIT, ["-C", ROOT, "rev-parse", "HEAD"], 15000),
       run(GIT, ["-C", ROOT, "branch", "--show-current"], 15000),
       run(GIT, ["-C", ROOT, "remote", "-v"], 15000),
+      run(GIT, ["-C", ROOT, "log", "-1", "--pretty=format:%H%x00%s"], 15000),
     ]);
     const remotes = remote.stdout.trim() ? remote.stdout.trim().split(/\r?\n/) : [];
-    return { verified: true, summary: remotes.length ? `Repository remote state captured for ${branch.stdout.trim()}.` : `Repository ${branch.stdout.trim()} has no configured remote.`, head: head.stdout.trim(), branch: branch.stdout.trim(), remotes };
+    const [commitId, subject = ""] = commit.stdout.split("\u0000");
+    const attribution = subject.match(/^\[(PRIMARY|COPILOT|SECONDARY)\]/)?.[1] ?? "UNATTRIBUTED";
+    let remoteHeads = {};
+    if (remotes.length) {
+      const remoteState = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin"], 30000);
+      remoteHeads = Object.fromEntries(remoteState.stdout.trim().split(/\r?\n/).filter(Boolean).map((line) => { const [sha, ref] = line.split(/\s+/); return [ref, sha]; }));
+    }
+    const localHead = head.stdout.trim(); const mainHead = remoteHeads["refs/heads/main"] ?? null;
+    const sync = mainHead === null ? "unpublished" : mainHead === localHead ? "synchronized" : "diverged-or-branch-specific";
+    return { verified: true, summary: remotes.length ? `Repository remote state captured for ${branch.stdout.trim()}; main is ${sync}.` : `Repository ${branch.stdout.trim()} has no configured remote.`, head: localHead, branch: branch.stdout.trim(), remotes, remoteHeads, mainHead, sync, commit: { id: commitId, subject, attribution } };
   }
   if (capability === "repository.verify") {
     const validation = await run(process.execPath, ["src/cli.mjs", "validate"], 30000, ROOT);

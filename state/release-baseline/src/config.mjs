@@ -131,6 +131,7 @@ export function validateManifest(value) {
     integer(worker.routing.maximumWorkload, 1, 16, `worker ${worker.id} workload`);
     if (!Array.isArray(worker.routing.fallbackWorkerIds) || worker.routing.fallbackWorkerIds.length > 8) throw new TypeError(`Worker ${worker.id} fallbacks are invalid.`);
     worker.routing.fallbackWorkerIds.forEach((item) => slug(item, "fallback worker id"));
+    if (worker.adapter !== undefined) validateAdapter(worker.adapter, worker.id);
   }
   for (const worker of value.workers) {
     if (worker.routing.fallbackWorkerIds.includes(worker.id) || worker.routing.fallbackWorkerIds.some((item) => !ids.has(item))) {
@@ -163,6 +164,22 @@ function capability(value) {
   if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(value)) throw new TypeError("Worker capability is invalid.");
 }
 function validRoutingValue(value) { return typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value); }
+function validateAdapter(adapter, workerId) {
+  if (!isRecord(adapter) || workerId !== "github-copilot" || adapter.kind !== "github-copilot-cli" || adapter.executable !== "copilot") {
+    throw new TypeError(`Worker ${workerId} adapter is invalid.`);
+  }
+  if (adapter.workingDirectory !== "." || adapter.remoteSession !== false || adapter.remoteExport !== false || adapter.disableBuiltinMcps !== true || adapter.disallowTempDir !== true) {
+    throw new TypeError("Copilot adapter boundary is invalid.");
+  }
+  if (!Array.isArray(adapter.allowedPaths) || adapter.allowedPaths.length < 1 || adapter.allowedPaths.length > 16 || adapter.allowedPaths.some((item) => typeof item !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]{0,119}$/.test(item) || item.includes("..") || item.startsWith("/"))) {
+    throw new TypeError("Copilot adapter paths are invalid.");
+  }
+  const allowedTools = new Set(["read", "search", "write", "shell(git status)", "shell(git diff)", "shell(git add)", "shell(git commit)", "shell(npm run verify)", "shell(npm test)"]);
+  if (!Array.isArray(adapter.allowedTools) || adapter.allowedTools.length < 1 || adapter.allowedTools.length > allowedTools.size || new Set(adapter.allowedTools).size !== adapter.allowedTools.length || adapter.allowedTools.some((item) => !allowedTools.has(item))) {
+    throw new TypeError("Copilot adapter tools are invalid.");
+  }
+  integer(adapter.maxOutputBytes, 1024, 131072, "Copilot adapter output limit");
+}
 function integer(value, min, max, name) {
   if (!Number.isInteger(value) || value < min || value > max) throw new TypeError(`${name} is invalid.`);
 }

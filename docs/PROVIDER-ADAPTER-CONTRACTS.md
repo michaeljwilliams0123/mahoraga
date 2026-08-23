@@ -4,6 +4,23 @@ Mahoraga replicates useful capability patterns, not proprietary plugin code.
 The runtime owns task durability, discourse, routing, isolation, and verification;
 each execution surface is a replaceable provider adapter.
 
+## GitHub Copilot CLI execution lane
+
+The `github-copilot` worker is an isolated, disabled-by-default licensed-cloud
+provider. Its health probe runs only `copilot --version`; it never treats that
+as proof of authentication or available quota. A live AI request is the only
+authentication/quota confirmation and must be intentionally scheduled.
+
+Every execution receives a bounded envelope containing task and correlation
+identifiers, the declared task area, a fixed Mahoraga repository working
+directory, and the requested outcome. The adapter uses JSONL output, a worker
+timeout, an explicit tool allowlist, and bounded stdout/stderr capture with
+hash/byte-count metadata. It disables remote session control/export, built-in
+GitHub MCP tools, custom instructions, and temporary-directory access. It does
+not use `--allow-all` or `--yolo`, does not push, and does not persist model
+responses in the runtime database. The normal task receipt records deterministic
+execution metadata; a separate validator must verify workspace changes.
+
 ## Browser hierarchy
 
 1. Purpose-built API, connector, or CLI when it covers the requested operation.
