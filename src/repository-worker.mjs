@@ -19,6 +19,15 @@ export async function executeRepositoryCapability(capability) {
     const result = await run(GIT, ["-C", ROOT, "log", "-5", "--date=iso-strict", "--pretty=format:%h %ad %s"], 15000);
     return { verified: true, summary: result.stdout.trim() || "Repository has no commits yet.", exitCode: result.exitCode };
   }
+  if (capability === "repository.remote") {
+    const [head, branch, remote] = await Promise.all([
+      run(GIT, ["-C", ROOT, "rev-parse", "HEAD"], 15000),
+      run(GIT, ["-C", ROOT, "branch", "--show-current"], 15000),
+      run(GIT, ["-C", ROOT, "remote", "-v"], 15000),
+    ]);
+    const remotes = remote.stdout.trim() ? remote.stdout.trim().split(/\r?\n/) : [];
+    return { verified: true, summary: remotes.length ? `Repository remote state captured for ${branch.stdout.trim()}.` : `Repository ${branch.stdout.trim()} has no configured remote.`, head: head.stdout.trim(), branch: branch.stdout.trim(), remotes };
+  }
   if (capability === "repository.verify") {
     const validation = await run(process.execPath, ["src/cli.mjs", "validate"], 30000, ROOT);
     const tests = await run(process.execPath, ["--test", "--test-isolation=none"], 120000, ROOT);

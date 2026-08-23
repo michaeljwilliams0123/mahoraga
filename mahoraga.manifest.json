@@ -98,7 +98,7 @@
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "local-only"],
-      "capabilities": ["repository.status", "repository.inspect", "repository.history", "repository.verify"],
+      "capabilities": ["repository.status", "repository.inspect", "repository.history", "repository.remote", "repository.verify"],
       "acceptedTaskTypes": ["repository"],
       "timeoutMs": 120000,
       "concurrency": 1,
