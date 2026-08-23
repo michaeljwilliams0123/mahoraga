@@ -1,4 +1,4 @@
-# Mahoraga 3.3 — Target-state release candidate
+# Mahoraga 3.3 — Production runtime
 
 Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
 the PowerShell/WPF application host with a Node.js supervisor, process-isolated
@@ -13,8 +13,8 @@ suites are source material for later worker migration.
 - Canonical `mahoraga.manifest.json` for workers, connections, cost routing, and
   update authority.
 - Explainable capability registry and ranked routing using interface type, live
-  availability, cost, permissions, reliability, attended-desktop requirements,
-  and explicit fallback workers.
+  availability, health, cost, permissions, reliability, latency, workload,
+  execution type, attended-desktop requirements, and explicit fallback workers.
 - Localhost-only control server at `http://127.0.0.1:4782`.
 - Permanent supervisor with worker heartbeats, crash restart, bounded retry, and
   durable task leases.
@@ -37,6 +37,11 @@ suites are source material for later worker migration.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.
+- Authenticated loopback-only Primary Codex intake with server-generated
+  correlation IDs and immutable execution receipts. The local token is runtime
+  state and is never kept in Git or SQLite.
+- Operational repair remains automatic; missing core files are staged as repair
+  candidates with verification evidence and a user-only activation boundary.
 - VS Code prompt files for health review, repository drift review, and tested
   improvement-candidate creation.
 
@@ -62,6 +67,10 @@ localhost health endpoint before returning.
 ```
 
 ## Current connection state
+
+The 3.3.0 runtime and Control Center 5.1.0 were deployed locally on
+2026-08-23. The per-user `Mahoraga Production Runtime` launcher is registered,
+and the four enabled isolated workers are supervised on loopback.
 
 - LM Studio: declared but disabled until a fresh local runtime probe passes.
 - Copilot Studio: General Mahoraga, Mahorago Tenant Health Reader, and Mahorago

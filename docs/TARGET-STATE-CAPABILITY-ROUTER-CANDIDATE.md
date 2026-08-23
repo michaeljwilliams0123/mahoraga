@@ -1,4 +1,9 @@
-# Target-state capability router candidate
+# Target-state capability router candidate (historical record)
+
+This record describes the original 3.3.0-rc.1 staging commit. It was reconciled
+into the production 3.3.0 line on 2026-08-23 after the live Wave 1 health and
+intake hardening had deployed. The current production manifest is authoritative
+for release identity and routing metadata.
 
 ## Release identity
 
@@ -6,7 +11,7 @@
 - Control Center: `5.1.0-rc.1`
 - Capability registry contract: `1.0.0`
 - Branch: `agent/target-state-capability-router`
-- Activation: blocked until explicit owner approval
+- Original activation state: staged pending owner approval
 
 ## What this candidate adds
 
@@ -37,12 +42,11 @@ workspace so the owner can see and run what is genuinely available.
 - The complete candidate suite passes.
 - A candidate-specific offline recovery baseline is included.
 
-## Deliberately not activated
+## Original staged boundary
 
-The live `3.2.0` runtime at `127.0.0.1:4782` was not restarted or replaced. The
-candidate remains in a separate Git worktree and branch. Production activation,
-release-baseline replacement, and startup cutover require Mike's explicit
-greenlight.
+At the time this record was created, the live `3.2.0` runtime at
+`127.0.0.1:4782` was not restarted or replaced. That historical boundary does
+not supersede the current production manifest or later deployment evidence.
 
 ## Next target-state increment
 
