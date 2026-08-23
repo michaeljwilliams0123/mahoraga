@@ -412,6 +412,9 @@
       "adapter": {
         "kind": "chatgpt-workspace-agent",
         "apiOrigin": "https://api.chatgpt.com",
+        "credentialClass": "workspace-agent-access-token",
+        "platformApiKeyAccepted": false,
+        "chatGptSubscriptionAuthenticationAccepted": false,
         "accessTokenEnvironmentVariable": "AGENT_ACCESS_TOKEN",
         "triggerIdEnvironmentVariable": "WORKSPACE_AGENT_TRIGGER_ID",
         "repository": "https://github.com/michaeljwilliams0123/mahoraga.git",
@@ -701,7 +704,7 @@
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "AGENT_ACCESS_TOKEN-and-WORKSPACE_AGENT_TRIGGER_ID-required",
-      "notes": "Cloud-only secondary execution adapter is fixed to api.chatgpt.com and the GitHub mailbox. It requires no secondary-PC software and does not use an OpenAI Platform API key."
+      "notes": "Cloud-only secondary execution adapter is fixed to api.chatgpt.com and the GitHub mailbox. It requires a Workspace-Agent-scoped token provisioned through a ChatGPT workspace admin; it rejects OpenAI Platform API keys and is not the ChatGPT Plus/Codex subscription-authentication lane."
     },
     {
       "id": "chrome-devtools",
