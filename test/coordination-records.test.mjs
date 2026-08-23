@@ -19,6 +19,13 @@ test("GitHub coordination assignments expose only bounded task metadata", () => 
   assert.throws(() => validateAssignmentRecord({ ...record, chatTranscript: "private conversation" }), /field is not allowed/);
 });
 
+test("coordination authority is Primary-created and Secondary-returned", () => {
+  const record = assignment();
+  assert.throws(() => validateAssignmentRecord({ ...record, createdBy: "secondary-codex", assignedTo: "main-codex" }), /authority must be main-codex to secondary-codex/);
+  const result = createResultRecord(record, { status: "blocked", returnCommit: null, changedFiles: [], verification: [], summary: "Bounded blocker." });
+  assert.throws(() => validateResultRecord({ ...result, completedBy: "main-codex" }, record), /result authority must be secondary-codex/);
+});
+
 test("GitHub coordination results bind the assignment branch and allowed paths", () => {
   const source = assignment();
   const result = createResultRecord(source, {

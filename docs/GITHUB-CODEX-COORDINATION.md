@@ -18,12 +18,13 @@ must never appear in an assignment, result, commit message, or issue.
 
 ## Control Center visibility
 
-The localhost Control Center exposes a read-only Coordination view backed by
-the durable assignment table. It shows the mailbox lifecycle (`READY`, return
-detected, validating, `VALIDATED`, or `REJECTED`), the declared return branch,
-bounded task metadata, and verification state. The endpoint does not return
-credentials, ChatGPT conversations, browser data, personal files, or model
-output. Assignment creation and controller intake remain behind the existing
+The localhost Control Center exposes a read-only, minimized Coordination view
+backed by the durable assignment table. It shows the mailbox lifecycle (`READY`,
+return detected, validating, `VALIDATED`, or `REJECTED`), assignment ID, task
+area, declared return branch, timestamps, and verification state. Full task text,
+allowed paths, commit identifiers, correlations, credentials, ChatGPT
+conversations, browser data, personal files, and model output are not returned.
+Assignment creation and controller intake remain behind the existing
 authenticated API and repository workflow.
 
 ## Main Codex workflow
@@ -86,9 +87,9 @@ must explain the repository-level blocker without copying a chat transcript.
 For background work that should use the ChatGPT-linked Codex cloud service, the
 Primary Codex may instead create a validated GitHub issue containing `@codex`.
 That lane returns a pull request rather than a `secondary/<assignment-id>` branch
-and remains subject to the same repository-only privacy boundary. Either
-user-authorized Codex instance may merge verified work when the task explicitly
-uses `merge-after-verify`. See
+and remains subject to the same repository-only privacy boundary. Primary Codex
+reviews and integrates verified work when the task explicitly uses
+`merge-after-verify`; Secondary Codex never merges. See
 [`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
 marker, private-repository setup, and Primary review workflow.
 

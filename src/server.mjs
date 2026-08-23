@@ -55,7 +55,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/secondary-codex") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
-        return json(response, 202, { assignment: database.createSecondaryAssignment({ title: body.title, taskArea: body.taskArea, expectedTask: body.expectedTask, expectedBaseCommit: body.expectedBaseCommit, correlationId: body.correlationId }) });
+        return json(response, 202, { assignment: database.createSecondaryAssignment({ title: body.title, taskArea: body.taskArea, expectedTask: body.expectedTask, expectedBaseCommit: body.expectedBaseCommit, correlationId: body.correlationId, allowedPaths: body.allowedPaths }) });
       }
       if (request.method === "GET" && url.pathname === "/api/intake/primary-codex/secondary-codex") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
@@ -163,8 +163,12 @@ export function coordinationPayload(manifest, database) {
       enabled: manifest.featureFlags?.secondaryCodexMailbox === true,
     },
     authority: {
-      model: "bidirectional-equal",
-      controllers: ["main-codex", "secondary-codex"],
+      model: "primary-led-subordinate-secondary",
+      primary: "main-codex",
+      secondary: "secondary-codex",
+      primaryIntegrationAuthority: true,
+      secondaryCanCreateAssignments: false,
+      secondaryCanMerge: false,
       integrationRequiresVerification: true,
     },
     privacy: { ...COORDINATION_PRIVACY },
@@ -176,7 +180,15 @@ export function coordinationPayload(manifest, database) {
       validated,
       rejected: count("REJECTED"),
     },
-    assignments,
+    assignments: assignments.map((assignment) => ({
+      assignmentId: assignment.id,
+      taskArea: assignment.taskArea,
+      status: assignment.status,
+      source: assignment.source,
+      returnBranch: assignment.returnBranch,
+      verificationState: assignment.verificationState,
+      updatedAt: assignment.updatedAt,
+    })),
   };
 }
 

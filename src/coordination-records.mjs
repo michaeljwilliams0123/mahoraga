@@ -48,8 +48,9 @@ export function validateAssignmentRecord(record) {
   commit(record.expectedBaseCommit, "assignment expected base commit");
   if (record.returnBranch !== `secondary/${record.assignmentId}`) throw new TypeError("Assignment return branch is invalid.");
   paths(record.allowedPaths, 32, "assignment allowed paths");
-  slug(record.createdBy, "assignment creator");
-  slug(record.assignedTo, "assignment recipient");
+  if (record.createdBy !== "main-codex" || record.assignedTo !== "secondary-codex") {
+    throw new TypeError("Coordination assignment authority must be main-codex to secondary-codex.");
+  }
   timestamp(record.createdAt, "assignment creation time");
   privacy(record.privacy);
   return Object.freeze(structuredClone(record));
@@ -78,6 +79,7 @@ export function validateResultRecord(record, assignment = null) {
   exactRecord(record, RESULT_KEYS, "result");
   if (record.schemaVersion !== 1) throw new TypeError("Coordination result schema version is invalid.");
   assignmentId(record.assignmentId);
+  if (record.completedBy !== "secondary-codex") throw new TypeError("Coordination result authority must be secondary-codex.");
   if (!RESULT_STATES.has(record.status)) throw new TypeError("Coordination result status is invalid.");
   slug(record.completedBy, "result author");
   if (record.returnBranch !== `secondary/${record.assignmentId}`) throw new TypeError("Result return branch is invalid.");

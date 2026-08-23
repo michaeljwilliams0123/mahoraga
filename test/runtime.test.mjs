@@ -40,11 +40,16 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   });
   const coordination = await (await fetch(`${base}/api/coordination`)).json();
   assert.equal(coordination.transport.outboundOnly, true);
-  assert.equal(coordination.authority.model, "bidirectional-equal");
+  assert.equal(coordination.authority.model, "primary-led-subordinate-secondary");
+  assert.equal(coordination.authority.primaryIntegrationAuthority, true);
+  assert.equal(coordination.authority.secondaryCanCreateAssignments, false);
+  assert.equal(coordination.authority.secondaryCanMerge, false);
   assert.equal(coordination.privacy.chatAccess, false);
   assert.equal(coordination.privacy.credentialsIncluded, false);
   assert.equal(coordination.counts.ready, 1);
-  assert.equal(coordination.assignments[0].expectedTask, "Return bounded repository evidence.");
+  assert.equal(coordination.assignments[0].taskArea, "secondary-connectivity");
+  assert.equal("expectedTask" in coordination.assignments[0], false);
+  assert.equal("expectedBaseCommit" in coordination.assignments[0], false);
   const created = await (await fetch(`${base}/api/tasks`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: `test-${Date.now()}` }),

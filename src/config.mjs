@@ -207,7 +207,7 @@ function validateCodexBuilderAdapter(adapter) {
   }
 }
 function validateWorkspaceAgentAdapter(adapter) {
-  if (adapter.kind !== "chatgpt-workspace-agent" || adapter.apiOrigin !== "https://api.chatgpt.com" || adapter.credentialClass !== "workspace-agent-access-token" || adapter.platformApiKeyAccepted !== false || adapter.chatGptSubscriptionAuthenticationAccepted !== false || adapter.accessTokenEnvironmentVariable !== "AGENT_ACCESS_TOKEN" || adapter.triggerIdEnvironmentVariable !== "WORKSPACE_AGENT_TRIGGER_ID" || adapter.repository !== "https://github.com/michaeljwilliams0123/mahoraga.git" || adapter.assignmentDirectory !== "coordination/assignments" || adapter.resultDirectory !== "coordination/results" || adapter.branchPrefix !== "secondary/" || adapter.responseRetrieval !== false || adapter.runStatusBeta !== true) {
+  if (adapter.kind !== "chatgpt-workspace-agent" || adapter.apiOrigin !== "https://api.chatgpt.com" || adapter.credentialClass !== "workspace-agent-access-token" || adapter.platformApiKeyAccepted !== false || adapter.chatGptSubscriptionAuthenticationAccepted !== false || adapter.accessTokenEnvironmentVariable !== "AGENT_ACCESS_TOKEN" || adapter.triggerIdEnvironmentVariable !== "WORKSPACE_AGENT_TRIGGER_ID" || adapter.repository !== "https://github.com/michaeljwilliams0123/mahoraga.git" || adapter.assignmentDirectory !== "coordination/assignments" || adapter.resultDirectory !== "coordination/results" || adapter.branchPrefix !== "secondary/" || adapter.responseRetrieval !== false || adapter.runStatusBeta !== true || adapter.statusMetadataOnly !== true) {
     throw new TypeError("Workspace Agent adapter boundary is invalid.");
   }
   for (const field of ["accessTokenEnvironmentVariable", "triggerIdEnvironmentVariable"]) {

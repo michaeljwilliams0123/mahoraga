@@ -77,6 +77,7 @@ test("Workspace Agent status never substitutes for GitHub result validation", as
 test("manifest rejects Workspace Agent endpoint drift or response retrieval claims", async () => {
   const manifest = structuredClone(await loadManifest());
   const item = manifest.workers.find((candidate) => candidate.id === "workspace-agent-cloud");
+  assert.equal(item.adapter.statusMetadataOnly, true);
   item.adapter.apiOrigin = "https://example.com";
   assert.throws(() => validateManifest(manifest), /Workspace Agent adapter boundary/);
   item.adapter.apiOrigin = "https://api.chatgpt.com";

@@ -29,8 +29,8 @@ async function createAssignment() {
     expectedBaseCommit: options.get("base-commit") ?? gitHead(),
     allowedPaths: csv(required("allowed-paths")),
     correlationId: options.get("correlation-id"),
-    createdBy: options.get("created-by") ?? "main-codex",
-    assignedTo: options.get("assigned-to") ?? "secondary-codex",
+    createdBy: "main-codex",
+    assignedTo: "secondary-codex",
   }, options.has("id") ? { assignmentId: options.get("id") } : undefined);
   await mkdir(ASSIGNMENTS, { recursive: true });
   const file = path.join(ASSIGNMENTS, `${record.assignmentId}.json`);

@@ -16,7 +16,8 @@ authenticated outbound GitHub/Codex CLI mailbox instead.
 The trigger is deliberately coupled to the GitHub coordination mailbox. Main
 Codex creates and pushes a structured assignment on `main`; the cloud agent may
 push only its declared `secondary/<assignment-id>` branch. Mahoraga treats the
-API's `202 Accepted` and beta run status as execution evidence, not as a coding
+API's `202 Accepted` and beta run-status metadata (status only, never response
+content) as execution evidence, not as a coding
 result. Completion still requires the matching Git result record and repository
 validation because Workspace Agent response content is not retrievable by API.
 

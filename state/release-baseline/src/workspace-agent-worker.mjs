@@ -124,7 +124,14 @@ export async function executeWorkspaceAgentCapability(capability, task, worker, 
 
 function requireAdapter(worker) {
   const adapter = worker?.adapter;
-  if (worker?.id !== "workspace-agent-cloud" || adapter?.kind !== "chatgpt-workspace-agent" || adapter.apiOrigin !== WORKSPACE_AGENT_ORIGIN) {
+  if (worker?.id !== "workspace-agent-cloud" || adapter?.kind !== "chatgpt-workspace-agent" ||
+      adapter.apiOrigin !== WORKSPACE_AGENT_ORIGIN || adapter.credentialClass !== "workspace-agent-access-token" ||
+      adapter.platformApiKeyAccepted !== false || adapter.chatGptSubscriptionAuthenticationAccepted !== false ||
+      adapter.accessTokenEnvironmentVariable !== "AGENT_ACCESS_TOKEN" || adapter.triggerIdEnvironmentVariable !== "WORKSPACE_AGENT_TRIGGER_ID" ||
+      adapter.repository !== "https://github.com/michaeljwilliams0123/mahoraga.git" ||
+      adapter.assignmentDirectory !== "coordination/assignments" || adapter.resultDirectory !== "coordination/results" ||
+      adapter.branchPrefix !== "secondary/" || adapter.responseRetrieval !== false || adapter.runStatusBeta !== true ||
+      adapter.statusMetadataOnly !== true) {
     throw new TypeError("Workspace Agent adapter is invalid.");
   }
   return adapter;

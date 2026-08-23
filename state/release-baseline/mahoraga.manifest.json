@@ -423,6 +423,7 @@
         "branchPrefix": "secondary/",
         "responseRetrieval": false,
         "runStatusBeta": true,
+        "statusMetadataOnly": true,
         "maximumInputBytes": 8192,
         "requestTimeoutMs": 30000
       }
