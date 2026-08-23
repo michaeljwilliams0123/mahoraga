@@ -10,6 +10,15 @@ const CONFIG_KEYS = new Set(["schemaVersion", "controlBranch", "maxAttempts", "p
 const PROJECT_KEYS = new Set(["taskArea", "repository", "checkout", "defaultBranch", "allowedPaths", "maxRuntimeMinutes", "enabled"]);
 export const SECONDARY_CODEX_ARGS = Object.freeze(["exec", "--sandbox", "workspace-write", "--ephemeral"]);
 
+export function codexSubscriptionEnvironment(environment = process.env) {
+  const safe = {};
+  for (const [name, value] of Object.entries(environment)) {
+    if (/(?:token|secret|password|passphrase|api.?key|credential|cookie|auth|bearer|session|private.?key|access.?key|client.?secret|(?:^|_)(?:pat|key)(?:_|$))/i.test(name)) continue;
+    safe[name] = value;
+  }
+  return safe;
+}
+
 export function validateSecondaryRunnerConfig(value) {
   exact(value, CONFIG_KEYS, "runner config");
   if (value.schemaVersion !== 1) throw new TypeError("Secondary runner schema version is invalid.");
@@ -158,7 +167,7 @@ export class SecondaryCodexRunner {
     await this.exec("git", ["-C", worktree, "merge-base", "--is-ancestor", assignment.expectedBaseCommit, `origin/${project.defaultBranch}`], { timeout: 30_000 });
     await this.exec("git", ["-C", worktree, "checkout", "-b", assignment.returnBranch, assignment.expectedBaseCommit], { timeout: 30_000 });
     await this.bindAssignment(worktree, assignment);
-    await this.exec("codex", [...SECONDARY_CODEX_ARGS, buildSecondaryCodexPrompt(assignment)], { cwd: worktree, timeout: project.maxRuntimeMinutes * 60_000, maxBuffer: 1_048_576 });
+    await this.exec("codex", [...SECONDARY_CODEX_ARGS, buildSecondaryCodexPrompt(assignment)], { cwd: worktree, timeout: project.maxRuntimeMinutes * 60_000, maxBuffer: 1_048_576, env: codexSubscriptionEnvironment() });
     const status = await this.exec("git", ["-C", worktree, "status", "--porcelain=v1", "-z"], { timeout: 30_000 });
     const changedFiles = parsePorcelainPaths(status.stdout);
     assertChangedPathsAllowed(changedFiles, assignment.allowedPaths);

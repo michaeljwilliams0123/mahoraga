@@ -8,6 +8,7 @@ import {
   SecondaryCodexRunner,
   assertChangedPathsAllowed,
   buildSecondaryCodexPrompt,
+  codexSubscriptionEnvironment,
   parsePorcelainPaths,
   projectForAssignment,
   validateSecondaryRunnerConfig,
@@ -64,6 +65,24 @@ test("actual changed paths include both sides of a rename and enforce the allowl
 test("Codex automation is ephemeral and workspace-write bounded", () => {
   assert.deepEqual(SECONDARY_CODEX_ARGS, ["exec", "--sandbox", "workspace-write", "--ephemeral"]);
   assert.equal(SECONDARY_CODEX_ARGS.includes("danger-full-access"), false);
+});
+
+test("Codex execution cannot inherit API keys or credential-like environment values", () => {
+  assert.deepEqual(codexSubscriptionEnvironment({
+    PATH: "C:\\Tools",
+    USERPROFILE: "C:\\Users\\operator",
+    OPENAI_API_KEY: "separate-billing",
+    CODEX_API_KEY: "separate-billing",
+    GITHUB_TOKEN: "repository-secret",
+    GH_PAT: "repository-secret",
+    AWS_ACCESS_KEY_ID: "cloud-secret",
+    SSH_PRIVATE_KEY: "private-key",
+    CHATGPT_SESSION: "web-session",
+    SERVICE_PASSWORD: "personal-secret",
+  }), {
+    PATH: "C:\\Tools",
+    USERPROFILE: "C:\\Users\\operator",
+  });
 });
 
 test("the runner binds the immutable assignment before model execution", async (t) => {

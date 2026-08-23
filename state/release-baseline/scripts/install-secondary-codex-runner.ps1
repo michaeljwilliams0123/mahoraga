@@ -14,6 +14,7 @@ $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $TargetCheckout = (Resolve-Path -LiteralPath $TargetCheckout).Path
 $runner = Join-Path $RepositoryRoot 'scripts\run-secondary-codex-runner.ps1'
 $cli = Join-Path $RepositoryRoot 'scripts\secondary-codex-runner.mjs'
+$authBootstrap = Join-Path $RepositoryRoot 'scripts\connect-chatgpt-codex.ps1'
 $taskName = 'Mahoraga Secondary Codex Runner'
 
 function Find-Node {
@@ -25,11 +26,15 @@ function Find-Node {
 }
 
 if (-not (Test-Path -LiteralPath $runner -PathType Leaf)) { throw "Runner launcher is missing: $runner" }
+if (-not (Test-Path -LiteralPath $authBootstrap -PathType Leaf)) { throw "Authentication bootstrap is missing: $authBootstrap" }
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git is not available on PATH.' }
 $codex = Get-Command codex -ErrorAction SilentlyContinue
 if (-not $codex) { throw 'The Codex CLI is not available on PATH. Install or expose the official Codex CLI for this Windows account, then retry.' }
 & $codex.Source --version | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'The Codex CLI exists but could not start for this Windows account.' }
+
+& $authBootstrap -RepositoryRoot $RepositoryRoot -StatusOnly
+if ($LASTEXITCODE -ne 0) { throw 'ChatGPT Codex subscription authentication is not ready. Run scripts\connect-chatgpt-codex.ps1 first.' }
 
 $origin = (& git -C $RepositoryRoot remote get-url origin).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $origin) { throw 'The Mahoraga checkout must have an origin remote.' }

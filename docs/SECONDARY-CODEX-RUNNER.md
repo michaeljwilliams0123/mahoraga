@@ -14,6 +14,10 @@ analysis as long as the expected work and allowed paths are explicit.
 
 - The secondary machine keeps its own Codex and GitHub authentication. No token
   is stored in the runner configuration or committed to Git.
+- Codex must report `Logged in using ChatGPT`. Its refreshable session is kept
+  by Windows Credential Manager through the Codex `keyring` credential store.
+  API-key environment variables are removed from runner executions so they
+  cannot silently switch the work to separately billed API usage.
 - Codex runs non-interactively with `--sandbox workspace-write --ephemeral` in
   an isolated clone. The runner never uses an unrestricted sandbox.
 - The prompt contains only the validated assignment record. Chat transcripts,
@@ -34,12 +38,17 @@ analysis as long as the expected work and allowed paths are explicit.
 Clone or update Mahoraga, open PowerShell in the checkout, then run:
 
 ```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\connect-chatgpt-codex.ps1
 powershell -ExecutionPolicy Bypass -File .\scripts\install-secondary-codex-runner.ps1
 ```
 
-The installer verifies GitHub access and the official `codex` command, writes a
-local ignored configuration, registers a limited per-user scheduled task, and
-starts the first poll. It does not require an inbound listener or public tunnel.
+The first command starts the official one-time ChatGPT device sign-in when
+needed, selects Windows keyring storage, and verifies GitHub access without
+printing a credential. Do not copy browser cookies, ChatGPT web tokens, or
+Codex credential files between machines. The installer then requires that
+ChatGPT subscription status, writes a local ignored configuration, registers a
+limited per-user scheduled task, and starts the first poll. It does not require
+an inbound listener or public tunnel.
 
 The current connectivity assignment is
 `sec-ae4135e2-a201-4467-b59e-8d16ed9e784a`; a healthy runner returns

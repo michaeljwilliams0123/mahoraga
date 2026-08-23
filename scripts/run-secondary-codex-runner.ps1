@@ -2,6 +2,8 @@
 param()
 
 $ErrorActionPreference = 'Stop'
+$env:OPENAI_API_KEY = $null
+$env:CODEX_API_KEY = $null
 $root = Split-Path -Parent $PSScriptRoot
 $cli = Join-Path $PSScriptRoot 'secondary-codex-runner.mjs'
 
