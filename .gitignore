@@ -5,6 +5,9 @@ state/*.token
 state/last-known-good.manifest.json
 state/browser-profile/
 state/browser-artifacts/
+state/secondary-runner.json
+state/secondary-runner-state.json
+state/secondary-worktrees/
 state/cache/
 state/checkpoints/
 state/repairs/

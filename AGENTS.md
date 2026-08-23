@@ -10,5 +10,6 @@ These instructions apply to this repository and everything below it.
 - Never store credentials, prompts, model responses, browser history, or document content in the runtime database. Store bounded task and diagnostic metadata.
 - GitHub coordination records contain only bounded task metadata and repository evidence. Never copy ChatGPT conversations, Destiny's chats, credentials, personal files, or unrelated user context into assignments, results, commits, branches, issues, or pull requests.
 - The main Codex owns assignments on `main`. A secondary Codex returns only `secondary/<assignment-id>` branches and never pushes directly to `main`.
+- Automated secondary execution must use the secondary machine's local Codex authentication, an ephemeral workspace-write sandbox, explicit task-area project registration, actual changed-path enforcement, and bounded retries. It may implement scoped project work and is not limited to review or QA.
 - Preserve task idempotency, leases, crash recovery, worker heartbeats, and the append-only event ledger.
 - Add focused tests for behavior changes and run `npm run verify`.

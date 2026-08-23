@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "controlBranch": "main",
+  "maxAttempts": 3,
+  "projects": [
+    {
+      "taskArea": "secondary-connectivity",
+      "repository": "https://github.com/michaeljwilliams0123/mahoraga.git",
+      "checkout": "C:\\Users\\User\\Documents\\mahoraga",
+      "defaultBranch": "main",
+      "allowedPaths": [
+        "coordination/results"
+      ],
+      "maxRuntimeMinutes": 60,
+      "enabled": true
+    }
+  ]
+}

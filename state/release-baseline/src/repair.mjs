@@ -19,6 +19,7 @@ export const ESSENTIAL_FILES = [
   "src/repair.mjs",
   "src/router.mjs",
   "src/repository-worker.mjs",
+  "src/secondary-codex-runner.mjs",
   "src/runtime.mjs",
   "src/server.mjs",
   "src/supervisor.mjs",
@@ -31,6 +32,9 @@ export const ESSENTIAL_FILES = [
   "web/styles.css",
   "scripts/auth.py",
   "scripts/coordination.mjs",
+  "scripts/secondary-codex-runner.mjs",
+  "scripts/run-secondary-codex-runner.ps1",
+  "scripts/install-secondary-codex-runner.ps1",
   "scripts/microsoft_queue_worker.py",
   "scripts/start-production.ps1",
 ];

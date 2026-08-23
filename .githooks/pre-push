@@ -1,7 +1,20 @@
 #!/bin/sh
 zero=0000000000000000000000000000000000000000
 
-node scripts/coordination.mjs validate || exit 1
+node_command=""
+if command -v node >/dev/null 2>&1; then
+  node_command="node"
+elif [ -n "$USERPROFILE" ]; then
+  bundled_node="$USERPROFILE\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\bin\\node.exe"
+  if [ -f "$bundled_node" ]; then node_command="$bundled_node"; fi
+fi
+
+if [ -z "$node_command" ]; then
+  echo "Mahoraga coordination guard: Node.js 24+ was not found." >&2
+  exit 1
+fi
+
+"$node_command" scripts/coordination.mjs validate || exit 1
 
 while read local_ref local_sha remote_ref remote_sha
 do

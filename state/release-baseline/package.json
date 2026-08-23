@@ -15,6 +15,9 @@
     "coordination:complete": "node scripts/coordination.mjs complete-assignment",
     "coordination:list": "node scripts/coordination.mjs list",
     "coordination:validate": "node scripts/coordination.mjs validate",
+    "secondary:configure": "node scripts/secondary-codex-runner.mjs configure",
+    "secondary:status": "node scripts/secondary-codex-runner.mjs status",
+    "secondary:run-once": "node scripts/secondary-codex-runner.mjs run-once",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
     "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node --test --test-isolation=none"
