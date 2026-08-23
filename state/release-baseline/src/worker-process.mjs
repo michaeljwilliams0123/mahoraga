@@ -5,6 +5,7 @@ import { executeRepositoryCapability } from "./repository-worker.mjs";
 import { executeMicrosoftQueueCapability } from "./microsoft-queue-worker.mjs";
 import { executeCopilotCapability } from "./copilot-worker.mjs";
 import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
+import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -34,6 +35,7 @@ async function execute(capability, task) {
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   if (capability.startsWith("copilot.")) return executeCopilotCapability(capability, task, worker);
   if (capability.startsWith("codex.")) return executeCodexBuilderCapability(capability, task, worker);
+  if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
   switch (capability) {
     case "assistant.respond":
       return {
@@ -63,6 +65,7 @@ function classifyError(error) {
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";
+  if (/workspace-agent/i.test(error?.message ?? "")) return "workspace-agent-provider-failed";
   return "worker-execution-failed";
 }
 

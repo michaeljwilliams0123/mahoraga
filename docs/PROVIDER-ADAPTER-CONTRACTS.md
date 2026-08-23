@@ -46,6 +46,22 @@ Only then can a return be marked validated. This flow never logs into, reads fro
 separate person's ChatGPT/Codex account; that person may only pick up the READY
 assignment and return an ordinary Git commit when separately authorized.
 
+## Workspace Agent cloud execution lane
+
+The `workspace-agent-cloud` provider is the programmatic trigger for a published
+ChatGPT Workspace Agent. It uses Workspace Agent access-token credentials and
+does not use an OpenAI Platform API key. The fixed API origin is
+`https://api.chatgpt.com`; requests carry a stable assignment conversation key,
+an idempotency key, and the beta run-status header. The provider persists only
+bounded acceptance/status evidence and a hash of the returned conversation URL.
+
+Workspace Agent response content is not retrievable through the API. Therefore
+`202 Accepted` or a completed run status never substitutes for a coding result.
+The cloud agent must push the assignment's exact `secondary/<assignment-id>`
+branch, and the existing repository mailbox remains the authoritative result and
+validation plane. No desktop app, browser session, conversation transcript, or
+credential from the secondary user's computer is required.
+
 ## Browser hierarchy
 
 1. Purpose-built API, connector, or CLI when it covers the requested operation.

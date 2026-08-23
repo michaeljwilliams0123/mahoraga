@@ -7,7 +7,7 @@
   "versions": {
     "runtime": "3.3.0",
     "controlCenter": "5.1.0",
-    "cloudControlPlane": "3.0.1",
+    "cloudControlPlane": "3.0.2",
     "capabilityRegistry": "1.0.0",
     "taskSchema": "3",
     "workerContract": "2"
@@ -44,6 +44,7 @@
     "githubCopilotWorker": false,
     "primaryCodexBuilder": false,
     "secondaryCodexMailbox": true,
+    "workspaceAgentCloud": false,
     "desktopWorker": false,
     "microsoftQueueWorker": false,
     "authenticatedExecutionPlane": false,
@@ -54,7 +55,9 @@
   },
   "repair": {
     "enabled": true,
-    "automaticRiskClasses": ["operational"],
+    "automaticRiskClasses": [
+      "operational"
+    ],
     "scanIntervalMs": 30000,
     "baselineDirectory": "state/release-baseline",
     "coreUpdateAuthority": "user-only"
@@ -67,14 +70,44 @@
     "signedSessionEnabled": false
   },
   "routingPolicy": {
-    "interfaceOrder": ["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"],
-    "availabilityOrder": ["healthy", "busy", "starting", "configured", "disabled", "stale", "offline", "unhealthy", "unavailable"],
+    "interfaceOrder": [
+      "native-api",
+      "connector",
+      "mcp-cli",
+      "application-extension",
+      "deterministic-worker",
+      "desktop-automation",
+      "vision-automation"
+    ],
+    "availabilityOrder": [
+      "healthy",
+      "busy",
+      "starting",
+      "configured",
+      "disabled",
+      "stale",
+      "offline",
+      "unhealthy",
+      "unavailable"
+    ],
     "minimumReliability": 60
   },
   "costModes": {
-    "local": ["deterministic", "local-model"],
-    "hybrid": ["deterministic", "local-model", "licensed-cloud"],
-    "maximum": ["deterministic", "local-model", "licensed-cloud", "metered-cloud"]
+    "local": [
+      "deterministic",
+      "local-model"
+    ],
+    "hybrid": [
+      "deterministic",
+      "local-model",
+      "licensed-cloud"
+    ],
+    "maximum": [
+      "deterministic",
+      "local-model",
+      "licensed-cloud",
+      "metered-cloud"
+    ]
   },
   "workers": [
     {
@@ -83,9 +116,22 @@
       "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "personal", "enterprise", "local-only"],
-      "capabilities": ["assistant.respond", "system.health", "manifest.validate"],
-      "acceptedTaskTypes": ["assistant", "health", "manifest"],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "enterprise",
+        "local-only"
+      ],
+      "capabilities": [
+        "assistant.respond",
+        "system.health",
+        "manifest.validate"
+      ],
+      "acceptedTaskTypes": [
+        "assistant",
+        "health",
+        "manifest"
+      ],
       "timeoutMs": 15000,
       "concurrency": 1,
       "healthProbe": "system.health",
@@ -107,9 +153,23 @@
       "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "personal", "local-only"],
-      "capabilities": ["repository.status", "repository.inspect", "repository.history", "repository.remote", "repository.verify", "repository.secondary-monitor"],
-      "acceptedTaskTypes": ["repository", "secondary-codex"],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "repository.status",
+        "repository.inspect",
+        "repository.history",
+        "repository.remote",
+        "repository.verify",
+        "repository.secondary-monitor"
+      ],
+      "acceptedTaskTypes": [
+        "repository",
+        "secondary-codex"
+      ],
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "repository.status",
@@ -131,9 +191,19 @@
       "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "personal", "enterprise", "local-only"],
-      "capabilities": ["repair.scan", "repair.apply"],
-      "acceptedTaskTypes": ["recovery"],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "enterprise",
+        "local-only"
+      ],
+      "capabilities": [
+        "repair.scan",
+        "repair.apply"
+      ],
+      "acceptedTaskTypes": [
+        "recovery"
+      ],
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "repair.scan",
@@ -155,9 +225,17 @@
       "version": "3.2.0",
       "enabled": false,
       "costClass": "local-model",
-      "dataClasses": ["synthetic", "personal", "local-only"],
-      "capabilities": ["reason.local"],
-      "acceptedTaskTypes": ["reasoning"],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "reason.local"
+      ],
+      "acceptedTaskTypes": [
+        "reasoning"
+      ],
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "reason.local",
@@ -170,7 +248,9 @@
         "executionType": "local-provider",
         "latencyMs": 500,
         "maximumWorkload": 1,
-        "fallbackWorkerIds": ["lenovo-ai"]
+        "fallbackWorkerIds": [
+          "lenovo-ai"
+        ]
       }
     },
     {
@@ -179,9 +259,18 @@
       "version": "3.2.0",
       "enabled": true,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "personal"],
-      "capabilities": ["browser.status", "browser.smoke", "browser.observe"],
-      "acceptedTaskTypes": ["browser"],
+      "dataClasses": [
+        "synthetic",
+        "personal"
+      ],
+      "capabilities": [
+        "browser.status",
+        "browser.smoke",
+        "browser.observe"
+      ],
+      "acceptedTaskTypes": [
+        "browser"
+      ],
       "timeoutMs": 45000,
       "concurrency": 1,
       "healthProbe": "browser.status",
@@ -194,7 +283,9 @@
         "executionType": "isolated-process",
         "latencyMs": 500,
         "maximumWorkload": 1,
-        "fallbackWorkerIds": ["desktop"]
+        "fallbackWorkerIds": [
+          "desktop"
+        ]
       }
     },
     {
@@ -203,9 +294,16 @@
       "version": "desktop-adapter-1",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["synthetic"],
-      "capabilities": ["codex.health", "codex.execute"],
-      "acceptedTaskTypes": ["codex-builder"],
+      "dataClasses": [
+        "synthetic"
+      ],
+      "capabilities": [
+        "codex.health",
+        "codex.execute"
+      ],
+      "acceptedTaskTypes": [
+        "codex-builder"
+      ],
       "timeoutMs": 300000,
       "concurrency": 1,
       "healthProbe": "codex.health",
@@ -236,9 +334,16 @@
       "version": "1.0.80",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["synthetic"],
-      "capabilities": ["copilot.health", "copilot.execute"],
-      "acceptedTaskTypes": ["copilot"],
+      "dataClasses": [
+        "synthetic"
+      ],
+      "capabilities": [
+        "copilot.health",
+        "copilot.execute"
+      ],
+      "acceptedTaskTypes": [
+        "copilot"
+      ],
       "timeoutMs": 300000,
       "concurrency": 1,
       "healthProbe": "copilot.health",
@@ -257,8 +362,23 @@
         "kind": "github-copilot-cli",
         "executable": "copilot",
         "workingDirectory": ".",
-        "allowedPaths": ["src", "test", "docs", "scripts", "package.json", "mahoraga.manifest.json"],
-        "allowedTools": ["read", "search", "write", "shell(git status)", "shell(git diff)", "shell(npm run verify)", "shell(npm test)"],
+        "allowedPaths": [
+          "src",
+          "test",
+          "docs",
+          "scripts",
+          "package.json",
+          "mahoraga.manifest.json"
+        ],
+        "allowedTools": [
+          "read",
+          "search",
+          "write",
+          "shell(git status)",
+          "shell(git diff)",
+          "shell(npm run verify)",
+          "shell(npm test)"
+        ],
         "remoteSession": false,
         "remoteExport": false,
         "disableBuiltinMcps": true,
@@ -267,14 +387,61 @@
       }
     },
     {
+      "id": "workspace-agent-cloud",
+      "label": "ChatGPT Workspace Agent Cloud",
+      "version": "api-trigger-1",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": ["synthetic"],
+      "capabilities": ["workspace-agent.health", "workspace-agent.trigger", "workspace-agent.status"],
+      "acceptedTaskTypes": ["secondary-codex"],
+      "timeoutMs": 120000,
+      "concurrency": 2,
+      "healthProbe": "workspace-agent.health",
+      "executionPlane": "chatgpt-workspace-agent-cloud",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "bounded-workspace-agent-trigger",
+        "reliability": 80,
+        "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 1000,
+        "maximumWorkload": 2,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "chatgpt-workspace-agent",
+        "apiOrigin": "https://api.chatgpt.com",
+        "accessTokenEnvironmentVariable": "AGENT_ACCESS_TOKEN",
+        "triggerIdEnvironmentVariable": "WORKSPACE_AGENT_TRIGGER_ID",
+        "repository": "https://github.com/michaeljwilliams0123/mahoraga.git",
+        "assignmentDirectory": "coordination/assignments",
+        "resultDirectory": "coordination/results",
+        "branchPrefix": "secondary/",
+        "responseRetrieval": false,
+        "runStatusBeta": true,
+        "maximumInputBytes": 8192,
+        "requestTimeoutMs": 30000
+      }
+    },
+    {
       "id": "desktop",
       "label": "Desktop Worker",
       "version": "3.2.0",
       "enabled": false,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "personal", "local-only"],
-      "capabilities": ["desktop.inspect", "desktop.interact"],
-      "acceptedTaskTypes": ["desktop"],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "desktop.inspect",
+        "desktop.interact"
+      ],
+      "acceptedTaskTypes": [
+        "desktop"
+      ],
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "desktop.inspect",
@@ -296,9 +463,17 @@
       "version": "3.2.0",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["enterprise"],
-      "capabilities": ["m365.reason", "graph.read", "graph.write"],
-      "acceptedTaskTypes": ["microsoft"],
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "m365.reason",
+        "graph.read",
+        "graph.write"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft"
+      ],
       "timeoutMs": 120000,
       "concurrency": 2,
       "healthProbe": "graph.read",
@@ -311,7 +486,9 @@
         "executionType": "cloud-provider",
         "latencyMs": 1000,
         "maximumWorkload": 2,
-        "fallbackWorkerIds": ["copilot-studio"]
+        "fallbackWorkerIds": [
+          "copilot-studio"
+        ]
       }
     },
     {
@@ -320,9 +497,16 @@
       "version": "3.2.0",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["enterprise"],
-      "capabilities": ["queue.status", "queue.poll"],
-      "acceptedTaskTypes": ["microsoft-queue"],
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "queue.status",
+        "queue.poll"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft-queue"
+      ],
       "timeoutMs": 60000,
       "concurrency": 1,
       "healthProbe": "queue.status",
@@ -344,9 +528,15 @@
       "version": "3.2.0",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["enterprise"],
-      "capabilities": ["studio.delegate"],
-      "acceptedTaskTypes": ["microsoft-agent"],
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "studio.delegate"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft-agent"
+      ],
       "timeoutMs": 180000,
       "concurrency": 2,
       "healthProbe": "studio.delegate",
@@ -359,7 +549,9 @@
         "executionType": "cloud-provider",
         "latencyMs": 2000,
         "maximumWorkload": 2,
-        "fallbackWorkerIds": ["microsoft365"]
+        "fallbackWorkerIds": [
+          "microsoft365"
+        ]
       }
     },
     {
@@ -368,9 +560,17 @@
       "version": "3.2.0",
       "enabled": false,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "local-only"],
-      "capabilities": ["lenovo.preview", "lenovo.execute"],
-      "acceptedTaskTypes": ["local-ai"],
+      "dataClasses": [
+        "synthetic",
+        "local-only"
+      ],
+      "capabilities": [
+        "lenovo.preview",
+        "lenovo.execute"
+      ],
+      "acceptedTaskTypes": [
+        "local-ai"
+      ],
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "lenovo.preview",
@@ -383,7 +583,9 @@
         "executionType": "interactive-session",
         "latencyMs": 1000,
         "maximumWorkload": 1,
-        "fallbackWorkerIds": ["local-reasoner"]
+        "fallbackWorkerIds": [
+          "local-reasoner"
+        ]
       }
     }
   ],
@@ -393,7 +595,9 @@
       "state": "production-standby",
       "endpointClass": "localhost",
       "authenticationState": "not-required-loopback",
-      "capabilities": ["reason.local"],
+      "capabilities": [
+        "reason.local"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "runtime-probe-required",
@@ -404,7 +608,10 @@
       "state": "production-published-mixed-health",
       "endpointClass": "microsoft-tenant",
       "authenticationState": "authenticated",
-      "capabilities": ["studio.delegate", "health.read"],
+      "capabilities": [
+        "studio.delegate",
+        "health.read"
+      ],
       "lastSuccessfulCheck": "2026-08-13T05:07:32.619Z",
       "latencyMs": 380,
       "error": "Researcher-and-App-Builder-http-404",
@@ -412,21 +619,28 @@
     },
     {
       "id": "mahoraga-cloud-control-plane",
-      "state": "production-deployed-alpic-read-only-verified",
+      "state": "production-deployed-alpic-read-only-verified-execution-readiness-pending",
       "endpointClass": "public-mcp",
       "authenticationState": "public-read-only",
-      "capabilities": ["health.read", "agent-health.read", "workspace.read"],
+      "capabilities": [
+        "health.read",
+        "agent-health.read",
+        "workspace.read",
+        "execution-readiness.read"
+      ],
       "lastSuccessfulCheck": "2026-08-13T04:59:07.432Z",
       "latencyMs": 4976,
       "error": null,
-      "notes": "Mahoraga Cloud Control Plane 3.0.1 is deployed at https://mahoraga-cloud-contr-eea554e9.alpic.live/mcp. The public plane exposes five audited read-only health and identity tools. Public mutations, inbound desktop tunnels, arbitrary execution, and unauthenticated relay controls are not exposed."
+      "notes": "Mahoraga Cloud Control Plane 3.0.2 adds explicit cloud-execution readiness diagnostics while retaining the public read-only boundary. Public mutations, inbound desktop tunnels, arbitrary execution, and unauthenticated relay controls are not exposed."
     },
     {
       "id": "lenovo-ai-now",
       "state": "bounded-adapter-available",
       "endpointClass": "local-application",
       "authenticationState": "unknown",
-      "capabilities": ["lenovo.preview"],
+      "capabilities": [
+        "lenovo.preview"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "no-supported-programmatic-interface-verified",
@@ -437,7 +651,10 @@
       "state": "installed-auth-unverified-quota-exhausted",
       "endpointClass": "local-cli-provider",
       "authenticationState": "unverified",
-      "capabilities": ["copilot.health", "copilot.execute"],
+      "capabilities": [
+        "copilot.health",
+        "copilot.execute"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "live-ai-request-not-performed-monthly-quota-exhausted",
@@ -448,7 +665,10 @@
       "state": "desktop-installed-direct-cli-access-denied",
       "endpointClass": "local-desktop-application",
       "authenticationState": "inherits-primary-interactive-session",
-      "capabilities": ["codex.health", "codex.execute"],
+      "capabilities": [
+        "codex.health",
+        "codex.execute"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "desktop-appx-executable-access-denied",
@@ -456,21 +676,43 @@
     },
     {
       "id": "secondary-codex-mailbox",
-      "state": "canonical-private-origin-configured-awaiting-authorized-return-branch",
+      "state": "production-first-return-validated-cloud-trigger-staged",
       "endpointClass": "repository-mailbox",
       "authenticationState": "separate-human-authorized-account-required",
-      "capabilities": ["repository.secondary-monitor", "repository.verify"],
+      "capabilities": [
+        "repository.secondary-monitor",
+        "repository.verify"
+      ],
+      "lastSuccessfulCheck": "2026-08-23T05:30:56.669Z",
+      "latencyMs": null,
+      "error": "workspace-agent-credentials-not-configured",
+      "notes": "The first separate-instance heartbeat return was validated and integrated. Mahoraga prepares concise READY assignments and monitors only expected return branches; automatic cloud triggering is staged behind Workspace Agent credentials."
+    },
+    {
+      "id": "workspace-agent-cloud",
+      "state": "adapter-staged-awaiting-secure-credentials",
+      "endpointClass": "chatgpt-workspace-agent-api",
+      "authenticationState": "access-token-and-trigger-id-not-configured",
+      "capabilities": [
+        "workspace-agent.health",
+        "workspace-agent.trigger",
+        "workspace-agent.status"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
-      "error": "awaiting-authorized-secondary-return-branch",
-      "notes": "Mahoraga prepares concise READY assignments and monitors only an expected Git return branch. A separately authorized second account may pick up the assignment and return commits; Mahoraga never accesses that account."
+      "error": "AGENT_ACCESS_TOKEN-and-WORKSPACE_AGENT_TRIGGER_ID-required",
+      "notes": "Cloud-only secondary execution adapter is fixed to api.chatgpt.com and the GitHub mailbox. It requires no secondary-PC software and does not use an OpenAI Platform API key."
     },
     {
       "id": "chrome-devtools",
       "state": "production-enabled-local-cdp",
       "endpointClass": "localhost",
       "authenticationState": "loopback-process-boundary",
-      "capabilities": ["browser.status", "browser.smoke", "browser.observe"],
+      "capabilities": [
+        "browser.status",
+        "browser.smoke",
+        "browser.observe"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": null,
@@ -481,7 +723,12 @@
       "state": "environment-and-mhg-publisher-confirmed-awaiting-authentication",
       "endpointClass": "dataverse",
       "authenticationState": "not-configured",
-      "capabilities": ["queue.submit", "queue.claim", "queue.complete", "queue.status"],
+      "capabilities": [
+        "queue.submit",
+        "queue.claim",
+        "queue.complete",
+        "queue.status"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "reusable-dataverse-authentication-pending",
@@ -492,7 +739,23 @@
       "state": "provider-contract-mapped",
       "endpointClass": "local-application-provider",
       "authenticationState": "inherits-approved-browser-session",
-      "capabilities": ["browser.tabs", "browser.open", "browser.navigate", "browser.read", "browser.inspect", "browser.click", "browser.type", "browser.select", "browser.upload", "browser.download", "browser.wait", "browser.screenshot", "browser.network", "browser.console", "browser.close"],
+      "capabilities": [
+        "browser.tabs",
+        "browser.open",
+        "browser.navigate",
+        "browser.read",
+        "browser.inspect",
+        "browser.click",
+        "browser.type",
+        "browser.select",
+        "browser.upload",
+        "browser.download",
+        "browser.wait",
+        "browser.screenshot",
+        "browser.network",
+        "browser.console",
+        "browser.close"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "mahoraga-provider-adapter-not-yet-bound",
@@ -503,7 +766,11 @@
       "state": "provider-contract-mapped-implementation-pending",
       "endpointClass": "local-windows-automation",
       "authenticationState": "interactive-user-session-required",
-      "capabilities": ["desktop.apps", "desktop.inspect", "desktop.interact"],
+      "capabilities": [
+        "desktop.apps",
+        "desktop.inspect",
+        "desktop.interact"
+      ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "desktop-worker-disabled",

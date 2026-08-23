@@ -18,6 +18,9 @@
     "secondary:configure": "node scripts/secondary-codex-runner.mjs configure",
     "secondary:status": "node scripts/secondary-codex-runner.mjs status",
     "secondary:run-once": "node scripts/secondary-codex-runner.mjs run-once",
+    "workspace-agent:health": "node scripts/workspace-agent.mjs health",
+    "workspace-agent:trigger": "node scripts/workspace-agent.mjs trigger",
+    "workspace-agent:status": "node scripts/workspace-agent.mjs status",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
     "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node --test --test-isolation=none"

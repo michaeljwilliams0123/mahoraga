@@ -170,6 +170,7 @@ function validateAdapter(adapter, workerId) {
     throw new TypeError(`Worker ${workerId} adapter is invalid.`);
   }
   if (workerId === "primary-codex-builder") return validateCodexBuilderAdapter(adapter);
+  if (workerId === "workspace-agent-cloud") return validateWorkspaceAgentAdapter(adapter);
   if (workerId !== "github-copilot" || adapter.kind !== "github-copilot-cli" || adapter.executable !== "copilot") throw new TypeError(`Worker ${workerId} adapter is invalid.`);
   if (adapter.workingDirectory !== "." || adapter.remoteSession !== false || adapter.remoteExport !== false || adapter.disableBuiltinMcps !== true || adapter.disallowTempDir !== true) {
     throw new TypeError("Copilot adapter boundary is invalid.");
@@ -187,6 +188,16 @@ function validateCodexBuilderAdapter(adapter) {
   if (adapter.kind !== "codex-desktop-builder" || adapter.executable !== "codex" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== false || adapter.apiKeyRequired !== false) {
     throw new TypeError("Codex Builder adapter boundary is invalid.");
   }
+}
+function validateWorkspaceAgentAdapter(adapter) {
+  if (adapter.kind !== "chatgpt-workspace-agent" || adapter.apiOrigin !== "https://api.chatgpt.com" || adapter.repository !== "https://github.com/michaeljwilliams0123/mahoraga.git" || adapter.assignmentDirectory !== "coordination/assignments" || adapter.resultDirectory !== "coordination/results" || adapter.branchPrefix !== "secondary/" || adapter.responseRetrieval !== false || adapter.runStatusBeta !== true) {
+    throw new TypeError("Workspace Agent adapter boundary is invalid.");
+  }
+  for (const field of ["accessTokenEnvironmentVariable", "triggerIdEnvironmentVariable"]) {
+    if (typeof adapter[field] !== "string" || !/^[A-Z][A-Z0-9_]{2,63}$/.test(adapter[field])) throw new TypeError("Workspace Agent credential binding is invalid.");
+  }
+  integer(adapter.maximumInputBytes, 1024, 16384, "Workspace Agent input limit");
+  integer(adapter.requestTimeoutMs, 1000, 120000, "Workspace Agent request timeout");
 }
 function validateBrowserPolicy(browser) {
   if (!isRecord(browser)) throw new TypeError("Browser policy is missing.");
