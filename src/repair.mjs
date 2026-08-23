@@ -36,6 +36,7 @@ export const ESSENTIAL_FILES = [
   "scripts/coordination.mjs",
   "scripts/codex-cloud-task.mjs",
   "scripts/secondary-codex-runner.mjs",
+  "scripts/connect-chatgpt-codex.ps1",
   "scripts/run-secondary-codex-runner.ps1",
   "scripts/install-secondary-codex-runner.ps1",
   "scripts/microsoft_queue_worker.py",
