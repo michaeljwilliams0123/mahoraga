@@ -17,6 +17,7 @@ const task = (overrides = {}) => createCodexCloudTask({
   allowedPaths: [".github", "docs", "src", "test"],
   verification: ["npm run verify"],
   maximumAttempts: 2,
+  integrationMode: "merge-after-verify",
   ...overrides,
 }, { taskId: "ccx-12345678-1234-1234-1234-123456789abc", now: "2026-08-23T00:00:00.000Z" });
 
@@ -24,10 +25,12 @@ test("Codex cloud tasks are strict, repository-bound, and private", () => {
   const record = task();
   assert.equal(record.privacy.chatAccess, false);
   assert.equal(record.privacy.credentialsIncluded, false);
+  assert.equal(record.integrationMode, "merge-after-verify");
   assert.throws(() => validateCodexCloudTask({ ...record, githubToken: "secret" }), /field is not allowed/);
   assert.throws(() => task({ repository: "https://github.com/example/repo" }), /repository is invalid/);
   assert.throws(() => task({ repository: "../repo" }), /repository is invalid/);
   assert.throws(() => task({ allowedPaths: [".git/config"] }), /allowed paths are invalid/);
+  assert.throws(() => task({ integrationMode: "direct-unverified" }), /integration mode is invalid/);
 });
 
 test("issue rendering is deterministic and carries an idempotency marker", () => {
@@ -39,6 +42,7 @@ test("issue rendering is deterministic and carries an idempotency marker", () =>
   assert.match(first.body, /^@codex/m);
   assert.match(first.body, /idempotency-key=mahoraga-private-bridge-v1/);
   assert.match(first.body, /Do not access, request, or export ChatGPT conversations/);
+  assert.match(first.body, /merge it only after every declared verification command passes/);
   assert.deepEqual(first.labels, ["codex:queued", "privacy:repo-only"]);
 });
 

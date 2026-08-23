@@ -9,8 +9,8 @@ These instructions apply to this repository and everything below it.
 - Cloud connectors must be opt-in and data-class aware. Enterprise data stays in the Microsoft tenant; local-only data stays on the device.
 - Never store credentials, prompts, model responses, browser history, or document content in the runtime database. Store bounded task and diagnostic metadata.
 - GitHub coordination records contain only bounded task metadata and repository evidence. Never copy ChatGPT conversations, Destiny's chats, credentials, personal files, or unrelated user context into assignments, results, commits, branches, issues, or pull requests.
-- The main Codex owns assignments on `main`. A secondary Codex returns only `secondary/<assignment-id>` branches and never pushes directly to `main`.
-- GitHub `@codex` cloud tasks are a separate bounded lane: they receive only validated repository task metadata, return pull requests, and never merge. The local Primary Codex remains the sole reviewer and merge authority.
+- GitHub is a bidirectional coordination surface. Any user-authorized Primary, Secondary, or cloud Codex instance may create assignments, edit code, review, push branches, and merge verified work from either direction. Preserve attribution and deterministic evidence; do not create an artificial ownership hierarchy between authorized instances.
+- GitHub `@codex` cloud tasks receive only validated repository task metadata. They use pull requests by default, but a task with `integrationMode: merge-after-verify` may be merged by either authorized Codex instance after the declared verification passes.
 - Automated secondary execution must use the secondary machine's local Codex authentication, an ephemeral workspace-write sandbox, explicit task-area project registration, actual changed-path enforcement, and bounded retries. It may implement scoped project work and is not limited to review or QA.
 - Preserve task idempotency, leases, crash recovery, worker heartbeats, and the append-only event ledger.
 - Add focused tests for behavior changes and run `npm run verify`.

@@ -3,7 +3,7 @@ import { COORDINATION_PRIVACY, pathAllowed } from "./coordination-records.mjs";
 
 const TASK_KEYS = new Set([
   "schemaVersion", "taskId", "idempotencyKey", "repository", "baseCommit", "title", "task",
-  "allowedPaths", "verification", "maximumAttempts", "createdBy", "createdAt", "privacy",
+  "allowedPaths", "verification", "maximumAttempts", "integrationMode", "createdBy", "createdAt", "privacy",
 ]);
 const RETURN_KEYS = new Set([
   "schemaVersion", "taskId", "idempotencyKey", "state", "issueNumber", "pullRequestNumber",
@@ -11,6 +11,7 @@ const RETURN_KEYS = new Set([
 ]);
 const PRIVACY_KEYS = new Set(["chatAccess", "conversationTranscriptIncluded", "credentialsIncluded", "contentBoundary"]);
 const TERMINAL_STATES = new Set(["completed", "blocked"]);
+const INTEGRATION_MODES = new Set(["pull-request", "merge-after-verify"]);
 const SECRET_PATTERN = /(?:\bsk-[A-Za-z0-9_-]{16,}|\bgithub_pat_[A-Za-z0-9_]{16,}|\bgh[pousr]_[A-Za-z0-9]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+eyJ[A-Za-z0-9_-]{8,})/;
 
 export function createCodexCloudTask(input, { taskId = `ccx-${randomUUID()}`, now = new Date().toISOString() } = {}) {
@@ -25,6 +26,7 @@ export function createCodexCloudTask(input, { taskId = `ccx-${randomUUID()}`, no
     allowedPaths: input.allowedPaths ?? [],
     verification: input.verification ?? [],
     maximumAttempts: input.maximumAttempts ?? 1,
+    integrationMode: input.integrationMode ?? "pull-request",
     createdBy: input.createdBy ?? "main-codex",
     createdAt: now,
     privacy: { ...COORDINATION_PRIVACY },
@@ -43,6 +45,7 @@ export function validateCodexCloudTask(record) {
   paths(record.allowedPaths, 64, "task allowed paths");
   strings(record.verification, 20, 300, "task verification");
   integer(record.maximumAttempts, 1, 3, "task maximum attempts");
+  if (!INTEGRATION_MODES.has(record.integrationMode)) throw new TypeError("Codex cloud task integration mode is invalid.");
   slug(record.createdBy, "task creator");
   timestamp(record.createdAt, "task creation time");
   privacy(record.privacy);
@@ -58,6 +61,7 @@ export function validateCodexCloudTask(record) {
     allowedPaths: Object.freeze([...record.allowedPaths]),
     verification: Object.freeze([...record.verification]),
     maximumAttempts: record.maximumAttempts,
+    integrationMode: record.integrationMode,
     createdBy: record.createdBy,
     createdAt: record.createdAt,
     privacy: Object.freeze({ ...record.privacy }),
@@ -86,7 +90,10 @@ export function renderCodexCloudIssue(record) {
     `- Base commit: \`${task.baseCommit}\``,
     `- Allowed paths: ${task.allowedPaths.map((item) => `\`${item}\``).join(", ")}`,
     `- Maximum attempts: ${task.maximumAttempts}`,
-    "- Do not merge or push directly to the default branch. Return a pull request for Primary review.",
+    `- Integration mode: \`${task.integrationMode}\``,
+    task.integrationMode === "merge-after-verify"
+      ? "- Return a pull request and merge it only after every declared verification command passes."
+      : "- Return a pull request for review; do not merge it as part of this task.",
     "",
     "## Verification",
     "",

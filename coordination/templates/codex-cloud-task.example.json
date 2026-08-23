@@ -15,6 +15,7 @@
     "npm run verify"
   ],
   "maximumAttempts": 1,
+  "integrationMode": "merge-after-verify",
   "createdBy": "main-codex",
   "createdAt": "2026-08-23T00:00:00.000Z",
   "privacy": {

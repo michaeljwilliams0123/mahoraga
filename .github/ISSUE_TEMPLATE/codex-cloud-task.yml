@@ -10,7 +10,7 @@ body:
       value: |
         @codex
 
-        Use only this issue and repository contents. Do not access or export chats, credentials, personal files, browser history, plugin responses, or unrelated context. Open a pull request; do not merge or push directly to `main`.
+        Use only this issue and repository contents. Do not access or export chats, credentials, personal files, browser history, plugin responses, or unrelated context. Preserve a pull-request audit trail for all changes.
   - type: input
     id: idempotency_key
     attributes:
@@ -31,6 +31,17 @@ body:
     attributes:
       label: Bounded task
       description: Describe the repository outcome without chat or personal context.
+    validations:
+      required: true
+  - type: dropdown
+    id: integration_mode
+    attributes:
+      label: Integration mode
+      description: Both authorized Codex instances may merge when explicitly permitted.
+      options:
+        - Pull request for review
+        - Merge after verification
+      default: 0
     validations:
       required: true
   - type: textarea
