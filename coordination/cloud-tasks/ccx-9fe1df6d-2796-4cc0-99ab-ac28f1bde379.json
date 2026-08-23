@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-9fe1df6d-2796-4cc0-99ab-ac28f1bde379",
+  "idempotencyKey": "mahoraga-codex-cloud-dispatch-policy-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "6ebc15439d54f73d6f6b1d70d36a978581ce4da6",
+  "title": "Add Codex cloud dispatch policy regression",
+  "task": "Add a focused Node test proving .github/workflows/codex-cloud-dispatch.yml remains main-only, grants only contents read and issues write, invokes scripts/codex-cloud-task.mjs dispatch-bundle, and stores no credential. Do not change the workflow or runtime behavior.",
+  "allowedPaths": [
+    "test"
+  ],
+  "verification": [
+    "node --test --test-isolation=none test/codex-cloud-workflow.test.mjs"
+  ],
+  "maximumAttempts": 1,
+  "integrationMode": "pull-request",
+  "createdBy": "main-codex",
+  "createdAt": "2026-08-23T08:02:47.276Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}

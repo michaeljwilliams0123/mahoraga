@@ -15,8 +15,9 @@ usage. See the official OpenAI documentation for [Codex cloud](https://learn.cha
 ## Ownership and data boundary
 
 - The local Primary Codex normally coordinates tasks and uses its connected
-  plugins, but all user-authorized Codex instances may edit, review, and merge
-  verified work from either direction.
+  plugins. Secondary Codex and Codex cloud are bounded implementation/review
+  lanes; Primary Codex retains architecture, validation, integration, and merge
+  authority.
 - Codex cloud receives only the validated task issue and repository contents.
 - ChatGPT conversations, personal files, browser history, credentials, tokens,
   raw plugin responses, and unrelated context never enter GitHub.
@@ -77,9 +78,9 @@ sharing ChatGPT conversations.
 4. If no issue exists, GitHub creates it with `codex:queued` and
    `privacy:repo-only`. The body begins with `@codex`, which starts the connected
    Codex cloud task.
-5. Codex cloud works from the immutable base commit and opens a PR. An authorized
-   Codex changes the issue label to `codex:review`, checks the actual diff and
-   tests, and either requests a follow-up or merges according to `integrationMode`.
+5. Codex cloud works from the immutable base commit and opens a PR. Primary Codex
+   changes the issue label to `codex:review`, checks the actual diff and tests,
+   and either requests a follow-up or merges according to `integrationMode`.
 6. Primary records only bounded return evidence and changes the issue to
    `codex:done`. Failures use `codex:blocked`; attempts remain bounded.
 
@@ -95,7 +96,7 @@ Recommended state labels are `codex:queued`, `codex:running`, `codex:review`,
 | Start implementation | GitHub | `@codex` issue or PR mention |
 | Execute repository work | Codex cloud | Isolated connected environment |
 | Return changes | Codex cloud | Pull request |
-| Inspect, approve, merge | Authorized Codex instance | Connected GitHub App and local tests |
+| Inspect, approve, merge | Primary Codex | Connected GitHub App and local tests |
 
 There is no inbound listener on the Windows machine and no credential in task
 JSON. The main machine and secondary runner poll or receive GitHub events
