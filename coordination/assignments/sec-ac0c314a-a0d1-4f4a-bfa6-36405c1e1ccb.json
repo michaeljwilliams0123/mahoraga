@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb",
+  "correlationId": "sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb",
+  "title": "Prove unattended Secondary Codex trigger",
+  "taskArea": "secondary-connectivity",
+  "expectedTask": "Without using any private chat, credential, or unrelated personal context, acknowledge this assignment through the bounded runner and return only its generated result record. Do not modify application code.",
+  "expectedBaseCommit": "b9301e49930c89b811066f04c410ba32de7b4fb6",
+  "returnBranch": "secondary/sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb",
+  "allowedPaths": [
+    "coordination/results"
+  ],
+  "createdBy": "main-codex",
+  "assignedTo": "secondary-codex",
+  "createdAt": "2026-08-23T06:05:34.927Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
