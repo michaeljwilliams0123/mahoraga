@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-abcdef01-2345-6789-abcd-ef0123456789",
+  "status": "completed",
+  "completedBy": "secondary-codex",
+  "returnBranch": "secondary/sec-abcdef01-2345-6789-abcd-ef0123456789",
+  "returnCommit": "fedcba9876543210",
+  "changedFiles": ["src/example.mjs", "test/example.test.mjs"],
+  "verification": ["node --test --test-isolation=none"],
+  "summary": "Implemented and verified the scoped change.",
+  "completedAt": "2026-08-23T01:00:00.000Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}

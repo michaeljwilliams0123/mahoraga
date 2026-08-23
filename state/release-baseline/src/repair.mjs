@@ -7,6 +7,7 @@ export const ESSENTIAL_FILES = [
   "package.json",
   "src/cli.mjs",
   "src/capability-registry.mjs",
+  "src/coordination-records.mjs",
   "src/codex-builder-worker.mjs",
   "src/copilot-worker.mjs",
   "src/config.mjs",
@@ -29,6 +30,7 @@ export const ESSENTIAL_FILES = [
   "web/discourse.css",
   "web/styles.css",
   "scripts/auth.py",
+  "scripts/coordination.mjs",
   "scripts/microsoft_queue_worker.py",
   "scripts/start-production.ps1",
 ];

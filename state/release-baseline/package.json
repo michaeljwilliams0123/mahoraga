@@ -11,8 +11,12 @@
     "start:production": "node src/cli.mjs start",
     "status": "node src/cli.mjs status",
     "submit:health": "node src/cli.mjs submit system.health",
+    "coordination:create": "node scripts/coordination.mjs create-assignment",
+    "coordination:complete": "node scripts/coordination.mjs complete-assignment",
+    "coordination:list": "node scripts/coordination.mjs list",
+    "coordination:validate": "node scripts/coordination.mjs validate",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
-    "verify": "node src/cli.mjs validate && node --test --test-isolation=none"
+    "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node --test --test-isolation=none"
   }
 }

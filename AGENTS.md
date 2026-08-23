@@ -8,5 +8,7 @@ These instructions apply to this repository and everything below it.
 - Capabilities belong to isolated workers. Do not add a generic unrestricted shell or a caller-selected executable path to the supervisor.
 - Cloud connectors must be opt-in and data-class aware. Enterprise data stays in the Microsoft tenant; local-only data stays on the device.
 - Never store credentials, prompts, model responses, browser history, or document content in the runtime database. Store bounded task and diagnostic metadata.
+- GitHub coordination records contain only bounded task metadata and repository evidence. Never copy ChatGPT conversations, Destiny's chats, credentials, personal files, or unrelated user context into assignments, results, commits, branches, issues, or pull requests.
+- The main Codex owns assignments on `main`. A secondary Codex returns only `secondary/<assignment-id>` branches and never pushes directly to `main`.
 - Preserve task idempotency, leases, crash recovery, worker heartbeats, and the append-only event ledger.
 - Add focused tests for behavior changes and run `npm run verify`.

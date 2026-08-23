@@ -1,6 +1,8 @@
 #!/bin/sh
 zero=0000000000000000000000000000000000000000
 
+node scripts/coordination.mjs validate || exit 1
+
 while read local_ref local_sha remote_ref remote_sha
 do
   case "$remote_ref" in

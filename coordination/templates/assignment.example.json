@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-abcdef01-2345-6789-abcd-ef0123456789",
+  "correlationId": "sec-abcdef01-2345-6789-abcd-ef0123456789",
+  "title": "Implement a focused repository change",
+  "taskArea": "provider-adapter",
+  "expectedTask": "Change only the declared paths and add focused verification.",
+  "expectedBaseCommit": "abcdef0123456789",
+  "returnBranch": "secondary/sec-abcdef01-2345-6789-abcd-ef0123456789",
+  "allowedPaths": ["src", "test", "docs"],
+  "createdBy": "main-codex",
+  "assignedTo": "secondary-codex",
+  "createdAt": "2026-08-23T00:00:00.000Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
