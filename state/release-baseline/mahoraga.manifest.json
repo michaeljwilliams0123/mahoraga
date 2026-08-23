@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.3.0-rc.1",
+  "version": "3.3.0",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.3.0-rc.1",
-    "controlCenter": "5.1.0-rc.1",
+    "runtime": "3.3.0",
+    "controlCenter": "5.1.0",
     "cloudControlPlane": "3.0.1",
     "capabilityRegistry": "1.0.0",
     "taskSchema": "3",
@@ -58,7 +58,7 @@
   },
   "routingPolicy": {
     "interfaceOrder": ["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"],
-    "availabilityOrder": ["healthy", "busy", "starting", "configured", "disabled"],
+    "availabilityOrder": ["healthy", "busy", "starting", "configured", "disabled", "stale", "offline", "unhealthy", "unavailable"],
     "minimumReliability": 60
   },
   "costModes": {
@@ -85,6 +85,9 @@
         "permissionClass": "bounded-local",
         "reliability": 99,
         "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 25,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }
     },
@@ -106,6 +109,9 @@
         "permissionClass": "bounded-repository",
         "reliability": 98,
         "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 100,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }
     },
@@ -127,6 +133,9 @@
         "permissionClass": "operational-repair-only",
         "reliability": 99,
         "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 100,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }
     },
@@ -148,6 +157,9 @@
         "permissionClass": "bounded-local-model",
         "reliability": 80,
         "requiresAttendedDesktop": false,
+        "executionType": "local-provider",
+        "latencyMs": 500,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": ["lenovo-ai"]
       }
     },
@@ -169,6 +181,9 @@
         "permissionClass": "bounded-browser-session",
         "reliability": 90,
         "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 500,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": ["desktop"]
       }
     },
@@ -190,6 +205,9 @@
         "permissionClass": "interactive-desktop",
         "reliability": 75,
         "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }
     },
@@ -211,6 +229,9 @@
         "permissionClass": "microsoft-tenant",
         "reliability": 92,
         "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 1000,
+        "maximumWorkload": 2,
         "fallbackWorkerIds": ["copilot-studio"]
       }
     },
@@ -232,6 +253,9 @@
         "permissionClass": "microsoft-tenant-queue",
         "reliability": 96,
         "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 500,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }
     },
@@ -253,6 +277,9 @@
         "permissionClass": "microsoft-connected-agent",
         "reliability": 70,
         "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 2000,
+        "maximumWorkload": 2,
         "fallbackWorkerIds": ["microsoft365"]
       }
     },
@@ -274,6 +301,9 @@
         "permissionClass": "device-local",
         "reliability": 65,
         "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": ["local-reasoner"]
       }
     }

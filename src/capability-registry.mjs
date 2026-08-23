@@ -1,4 +1,4 @@
-const UNAVAILABLE_STATUSES = new Set(["crashed", "hung", "quarantined", "stopped"]);
+const ROUTABLE_STATUSES = new Set(["healthy", "busy", "starting", "configured"]);
 
 export function buildCapabilityRegistry(manifest, workerStates = []) {
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
@@ -11,10 +11,15 @@ export function buildCapabilityRegistry(manifest, workerStates = []) {
       workerLabel: worker.label,
       enabled: worker.enabled,
       availability: runtimeState?.status ?? (worker.enabled ? "configured" : "disabled"),
+      health: ["healthy", "busy"].includes(runtimeState?.status ?? "configured") ? "live" : "not-live",
       interfaceType: worker.routing.interfaceType,
       permissionClass: worker.routing.permissionClass,
       reliability: worker.routing.reliability,
       requiresAttendedDesktop: worker.routing.requiresAttendedDesktop,
+      executionType: worker.routing.executionType,
+      latencyMs: worker.routing.latencyMs,
+      maximumWorkload: worker.routing.maximumWorkload,
+      workload: runtimeState?.currentTaskId ? 1 : 0,
       fallbackWorkerIds: [...worker.routing.fallbackWorkerIds],
       costClass: worker.costClass,
       dataClasses: [...worker.dataClasses],
@@ -34,7 +39,7 @@ export function rankCapabilityRoutes(manifest, task, { workerStates = [] } = {})
     .filter((entry) =>
       entry.capability === task.capability &&
       entry.enabled &&
-      !UNAVAILABLE_STATUSES.has(entry.availability) &&
+      ROUTABLE_STATUSES.has(entry.availability) &&
       entry.dataClasses.includes(task.dataClass) &&
       allowedCosts.includes(entry.costClass) &&
       entry.reliability >= manifest.routingPolicy.minimumReliability)
@@ -42,6 +47,8 @@ export function rankCapabilityRoutes(manifest, task, { workerStates = [] } = {})
       rank(interfaceRank, left.interfaceType) - rank(interfaceRank, right.interfaceType) ||
       allowedCosts.indexOf(left.costClass) - allowedCosts.indexOf(right.costClass) ||
       rank(availabilityRank, left.availability) - rank(availabilityRank, right.availability) ||
+      left.workload - right.workload ||
+      left.latencyMs - right.latencyMs ||
       right.reliability - left.reliability ||
       left.workerId.localeCompare(right.workerId));
 

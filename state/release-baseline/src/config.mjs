@@ -8,8 +8,7 @@ export const MANIFEST_BACKUP_PATH = path.join(ROOT, "state", "last-known-good.ma
 
 const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only"]);
 const COST_CLASSES = new Set(["deterministic", "local-model", "licensed-cloud", "metered-cloud"]);
-const INTERFACE_TYPES = new Set(["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"]);
-const AVAILABILITY_STATES = new Set(["healthy", "busy", "starting", "configured", "disabled"]);
+const AVAILABILITY_STATES = new Set(["healthy", "busy", "starting", "configured", "disabled", "stale", "offline", "unhealthy", "unavailable"]);
 
 export async function loadManifest(file = MANIFEST_PATH) {
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
@@ -78,8 +77,8 @@ export function validateManifest(value) {
     throw new TypeError("Repair baseline must stay inside state/.");
   }
   if (!isRecord(value.routingPolicy)) throw new TypeError("Routing policy is missing.");
-  if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length !== INTERFACE_TYPES.size ||
-      new Set(value.routingPolicy.interfaceOrder).size !== INTERFACE_TYPES.size || value.routingPolicy.interfaceOrder.some((item) => !INTERFACE_TYPES.has(item))) {
+  if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length < 1 ||
+      new Set(value.routingPolicy.interfaceOrder).size !== value.routingPolicy.interfaceOrder.length || value.routingPolicy.interfaceOrder.some((item) => !validRoutingValue(item))) {
     throw new TypeError("Routing interface order is invalid.");
   }
   if (!Array.isArray(value.routingPolicy.availabilityOrder) || value.routingPolicy.availabilityOrder.length !== AVAILABILITY_STATES.size ||
@@ -123,10 +122,13 @@ export function validateManifest(value) {
     integer(worker.concurrency, 1, 16, "worker concurrency");
     capability(worker.healthProbe);
     bounded(worker.executionPlane, 40, "worker execution plane");
-    if (!isRecord(worker.routing) || !INTERFACE_TYPES.has(worker.routing.interfaceType)) throw new TypeError(`Worker ${worker.id} interface type is invalid.`);
+    if (!isRecord(worker.routing) || !validRoutingValue(worker.routing.interfaceType)) throw new TypeError(`Worker ${worker.id} interface type is invalid.`);
     slug(worker.routing.permissionClass, "worker permission class");
     integer(worker.routing.reliability, 0, 100, `worker ${worker.id} reliability`);
     if (typeof worker.routing.requiresAttendedDesktop !== "boolean") throw new TypeError(`Worker ${worker.id} attended desktop flag is invalid.`);
+    slug(worker.routing.executionType, `worker ${worker.id} execution type`);
+    integer(worker.routing.latencyMs, 0, 3600000, `worker ${worker.id} latency`);
+    integer(worker.routing.maximumWorkload, 1, 16, `worker ${worker.id} workload`);
     if (!Array.isArray(worker.routing.fallbackWorkerIds) || worker.routing.fallbackWorkerIds.length > 8) throw new TypeError(`Worker ${worker.id} fallbacks are invalid.`);
     worker.routing.fallbackWorkerIds.forEach((item) => slug(item, "fallback worker id"));
   }
@@ -160,6 +162,7 @@ function slug(value, name) {
 function capability(value) {
   if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(value)) throw new TypeError("Worker capability is invalid.");
 }
+function validRoutingValue(value) { return typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value); }
 function integer(value, min, max, name) {
   if (!Number.isInteger(value) || value < min || value > max) throw new TypeError(`${name} is invalid.`);
 }

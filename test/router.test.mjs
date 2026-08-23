@@ -49,3 +49,11 @@ test("router prefers the most native reliable route and fails over around unavai
   assert.equal(routeTask(manifest, task, { workerStates: [{ workerId: "native-health", status: "quarantined" }] }).worker.id, "local-core");
 });
 
+test("router fails closed for stale and offline worker states", async () => {
+  const manifest = await loadManifest();
+  const task = { capability: "system.health", dataClass: "synthetic", requestedMode: "local" };
+  for (const status of ["stale", "offline", "unhealthy", "unavailable"]) {
+    assert.equal(routeTask(manifest, task, { workerStates: [{ workerId: "local-core", status }] }).status, "waiting");
+  }
+});
+
