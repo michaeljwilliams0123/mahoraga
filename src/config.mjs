@@ -76,6 +76,7 @@ export function validateManifest(value) {
   if (!/^state\/[a-z0-9._/-]+$/i.test(value.repair.baselineDirectory) || value.repair.baselineDirectory.includes("..")) {
     throw new TypeError("Repair baseline must stay inside state/.");
   }
+  validateBrowserPolicy(value.browser);
   if (!isRecord(value.routingPolicy)) throw new TypeError("Routing policy is missing.");
   if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length < 1 ||
       new Set(value.routingPolicy.interfaceOrder).size !== value.routingPolicy.interfaceOrder.length || value.routingPolicy.interfaceOrder.some((item) => !validRoutingValue(item))) {
@@ -186,6 +187,15 @@ function validateCodexBuilderAdapter(adapter) {
   if (adapter.kind !== "codex-desktop-builder" || adapter.executable !== "codex" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== false || adapter.apiKeyRequired !== false) {
     throw new TypeError("Codex Builder adapter boundary is invalid.");
   }
+}
+function validateBrowserPolicy(browser) {
+  if (!isRecord(browser)) throw new TypeError("Browser policy is missing.");
+  if (browser.controlCenterUrl !== "http://127.0.0.1:4782/") throw new TypeError("Browser policy must remain loopback-only.");
+  for (const field of ["profileDirectory", "artifactDirectory"]) {
+    if (!/^state\/[a-z0-9._/-]+$/i.test(browser[field]) || browser[field].includes("..")) throw new TypeError(`Browser ${field} is invalid.`);
+  }
+  integer(browser.artifactRetentionMs, 60000, 7 * 24 * 60 * 60 * 1000, "Browser artifact retention");
+  if (browser.signedSessionEnabled !== false) throw new TypeError("Signed browser session must remain disabled pending user approval.");
 }
 function integer(value, min, max, name) {
   if (!Number.isInteger(value) || value < min || value > max) throw new TypeError(`${name} is invalid.`);

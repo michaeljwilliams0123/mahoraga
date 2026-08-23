@@ -84,6 +84,7 @@ export class RuntimeDatabase {
         phase TEXT NOT NULL,
         verifier TEXT NOT NULL,
         summary TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
       CREATE TABLE IF NOT EXISTS codex_builder_sessions (
@@ -145,6 +146,7 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
     `);
     this.#ensureTaskColumns();
+    this.#ensureReceiptColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
   }
 
@@ -158,6 +160,11 @@ export class RuntimeDatabase {
       ["task_area", "TEXT"], ["excluded_worker_ids", "TEXT NOT NULL DEFAULT '[]'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
+  }
+
+  #ensureReceiptColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(execution_receipts)").all().map((column) => column.name));
+    if (!current.has("metadata_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'");
   }
 
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
@@ -481,7 +488,7 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
-  finishTask(id, { status, resultSummary = null, errorCode = null }) {
+  finishTask(id, { status, resultSummary = null, errorCode = null, receiptMetadata = {} }) {
     if (!new Set(["completed", "failed", "waiting", "cancelled"]).has(status)) throw new TypeError("Terminal task status is invalid.");
     if (resultSummary !== null) bounded(resultSummary, 2000, "result summary");
     if (errorCode !== null) bounded(errorCode, 80, "error code");
@@ -491,7 +498,7 @@ export class RuntimeDatabase {
       WHERE id=? AND status IN ('running','verifying')`).run(status, resultSummary, errorCode, now, id);
     if (changed.changes === 1) {
       this.#event(`task.${status}`, id, { errorCode });
-      this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.` });
+      this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.`, metadata: receiptMetadata });
       if (task?.conversationId) {
         const content = status === "completed"
           ? (resultSummary ?? "Task completed and verified.")
@@ -505,14 +512,24 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
-  recordReceipt({ task, phase, verifier, summary }) {
+  recordReceipt({ task, phase, verifier, summary, metadata = {} }) {
     if (!task) throw new TypeError("Task is required for a receipt.");
     bounded(phase, 40, "receipt phase"); bounded(verifier, 80, "receipt verifier"); bounded(summary, 2000, "receipt summary");
+    const receiptMetadata = normalizeReceiptMetadata(metadata);
     const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
-    this.db.prepare("INSERT INTO execution_receipts(id,task_id,correlation_id,phase,verifier,summary,created_at) VALUES(?,?,?,?,?,?,?)")
-      .run(id, task.id, task.correlationId, phase, verifier, summary, createdAt);
+    this.db.prepare("INSERT INTO execution_receipts(id,task_id,correlation_id,phase,verifier,summary,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)")
+      .run(id, task.id, task.correlationId, phase, verifier, summary, JSON.stringify(receiptMetadata), createdAt);
     this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase, verifier });
-    return { id, taskId: task.id, correlationId: task.correlationId, phase, verifier, summary, createdAt };
+    return { id, taskId: task.id, correlationId: task.correlationId, phase, verifier, summary, metadata: receiptMetadata, createdAt };
+  }
+
+  listReceipts(taskId, limit = 100) {
+    bounded(taskId, 80, "receipt task id");
+    const size = Math.max(1, Math.min(Number(limit) || 100, 500));
+    return this.db.prepare("SELECT * FROM execution_receipts WHERE task_id=? ORDER BY created_at DESC LIMIT ?").all(taskId, size).map((row) => ({
+      id: row.id, taskId: row.task_id, correlationId: row.correlation_id, phase: row.phase, verifier: row.verifier,
+      summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"), createdAt: row.created_at,
+    }));
   }
 
   recoverExpired(now = new Date()) {
@@ -617,6 +634,29 @@ function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) th
   id: row.id, title: row.title, summary: row.summary, status: row.status, testSummary: row.test_summary,
   createdAt: row.created_at, decidedAt: row.decided_at, activatedAt: row.activated_at,
 }; }
+function normalizeReceiptMetadata(value) {
+  if (value === null || value === undefined) return {};
+  if (!isRecord(value)) throw new TypeError("Receipt metadata is invalid.");
+  const allowed = new Set(["operation", "titleSha256", "artifactSha256", "screenshotWidth", "screenshotHeight", "networkRequests", "networkFailures", "networkStatus2xx", "networkStatus3xx", "networkStatus4xx", "networkStatus5xx", "consoleErrors", "consoleWarnings", "consoleHashCount"]);
+  for (const key of Object.keys(value)) if (!allowed.has(key)) throw new TypeError("Receipt metadata key is invalid.");
+  const metadata = {};
+  if (value.operation !== undefined) {
+    if (value.operation !== "browser-observe") throw new TypeError("Receipt operation is invalid.");
+    metadata.operation = value.operation;
+  }
+  for (const key of ["titleSha256", "artifactSha256"]) {
+    if (value[key] === undefined) continue;
+    if (!/^[a-f0-9]{64}$/i.test(value[key])) throw new TypeError("Receipt digest is invalid.");
+    metadata[key] = value[key].toLowerCase();
+  }
+  for (const key of ["screenshotWidth", "screenshotHeight", "networkRequests", "networkFailures", "networkStatus2xx", "networkStatus3xx", "networkStatus4xx", "networkStatus5xx", "consoleErrors", "consoleWarnings", "consoleHashCount"]) {
+    if (value[key] === undefined) continue;
+    if (!Number.isInteger(value[key]) || value[key] < 0 || value[key] > 100000) throw new TypeError("Receipt metric is invalid.");
+    metadata[key] = value[key];
+  }
+  return Object.freeze(metadata);
+}
+function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function validateCapability(value) { if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(value)) throw new TypeError("Capability is invalid."); }
 function validateDataClass(value) { if (!new Set(["synthetic", "personal", "enterprise", "local-only"]).has(value)) throw new TypeError("Data class is invalid."); }
 function validateObjectiveTask(value) {

@@ -11,6 +11,7 @@ export const ESSENTIAL_FILES = [
   "src/copilot-worker.mjs",
   "src/config.mjs",
   "src/local-auth.mjs",
+  "src/browser-cdp.mjs",
   "src/browser-worker.mjs",
   "src/database.mjs",
   "src/microsoft-queue-worker.mjs",

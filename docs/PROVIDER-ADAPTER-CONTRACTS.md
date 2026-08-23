@@ -55,9 +55,16 @@ assignment and return an ordinary Git commit when separately authorized.
 
 The target contract includes tabs, open, navigate, read, inspect, click, type,
 select, upload, download, wait, screenshot, network, console, and close. The
-current production local adapter implements isolated Chrome health and verified
-Control Center smoke. Signed-session Chrome and in-app-browser bindings remain
-provider work, not claims of current completion.
+current production local adapter implements isolated Chrome health, verified
+Control Center smoke, and `browser.observe` for the loopback Control Center
+only. That observation uses a Mahoraga-owned headless profile and CDP child,
+returns the DOM title only in the transient worker result, and persists only
+title/screenshot digests, dimensions, and bounded network/console counts. The
+worker rejects an unowned loopback CDP endpoint rather than attaching to an
+existing user browser. Screenshots live under local runtime state for at most 24
+hours. Signed-session Chrome and in-app-browser bindings remain disabled pending
+explicit one-time user approval; the normal Chrome profile and cookies are never
+copied or attached.
 
 ## Desktop hierarchy
 

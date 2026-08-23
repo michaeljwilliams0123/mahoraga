@@ -29,7 +29,7 @@ process.on("message", async (message) => {
 });
 
 async function execute(capability, task) {
-  if (capability.startsWith("browser.")) return executeBrowserCapability(capability);
+  if (capability.startsWith("browser.")) return executeBrowserCapability(capability, task);
   if (capability.startsWith("repository.")) return executeRepositoryCapability(capability, task);
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   if (capability.startsWith("copilot.")) return executeCopilotCapability(capability, task, worker);

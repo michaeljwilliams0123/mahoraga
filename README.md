@@ -20,8 +20,10 @@ suites are source material for later worker migration.
   durable task leases.
 - SQLite task, worker, event, and improvement state using the Node 24 runtime.
 - Isolated `local-core`, `repository`, `browser`, and `self-healer` worker processes.
-- A dedicated headless Chrome process on loopback for deterministic browser health
-  and Control Center rendering receipts. No public debugging endpoint is exposed.
+- A Mahoraga-owned headless Chrome process on loopback for deterministic browser
+  health and bounded Control Center observation receipts (DOM title hash,
+  screenshot digest/dimensions, network counts, and console counts). No public
+  debugging endpoint is exposed; an unowned loopback CDP endpoint is rejected.
 - A bounded Repository Worker for status, inspection, recent history, and the
   repository's fixed verification command.
 - Durable assignment conversations, worker questions, and user replies. A task
@@ -79,8 +81,10 @@ and the four enabled isolated workers are supervised on loopback.
   isolated Microsoft connected-agent 404 failures.
 - Lenovo AI Now: the supplied project has a bounded legacy adapter; the linked
   Lenovo page is a device user guide and provides no supported AI automation API.
-- Browser Worker: enabled in production. Desktop Worker remains off pending its
-  process contract and application-specific receipts.
+- Browser Worker: enabled for isolated Control Center status, smoke, and observe
+  checks only. Browser screenshots stay in local runtime state for at most 24
+  hours; signed-in browsing remains disabled pending explicit user approval.
+  Desktop Worker remains off pending its process contract and application-specific receipts.
 - Microsoft 365 queue: Vaco (default) (Upgrade), MahoragaPlatform, and the
   permanent `mhg_` publisher are confirmed. Activation awaits completion of the
   reusable Dataverse CLI authentication now in progress.

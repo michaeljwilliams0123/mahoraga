@@ -59,6 +59,13 @@
     "baselineDirectory": "state/release-baseline",
     "coreUpdateAuthority": "user-only"
   },
+  "browser": {
+    "controlCenterUrl": "http://127.0.0.1:4782/",
+    "profileDirectory": "state/browser-profile",
+    "artifactDirectory": "state/browser-artifacts",
+    "artifactRetentionMs": 86400000,
+    "signedSessionEnabled": false
+  },
   "routingPolicy": {
     "interfaceOrder": ["native-api", "connector", "mcp-cli", "application-extension", "deterministic-worker", "desktop-automation", "vision-automation"],
     "availabilityOrder": ["healthy", "busy", "starting", "configured", "disabled", "stale", "offline", "unhealthy", "unavailable"],
@@ -173,7 +180,7 @@
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal"],
-      "capabilities": ["browser.status", "browser.smoke"],
+      "capabilities": ["browser.status", "browser.smoke", "browser.observe"],
       "acceptedTaskTypes": ["browser"],
       "timeoutMs": 45000,
       "concurrency": 1,
@@ -463,11 +470,11 @@
       "state": "production-enabled-local-cdp",
       "endpointClass": "localhost",
       "authenticationState": "loopback-process-boundary",
-      "capabilities": ["browser.status", "browser.smoke"],
+      "capabilities": ["browser.status", "browser.smoke", "browser.observe"],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": null,
-      "notes": "A dedicated headless Chrome process is supervised on loopback for deterministic DOM verification. It does not expose a public debugging endpoint."
+      "notes": "A Mahoraga-owned headless Chrome process is supervised on loopback for deterministic Control Center observation. It rejects an unowned debugging endpoint, retains screenshots for at most 24 hours, and does not expose a public debugging endpoint."
     },
     {
       "id": "microsoft-task-queue",
