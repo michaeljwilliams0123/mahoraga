@@ -1,0 +1,29 @@
+# Mahoraga implementation log
+
+Updated: 2026-08-23
+
+## Current wave
+
+Wave 8 safe first increment is deployed. The Browser Worker now owns an
+isolated headless Chrome profile and can observe only the loopback Control
+Center. It records bounded screenshot, network, console, and DOM-title
+verification evidence without persisting page content, URLs, cookies, or image
+bytes in SQLite.
+
+## Active runtime
+
+The per-user supervised Mahoraga 3.3.0 runtime is healthy on
+`127.0.0.1:4782`. Enabled providers are `local-core`, `repository`, `browser`,
+and `self-healer`. The last successful deployment is `124dca8`; the live
+`browser.observe` boundary completed with worker verification and an immutable
+execution receipt.
+
+## Known boundaries
+
+- The first live Browser 2.0 smoke exposed an outdated title expectation. It is
+  repaired in `124dca8`; the preserved failed task is diagnostic history, not a
+  current outage.
+- GitHub Copilot execution remains disabled because the authenticated account's
+  monthly quota is exhausted.
+- Primary Codex Builder direct execution remains disabled because the installed
+  Desktop AppX executable is not callable through a supported local CLI.
