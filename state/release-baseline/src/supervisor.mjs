@@ -8,7 +8,7 @@ const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database }) {
-    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null;
+    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -18,6 +18,7 @@ export class Supervisor extends EventEmitter {
     this.database.recoverExpired();
     this.#scheduleAutomaticRepair();
     this.#scheduleMicrosoftQueuePoll();
+    this.#scheduleSecondaryMailboxMonitor();
     this.timer = setInterval(() => this.#tick(), 500);
     this.timer.unref();
   }
@@ -109,6 +110,7 @@ export class Supervisor extends EventEmitter {
       state.status = state.busy ? "busy" : "healthy";
       this.database.setWorkerState({ workerId: state.definition.id, status: state.status, pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
     } else if (message?.type === "task.completed") {
+      this.#applySecondaryResult(message.taskId, message.result);
       if (message.result?.waitingForUser === true) {
         this.database.waitTaskForUser(message.taskId, normalizeSummary(message.result?.prompt ?? "Additional input is required."));
         this.#release(state);
@@ -122,6 +124,9 @@ export class Supervisor extends EventEmitter {
       }
       this.#release(state);
     } else if (message?.type === "task.failed") {
+      const failed = this.database.getTask(message.taskId);
+      const assignmentId = secondaryAssignmentId(failed, "secondary-validate");
+      if (assignmentId) this.database.completeSecondaryValidation({ taskId: failed.id, verified: false });
       this.database.finishTask(message.taskId, { status: "failed", errorCode: message.errorCode });
       this.#release(state);
     }
@@ -148,6 +153,7 @@ export class Supervisor extends EventEmitter {
     this.database.reconcileObjectives();
     this.#scheduleAutomaticRepair();
     this.#scheduleMicrosoftQueuePoll();
+    this.#scheduleSecondaryMailboxMonitor();
     const now = Date.now();
     for (const state of this.workers.values()) {
       if (state.lastHeartbeatAt && now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs) {
@@ -196,6 +202,42 @@ export class Supervisor extends EventEmitter {
       idempotencyKey: `microsoft-queue-poll:${bucket}`,
     });
   }
+
+  #scheduleSecondaryMailboxMonitor() {
+    if (!this.manifest.featureFlags?.secondaryCodexMailbox) return;
+    const bucket = Math.floor(Date.now() / 60000);
+    if (bucket === this.lastSecondaryMailboxBucket) return;
+    this.lastSecondaryMailboxBucket = bucket;
+    for (const assignment of this.database.readySecondaryAssignments()) {
+      this.database.submitTask({
+        capability: "repository.secondary-monitor", dataClass: "synthetic", requestedMode: "local",
+        executionPlane: "local", taskType: "secondary-codex", priority: "background", maximumAttempts: 1,
+        taskArea: assignment.taskArea, requestedOutcome: `Monitor Secondary Codex mailbox ${assignment.id}.`,
+        correlationId: assignment.correlationId, idempotencyKey: `secondary-monitor:${assignment.id}:${bucket}`,
+      });
+    }
+  }
+
+  #applySecondaryResult(taskId, result) {
+    if (result?.secondaryMonitor) {
+      const assignment = this.database.observeSecondaryReturn(result.secondaryMonitor);
+      if (assignment?.status === "RETURNED") {
+        const validation = this.database.submitTask({
+          capability: "repository.verify", dataClass: "synthetic", requestedMode: "local", executionPlane: "local",
+          taskType: "secondary-codex", priority: "high", maximumAttempts: 1, taskArea: assignment.taskArea,
+          requestedOutcome: `Validate returned Secondary Codex commit ${assignment.returnCommit.slice(0, 12)} for ${assignment.id}.`,
+          correlationId: assignment.correlationId, idempotencyKey: `secondary-validate:${assignment.id}:${assignment.expectedBaseCommit}:${assignment.returnCommit}`,
+        });
+        this.database.attachSecondaryValidation({ assignmentId: assignment.id, taskId: validation.id });
+      }
+    }
+    if (result?.secondaryValidation) this.database.completeSecondaryValidation({ taskId, verified: result.verified !== false });
+  }
+}
+
+function secondaryAssignmentId(task, prefix) {
+  const match = String(task?.idempotencyKey ?? "").match(new RegExp(`^${prefix}:(sec-[a-f0-9-]+):`));
+  return match?.[1] ?? null;
 }
 
 export function normalizeSummary(value) {

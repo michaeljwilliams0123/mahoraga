@@ -42,6 +42,8 @@
     "browserWorker": true,
     "repositoryWorker": true,
     "githubCopilotWorker": false,
+    "primaryCodexBuilder": false,
+    "secondaryCodexMailbox": true,
     "desktopWorker": false,
     "microsoftQueueWorker": false,
     "authenticatedExecutionPlane": false,
@@ -99,8 +101,8 @@
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": ["synthetic", "personal", "local-only"],
-      "capabilities": ["repository.status", "repository.inspect", "repository.history", "repository.remote", "repository.verify"],
-      "acceptedTaskTypes": ["repository"],
+      "capabilities": ["repository.status", "repository.inspect", "repository.history", "repository.remote", "repository.verify", "repository.secondary-monitor"],
+      "acceptedTaskTypes": ["repository", "secondary-codex"],
       "timeoutMs": 120000,
       "concurrency": 1,
       "healthProbe": "repository.status",
@@ -186,6 +188,39 @@
         "latencyMs": 500,
         "maximumWorkload": 1,
         "fallbackWorkerIds": ["desktop"]
+      }
+    },
+    {
+      "id": "primary-codex-builder",
+      "label": "Primary Codex Builder",
+      "version": "desktop-adapter-1",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": ["synthetic"],
+      "capabilities": ["codex.health", "codex.execute"],
+      "acceptedTaskTypes": ["codex-builder"],
+      "timeoutMs": 300000,
+      "concurrency": 1,
+      "healthProbe": "codex.health",
+      "executionPlane": "primary-codex-local",
+      "routing": {
+        "interfaceType": "application-extension",
+        "permissionClass": "task-scoped-codex-builder",
+        "reliability": 0,
+        "requiresAttendedDesktop": false,
+        "executionType": "task-scoped-provider",
+        "latencyMs": 0,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "codex-desktop-builder",
+        "executable": "codex",
+        "workingDirectory": ".",
+        "taskScoped": true,
+        "interactiveAuthority": false,
+        "directExecutionEnabled": false,
+        "apiKeyRequired": false
       }
     },
     {
@@ -400,6 +435,28 @@
       "latencyMs": null,
       "error": "live-ai-request-not-performed-monthly-quota-exhausted",
       "notes": "The bounded CLI adapter is disabled until an operator verifies authentication and quota with an approved live task. It fixes the repository working directory, disables remote session/export and built-in MCPs, disallows temporary directories, and uses an explicit tool allowlist."
+    },
+    {
+      "id": "primary-codex-builder",
+      "state": "desktop-installed-direct-cli-access-denied",
+      "endpointClass": "local-desktop-application",
+      "authenticationState": "inherits-primary-interactive-session",
+      "capabilities": ["codex.health", "codex.execute"],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "desktop-appx-executable-access-denied",
+      "notes": "Primary Codex remains the interactive authority. The separate task-scoped Builder contract is disabled because the installed Desktop AppX executable is not directly callable from this environment; it neither requires nor creates an OpenAI API key."
+    },
+    {
+      "id": "secondary-codex-mailbox",
+      "state": "canonical-private-origin-configured-awaiting-authorized-return-branch",
+      "endpointClass": "repository-mailbox",
+      "authenticationState": "separate-human-authorized-account-required",
+      "capabilities": ["repository.secondary-monitor", "repository.verify"],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "awaiting-authorized-secondary-return-branch",
+      "notes": "Mahoraga prepares concise READY assignments and monitors only an expected Git return branch. A separately authorized second account may pick up the assignment and return commits; Mahoraga never accesses that account."
     },
     {
       "id": "chrome-devtools",

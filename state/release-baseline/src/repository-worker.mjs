@@ -2,10 +2,11 @@ import { spawn } from "node:child_process";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
+import { validateManifest } from "./config.mjs";
 
 const GIT = process.env.MAHORAGA_GIT_EXECUTABLE || "git";
 
-export async function executeRepositoryCapability(capability) {
+export async function executeRepositoryCapability(capability, task = {}) {
   if (capability === "repository.inspect") {
     const packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
     const info = await stat(ROOT);
@@ -39,6 +40,8 @@ export async function executeRepositoryCapability(capability) {
     return { verified: true, summary: remotes.length ? `Repository remote state captured for ${branch.stdout.trim()}; main is ${sync}.` : `Repository ${branch.stdout.trim()} has no configured remote.`, head: localHead, branch: branch.stdout.trim(), remotes, remoteHeads, mainHead, sync, commit: { id: commitId, subject, attribution } };
   }
   if (capability === "repository.verify") {
+    const secondary = secondaryValidationContext(task);
+    if (secondary) return validateSecondaryReturn(secondary);
     const validation = await run(process.execPath, ["src/cli.mjs", "validate"], 30000, ROOT);
     const tests = await run(process.execPath, ["--test", "--test-isolation=none"], 120000, ROOT);
     return {
@@ -47,7 +50,58 @@ export async function executeRepositoryCapability(capability) {
       exitCode: tests.exitCode,
     };
   }
+  if (capability === "repository.secondary-monitor") {
+    const assignmentId = secondaryAssignmentId(task, "secondary-monitor");
+    if (!assignmentId) throw new Error("secondary-assignment-missing");
+    try {
+      await run(GIT, ["-C", ROOT, "remote", "get-url", "origin"], 15000);
+    } catch {
+      return { verified: true, summary: `Secondary Codex mailbox ${assignmentId} remains READY: GitHub remote is not configured.`, secondaryMonitor: { assignmentId, remoteAvailable: false, returnCommit: null } };
+    }
+    const branch = `refs/heads/secondary/${assignmentId}`;
+    const returned = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin", branch], 30000);
+    const returnCommit = returned.stdout.trim().split(/\s+/)[0] || null;
+    return { verified: true, summary: returnCommit ? `Secondary Codex return commit ${returnCommit.slice(0, 12)} detected for ${assignmentId}.` : `Secondary Codex mailbox ${assignmentId} remains READY; expected return branch has not appeared.`, secondaryMonitor: { assignmentId, remoteAvailable: true, returnCommit } };
+  }
   throw new Error("unsupported-capability");
+}
+
+async function validateSecondaryReturn({ assignmentId, expectedBaseCommit, returnCommit }) {
+  try {
+    const remoteHead = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin", `refs/heads/secondary/${assignmentId}`], 30000);
+    if (remoteHead.stdout.trim().split(/\s+/)[0]?.toLowerCase() !== returnCommit) throw new Error("secondary-return-head-changed");
+    await run(GIT, ["-C", ROOT, "fetch", "--no-tags", "--no-write-fetch-head", "origin", `refs/heads/secondary/${assignmentId}`], 30000);
+    await run(GIT, ["-C", ROOT, "cat-file", "-e", `${returnCommit}^{commit}`], 15000);
+    await run(GIT, ["-C", ROOT, "merge-base", "--is-ancestor", expectedBaseCommit, returnCommit], 15000);
+    await run(GIT, ["-C", ROOT, "diff", "--check", `${expectedBaseCommit}..${returnCommit}`], 30000);
+    const changed = await run(GIT, ["-C", ROOT, "diff", "--name-only", `${expectedBaseCommit}..${returnCommit}`], 30000);
+    const changedFiles = changed.stdout.split(/\r?\n/).filter(Boolean);
+    if (changedFiles.length > 128) throw new Error("secondary-changed-file-limit-exceeded");
+    const manifestSource = await run(GIT, ["-C", ROOT, "show", `${returnCommit}:mahoraga.manifest.json`], 30000);
+    validateManifest(JSON.parse(manifestSource.stdout));
+    return {
+      verified: true,
+      summary: `Secondary return ${returnCommit.slice(0, 12)} verified against base ${expectedBaseCommit.slice(0, 12)}; ${changedFiles.length} changed file(s).`,
+      secondaryValidation: assignmentId,
+      changedFiles: changedFiles.slice(0, 128),
+    };
+  } catch {
+    return {
+      verified: false,
+      summary: `Secondary return ${returnCommit.slice(0, 12)} failed deterministic commit validation against base ${expectedBaseCommit.slice(0, 12)}.`,
+      secondaryValidation: assignmentId,
+    };
+  }
+}
+
+export function secondaryValidationContext(task) {
+  const match = String(task?.idempotencyKey ?? "").match(/^secondary-validate:(sec-[a-f0-9-]+):([a-f0-9]{7,64}):([a-f0-9]{7,64})$/i);
+  return match ? { assignmentId: match[1], expectedBaseCommit: match[2].toLowerCase(), returnCommit: match[3].toLowerCase() } : null;
+}
+
+function secondaryAssignmentId(task, prefix) {
+  const match = String(task?.idempotencyKey ?? "").match(new RegExp(`^${prefix}:(sec-[a-f0-9-]+):`));
+  return match?.[1] ?? null;
 }
 
 function run(executable, args, timeoutMs, cwd = ROOT) {

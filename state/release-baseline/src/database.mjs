@@ -86,6 +86,32 @@ export class RuntimeDatabase {
         summary TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS codex_builder_sessions (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL UNIQUE,
+        correlation_id TEXT NOT NULL,
+        authority_session_id TEXT,
+        execution_session_id TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS secondary_assignments (
+        id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        task_area TEXT NOT NULL,
+        expected_task TEXT NOT NULL,
+        expected_base_commit TEXT NOT NULL,
+        return_branch TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL,
+        return_commit TEXT,
+        validation_task_id TEXT,
+        verification_state TEXT,
+        last_observation TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
       CREATE TABLE IF NOT EXISTS objectives (
         id TEXT PRIMARY KEY,
         correlation_id TEXT NOT NULL,
@@ -114,6 +140,8 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_builder_sessions_correlation ON codex_builder_sessions(correlation_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_secondary_assignments_status ON secondary_assignments(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
     `);
     this.#ensureTaskColumns();
@@ -332,6 +360,89 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
+  createCodexBuilderSession({ taskId, authoritySessionId = null }) {
+    bounded(taskId, 80, "task id");
+    if (authoritySessionId !== null) bounded(authoritySessionId, 120, "authority session id");
+    const task = this.getTask(taskId);
+    if (!task || task.capability !== "codex.execute") throw new TypeError("Codex Builder task is missing.");
+    const existing = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE task_id=?").get(taskId);
+    if (existing) return normalizeCodexBuilderSession(existing);
+    const id = `cbs-${randomUUID()}`; const executionSessionId = `cdb-${randomUUID()}`; const now = new Date().toISOString();
+    this.db.prepare("INSERT INTO codex_builder_sessions(id,task_id,correlation_id,authority_session_id,execution_session_id,status,created_at,updated_at) VALUES(?,?,?,?,?,'PREPARED',?,?)")
+      .run(id, task.id, task.correlationId, authoritySessionId, executionSessionId, now, now);
+    this.#event("codex-builder.prepared", id, { taskId: task.id, correlationId: task.correlationId, executionSessionId });
+    return this.getCodexBuilderSession(id);
+  }
+
+  getCodexBuilderSession(id) { bounded(id, 80, "builder session id"); const row = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE id=?").get(id); return row ? normalizeCodexBuilderSession(row) : null; }
+  listCodexBuilderSessions(limit = 100) { const size = Math.max(1, Math.min(Number(limit) || 100, 500)); return this.db.prepare("SELECT * FROM codex_builder_sessions ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeCodexBuilderSession); }
+
+  recordCodexBuilderResult({ sessionId, status, verificationState = "not-run", changedFileCount = 0, commitId = null }) {
+    bounded(sessionId, 80, "builder session id");
+    if (!new Set(["completed", "failed"]).has(status)) throw new TypeError("Codex Builder result status is invalid.");
+    if (!new Set(["passed", "failed", "not-run"]).has(verificationState)) throw new TypeError("Codex Builder verification state is invalid.");
+    if (!Number.isInteger(changedFileCount) || changedFileCount < 0 || changedFileCount > 10000) throw new TypeError("Codex Builder changed file count is invalid.");
+    if (commitId !== null && !/^[a-f0-9]{7,64}$/i.test(commitId)) throw new TypeError("Codex Builder commit is invalid.");
+    const session = this.getCodexBuilderSession(sessionId);
+    if (!session || session.status !== "PREPARED") return session;
+    const task = this.getTask(session.taskId); const now = new Date().toISOString();
+    const summary = `Task-scoped Codex Builder result recorded: ${status}; verification=${verificationState}; changed-files=${changedFileCount}${commitId ? `; commit=${commitId.slice(0, 12)}` : ""}.`;
+    this.#transaction(() => {
+      this.db.prepare("UPDATE codex_builder_sessions SET status=?, updated_at=? WHERE id=? AND status='PREPARED'").run(status === "completed" ? "RETURNED" : "FAILED", now, sessionId);
+      this.db.prepare("UPDATE tasks SET status=?, assigned_worker='primary-codex-builder', verifier='primary-codex-result-adapter', result_summary=?, error_code=?, updated_at=? WHERE id=? AND status='queued'")
+        .run(status, summary, status === "failed" ? "codex-builder-result-failed" : null, now, task.id);
+      this.recordReceipt({ task, phase: status, verifier: "primary-codex-result-adapter", summary });
+      this.#event("codex-builder.result-recorded", sessionId, { taskId: task.id, status, verificationState, changedFileCount, commitId: commitId?.slice(0, 12) ?? null });
+    });
+    return this.getCodexBuilderSession(sessionId);
+  }
+
+  createSecondaryAssignment({ title, taskArea, expectedTask, expectedBaseCommit, correlationId = `secondary-${randomUUID()}` }) {
+    bounded(title, 240, "secondary assignment title"); slug(taskArea, "secondary task area"); bounded(expectedTask, 400, "secondary expected task"); bounded(correlationId, 120, "secondary correlation id");
+    if (!/^[a-f0-9]{7,64}$/i.test(expectedBaseCommit)) throw new TypeError("Secondary expected base commit is invalid.");
+    const id = `sec-${randomUUID()}`; const now = new Date().toISOString(); const returnBranch = `secondary/${id}`;
+    this.db.prepare("INSERT INTO secondary_assignments(id,correlation_id,title,task_area,expected_task,expected_base_commit,return_branch,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'READY',?,?)")
+      .run(id, correlationId, title, taskArea, expectedTask, expectedBaseCommit.toLowerCase(), returnBranch, now, now);
+    this.#event("secondary-codex.ready", id, { correlationId, taskArea, expectedBaseCommit: expectedBaseCommit.slice(0, 12), returnBranch });
+    return this.getSecondaryAssignment(id);
+  }
+
+  getSecondaryAssignment(id) { bounded(id, 80, "secondary assignment id"); const row = this.db.prepare("SELECT * FROM secondary_assignments WHERE id=?").get(id); return row ? normalizeSecondaryAssignment(row) : null; }
+  listSecondaryAssignments(limit = 100) { const size = Math.max(1, Math.min(Number(limit) || 100, 500)); return this.db.prepare("SELECT * FROM secondary_assignments ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeSecondaryAssignment); }
+  readySecondaryAssignments() { return this.db.prepare("SELECT * FROM secondary_assignments WHERE status='READY' ORDER BY created_at").all().map(normalizeSecondaryAssignment); }
+
+  observeSecondaryReturn({ assignmentId, remoteAvailable, returnCommit = null }) {
+    const assignment = this.getSecondaryAssignment(assignmentId);
+    if (!assignment || assignment.status !== "READY") return assignment;
+    if (returnCommit !== null && !/^[a-f0-9]{7,64}$/i.test(returnCommit)) throw new TypeError("Secondary return commit is invalid.");
+    const now = new Date().toISOString();
+    const observation = remoteAvailable ? (returnCommit ? "return-commit-detected" : "return-branch-not-yet-present") : "remote-unavailable";
+    const status = returnCommit ? "RETURNED" : "READY";
+    this.db.prepare("UPDATE secondary_assignments SET status=?, return_commit=COALESCE(?,return_commit), last_observation=?, updated_at=? WHERE id=? AND status='READY'")
+      .run(status, returnCommit?.toLowerCase() ?? null, observation, now, assignmentId);
+    this.#event(returnCommit ? "secondary-codex.return-detected" : "secondary-codex.monitored", assignmentId, { remoteAvailable: Boolean(remoteAvailable), returnCommit: returnCommit?.slice(0, 12) ?? null });
+    return this.getSecondaryAssignment(assignmentId);
+  }
+
+  attachSecondaryValidation({ assignmentId, taskId }) {
+    bounded(taskId, 80, "validation task id");
+    const assignment = this.getSecondaryAssignment(assignmentId); const task = this.getTask(taskId);
+    if (!assignment || assignment.status !== "RETURNED" || !task) return assignment;
+    this.db.prepare("UPDATE secondary_assignments SET validation_task_id=?, status='VALIDATING', updated_at=? WHERE id=? AND status='RETURNED'").run(taskId, new Date().toISOString(), assignmentId);
+    this.#event("secondary-codex.validation-queued", assignmentId, { taskId, returnCommit: assignment.returnCommit?.slice(0, 12) ?? null });
+    return this.getSecondaryAssignment(assignmentId);
+  }
+
+  completeSecondaryValidation({ taskId, verified }) {
+    bounded(taskId, 80, "validation task id");
+    const assignment = this.db.prepare("SELECT * FROM secondary_assignments WHERE validation_task_id=? AND status='VALIDATING'").get(taskId);
+    if (!assignment) return null;
+    const status = verified ? "VALIDATED" : "REJECTED"; const verificationState = verified ? "passed" : "failed";
+    this.db.prepare("UPDATE secondary_assignments SET status=?, verification_state=?, updated_at=? WHERE id=?").run(status, verificationState, new Date().toISOString(), assignment.id);
+    this.#event("secondary-codex.validation-complete", assignment.id, { taskId, verified: Boolean(verified) });
+    return this.getSecondaryAssignment(assignment.id);
+  }
+
   listEvents(limit = 200) {
     const size = Math.max(1, Math.min(Number(limit) || 200, 1000));
     return this.db.prepare("SELECT * FROM events ORDER BY sequence DESC LIMIT ?").all(size).map((row) => ({
@@ -500,6 +611,8 @@ function normalizeObjective(row, tasks) { return { id: row.id, correlationId: ro
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
+function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) throw new Error("Stored improvement status is invalid."); return {
   id: row.id, title: row.title, summary: row.summary, status: row.status, testSummary: row.test_summary,
   createdAt: row.created_at, decidedAt: row.decided_at, activatedAt: row.activated_at,

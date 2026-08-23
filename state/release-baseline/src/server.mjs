@@ -36,6 +36,29 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
         const objective = database.createObjective({ title: body.title, correlationId: body.correlationId, maximumReplans: body.maximumReplans ?? 2, tasks: body.tasks });
         return json(response, 202, { objective });
       }
+      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/builder") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        const correlationId = body.correlationId ?? `pcx-builder-${randomUUID()}`;
+        const task = submitTask(database, manifest, builderIntakeBody(body, correlationId));
+        const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: body.authoritySessionId ?? null });
+        return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "prepared", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment prepared; direct execution remains disabled." }), task });
+      }
+      const builderResult = url.pathname.match(/^\/api\/intake\/primary-codex\/builder\/(cbs-[a-f0-9-]+)\/result$/);
+      if (request.method === "POST" && builderResult) {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        return json(response, 200, { session: database.recordCodexBuilderResult({ sessionId: builderResult[1], status: body.status, verificationState: body.verificationState, changedFileCount: body.changedFileCount, commitId: body.commitId ?? null }) });
+      }
+      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/secondary-codex") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        return json(response, 202, { assignment: database.createSecondaryAssignment({ title: body.title, taskArea: body.taskArea, expectedTask: body.expectedTask, expectedBaseCommit: body.expectedBaseCommit, correlationId: body.correlationId }) });
+      }
+      if (request.method === "GET" && url.pathname === "/api/intake/primary-codex/secondary-codex") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        return json(response, 200, { assignments: database.listSecondaryAssignments() });
+      }
       if (request.method === "GET" && url.pathname === "/api/objectives") return json(response, 200, { objectives: database.listObjectives() });
       if (request.method === "GET" && url.pathname === "/api/tasks") return json(response, 200, { tasks: database.listTasks() });
       if (request.method === "GET" && url.pathname === "/api/events") return json(response, 200, { events: database.listEvents() });
@@ -117,7 +140,7 @@ export function statusPayload(manifest, database, supervisor) {
 }
 
 function submitTask(database, manifest, body) {
-  const conversationId = body.conversationId ?? database.createConversation({
+  const conversationId = body.conversationId === false ? null : body.conversationId ?? database.createConversation({
     title: body.requestedOutcome ?? body.capability,
     initialMessage: body.initialMessage ?? `Run ${body.capability}`,
   }).id;
@@ -127,7 +150,18 @@ function submitTask(database, manifest, body) {
     correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
     executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
     maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts, conversationId,
+    taskArea: body.taskArea ?? "general", excludedWorkerIds: body.excludedWorkerIds ?? [],
   });
+}
+
+export function builderIntakeBody(body, correlationId) {
+  return {
+    capability: "codex.execute", dataClass: "synthetic", requestedMode: body.requestedMode ?? "hybrid",
+    idempotencyKey: body.idempotencyKey, correlationId, taskType: "codex-builder",
+    requestedOutcome: body.requestedOutcome, executionPlane: "primary-codex-local",
+    priority: body.priority ?? "normal", maximumAttempts: 1, taskArea: body.taskArea ?? "codex-builder",
+    conversationId: false,
+  };
 }
 
 function setHeaders(response) {

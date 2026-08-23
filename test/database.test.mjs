@@ -81,3 +81,26 @@ test("objective graphs release dependencies, retain overlap evidence, and comple
   assert.equal(database.getObjective(objective.id).status, "completed");
   assert.equal(database.getObjective(objective.id).tasks.every((task) => task.status === "completed"), true);
 });
+
+test("Codex Builder sessions preserve only task-scoped structured result metadata", (t) => {
+  const database = databaseFixture(t);
+  const task = database.submitTask({ capability: "codex.execute", dataClass: "synthetic", idempotencyKey: "builder-task", correlationId: "pcx-builder" });
+  const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: "primary-session" });
+  assert.equal(session.status, "PREPARED");
+  const recorded = database.recordCodexBuilderResult({ sessionId: session.id, status: "completed", verificationState: "passed", changedFileCount: 2, commitId: "abcdef0123456789" });
+  assert.equal(recorded.status, "RETURNED");
+  assert.equal(database.getTask(task.id).status, "completed");
+  assert.ok(database.listEvents().some((event) => event.eventType === "codex-builder.result-recorded"));
+});
+
+test("Secondary Codex mailbox tracks READY return monitoring and repository validation", (t) => {
+  const database = databaseFixture(t);
+  const assignment = database.createSecondaryAssignment({ title: "Focused adapter change", taskArea: "provider-adapter", expectedTask: "Add one focused test.", expectedBaseCommit: "abcdef0123456789", correlationId: "secondary-roundtrip" });
+  assert.equal(assignment.status, "READY");
+  assert.equal(database.observeSecondaryReturn({ assignmentId: assignment.id, remoteAvailable: false }).status, "READY");
+  const returned = database.observeSecondaryReturn({ assignmentId: assignment.id, remoteAvailable: true, returnCommit: "fedcba9876543210" });
+  assert.equal(returned.status, "RETURNED");
+  const validation = database.submitTask({ capability: "repository.verify", dataClass: "synthetic", idempotencyKey: "secondary-validation" });
+  database.attachSecondaryValidation({ assignmentId: assignment.id, taskId: validation.id });
+  assert.equal(database.completeSecondaryValidation({ taskId: validation.id, verified: true }).status, "VALIDATED");
+});

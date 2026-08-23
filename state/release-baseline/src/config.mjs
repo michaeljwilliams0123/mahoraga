@@ -165,9 +165,11 @@ function capability(value) {
 }
 function validRoutingValue(value) { return typeof value === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value); }
 function validateAdapter(adapter, workerId) {
-  if (!isRecord(adapter) || workerId !== "github-copilot" || adapter.kind !== "github-copilot-cli" || adapter.executable !== "copilot") {
+  if (!isRecord(adapter)) {
     throw new TypeError(`Worker ${workerId} adapter is invalid.`);
   }
+  if (workerId === "primary-codex-builder") return validateCodexBuilderAdapter(adapter);
+  if (workerId !== "github-copilot" || adapter.kind !== "github-copilot-cli" || adapter.executable !== "copilot") throw new TypeError(`Worker ${workerId} adapter is invalid.`);
   if (adapter.workingDirectory !== "." || adapter.remoteSession !== false || adapter.remoteExport !== false || adapter.disableBuiltinMcps !== true || adapter.disallowTempDir !== true) {
     throw new TypeError("Copilot adapter boundary is invalid.");
   }
@@ -179,6 +181,11 @@ function validateAdapter(adapter, workerId) {
     throw new TypeError("Copilot adapter tools are invalid.");
   }
   integer(adapter.maxOutputBytes, 1024, 131072, "Copilot adapter output limit");
+}
+function validateCodexBuilderAdapter(adapter) {
+  if (adapter.kind !== "codex-desktop-builder" || adapter.executable !== "codex" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== false || adapter.apiKeyRequired !== false) {
+    throw new TypeError("Codex Builder adapter boundary is invalid.");
+  }
 }
 function integer(value, min, max, name) {
   if (!Number.isInteger(value) || value < min || value > max) throw new TypeError(`${name} is invalid.`);

@@ -4,6 +4,7 @@ import { executeBrowserCapability, shutdownBrowser } from "./browser-worker.mjs"
 import { executeRepositoryCapability } from "./repository-worker.mjs";
 import { executeMicrosoftQueueCapability } from "./microsoft-queue-worker.mjs";
 import { executeCopilotCapability } from "./copilot-worker.mjs";
+import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -29,9 +30,10 @@ process.on("message", async (message) => {
 
 async function execute(capability, task) {
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability);
-  if (capability.startsWith("repository.")) return executeRepositoryCapability(capability);
+  if (capability.startsWith("repository.")) return executeRepositoryCapability(capability, task);
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   if (capability.startsWith("copilot.")) return executeCopilotCapability(capability, task, worker);
+  if (capability.startsWith("codex.")) return executeCodexBuilderCapability(capability, task, worker);
   switch (capability) {
     case "assistant.respond":
       return {
@@ -60,6 +62,7 @@ function classifyError(error) {
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
+  if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";
   return "worker-execution-failed";
 }
 
