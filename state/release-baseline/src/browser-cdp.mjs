@@ -22,7 +22,7 @@ export async function observeLoopbackControlCenter({ cdpBase, controlCenterUrl, 
     await session.call("Log.enable");
     await session.call("Page.navigate", { url: controlCenterUrl });
     const { title, origin } = await waitForControlCenterDocument(session);
-    if (title !== "Mahoraga Control Center" || origin !== "http://127.0.0.1:4782") throw new Error("browser-observation-mismatch");
+    if (title !== "Mahoraga" || origin !== "http://127.0.0.1:4782") throw new Error("browser-observation-mismatch");
     const screenshot = await session.call("Page.captureScreenshot", { format: "png" });
     const layout = await session.call("Page.getLayoutMetrics");
     const artifact = await writeArtifact({ artifactDirectory, taskId, data: screenshot?.result?.data, now: now() });
@@ -176,7 +176,7 @@ async function waitForControlCenterDocument(session, timeoutMs = 10000) {
     });
     const title = String(document?.result?.result?.value?.title ?? "");
     const origin = String(document?.result?.result?.value?.origin ?? "");
-    if (title === "Mahoraga Control Center" && origin === "http://127.0.0.1:4782") return { title, origin };
+    if (title === "Mahoraga" && origin === "http://127.0.0.1:4782") return { title, origin };
     await delay(100);
   }
   return { title: "", origin: "" };

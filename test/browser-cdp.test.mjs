@@ -18,7 +18,7 @@ test("loopback observation returns bounded evidence without DOM or screenshot by
         events.get("Network.responseReceived")?.[0]({ response: { status: 200 } });
         events.get("Runtime.consoleAPICalled")?.[0]({ type: "warning", args: [{ value: "transient warning" }] });
       }
-      if (method === "Runtime.evaluate") return { result: { result: { value: { title: "Mahoraga Control Center", origin: "http://127.0.0.1:4782" } } } };
+      if (method === "Runtime.evaluate") return { result: { result: { value: { title: "Mahoraga", origin: "http://127.0.0.1:4782" } } } };
       if (method === "Page.captureScreenshot") return { result: { data: Buffer.from("\u0089PNG\r\n\u001a\nsmall-image").toString("base64") } };
       if (method === "Page.getLayoutMetrics") return { result: { cssVisualViewport: { clientWidth: 1280, clientHeight: 720 } } };
       return { result: {} };
@@ -31,7 +31,7 @@ test("loopback observation returns bounded evidence without DOM or screenshot by
     request: async (_base, route) => { requests.push(route); return route.startsWith("/json/new") ? { id: "target-1", webSocketDebuggerUrl: "ws://loopback/devtools/page/1" } : {}; },
     connect: async () => session,
   });
-  assert.equal(result.title, "Mahoraga Control Center");
+  assert.equal(result.title, "Mahoraga");
   assert.equal(result.receiptMetadata.screenshotWidth, 1280);
   assert.equal(result.receiptMetadata.screenshotHeight, 720);
   assert.equal(result.receiptMetadata.networkStatus2xx, 1);
