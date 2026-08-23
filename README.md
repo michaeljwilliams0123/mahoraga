@@ -32,10 +32,13 @@ suites are source material for later worker migration.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- Control Center 5.0 uses a ChatGPT-style chat-first workspace with conversation
+- Control Center 5.2 uses a ChatGPT-style chat-first workspace with conversation
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
-  and diagnostic controls remain available as compact workspace views.
+  and diagnostic controls remain available as compact workspace views. A
+  dedicated Coordination console now exposes the repository mailbox lifecycle,
+  equal controller authority, return branches, and deterministic validation
+  state without exposing chats, credentials, or model output.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.
@@ -70,7 +73,7 @@ localhost health endpoint before returning.
 
 ## Current connection state
 
-The 3.3.0 runtime and Control Center 5.1.0 were deployed locally on
+The 3.3.0 runtime and Control Center 5.2.0 are staged for local deployment on
 2026-08-23. The per-user `Mahoraga Production Runtime` launcher is registered,
 and the four enabled isolated workers are supervised on loopback.
 

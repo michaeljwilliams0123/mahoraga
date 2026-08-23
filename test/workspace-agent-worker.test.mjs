@@ -34,6 +34,19 @@ test("Workspace Agent health is non-networked and fail-closed without credential
   assert.equal(result.providerHealth.responseRetrievalAvailable, false);
 });
 
+test("Workspace Agent health rejects OpenAI Platform API keys", async () => {
+  const item = await worker();
+  const platformEnv = {
+    AGENT_ACCESS_TOKEN: "sk-proj-not-a-workspace-agent-token",
+    WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123",
+  };
+  const result = await executeWorkspaceAgentCapability("workspace-agent.health", {}, item, { env: platformEnv });
+  assert.equal(result.verified, false);
+  assert.equal(result.providerHealth.accessTokenConfigured, false);
+  assert.equal(result.providerHealth.platformApiKeyRejected, true);
+  assert.match(result.summary, /rejected an OpenAI Platform API key/);
+});
+
 test("Workspace Agent trigger records acceptance without claiming task completion", async () => {
   const item = await worker();
   const calls = [];
@@ -68,5 +81,15 @@ test("manifest rejects Workspace Agent endpoint drift or response retrieval clai
   assert.throws(() => validateManifest(manifest), /Workspace Agent adapter boundary/);
   item.adapter.apiOrigin = "https://api.chatgpt.com";
   item.adapter.responseRetrieval = true;
+  assert.throws(() => validateManifest(manifest), /Workspace Agent adapter boundary/);
+});
+
+test("manifest fixes the Workspace Agent credential class and environment bindings", async () => {
+  const manifest = structuredClone(await loadManifest());
+  const item = manifest.workers.find((candidate) => candidate.id === "workspace-agent-cloud");
+  item.adapter.platformApiKeyAccepted = true;
+  assert.throws(() => validateManifest(manifest), /Workspace Agent adapter boundary/);
+  item.adapter.platformApiKeyAccepted = false;
+  item.adapter.accessTokenEnvironmentVariable = "OPENAI_API_KEY";
   assert.throws(() => validateManifest(manifest), /Workspace Agent adapter boundary/);
 });

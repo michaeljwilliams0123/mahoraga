@@ -1,5 +1,5 @@
 const $ = (id) => document.getElementById(id);
-const state = { status: null, tasks: [], conversations: [], improvements: [], diagnostics: null, messages: [], activeConversation: readConversationHash(), activeView: 'chat', sending: false };
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: null, messages: [], activeConversation: readConversationHash(), activeView: 'chat', sending: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -11,10 +11,10 @@ const post = (url, body = {}, headers = {}) => api(url, { method: 'POST', header
 
 async function refresh(quiet = true) {
   try {
-    const [status, taskData, conversationData, improvementData, diagnostics] = await Promise.all([
-      api('/api/status'), api('/api/tasks'), api('/api/conversations'), api('/api/improvements'), api('/api/diagnostics'),
+    const [status, coordination, taskData, conversationData, improvementData, diagnostics] = await Promise.all([
+      api('/api/status'), api('/api/coordination'), api('/api/tasks'), api('/api/conversations'), api('/api/improvements'), api('/api/diagnostics'),
     ]);
-    Object.assign(state, { status, tasks: taskData.tasks, conversations: conversationData.conversations, improvements: improvementData.improvements, diagnostics });
+    Object.assign(state, { status, coordination, tasks: taskData.tasks, conversations: conversationData.conversations, improvements: improvementData.improvements, diagnostics });
     if (state.activeConversation && !state.conversations.some((item) => item.id === state.activeConversation)) state.activeConversation = null;
     state.messages = state.activeConversation ? (await api(`/api/conversations/${state.activeConversation}/messages`)).messages : [];
     render();
@@ -26,7 +26,7 @@ async function refresh(quiet = true) {
 }
 
 function render() {
-  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
+  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
 }
 
 function renderRuntime() {
@@ -82,6 +82,33 @@ function taskCard(task) {
   const cancel = ['queued', 'claimed', 'running', 'verifying', 'waiting', 'waiting_for_user'].includes(task.status) ? `<button class="danger" data-task-action="cancel" data-task-id="${task.id}">Cancel</button>` : '';
   const input = task.status === 'waiting_for_user' ? `<button data-task-action="input" data-task-id="${task.id}">Respond</button>` : '';
   return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(task.priority)} · ${escapeHtml(task.executionPlane)}</p><h3>${escapeHtml(task.capability)}</h3></div><span class="badge ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span></div><p>${escapeHtml(task.requestedOutcome || task.capability)}</p><small>${escapeHtml(task.id)} · attempts ${task.attemptCount}/${task.maximumAttempts} · ${formatTime(task.updatedAt)}</small>${task.errorCode ? `<p class="error-text">${escapeHtml(task.errorCode)}</p>` : ''}<div class="card-actions">${input}${retry}${cancel}</div></article>`;
+}
+
+function renderCoordination() {
+  const coordination = state.coordination;
+  if (!coordination) return;
+  $('coord-total').textContent = coordination.counts.total;
+  $('coord-ready').textContent = coordination.counts.ready;
+  $('coord-active').textContent = coordination.counts.returned + coordination.counts.validating;
+  $('coord-validated').textContent = coordination.counts.validated;
+  $('coord-state').textContent = coordination.state;
+  $('coord-state').className = `badge ${coordination.state === 'validated' ? 'ready' : coordination.state === 'return-detected' ? 'verifying' : 'queued'}`;
+  $('coord-updated').textContent = coordination.latestActivityAt ? `Latest activity ${formatTime(coordination.latestActivityAt)}` : 'No mailbox activity yet';
+  $('coord-policy').textContent = coordination.privacy.chatAccess === false && coordination.privacy.credentialsIncluded === false
+    ? 'Repository metadata only · no chats, credentials, browser data, personal files, or model output.'
+    : 'Coordination privacy policy is not in its expected fail-closed state.';
+  $('coordination-list').innerHTML = coordination.assignments.length
+    ? coordination.assignments.map(coordinationCard).join('')
+    : '<p class="muted">No coordination assignments have been imported.</p>';
+}
+
+function coordinationCard(assignment) {
+  const status = assignment.status.toLowerCase();
+  const pathSummary = assignment.allowedPaths.length ? assignment.allowedPaths.join(', ') : 'No implementation paths';
+  const returnEvidence = assignment.returnCommit
+    ? `<small>Return ${escapeHtml(assignment.returnCommit.slice(0, 12))}${assignment.verificationState ? ` · verification ${escapeHtml(assignment.verificationState)}` : ''}</small>`
+    : `<small>Expected base ${escapeHtml(assignment.expectedBaseCommit.slice(0, 12))} · checked ${formatTime(assignment.lastObservation)}</small>`;
+  return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} · ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.title)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>${escapeHtml(assignment.expectedTask)}</p><div class="assignment-detail"><span>Authority</span><b>Authorized bidirectional controller</b><span>Allowed paths</span><b>${escapeHtml(pathSummary)}</b></div>${returnEvidence}<div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
 }
 
 function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' · ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} · Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
@@ -151,6 +178,7 @@ document.body.addEventListener('click', async (event) => {
   const taskButton = event.target.closest('[data-task-action]'); if (taskButton) return runButton(taskButton, async () => { const { taskAction: action, taskId: id } = taskButton.dataset; if (action === 'input') { const content = window.prompt('Your response for Mahoraga:'); if (!content) return; await post(`/api/tasks/${id}/input`, { content }); } else await post(`/api/tasks/${id}/${action}`); notify(`Task ${action} accepted`); await refresh(); });
   const workerButton = event.target.closest('[data-worker-action]'); if (workerButton) return runButton(workerButton, async () => { await post(`/api/workers/${workerButton.dataset.workerId}/${workerButton.dataset.workerAction}`); notify(`Worker ${workerButton.dataset.workerAction} accepted`); await refresh(); });
   const decision = event.target.closest('[data-improvement-decision]'); if (decision) return runButton(decision, async () => { const id = decision.dataset.improvementId; await post(`/api/improvements/${id}/decision`, { decision: decision.dataset.improvementDecision }, { 'x-mahoraga-approval': id }); notify(`Improvement ${decision.dataset.improvementDecision}`); await refresh(); });
+  const copyBranch = event.target.closest('[data-copy-branch]'); if (copyBranch) return runButton(copyBranch, async () => { await navigator.clipboard.writeText(copyBranch.dataset.copyBranch); notify('Return branch copied'); });
 });
 
 async function dispatch(capability, outcome, priority = 'high', dataClass = null) { const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability); if (!metadata) throw new Error(`${capability} has no enabled worker`); await post('/api/tasks', { capability, dataClass: dataClass || metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${capability}`); await refresh(); }

@@ -54,6 +54,10 @@ does not use an OpenAI Platform API key. The fixed API origin is
 `https://api.chatgpt.com`; requests carry a stable assignment conversation key,
 an idempotency key, and the beta run-status header. The provider persists only
 bounded acceptance/status evidence and a hash of the returned conversation URL.
+The adapter rejects `sk-...` Platform API keys and does not accept or copy the
+ChatGPT Plus/Codex subscription authentication used by the local CLI runner.
+Provisioning this optional lane requires the ChatGPT workspace admin token flow;
+otherwise it remains disabled and the GitHub/Codex CLI mailbox is used.
 
 Workspace Agent response content is not retrievable through the API. Therefore
 `202 Accepted` or a completed run status never substitutes for a coding result.

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-17024c73-4ceb-4082-9c5e-3e5c8854f02c",
+  "correlationId": "sec-17024c73-4ceb-4082-9c5e-3e5c8854f02c",
+  "title": "Verify private post-merge communication",
+  "taskArea": "secondary-connectivity",
+  "expectedTask": "Synchronize the plugin-connected local/main Codex to expected base 544dea7d6e05f43b4e8876c08583841716965b9a, verify the repository is private through its authenticated GitHub path, then run node src/cli.mjs validate, node scripts/coordination.mjs validate, and node --test --test-isolation=none. Make no application-code or repository-setting changes. Return only the bounded generated result record through the declared outbound branch. Do not include chats, credentials, browser data, personal files, or raw plugin responses.",
+  "expectedBaseCommit": "544dea7d6e05f43b4e8876c08583841716965b9a",
+  "returnBranch": "secondary/sec-17024c73-4ceb-4082-9c5e-3e5c8854f02c",
+  "allowedPaths": [
+    "coordination/results"
+  ],
+  "createdBy": "secondary-codex",
+  "assignedTo": "main-codex",
+  "createdAt": "2026-08-23T07:24:03.774Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
