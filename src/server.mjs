@@ -6,6 +6,7 @@ import { capabilityIndex } from "./router.mjs";
 import { randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
+import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -23,6 +24,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && STATIC.has(url.pathname)) return staticFile(response, ...STATIC.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/coordination") return json(response, 200, coordinationPayload(manifest, database));
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
@@ -137,6 +139,44 @@ export function statusPayload(manifest, database, supervisor) {
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
     objectives: database.listObjectives(100),
+  };
+}
+
+export function coordinationPayload(manifest, database) {
+  const assignments = database.listSecondaryAssignments(500);
+  const count = (status) => assignments.filter((assignment) => assignment.status === status).length;
+  const latestActivityAt = assignments.reduce((latest, assignment) => {
+    const value = assignment.updatedAt ?? assignment.createdAt;
+    return !latest || Date.parse(value) > Date.parse(latest) ? value : latest;
+  }, null);
+  const validated = count("VALIDATED");
+  const active = count("RETURNED") + count("VALIDATING");
+  return {
+    generatedAt: new Date().toISOString(),
+    state: validated > 0 ? "validated" : active > 0 ? "return-detected" : assignments.length > 0 ? "monitoring" : "idle",
+    latestActivityAt,
+    transport: {
+      kind: "github-repository-mailbox",
+      outboundOnly: true,
+      pollIntervalMs: 60000,
+      returnBranchPrefix: "secondary/",
+      enabled: manifest.featureFlags?.secondaryCodexMailbox === true,
+    },
+    authority: {
+      model: "bidirectional-equal",
+      controllers: ["main-codex", "secondary-codex"],
+      integrationRequiresVerification: true,
+    },
+    privacy: { ...COORDINATION_PRIVACY },
+    counts: {
+      total: assignments.length,
+      ready: count("READY"),
+      returned: count("RETURNED"),
+      validating: count("VALIDATING"),
+      validated,
+      rejected: count("REJECTED"),
+    },
+    assignments,
   };
 }
 

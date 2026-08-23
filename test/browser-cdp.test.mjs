@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { assertLoopbackControlCenter, observeLoopbackControlCenter } from "../src/browser-cdp.mjs";
+import { CONTROL_CENTER_TITLE, assertLoopbackControlCenter, observeLoopbackControlCenter } from "../src/browser-cdp.mjs";
 import { ensureChrome, shutdownBrowser } from "../src/browser-worker.mjs";
 
 test("loopback observation returns bounded evidence without DOM or screenshot bytes in its receipt", async (t) => {
+  assert.equal(CONTROL_CENTER_TITLE, "Mahoraga");
   const artifacts = mkdtempSync(path.join(os.tmpdir(), "mahoraga-browser-"));
   t.after(() => rmSync(artifacts, { recursive: true, force: true }));
   const events = new Map(); const calls = []; const requests = [];

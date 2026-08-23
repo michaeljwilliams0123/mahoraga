@@ -16,6 +16,16 @@ Secrets remain outside Git in the platform or operating-system secret store.
 An Alpic deployment key, GitHub credential, relay token, or local bearer token
 must never appear in an assignment, result, commit message, or issue.
 
+## Control Center visibility
+
+The localhost Control Center exposes a read-only Coordination view backed by
+the durable assignment table. It shows the mailbox lifecycle (`READY`, return
+detected, validating, `VALIDATED`, or `REJECTED`), the declared return branch,
+bounded task metadata, and verification state. The endpoint does not return
+credentials, ChatGPT conversations, browser data, personal files, or model
+output. Assignment creation and controller intake remain behind the existing
+authenticated API and repository workflow.
+
 ## Main Codex workflow
 
 1. Start from the code commit the secondary implementation must retain. That
