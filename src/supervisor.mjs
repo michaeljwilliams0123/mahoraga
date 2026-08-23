@@ -3,12 +3,13 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { routeTask } from "./router.mjs";
+import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database }) {
-    super(); this.manifest = manifest; this.database = database; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
+  constructor({ manifest, database, syncCoordinationMailbox = true }) {
+    super(); this.manifest = manifest; this.database = database; this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -205,6 +206,8 @@ export class Supervisor extends EventEmitter {
 
   #scheduleSecondaryMailboxMonitor() {
     if (!this.manifest.featureFlags?.secondaryCodexMailbox) return;
+    try { if (this.syncCoordinationMailbox) syncCoordinationAssignments(this.database); }
+    catch { return; }
     const bucket = Math.floor(Date.now() / 60000);
     if (bucket === this.lastSecondaryMailboxBucket) return;
     this.lastSecondaryMailboxBucket = bucket;

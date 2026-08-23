@@ -21,6 +21,9 @@ analysis as long as the expected work and allowed paths are explicit.
   prohibited.
 - Model output is held only in process memory and discarded. Durable records
   contain only task state, commit identifiers, changed paths, and verification.
+- The runner binds the validated assignment record into the target return branch
+  before Codex runs, so the later result can always be verified against the exact
+  task metadata even when the target is not the Mahoraga repository.
 - Actual Git changes are checked against both the assignment allowlist and the
   secondary machine's narrower-or-equal project allowlist before any push.
 - Retries are bounded, overlapping runs are suppressed by Task Scheduler, and
@@ -59,7 +62,9 @@ node .\scripts\secondary-codex-runner.mjs configure `
 
 Main Codex then creates an assignment on Mahoraga `main` with the same
 `--task-area`. For a side project, `--base-commit` must identify a commit in
-that target repository, not a Mahoraga commit.
+that target repository, not a Mahoraga commit. The runner adds the assignment
+and result JSON files as protocol-only commits around the implementation commit;
+merge or cherry-pick the implementation according to that project's policy.
 
 Run an immediate poll or inspect bounded status with:
 

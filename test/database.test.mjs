@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { RuntimeDatabase } from "../src/database.mjs";
+import { createAssignmentRecord } from "../src/coordination-records.mjs";
 
 function databaseFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-"));
@@ -107,12 +108,27 @@ test("Codex Builder sessions preserve only task-scoped structured result metadat
 
 test("Secondary Codex mailbox tracks READY return monitoring and repository validation", (t) => {
   const database = databaseFixture(t);
-  const assignment = database.createSecondaryAssignment({ title: "Focused adapter change", taskArea: "provider-adapter", expectedTask: "Add one focused test.", expectedBaseCommit: "abcdef0123456789", correlationId: "secondary-roundtrip" });
+  const assignment = database.createSecondaryAssignment({ title: "Focused adapter change", taskArea: "provider-adapter", expectedTask: "Add one focused test.", expectedBaseCommit: "abcdef0123456789", correlationId: "secondary-roundtrip", allowedPaths: ["src", "test"] });
   assert.equal(assignment.status, "READY");
+  assert.deepEqual(assignment.allowedPaths, ["src", "test"]);
   assert.equal(database.observeSecondaryReturn({ assignmentId: assignment.id, remoteAvailable: false }).status, "READY");
   const returned = database.observeSecondaryReturn({ assignmentId: assignment.id, remoteAvailable: true, returnCommit: "fedcba9876543210" });
   assert.equal(returned.status, "RETURNED");
   const validation = database.submitTask({ capability: "repository.verify", dataClass: "synthetic", idempotencyKey: "secondary-validation" });
   database.attachSecondaryValidation({ assignmentId: assignment.id, taskId: validation.id });
   assert.equal(database.completeSecondaryValidation({ taskId: validation.id, verified: true }).status, "VALIDATED");
+});
+
+test("GitHub assignment imports are idempotent and reject conflicting metadata", (t) => {
+  const database = databaseFixture(t);
+  const record = createAssignmentRecord({
+    correlationId: "github-roundtrip", title: "Review relay contract", taskArea: "relay-contract",
+    expectedTask: "Review only the bounded relay files.", expectedBaseCommit: "abcdef0123456789", allowedPaths: ["src", "test"],
+  }, { assignmentId: "sec-abcdef01-2345-6789-abcd-ef0123456789", now: "2026-08-23T00:00:00.000Z" });
+  const first = database.importSecondaryAssignment(record);
+  const second = database.importSecondaryAssignment(record);
+  assert.equal(first.id, second.id);
+  assert.equal(second.source, "github-mailbox");
+  assert.deepEqual(second.allowedPaths, ["src", "test"]);
+  assert.throws(() => database.importSecondaryAssignment({ ...record, title: "Conflicting title" }), /Conflicting GitHub coordination assignment/);
 });

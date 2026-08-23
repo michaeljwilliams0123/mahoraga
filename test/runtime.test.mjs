@@ -92,7 +92,7 @@ async function waitFor(check, timeoutMs = 8000) {
 
 async function runtimeFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-runtime-"));
-  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite") });
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), syncCoordinationMailbox: false });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   return { runtime, root };
 }

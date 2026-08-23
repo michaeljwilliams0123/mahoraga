@@ -157,6 +157,7 @@ export class SecondaryCodexRunner {
     await this.exec("git", ["-C", worktree, "cat-file", "-e", `${assignment.expectedBaseCommit}^{commit}`], { timeout: 30_000 });
     await this.exec("git", ["-C", worktree, "merge-base", "--is-ancestor", assignment.expectedBaseCommit, `origin/${project.defaultBranch}`], { timeout: 30_000 });
     await this.exec("git", ["-C", worktree, "checkout", "-b", assignment.returnBranch, assignment.expectedBaseCommit], { timeout: 30_000 });
+    await this.bindAssignment(worktree, assignment);
     await this.exec("codex", [...SECONDARY_CODEX_ARGS, buildSecondaryCodexPrompt(assignment)], { cwd: worktree, timeout: project.maxRuntimeMinutes * 60_000, maxBuffer: 1_048_576 });
     const status = await this.exec("git", ["-C", worktree, "status", "--porcelain=v1", "-z"], { timeout: 30_000 });
     const changedFiles = parsePorcelainPaths(status.stdout);
@@ -179,6 +180,25 @@ export class SecondaryCodexRunner {
     await this.exec("git", ["-C", worktree, "-c", "user.name=Secondary Codex", "-c", "user.email=secondary-codex@users.noreply.github.com", "commit", "-m", `[SECONDARY] Record ${assignment.assignmentId} result`], { timeout: 60_000 });
     await this.exec("git", ["-C", worktree, "push", "origin", `HEAD:refs/heads/${assignment.returnBranch}`], { timeout: 300_000 });
     return { returnBranch: assignment.returnBranch, returnCommit: implementation };
+  }
+
+  async bindAssignment(worktree, assignment) {
+    const relative = `coordination/assignments/${assignment.assignmentId}.json`;
+    const file = path.join(worktree, ...relative.split("/"));
+    let existing = null;
+    try { existing = await readFile(file, "utf8"); }
+    catch (error) { if (error?.code !== "ENOENT") throw error; }
+    const serialized = `${JSON.stringify(assignment, null, 2)}\n`;
+    if (existing !== null) {
+      const validated = validateAssignmentRecord(JSON.parse(existing));
+      if (JSON.stringify(validated) !== JSON.stringify(assignment)) throw new TypeError("Target repository assignment metadata conflicts with the control mailbox.");
+      return false;
+    }
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, serialized, { encoding: "utf8", flag: "wx", mode: 0o600 });
+    await this.exec("git", ["-C", worktree, "add", relative], { timeout: 30_000 });
+    await this.exec("git", ["-C", worktree, "-c", "user.name=Secondary Codex", "-c", "user.email=secondary-codex@users.noreply.github.com", "commit", "-m", `[SECONDARY] Bind ${assignment.assignmentId} assignment`], { timeout: 60_000 });
+    return true;
   }
 
   async remoteBranchExists(repository, branchName) {

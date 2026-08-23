@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createAssignmentRecord, createResultRecord, validateAssignmentRecord, validateResultRecord } from "../src/coordination-records.mjs";
+import { createAssignmentRecord, createResultRecord, validateActualChanges, validateAssignmentRecord, validateResultRecord } from "../src/coordination-records.mjs";
 
 const assignment = () => createAssignmentRecord({
   title: "Implement a bounded provider adapter",
@@ -38,4 +38,18 @@ test("blocked results do not require a fabricated commit", () => {
     status: "blocked", returnCommit: null, changedFiles: [], verification: [], summary: "Blocked because the required source is not available.",
   });
   assert.equal(result.returnCommit, null);
+});
+
+test("actual Git changes cannot be concealed by a result record", () => {
+  const source = assignment();
+  const result = createResultRecord(source, {
+    status: "completed",
+    returnCommit: "fedcba9876543210",
+    changedFiles: ["src/provider.mjs"],
+    verification: ["node --test --test-isolation=none"],
+    summary: "Implemented and verified the focused adapter change.",
+  });
+  assert.deepEqual(validateActualChanges([`coordination/assignments/${source.assignmentId}.json`, "src/provider.mjs"], result, source, [`coordination/assignments/${source.assignmentId}.json`]), ["src/provider.mjs"]);
+  assert.throws(() => validateActualChanges(["src/provider.mjs", "state/primary-codex.token"], result, source), /outside assignment scope/);
+  assert.throws(() => validateActualChanges(["src/different.mjs"], result, source), /do not match the actual Git diff/);
 });
