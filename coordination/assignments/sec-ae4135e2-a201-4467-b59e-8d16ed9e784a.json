@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-ae4135e2-a201-4467-b59e-8d16ed9e784a",
+  "correlationId": "sec-ae4135e2-a201-4467-b59e-8d16ed9e784a",
+  "title": "Establish secondary Codex heartbeat",
+  "taskArea": "secondary-connectivity",
+  "expectedTask": "Prove the separate Codex instance can read the assignment without accessing any private chat history, create the declared return branch, add only the matching bounded result record, and push that branch. Do not modify application code.",
+  "expectedBaseCommit": "0d6070ac2d8f2ac15bef208ec9344de8c8d6f6c5",
+  "returnBranch": "secondary/sec-ae4135e2-a201-4467-b59e-8d16ed9e784a",
+  "allowedPaths": [
+    "coordination/results"
+  ],
+  "createdBy": "main-codex",
+  "assignedTo": "secondary-codex",
+  "createdAt": "2026-08-23T05:30:56.669Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
