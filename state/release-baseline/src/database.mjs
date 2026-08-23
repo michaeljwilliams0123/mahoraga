@@ -189,11 +189,18 @@ export class RuntimeDatabase {
     if (!Array.isArray(excludedWorkerIds) || excludedWorkerIds.length > 16) throw new TypeError("Excluded worker IDs are invalid.");
     excludedWorkerIds.forEach((item) => slug(item, "excluded worker id"));
     if (conversationId !== null) { bounded(conversationId, 80, "conversation id"); if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing."); }
-    const existing = this.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(idempotencyKey);
-    if (existing) return normalizeTask(existing);
     const id = `mhg-${randomUUID()}`;
     const now = new Date().toISOString();
-    const transaction = () => this.#transaction(() => {
+    return this.#transaction(() => {
+      const existing = this.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(idempotencyKey);
+      if (existing) {
+        const task = normalizeTask(existing);
+        assertIdempotentTaskRequest(task, {
+          correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
+          executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds,
+        });
+        return task;
+      }
       this.db.prepare(`INSERT INTO tasks
         (id, idempotency_key, correlation_id, task_type, requested_outcome, capability, data_class, requested_mode,
          execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, status, created_at, updated_at)
@@ -201,9 +208,8 @@ export class RuntimeDatabase {
         .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), now, now);
       this.#event("task.submitted", id, { correlationId, taskType, capability, dataClass, requestedMode, executionPlane, priority });
+      return this.getTask(id);
     });
-    transaction();
-    return this.getTask(id);
   }
 
   createConversation({ title, initialMessage = null }) {
@@ -283,6 +289,12 @@ export class RuntimeDatabase {
   getTask(id) {
     bounded(id, 80, "task id");
     const row = this.db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+    return row ? normalizeTask(row) : null;
+  }
+
+  getTaskByIdempotencyKey(idempotencyKey) {
+    bounded(idempotencyKey, 120, "idempotency key");
+    const row = this.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(idempotencyKey);
     return row ? normalizeTask(row) : null;
   }
 
@@ -655,6 +667,22 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   taskArea: row.task_area ?? "general", excludedWorkerIds: JSON.parse(row.excluded_worker_ids ?? "[]"),
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
+function assertIdempotentTaskRequest(task, request) {
+  const fields = ["correlationId", "taskType", "requestedOutcome", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea"];
+  for (const field of fields) if (task[field] !== request[field]) {
+    throw idempotencyConflict(field);
+  }
+  const storedExcluded = [...task.excludedWorkerIds].sort();
+  const requestedExcluded = [...request.excludedWorkerIds].sort();
+  if (JSON.stringify(storedExcluded) !== JSON.stringify(requestedExcluded)) {
+    throw idempotencyConflict("excludedWorkerIds");
+  }
+}
+function idempotencyConflict(field) {
+  const error = new TypeError(`Idempotency key conflicts with a different task request: ${field}`);
+  error.code = "idempotency-conflict";
+  return error;
+}
 function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }

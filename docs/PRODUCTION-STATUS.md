@@ -49,4 +49,8 @@
 - Surface: five audited read-only health and identity tools
 - Public mutations and inbound device control: not exposed
 
+See [`ALPIC-3.0.1-BOUNDARY.md`](ALPIC-3.0.1-BOUNDARY.md) for the distinction
+between the Alpic deployment project, the public MCP read plane, and the
+authenticated task-relay contract.
+
 This record distinguishes deployed capability from declared future capability.
