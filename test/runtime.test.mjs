@@ -28,7 +28,20 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(healthCapability.permissionClass, "bounded-local");
   assert.equal(healthCapability.availability, "healthy");
   assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
-  assert.match(await (await fetch(base)).text(), /data-page="capabilities"/);
+  const html = await (await fetch(base)).text();
+  assert.match(html, /data-page="capabilities"/);
+  assert.match(html, /data-page="coordination"/);
+  runtime.database.createSecondaryAssignment({
+    title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
+    expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],
+  });
+  const coordination = await (await fetch(`${base}/api/coordination`)).json();
+  assert.equal(coordination.transport.outboundOnly, true);
+  assert.equal(coordination.authority.model, "bidirectional-equal");
+  assert.equal(coordination.privacy.chatAccess, false);
+  assert.equal(coordination.privacy.credentialsIncluded, false);
+  assert.equal(coordination.counts.ready, 1);
+  assert.equal(coordination.assignments[0].expectedTask, "Return bounded repository evidence.");
   const created = await (await fetch(`${base}/api/tasks`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: `test-${Date.now()}` }),

@@ -17,6 +17,7 @@
       <nav class="workspace-nav" aria-label="Workspace">
         <button data-view="chat" class="active"><span>◫</span> Chat</button>
         <button data-view="tasks"><span>✓</span> Tasks</button>
+        <button data-view="coordination"><span>⇄</span> Coordination</button>
         <button data-view="workers"><span>◇</span> Workers</button>
         <button data-view="capabilities"><span>⌗</span> Capabilities</button>
         <button data-view="connections"><span>⌁</span> Connections</button>
@@ -57,6 +58,22 @@
         <div class="metric-row"><article><span>Active workers</span><strong id="metric-workers">-</strong></article><article><span>In progress</span><strong id="metric-active">-</strong></article><article><span>Awaiting you</span><strong id="metric-waiting">-</strong></article><article><span>Failed</span><strong id="metric-failed">-</strong></article></div>
         <form id="task-form" class="control-form"><label>Capability<select id="task-capability"></select></label><label>Data class<select id="task-data-class"><option>synthetic</option><option>personal</option><option>enterprise</option><option>local-only</option></select></label><label>Priority<select id="task-priority"><option>critical</option><option>high</option><option selected>normal</option><option>low</option><option>background</option></select></label><label class="grow">Outcome<input id="task-outcome" maxlength="1000" placeholder="Describe what finished looks like"></label><button type="submit">Dispatch</button></form>
         <div class="card-grid" id="task-list"></div>
+      </section>
+
+      <section class="page operations-page" data-page="coordination">
+        <header class="page-header"><div><p>CODEX CONTROL PLANE</p><h1>Coordination</h1><span>Track assignments, branch returns, deterministic validation, and integration across authorized Codex controllers.</span></div><button data-refresh>Refresh</button></header>
+        <div class="metric-row coordination-metrics"><article><span>Total assignments</span><strong id="coord-total">-</strong></article><article><span>Waiting return</span><strong id="coord-ready">-</strong></article><article><span>In validation</span><strong id="coord-active">-</strong></article><article><span>Validated</span><strong id="coord-validated">-</strong></article></div>
+        <section class="bridge-overview">
+          <div class="bridge-head"><div><p class="eyebrow">BIDIRECTIONAL · REPOSITORY-ONLY</p><h2>GitHub coordination mailbox</h2></div><span class="badge" id="coord-state">Loading</span></div>
+          <div class="controller-grid">
+            <article><span class="controller-mark primary">P</span><div><strong>Main / local Codex</strong><small>Authorized to assign, implement, review, and merge</small></div></article>
+            <div class="bridge-lane"><i></i><span>structured assignments<br>verified return branches</span><i></i></div>
+            <article><span class="controller-mark secondary">S</span><div><strong>Secondary Codex</strong><small>Equal repository authority through bounded Git evidence</small></div></article>
+          </div>
+          <p class="bridge-policy" id="coord-policy">No chats, credentials, browser data, or model output cross this mailbox.</p>
+        </section>
+        <div class="section-heading"><div><h2>Mailbox activity</h2><span id="coord-updated">Waiting for the first snapshot</span></div></div>
+        <div class="card-grid" id="coordination-list"><p class="muted">Loading coordination state...</p></div>
       </section>
 
       <section class="page operations-page" data-page="workers">

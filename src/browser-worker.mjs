@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
-import { cdpRequest, observeLoopbackControlCenter } from "./browser-cdp.mjs";
+import { CONTROL_CENTER_TITLE, cdpRequest, observeLoopbackControlCenter } from "./browser-cdp.mjs";
 
 const CDP_HOST = "127.0.0.1";
 const CDP_PORT = 9223;
@@ -33,11 +33,11 @@ export async function executeBrowserCapability(capability, task = {}) {
     while (Date.now() < deadline) {
       const targets = await cdpJson("/json/list");
       observed = targets.find((item) => item.id === target.id);
-      if (observed?.title === "Mahoraga Control Center") break;
+      if (observed?.title === CONTROL_CENTER_TITLE) break;
       await delay(250);
     }
     await fetch(`${CDP_BASE}/json/close/${target.id}`).catch(() => undefined);
-    if (observed?.title !== "Mahoraga Control Center") throw new Error("browser-verification-failed");
+    if (observed?.title !== CONTROL_CENTER_TITLE) throw new Error("browser-verification-failed");
     return {
       verified: true,
       summary: "Browser Worker opened the loopback Control Center and verified its rendered title.",
