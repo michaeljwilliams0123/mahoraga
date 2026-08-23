@@ -18,6 +18,7 @@ export const ESSENTIAL_FILES = [
   "src/runtime.mjs",
   "src/server.mjs",
   "src/supervisor.mjs",
+  "src/world-state-observer.mjs",
   "src/worker-process.mjs",
   "web/index.html",
   "web/app.js",

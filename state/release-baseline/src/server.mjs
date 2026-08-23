@@ -5,6 +5,7 @@ import { ROOT } from "./config.mjs";
 import { capabilityIndex } from "./router.mjs";
 import { randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
+import { observeWorldState } from "./world-state-observer.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -29,12 +30,20 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
         const task = submitTask(database, manifest, { ...body, correlationId, executionPlane: "primary-codex-local", taskType: body.taskType ?? "primary-codex" });
         return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
       }
+      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/objectives") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        const objective = database.createObjective({ title: body.title, correlationId: body.correlationId, maximumReplans: body.maximumReplans ?? 2, tasks: body.tasks });
+        return json(response, 202, { objective });
+      }
+      if (request.method === "GET" && url.pathname === "/api/objectives") return json(response, 200, { objectives: database.listObjectives() });
       if (request.method === "GET" && url.pathname === "/api/tasks") return json(response, 200, { tasks: database.listTasks() });
       if (request.method === "GET" && url.pathname === "/api/events") return json(response, 200, { events: database.listEvents() });
       if (request.method === "GET" && url.pathname === "/api/improvements") return json(response, 200, { improvements: database.listImprovements() });
       if (request.method === "GET" && url.pathname === "/api/diagnostics") return json(response, 200, {
         generatedAt: new Date().toISOString(), workers: database.listWorkerState(), events: database.listEvents(300),
       });
+      if (request.method === "GET" && url.pathname === "/api/world-state") return json(response, 200, await observeWorldState({ manifest, database, supervisor }));
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
@@ -103,6 +112,7 @@ export function statusPayload(manifest, database, supervisor) {
     workers, capabilities: capabilityIndex(manifest, workers), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
+    objectives: database.listObjectives(100),
   };
 }
 

@@ -86,10 +86,35 @@ export class RuntimeDatabase {
         summary TEXT NOT NULL,
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS objectives (
+        id TEXT PRIMARY KEY,
+        correlation_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        status TEXT NOT NULL,
+        maximum_replans INTEGER NOT NULL,
+        replan_count INTEGER NOT NULL DEFAULT 0,
+        summary TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS objective_tasks (
+        id TEXT PRIMARY KEY,
+        objective_id TEXT NOT NULL,
+        task_area TEXT NOT NULL,
+        task_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        task_id TEXT,
+        replan_count INTEGER NOT NULL DEFAULT 0,
+        last_worker_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(objective_id) REFERENCES objectives(id)
+      );
       CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
     `);
     this.#ensureTaskColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
@@ -102,13 +127,14 @@ export class RuntimeDatabase {
       ["execution_plane", "TEXT NOT NULL DEFAULT 'local'"], ["priority", "TEXT NOT NULL DEFAULT 'normal'"],
       ["maximum_attempts", "INTEGER NOT NULL DEFAULT 3"], ["checkpoint", "TEXT"], ["verifier", "TEXT"],
       ["conversation_id", "TEXT"],
+      ["task_area", "TEXT"], ["excluded_worker_ids", "TEXT NOT NULL DEFAULT '[]'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
   }
 
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
-    conversationId = null }) {
+    conversationId = null, taskArea = "general", excludedWorkerIds = [] }) {
     validateCapability(capability);
     validateDataClass(dataClass);
     bounded(requestedMode, 30, "requested mode");
@@ -117,6 +143,9 @@ export class RuntimeDatabase {
     bounded(requestedOutcome, 1000, "requested outcome"); bounded(executionPlane, 40, "execution plane");
     if (!PRIORITIES.has(priority)) throw new TypeError("Task priority is invalid.");
     if (!Number.isInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 20) throw new TypeError("Maximum attempts is invalid.");
+    slug(taskArea, "task area");
+    if (!Array.isArray(excludedWorkerIds) || excludedWorkerIds.length > 16) throw new TypeError("Excluded worker IDs are invalid.");
+    excludedWorkerIds.forEach((item) => slug(item, "excluded worker id"));
     if (conversationId !== null) { bounded(conversationId, 80, "conversation id"); if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing."); }
     const existing = this.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(idempotencyKey);
     if (existing) return normalizeTask(existing);
@@ -125,10 +154,10 @@ export class RuntimeDatabase {
     const transaction = () => this.#transaction(() => {
       this.db.prepare(`INSERT INTO tasks
         (id, idempotency_key, correlation_id, task_type, requested_outcome, capability, data_class, requested_mode,
-         execution_plane, priority, maximum_attempts, conversation_id, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+         execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
         .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
-          executionPlane, priority, maximumAttempts, conversationId, now, now);
+          executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), now, now);
       this.#event("task.submitted", id, { correlationId, taskType, capability, dataClass, requestedMode, executionPlane, priority });
     });
     transaction();
@@ -218,6 +247,69 @@ export class RuntimeDatabase {
   listTasks(limit = 100) {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
+  }
+
+  createObjective({ title, correlationId = `obj-${randomUUID()}`, maximumReplans = 2, tasks }) {
+    bounded(title, 240, "objective title"); bounded(correlationId, 120, "objective correlation id");
+    if (!Number.isInteger(maximumReplans) || maximumReplans < 0 || maximumReplans > 20) throw new TypeError("Objective maximum replans is invalid.");
+    if (!Array.isArray(tasks) || tasks.length < 1 || tasks.length > 64) throw new TypeError("Objective task graph is invalid.");
+    const id = `obj-${randomUUID()}`; const now = new Date().toISOString(); const taskIds = new Set();
+    for (const task of tasks) { slug(task.id, "objective task id"); if (taskIds.has(task.id)) throw new TypeError("Duplicate objective task id."); taskIds.add(task.id); validateObjectiveTask(task); }
+    for (const task of tasks) if (task.dependsOn.some((dependency) => !taskIds.has(dependency))) throw new TypeError("Objective dependency is missing.");
+    this.#transaction(() => {
+      this.db.prepare("INSERT INTO objectives(id,correlation_id,title,status,maximum_replans,created_at,updated_at) VALUES(?,?,?,'planned',?,?,?)")
+        .run(id, correlationId, title, maximumReplans, now, now);
+      const statement = this.db.prepare("INSERT INTO objective_tasks(id,objective_id,task_area,task_json,status,created_at,updated_at) VALUES(?,?,?,?, 'planned',?,?)");
+      for (const task of tasks) statement.run(task.id, id, task.taskArea, JSON.stringify(task), now, now);
+      this.#event("objective.planned", id, { correlationId, taskCount: tasks.length });
+    });
+    return this.getObjective(id);
+  }
+
+  getObjective(id) { bounded(id, 80, "objective id"); const row = this.db.prepare("SELECT * FROM objectives WHERE id=?").get(id); return row ? normalizeObjective(row, this.#objectiveTasks(id)) : null; }
+  listObjectives(limit = 100) { const size = Math.max(1, Math.min(Number(limit) || 100, 500)); return this.db.prepare("SELECT * FROM objectives ORDER BY created_at DESC LIMIT ?").all(size).map((row) => normalizeObjective(row, this.#objectiveTasks(row.id))); }
+
+  reconcileObjectives() {
+    const released = []; const completed = []; const failed = [];
+    for (const objective of this.listObjectives(500).filter((item) => ["planned", "running"].includes(item.status))) {
+      const taskById = new Map(objective.tasks.map((task) => [task.id, task]));
+      for (const task of objective.tasks.filter((item) => item.status === "released" && item.task?.status === "completed")) this.#setObjectiveTask(task.id, { status: "completed", lastWorkerId: task.task.assignedWorker });
+      for (const task of objective.tasks.filter((item) => item.status === "planned")) {
+        if (!task.definition.dependsOn.every((dependency) => taskById.get(dependency)?.status === "completed")) continue;
+        const created = this.#submitObjectiveTask(objective, task);
+        released.push(created);
+      }
+      const refreshed = this.getObjective(objective.id);
+      for (const task of refreshed.tasks.filter((item) => item.status === "released" && item.task?.status === "failed")) {
+        if (task.replanCount >= refreshed.maximumReplans) { this.#setObjectiveTask(task.id, { status: "failed", lastWorkerId: task.task.assignedWorker }); failed.push(task.id); continue; }
+        this.#setObjectiveTask(task.id, { status: "planned", replanCount: task.replanCount + 1, lastWorkerId: task.task.assignedWorker });
+      }
+      const final = this.getObjective(objective.id);
+      if (final.tasks.some((task) => task.status === "failed")) { this.#setObjective(objective.id, "failed", "A child task exhausted its bounded replanning policy."); failed.push(objective.id); }
+      else if (final.tasks.length > 0 && final.tasks.every((task) => task.status === "completed")) { this.#setObjective(objective.id, "completed", "All child tasks completed with worker validation receipts."); completed.push(objective.id); }
+      else this.#setObjective(objective.id, "running");
+    }
+    return { released, completed, failed };
+  }
+
+  #submitObjectiveTask(objective, objectiveTask) {
+    const definition = objectiveTask.definition;
+    const overlapWith = this.listTasks(500).filter((task) => task.taskArea === definition.taskArea && !["completed", "failed", "cancelled"].includes(task.status)).map((task) => task.id);
+    const task = this.submitTask({ ...definition, correlationId: objective.correlationId, idempotencyKey: `${objective.id}:${objectiveTask.id}:r${objectiveTask.replanCount}`, requestedOutcome: definition.requestedOutcome ?? objective.title, taskArea: definition.taskArea, excludedWorkerIds: objectiveTask.lastWorkerId ? [objectiveTask.lastWorkerId] : [] });
+    this.#setObjectiveTask(objectiveTask.id, { status: "released", taskId: task.id });
+    this.#event("objective.task.released", objectiveTask.id, { objectiveId: objective.id, taskId: task.id, overlapWith });
+    return { objectiveId: objective.id, objectiveTaskId: objectiveTask.id, taskId: task.id, overlapWith };
+  }
+
+  #objectiveTasks(objectiveId) { return this.db.prepare("SELECT * FROM objective_tasks WHERE objective_id=? ORDER BY created_at, id").all(objectiveId).map((row) => normalizeObjectiveTask(row, row.task_id ? this.getTask(row.task_id) : null)); }
+  #setObjective(id, status, summary = null) { this.db.prepare("UPDATE objectives SET status=?, summary=COALESCE(?,summary), updated_at=? WHERE id=?").run(status, summary, new Date().toISOString(), id); }
+  #setObjectiveTask(id, { status, taskId = undefined, replanCount = undefined, lastWorkerId = undefined }) {
+    const assignments = ["updated_at=?"]; const values = [new Date().toISOString()];
+    if (status !== undefined) { assignments.push("status=?"); values.push(status); }
+    if (taskId !== undefined) { assignments.push("task_id=?"); values.push(taskId); }
+    if (replanCount !== undefined) { assignments.push("replan_count=?"); values.push(replanCount); }
+    if (lastWorkerId !== undefined) { assignments.push("last_worker_id=?"); values.push(lastWorkerId); }
+    values.push(id); this.db.prepare(`UPDATE objective_tasks SET ${assignments.join(",")} WHERE id=?`).run(...values);
   }
 
   retryTask(id) {
@@ -401,8 +493,11 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   errorCode: row.error_code, executionPlane: row.execution_plane, priority: row.priority,
   maximumAttempts: row.maximum_attempts, checkpoint: row.checkpoint, verifier: row.verifier,
   conversationId: row.conversation_id,
+  taskArea: row.task_area ?? "general", excludedWorkerIds: JSON.parse(row.excluded_worker_ids ?? "[]"),
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
+function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
 function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) throw new Error("Stored improvement status is invalid."); return {
@@ -411,5 +506,15 @@ function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) th
 }; }
 function validateCapability(value) { if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(value)) throw new TypeError("Capability is invalid."); }
 function validateDataClass(value) { if (!new Set(["synthetic", "personal", "enterprise", "local-only"]).has(value)) throw new TypeError("Data class is invalid."); }
+function validateObjectiveTask(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Objective task is invalid.");
+  validateCapability(value.capability); validateDataClass(value.dataClass);
+  if (!Array.isArray(value.dependsOn) || value.dependsOn.length > 16) throw new TypeError("Objective dependencies are invalid.");
+  value.dependsOn.forEach((item) => slug(item, "objective dependency"));
+  slug(value.taskArea, "objective task area");
+  bounded(value.owner ?? "mahoraga", 64, "objective owner"); bounded(value.provider ?? "deterministic", 64, "objective provider");
+  bounded(value.retryPolicy ?? "bounded", 64, "objective retry policy"); bounded(value.completionCriteria ?? "worker-verified", 400, "objective completion criteria");
+}
 function bounded(value, max, name) { if (typeof value !== "string" || value.length < 1 || value.length > max || /[\r\n]/.test(value)) throw new TypeError(`${name} is invalid.`); }
 function boundedMultiline(value, max, name) { if (typeof value !== "string" || value.trim().length < 1 || value.length > max || /\u0000/.test(value)) throw new TypeError(`${name} is invalid.`); }
+function slug(value, name) { if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) throw new TypeError(`${name} is invalid.`); }

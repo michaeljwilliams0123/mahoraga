@@ -59,3 +59,25 @@ test("assignment discourse persists and waiting tasks resume with user input", (
   assert.deepEqual(messages.map((item) => item.role), ["user", "worker", "user"]);
   assert.equal(messages[1].requiresResponse, true);
 });
+
+test("objective graphs release dependencies, retain overlap evidence, and complete with receipts", (t) => {
+  const database = databaseFixture(t);
+  const common = { dataClass: "synthetic", requestedMode: "local", taskArea: "runtime-health", owner: "mahoraga", provider: "local-core", retryPolicy: "bounded", completionCriteria: "worker-verified" };
+  const objective = database.createObjective({ title: "Verify runtime", tasks: [
+    { id: "health", capability: "system.health", dependsOn: [], ...common },
+    { id: "manifest", capability: "manifest.validate", dependsOn: ["health"], ...common },
+  ] });
+  database.reconcileObjectives();
+  let current = database.getObjective(objective.id);
+  let first = current.tasks.find((task) => task.id === "health").task;
+  database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000 });
+  database.markVerifying(first.id, "local-core"); database.finishTask(first.id, { status: "completed", resultSummary: "health verified" });
+  database.reconcileObjectives(); database.reconcileObjectives();
+  current = database.getObjective(objective.id);
+  const second = current.tasks.find((task) => task.id === "manifest").task;
+  database.claimNext({ workerId: "local-core", capabilities: ["manifest.validate"], leaseMs: 5000 });
+  database.markVerifying(second.id, "local-core"); database.finishTask(second.id, { status: "completed", resultSummary: "manifest verified" });
+  database.reconcileObjectives(); database.reconcileObjectives();
+  assert.equal(database.getObjective(objective.id).status, "completed");
+  assert.equal(database.getObjective(objective.id).tasks.every((task) => task.status === "completed"), true);
+});

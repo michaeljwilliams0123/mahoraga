@@ -145,6 +145,7 @@ export class Supervisor extends EventEmitter {
 
   #tick() {
     this.database.recoverExpired();
+    this.database.reconcileObjectives();
     this.#scheduleAutomaticRepair();
     this.#scheduleMicrosoftQueuePoll();
     const now = Date.now();

@@ -2,14 +2,15 @@ import { buildCapabilityRegistry, rankCapabilityRoutes } from "./capability-regi
 
 export function routeTask(manifest, task, context = {}) {
   const ranked = rankCapabilityRoutes(manifest, task, context);
-  if (ranked.candidates.length === 0) return { status: "waiting", reason: ranked.reason, worker: null };
-  const selected = ranked.candidates[0];
+  const candidates = ranked.candidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId));
+  if (candidates.length === 0) return { status: "waiting", reason: ranked.reason, worker: null };
+  const selected = candidates[0];
   return {
     status: "routable",
     reason: null,
     worker: manifest.workers.find((worker) => worker.id === selected.workerId),
     decision: selected,
-    alternates: ranked.candidates.slice(1),
+    alternates: candidates.slice(1),
   };
 }
 
