@@ -69,6 +69,17 @@ must never appear in an assignment, result, commit message, or issue.
 If blocked, use `--status blocked`; a return commit is not required. The result
 must explain the repository-level blocker without copying a chat transcript.
 
+## Codex cloud lane
+
+For background work that should use the ChatGPT-linked Codex cloud service, the
+Primary Codex may instead create a validated GitHub issue containing `@codex`.
+That lane returns a pull request rather than a `secondary/<assignment-id>` branch
+and remains subject to the same repository-only privacy boundary. Either
+user-authorized Codex instance may merge verified work when the task explicitly
+uses `merge-after-verify`. See
+[`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
+marker, private-repository setup, and Primary review workflow.
+
 ## Validation
 
 Run `npm run coordination:validate` before every push. `npm run verify` and the

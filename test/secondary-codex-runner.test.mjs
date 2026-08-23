@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import path from "node:path";
 import {
   SECONDARY_CODEX_ARGS,
   assertChangedPathsAllowed,
@@ -26,7 +27,7 @@ const config = () => ({
   projects: [{
     taskArea: "side-project-alpha",
     repository: "https://github.com/example/side-project.git",
-    checkout: "C:\\Projects\\side-project",
+    checkout: path.resolve("side-project"),
     defaultBranch: "main",
     allowedPaths: ["src", "test", "docs"],
     maxRuntimeMinutes: 60,

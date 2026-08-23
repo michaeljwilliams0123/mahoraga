@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-12345678-1234-1234-1234-123456789abc",
+  "idempotencyKey": "mahoraga-private-bridge-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "91b48883f97e3551553b3545beed9cc83dec26dc",
+  "title": "Implement bounded repository change",
+  "task": "Implement the scoped repository change and return a pull request for Primary review.",
+  "allowedPaths": [
+    "docs",
+    "src",
+    "test"
+  ],
+  "verification": [
+    "npm run verify"
+  ],
+  "maximumAttempts": 1,
+  "integrationMode": "merge-after-verify",
+  "createdBy": "main-codex",
+  "createdAt": "2026-08-23T00:00:00.000Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
