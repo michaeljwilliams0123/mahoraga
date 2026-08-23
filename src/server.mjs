@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
 import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
+import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -168,6 +169,7 @@ export function coordinationPayload(manifest, database) {
       integrationRequiresVerification: true,
     },
     privacy: { ...COORDINATION_PRIVACY },
+    runner: secondaryRunnerSnapshot(),
     counts: {
       total: assignments.length,
       ready: count("READY"),
