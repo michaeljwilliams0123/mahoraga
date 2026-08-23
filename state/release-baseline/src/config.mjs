@@ -12,20 +12,37 @@ const AVAILABILITY_STATES = new Set(["healthy", "busy", "starting", "configured"
 
 export async function loadManifest(file = MANIFEST_PATH) {
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
+  if (!canonical) return validateManifest(JSON.parse(await readFile(file, "utf8")));
+
+  let manifest;
   try {
     const source = await readFile(file, "utf8");
-    const manifest = validateManifest(JSON.parse(source));
-    if (canonical) {
-      await mkdir(path.dirname(MANIFEST_BACKUP_PATH), { recursive: true });
-      await writeFile(MANIFEST_BACKUP_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-    }
-    return manifest;
+    manifest = validateManifest(JSON.parse(source));
   } catch (error) {
-    if (!canonical) throw error;
     const backupSource = await readFile(MANIFEST_BACKUP_PATH, "utf8");
     const backup = validateManifest(JSON.parse(backupSource));
-    await writeFile(MANIFEST_PATH, `${JSON.stringify(backup, null, 2)}\n`, "utf8");
+    await stageManifestRecoveryCandidate(error);
     return backup;
+  }
+
+  try {
+    await mkdir(path.dirname(MANIFEST_BACKUP_PATH), { recursive: true });
+    await writeFile(MANIFEST_BACKUP_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  } catch {
+    // A valid live manifest remains authoritative when operational backup storage is unavailable.
+  }
+  return manifest;
+}
+
+async function stageManifestRecoveryCandidate(error) {
+  try {
+    const directory = path.join(ROOT, "state", "repairs");
+    await mkdir(directory, { recursive: true });
+    const file = path.join(directory, `manifest-recovery-${Date.now()}-${process.pid}.json`);
+    const candidate = { kind: "core-source-repair", relative: "mahoraga.manifest.json", baseline: path.relative(ROOT, MANIFEST_BACKUP_PATH), stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: "user-only", reason: String(error?.code ?? error?.name ?? "manifest-invalid").slice(0, 80) };
+    await writeFile(file, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
+  } catch {
+    // Recovery remains read-only if candidate storage is unavailable.
   }
 }
 

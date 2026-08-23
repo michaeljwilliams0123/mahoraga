@@ -111,6 +111,25 @@ export function renderCodexCloudIssue(record) {
   });
 }
 
+export function createCodexCloudDispatchBundle(records) {
+  if (!Array.isArray(records)) throw new TypeError("Codex cloud dispatch records must be an array.");
+  const taskIds = new Set();
+  const idempotencyKeys = new Set();
+  const tasks = records.map((record) => {
+    const task = validateCodexCloudTask(record);
+    if (taskIds.has(task.taskId)) throw new TypeError(`Duplicate Codex cloud task ID: ${task.taskId}`);
+    if (idempotencyKeys.has(task.idempotencyKey)) throw new TypeError(`Duplicate Codex cloud idempotency key: ${task.idempotencyKey}`);
+    taskIds.add(task.taskId);
+    idempotencyKeys.add(task.idempotencyKey);
+    return Object.freeze({
+      taskId: task.taskId,
+      idempotencyKey: task.idempotencyKey,
+      issue: renderCodexCloudIssue(task),
+    });
+  });
+  return Object.freeze({ schemaVersion: 1, tasks: Object.freeze(tasks) });
+}
+
 export function createCodexCloudReturn(taskRecord, input, { now = new Date().toISOString() } = {}) {
   const task = validateCodexCloudTask(taskRecord);
   const state = input.state ?? "completed";

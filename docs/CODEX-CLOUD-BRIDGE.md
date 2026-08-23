@@ -46,21 +46,37 @@ sharing ChatGPT conversations.
 
 ## Task lifecycle
 
-1. Primary creates a strict task JSON record. Use a stable `idempotencyKey` for
-   retries of the same logical work.
-2. Primary validates and renders it locally:
+1. Primary creates a strict task record on `main`. Use a stable idempotency key
+   for retries of the same logical work:
+
+   ```powershell
+   node .\scripts\codex-cloud-task.mjs create `
+     --idempotency-key "mahoraga-feature-v1" `
+     --base-commit "<full-main-commit>" `
+     --title "Implement the bounded feature" `
+     --task "Implement the repository-only change and return a pull request." `
+     --allowed-paths "src,test,docs" `
+     --verification "npm run verify"
+   ```
+
+   Commit the generated `coordination/cloud-tasks/<task-id>.json` file to
+   `main`. The `codex-cloud-dispatch.yml` workflow validates every queued record,
+   reconciles it against all existing issues by task ID and idempotency key, and
+   creates the `@codex` issue with GitHub's repository-scoped workflow token.
+   No GitHub token or OpenAI API key is stored on either Windows computer.
+
+2. Primary can validate and render any task locally before commit:
 
    ```powershell
    node .\scripts\codex-cloud-task.mjs validate --file .\task.json
    node .\scripts\codex-cloud-task.mjs render --file .\task.json
    ```
 
-3. Primary uses its GitHub App to search open and closed issues for the rendered
-   idempotency marker. If an issue already exists, it reuses that issue instead
-   of creating a duplicate.
-4. If no issue exists, Primary creates it with the rendered title, body, and the
-   `codex:queued` and `privacy:repo-only` labels. The body begins with `@codex`,
-   which starts the connected Codex cloud task.
+3. GitHub Actions creates missing bridge labels, searches open and closed issues
+   for the exact rendered marker, and reuses an existing issue on reruns.
+4. If no issue exists, GitHub creates it with `codex:queued` and
+   `privacy:repo-only`. The body begins with `@codex`, which starts the connected
+   Codex cloud task.
 5. Codex cloud works from the immutable base commit and opens a PR. An authorized
    Codex changes the issue label to `codex:review`, checks the actual diff and
    tests, and either requests a follow-up or merges according to `integrationMode`.
@@ -75,7 +91,7 @@ Recommended state labels are `codex:queued`, `codex:running`, `codex:review`,
 | Operation | Owner | Interface |
 | --- | --- | --- |
 | Validate and render task | Mahoraga | Local deterministic Node command |
-| Search/create issue | Primary Codex | Connected GitHub App |
+| Search/create issue | GitHub Actions | Repository-scoped `GITHUB_TOKEN` |
 | Start implementation | GitHub | `@codex` issue or PR mention |
 | Execute repository work | Codex cloud | Isolated connected environment |
 | Return changes | Codex cloud | Pull request |

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  createCodexCloudDispatchBundle,
   createCodexCloudReturn,
   createCodexCloudTask,
   renderCodexCloudIssue,
@@ -44,6 +45,18 @@ test("issue rendering is deterministic and carries an idempotency marker", () =>
   assert.match(first.body, /Do not access, request, or export ChatGPT conversations/);
   assert.match(first.body, /merge it only after every declared verification command passes/);
   assert.deepEqual(first.labels, ["codex:queued", "privacy:repo-only"]);
+});
+
+test("dispatch bundles are deterministic and reject duplicate logical tasks", () => {
+  const first = task();
+  const second = task({ idempotencyKey: "mahoraga-private-bridge-v2", title: "Implement the next bounded bridge" });
+  const secondWithId = { ...second, taskId: "ccx-87654321-4321-4321-4321-cba987654321" };
+  const bundle = createCodexCloudDispatchBundle([first, secondWithId]);
+  assert.equal(bundle.schemaVersion, 1);
+  assert.equal(bundle.tasks.length, 2);
+  assert.equal(bundle.tasks[0].issue.title, "[CODEX] Implement the bounded bridge");
+  assert.throws(() => createCodexCloudDispatchBundle([first, first]), /Duplicate Codex cloud task ID/);
+  assert.throws(() => createCodexCloudDispatchBundle([first, { ...first, taskId: secondWithId.taskId }]), /Duplicate Codex cloud idempotency key/);
 });
 
 test("known credential material is rejected before rendering", () => {

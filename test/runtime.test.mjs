@@ -22,7 +22,10 @@ test("Primary Codex intake bearer comparison fails closed", () => {
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
-  await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).workers.some((worker) => ["healthy", "busy"].includes(worker.status)));
+  await waitFor(async () => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    return status.capabilities.some((item) => item.capability === "system.health" && item.availability === "healthy");
+  });
   const status = await (await fetch(`${base}/api/status`)).json();
   const healthCapability = status.capabilities.find((item) => item.capability === "system.health");
   assert.equal(healthCapability.permissionClass, "bounded-local");
