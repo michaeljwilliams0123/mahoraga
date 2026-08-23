@@ -26,6 +26,7 @@ test("Codex cloud tasks are strict, repository-bound, and private", () => {
   assert.equal(record.privacy.credentialsIncluded, false);
   assert.throws(() => validateCodexCloudTask({ ...record, githubToken: "secret" }), /field is not allowed/);
   assert.throws(() => task({ repository: "https://github.com/example/repo" }), /repository is invalid/);
+  assert.throws(() => task({ repository: "../repo" }), /repository is invalid/);
   assert.throws(() => task({ allowedPaths: [".git/config"] }), /allowed paths are invalid/);
 });
 
@@ -43,6 +44,7 @@ test("issue rendering is deterministic and carries an idempotency marker", () =>
 
 test("known credential material is rejected before rendering", () => {
   assert.throws(() => task({ task: "Use github_pat_1234567890abcdef1234 to access GitHub." }), /cannot contain credentials/);
+  assert.throws(() => task({ idempotencyKey: "github_pat_1234567890abcdef1234" }), /cannot contain credentials/);
   assert.throws(() => task({ verification: ["curl -H 'Authorization: Bearer eyJ1234567890abcdef'"] }), /cannot contain credentials/);
 });
 

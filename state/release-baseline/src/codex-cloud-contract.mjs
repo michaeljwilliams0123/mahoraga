@@ -46,7 +46,7 @@ export function validateCodexCloudTask(record) {
   slug(record.createdBy, "task creator");
   timestamp(record.createdAt, "task creation time");
   privacy(record.privacy);
-  rejectSecrets([record.title, record.task, ...record.verification]);
+  rejectSecrets([record.idempotencyKey, record.title, record.task, ...record.verification]);
   return Object.freeze({
     schemaVersion: record.schemaVersion,
     taskId: record.taskId,
@@ -183,7 +183,9 @@ function privacy(value) {
 }
 function taskId(value) { if (typeof value !== "string" || !/^ccx-[a-f0-9-]{8,72}$/i.test(value)) throw new TypeError("Codex cloud task ID is invalid."); }
 function idempotencyKey(value) { if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value)) throw new TypeError("Codex cloud idempotency key is invalid."); }
-function repository(value) { if (typeof value !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value)) throw new TypeError("Codex cloud repository is invalid."); }
+function repository(value) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value) || value.split("/").some((item) => item === "." || item === "..")) throw new TypeError("Codex cloud repository is invalid.");
+}
 function commit(value, label) { if (typeof value !== "string" || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i.test(value)) throw new TypeError(`${label} is invalid.`); }
 function nullableCommit(value, label) { if (value !== null) commit(value, label); }
 function slug(value, label) { if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) throw new TypeError(`${label} is invalid.`); }

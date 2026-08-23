@@ -26,7 +26,7 @@ if (command === "validate") {
 async function jsonFile(file) {
   const absolute = path.resolve(ROOT, file);
   const relative = path.relative(ROOT, absolute);
-  if (relative.startsWith("..") || path.isAbsolute(relative)) throw new TypeError("Codex cloud contract file must be inside the repository.");
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) throw new TypeError("Codex cloud contract file must be inside the repository.");
   return JSON.parse(await readFile(absolute, "utf8"));
 }
 function parseOptions(values) {
