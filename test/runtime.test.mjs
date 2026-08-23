@@ -46,6 +46,7 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(coordination.authority.secondaryCanMerge, false);
   assert.equal(coordination.privacy.chatAccess, false);
   assert.equal(coordination.privacy.credentialsIncluded, false);
+  assert.equal(typeof coordination.runner.configured, "boolean");
   assert.equal(coordination.counts.ready, 1);
   assert.equal(coordination.assignments[0].taskArea, "secondary-connectivity");
   assert.equal("expectedTask" in coordination.assignments[0], false);

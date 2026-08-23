@@ -38,7 +38,8 @@ suites are source material for later worker migration.
   and diagnostic controls remain available as compact workspace views. A
   dedicated Coordination console now exposes the Primary-led repository mailbox
   lifecycle, bounded Secondary return branches, and deterministic validation
-  state without exposing chats, credentials, or model output.
+  state plus a sanitized outbound-runner heartbeat without exposing chats,
+  credentials, local checkout paths, or model output.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.

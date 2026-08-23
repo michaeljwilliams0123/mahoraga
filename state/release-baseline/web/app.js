@@ -97,6 +97,10 @@ function renderCoordination() {
   $('coord-policy').textContent = coordination.privacy.chatAccess === false && coordination.privacy.credentialsIncluded === false
     ? 'Repository metadata only · no chats, credentials, browser data, personal files, or model output.'
     : 'Coordination privacy policy is not in its expected fail-closed state.';
+  const runner = coordination.runner;
+  $('coord-runner').textContent = runner.configured
+    ? `Outbound runner configured${runner.lastRunAt ? ` · last poll ${formatTime(runner.lastRunAt)}` : ' · awaiting first recorded poll'}${runner.lastOutcome?.status ? ` · ${runner.lastOutcome.status}` : ''}`
+    : 'Outbound runner is not configured in this checkout.';
   $('coordination-list').innerHTML = coordination.assignments.length
     ? coordination.assignments.map(coordinationCard).join('')
     : '<p class="muted">No coordination assignments have been imported.</p>';

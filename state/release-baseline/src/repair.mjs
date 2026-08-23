@@ -22,6 +22,7 @@ export const ESSENTIAL_FILES = [
   "src/router.mjs",
   "src/repository-worker.mjs",
   "src/secondary-codex-runner.mjs",
+  "src/secondary-runner-status.mjs",
   "src/runtime.mjs",
   "src/server.mjs",
   "src/supervisor.mjs",

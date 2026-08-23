@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import path from "node:path";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import {
   SECONDARY_CODEX_ARGS,
@@ -14,6 +14,7 @@ import {
   validateSecondaryRunnerConfig,
 } from "../src/secondary-codex-runner.mjs";
 import { createAssignmentRecord } from "../src/coordination-records.mjs";
+import { secondaryRunnerSnapshot } from "../src/secondary-runner-status.mjs";
 
 const assignment = (overrides = {}) => createAssignmentRecord({
   title: "Implement the side-project feature",
@@ -95,15 +96,71 @@ test("the runner binds the immutable assignment before model execution", async (
     if (command === "git" && args.includes("rev-parse")) return { stdout: "1234567890abcdef\n", stderr: "" };
     return { stdout: "", stderr: "" };
   };
-  const runner = new SecondaryCodexRunner({ root, run, now: () => new Date("2026-08-23T00:00:00.000Z") });
+  const runner = new SecondaryCodexRunner({ root, run, now: () => new Date("2026-08-23T00:00:00.000Z"), executionId: () => "feedface-1234-5678-90ab-cdef12345678" });
   const record = assignment();
   const project = config().projects[0];
   const result = await runner.executeAssignment(record, project, 1);
   assert.equal(result.returnCommit, "1234567890abcdef");
-  const worktree = path.join(root, "state", "secondary-worktrees", `${record.assignmentId}-attempt-1`);
+  const worktree = path.join(root, "state", "secondary-worktrees", `${record.assignmentId}-attempt-1-feedface-1234-5678-90ab-cdef12345678`);
   const stored = JSON.parse(await readFile(path.join(worktree, "coordination", "assignments", `${record.assignmentId}.json`), "utf8"));
   assert.deepEqual(stored, record);
   const bindCommit = calls.findIndex(({ args }) => args?.includes(`[SECONDARY] Bind ${record.assignmentId} assignment`));
   const codex = calls.findIndex(({ command }) => command === "codex");
   assert.ok(bindCommit >= 0 && bindCommit < codex);
+});
+
+test("an exhausted assignment can be safely re-armed without reusing a stale worktree", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-retry-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "state"), { recursive: true });
+  await writeFile(path.join(root, "state", "secondary-runner.json"), JSON.stringify(config()));
+  await writeFile(path.join(root, "state", "secondary-runner-state.json"), JSON.stringify({
+    schemaVersion: 1,
+    assignments: { [assignment().assignmentId]: { attempts: 3, state: "failed", error: "previous-failure" } },
+  }));
+  const run = async (command, args) => {
+    if (command === "git" && args.includes("ls-tree")) return { stdout: `coordination/assignments/${assignment().assignmentId}.json\n`, stderr: "" };
+    if (command === "git" && args.includes("show")) return { stdout: JSON.stringify(assignment()), stderr: "" };
+    if (command === "git" && args[0] === "ls-remote") throw Object.assign(new Error("missing branch"), { code: 2 });
+    return { stdout: "", stderr: "" };
+  };
+  const runner = new SecondaryCodexRunner({ root, run, now: () => new Date("2026-08-23T01:00:00.000Z") });
+  assert.deepEqual(await runner.retry(assignment().assignmentId), { status: "retry-armed", assignmentId: assignment().assignmentId });
+  const state = JSON.parse(await readFile(path.join(root, "state", "secondary-runner-state.json"), "utf8"));
+  assert.equal(state.assignments[assignment().assignmentId], undefined);
+  assert.deepEqual(state.lastOutcome, { status: "retry-armed", assignmentId: assignment().assignmentId });
+});
+
+test("runner heartbeat snapshots expose bounded state without local paths or credentials", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-status-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "state"), { recursive: true });
+  await writeFile(path.join(root, "state", "secondary-runner.json"), JSON.stringify(config()));
+  await writeFile(path.join(root, "state", "secondary-runner-state.json"), JSON.stringify({
+    schemaVersion: 1,
+    lastRunAt: "2026-08-23T01:00:00.000Z",
+    lastOutcome: { status: "retryable", assignmentId: assignment().assignmentId, attempt: 1, reason: "runner-error" },
+    assignments: { [assignment().assignmentId]: { attempts: 1, state: "retryable", error: "runner-error" } },
+  }));
+  const snapshot = secondaryRunnerSnapshot(root);
+  assert.equal(snapshot.configured, true);
+  assert.equal(snapshot.assignmentCounts.retryable, 1);
+  assert.deepEqual(snapshot.lastOutcome, { status: "retryable", assignmentId: assignment().assignmentId, attempt: 1, reason: "runner-error" });
+  assert.equal(JSON.stringify(snapshot).includes(path.resolve("side-project")), false);
+  assert.equal(JSON.stringify(snapshot).includes("repository-secret"), false);
+});
+
+test("each unattended poll persists its bounded outcome", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-poll-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "state"), { recursive: true });
+  await writeFile(path.join(root, "state", "secondary-runner.json"), JSON.stringify(config()));
+  const run = async (command, args) => command === "git" && args.includes("ls-tree")
+    ? { stdout: "", stderr: "" }
+    : { stdout: command === "codex" ? "codex-cli 1.0\n" : "", stderr: "" };
+  const runner = new SecondaryCodexRunner({ root, run, now: () => new Date("2026-08-23T02:00:00.000Z") });
+  assert.deepEqual(await runner.runOnce(), { status: "idle" });
+  const state = JSON.parse(await readFile(path.join(root, "state", "secondary-runner-state.json"), "utf8"));
+  assert.equal(state.lastRunAt, "2026-08-23T02:00:00.000Z");
+  assert.deepEqual(state.lastOutcome, { status: "idle" });
 });

@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -93,10 +94,11 @@ export function assertChangedPathsAllowed(changedFiles, allowedPaths) {
 }
 
 export class SecondaryCodexRunner {
-  constructor({ root = ROOT, run = execFileAsync, now = () => new Date() } = {}) {
+  constructor({ root = ROOT, run = execFileAsync, now = () => new Date(), executionId = () => randomUUID() } = {}) {
     this.root = root;
     this.run = run;
     this.now = now;
+    this.executionId = executionId;
     this.configFile = path.join(root, "state", "secondary-runner.json");
     this.stateFile = path.join(root, "state", "secondary-runner-state.json");
     this.workRoot = path.join(root, "state", "secondary-worktrees");
@@ -111,6 +113,8 @@ export class SecondaryCodexRunner {
       configured: true,
       git,
       codex,
+      lastRunAt: state.lastRunAt ?? null,
+      lastOutcome: state.lastOutcome ?? null,
       projects: config.projects.map(({ taskArea, repository, enabled }) => ({ taskArea, repository, enabled })),
       assignments: state.assignments,
     };
@@ -120,8 +124,9 @@ export class SecondaryCodexRunner {
     const config = await this.loadConfig();
     const state = await this.loadState();
     const codex = await this.commandHealth("codex", ["--version"]);
-    if (!codex.healthy) return { status: "unavailable", reason: "codex-command-unavailable" };
+    if (!codex.healthy) return this.finishRun(state, { status: "unavailable", reason: "codex-command-unavailable" });
     const assignments = await this.listAssignments(config.controlBranch);
+    let observedReturn = null;
     for (const assignment of assignments) {
       const project = projectForAssignment(config, assignment);
       if (!project) continue;
@@ -129,22 +134,40 @@ export class SecondaryCodexRunner {
       if (record?.state === "completed" || (record?.attempts ?? 0) >= config.maxAttempts) continue;
       if (await this.remoteBranchExists(project.repository, assignment.returnBranch)) {
         state.assignments[assignment.assignmentId] = { attempts: record?.attempts ?? 0, state: "returned", updatedAt: this.now().toISOString() };
-        await this.saveState(state);
+        observedReturn = { status: "returned", assignmentId: assignment.assignmentId, returnBranch: assignment.returnBranch };
         continue;
       }
       const attempt = (record?.attempts ?? 0) + 1;
       try {
         const result = await this.executeAssignment(assignment, project, attempt);
         state.assignments[assignment.assignmentId] = { attempts: attempt, state: "completed", returnBranch: result.returnBranch, returnCommit: result.returnCommit, updatedAt: this.now().toISOString() };
-        await this.saveState(state);
-        return { status: "completed", assignmentId: assignment.assignmentId, returnBranch: result.returnBranch, returnCommit: result.returnCommit };
+        return this.finishRun(state, { status: "completed", assignmentId: assignment.assignmentId, returnBranch: result.returnBranch, returnCommit: result.returnCommit });
       } catch (error) {
         state.assignments[assignment.assignmentId] = { attempts: attempt, state: attempt >= config.maxAttempts ? "failed" : "retryable", error: errorCode(error), updatedAt: this.now().toISOString() };
-        await this.saveState(state);
-        return { status: attempt >= config.maxAttempts ? "failed" : "retryable", assignmentId: assignment.assignmentId, attempt, reason: errorCode(error) };
+        return this.finishRun(state, { status: attempt >= config.maxAttempts ? "failed" : "retryable", assignmentId: assignment.assignmentId, attempt, reason: errorCode(error) });
       }
     }
-    return { status: "idle" };
+    return this.finishRun(state, observedReturn ?? { status: "idle" });
+  }
+
+  async retry(assignmentId) {
+    if (typeof assignmentId !== "string" || !/^sec-[a-f0-9-]{8,72}$/i.test(assignmentId)) throw new TypeError("Secondary assignment ID is invalid.");
+    const config = await this.loadConfig();
+    const state = await this.loadState();
+    const assignment = (await this.listAssignments(config.controlBranch)).find((item) => item.assignmentId === assignmentId);
+    if (!assignment) throw new Error("secondary-assignment-not-found");
+    const project = projectForAssignment(config, assignment);
+    if (!project) throw new Error("secondary-project-not-configured");
+    if (await this.remoteBranchExists(project.repository, assignment.returnBranch)) {
+      const result = { status: "returned", assignmentId, returnBranch: assignment.returnBranch };
+      state.assignments[assignmentId] = { attempts: state.assignments[assignmentId]?.attempts ?? 0, state: "returned", updatedAt: this.now().toISOString() };
+      await this.saveState(state);
+      return result;
+    }
+    delete state.assignments[assignmentId];
+    state.lastOutcome = { status: "retry-armed", assignmentId };
+    await this.saveState(state);
+    return { status: "retry-armed", assignmentId };
   }
 
   async listAssignments(controlBranch) {
@@ -160,7 +183,9 @@ export class SecondaryCodexRunner {
   }
 
   async executeAssignment(assignment, project, attempt) {
-    const worktree = path.join(this.workRoot, `${assignment.assignmentId}-attempt-${attempt}`);
+    const executionId = String(this.executionId()).toLowerCase();
+    if (!/^[a-f0-9-]{8,72}$/.test(executionId)) throw new Error("secondary-execution-id-invalid");
+    const worktree = path.join(this.workRoot, `${assignment.assignmentId}-attempt-${attempt}-${executionId}`);
     await mkdir(this.workRoot, { recursive: true });
     await this.exec("git", ["clone", "--no-checkout", project.repository, worktree], { timeout: 300_000 });
     await this.exec("git", ["-C", worktree, "cat-file", "-e", `${assignment.expectedBaseCommit}^{commit}`], { timeout: 30_000 });
@@ -252,6 +277,13 @@ export class SecondaryCodexRunner {
     const temporary = `${this.stateFile}.${process.pid}.tmp`;
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
     await rename(temporary, this.stateFile);
+  }
+
+  async finishRun(state, result) {
+    state.lastRunAt = this.now().toISOString();
+    state.lastOutcome = Object.fromEntries(Object.entries(result).filter(([, value]) => value !== undefined && value !== null));
+    await this.saveState(state);
+    return result;
   }
 }
 
