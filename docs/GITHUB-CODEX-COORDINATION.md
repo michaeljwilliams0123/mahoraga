@@ -33,6 +33,8 @@ must never appear in an assignment, result, commit message, or issue.
 3. Review `coordination/assignments/<assignment-id>.json` to ensure it contains
    no private conversation content, then commit and push it to `main`. This
    small mailbox commit will naturally be newer than `expectedBaseCommit`.
+   The local supervisor imports the validated record into its durable assignment
+   table idempotently before it polls for the return branch.
 4. Give the secondary instance only the assignment ID and repository URL.
 5. Wait for `secondary/<assignment-id>`. Verify the returned commit against the
    assignment's `expectedBaseCommit`, allowed paths, and test evidence before
@@ -83,6 +85,9 @@ marker, private-repository setup, and Primary review workflow.
 ## Validation
 
 Run `npm run coordination:validate` before every push. `npm run verify` and the
-versioned pre-push hook also validate the mailbox. A result fails validation if
-it has no assignment, changes a path outside the assignment scope, adds an
-undeclared field, or weakens the explicit privacy declaration.
+versioned pre-push hook also validate the mailbox. Return validation reads the
+result directly from the remote branch, binds its implementation commit to the
+branch head, and compares its claimed files with the actual Git diff. A result
+fails validation if it has no assignment, changes a path outside the assignment
+scope, conceals or fabricates a changed file, adds an undeclared field, changes
+its assignment record, or weakens the explicit privacy declaration.

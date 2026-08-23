@@ -147,6 +147,7 @@ export class RuntimeDatabase {
     `);
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
+    this.#ensureSecondaryAssignmentColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
   }
 
@@ -165,6 +166,12 @@ export class RuntimeDatabase {
   #ensureReceiptColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(execution_receipts)").all().map((column) => column.name));
     if (!current.has("metadata_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'");
+  }
+
+  #ensureSecondaryAssignmentColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(secondary_assignments)").all().map((column) => column.name));
+    if (!current.has("allowed_paths_json")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN allowed_paths_json TEXT NOT NULL DEFAULT '[]'");
+    if (!current.has("source")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'runtime-api'");
   }
 
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
@@ -404,14 +411,38 @@ export class RuntimeDatabase {
     return this.getCodexBuilderSession(sessionId);
   }
 
-  createSecondaryAssignment({ title, taskArea, expectedTask, expectedBaseCommit, correlationId = `secondary-${randomUUID()}` }) {
+  createSecondaryAssignment({ title, taskArea, expectedTask, expectedBaseCommit, correlationId = `secondary-${randomUUID()}`, allowedPaths = [] }) {
     bounded(title, 240, "secondary assignment title"); slug(taskArea, "secondary task area"); bounded(expectedTask, 400, "secondary expected task"); bounded(correlationId, 120, "secondary correlation id");
     if (!/^[a-f0-9]{7,64}$/i.test(expectedBaseCommit)) throw new TypeError("Secondary expected base commit is invalid.");
+    const paths = coordinationPaths(allowedPaths);
     const id = `sec-${randomUUID()}`; const now = new Date().toISOString(); const returnBranch = `secondary/${id}`;
-    this.db.prepare("INSERT INTO secondary_assignments(id,correlation_id,title,task_area,expected_task,expected_base_commit,return_branch,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'READY',?,?)")
-      .run(id, correlationId, title, taskArea, expectedTask, expectedBaseCommit.toLowerCase(), returnBranch, now, now);
+    this.db.prepare("INSERT INTO secondary_assignments(id,correlation_id,title,task_area,expected_task,expected_base_commit,return_branch,status,allowed_paths_json,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'READY',?,'runtime-api',?,?)")
+      .run(id, correlationId, title, taskArea, expectedTask, expectedBaseCommit.toLowerCase(), returnBranch, JSON.stringify(paths), now, now);
     this.#event("secondary-codex.ready", id, { correlationId, taskArea, expectedBaseCommit: expectedBaseCommit.slice(0, 12), returnBranch });
     return this.getSecondaryAssignment(id);
+  }
+
+  importSecondaryAssignment(record) {
+    if (!record || typeof record !== "object" || Array.isArray(record)) throw new TypeError("Secondary coordination assignment is invalid.");
+    if (!/^sec-[a-f0-9-]{8,72}$/i.test(record.assignmentId)) throw new TypeError("Secondary coordination assignment ID is invalid.");
+    bounded(record.correlationId, 120, "secondary assignment correlation ID"); bounded(record.title, 240, "secondary assignment title");
+    slug(record.taskArea, "secondary assignment task area"); boundedMultiline(record.expectedTask, 1000, "secondary assignment expected task");
+    if (!/^[a-f0-9]{7,64}$/i.test(record.expectedBaseCommit)) throw new TypeError("Secondary expected base commit is invalid.");
+    if (record.returnBranch !== `secondary/${record.assignmentId}`) throw new TypeError("Secondary return branch is invalid.");
+    const paths = coordinationPaths(record.allowedPaths);
+    const existing = this.getSecondaryAssignment(record.assignmentId);
+    if (existing) {
+      const matches = existing.correlationId === record.correlationId && existing.title === record.title && existing.taskArea === record.taskArea &&
+        existing.expectedTask === record.expectedTask && existing.expectedBaseCommit === record.expectedBaseCommit.toLowerCase() &&
+        existing.returnBranch === record.returnBranch && existing.source === "github-mailbox" && JSON.stringify(existing.allowedPaths) === JSON.stringify(paths);
+      if (!matches) throw new TypeError(`Conflicting GitHub coordination assignment: ${record.assignmentId}`);
+      return existing;
+    }
+    const now = new Date().toISOString();
+    this.db.prepare("INSERT INTO secondary_assignments(id,correlation_id,title,task_area,expected_task,expected_base_commit,return_branch,status,allowed_paths_json,source,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'READY',?,'github-mailbox',?,?)")
+      .run(record.assignmentId, record.correlationId, record.title, record.taskArea, record.expectedTask, record.expectedBaseCommit.toLowerCase(), record.returnBranch, JSON.stringify(paths), record.createdAt, now);
+    this.#event("secondary-codex.github-imported", record.assignmentId, { correlationId: record.correlationId, taskArea: record.taskArea, expectedBaseCommit: record.expectedBaseCommit.slice(0, 12), returnBranch: record.returnBranch });
+    return this.getSecondaryAssignment(record.assignmentId);
   }
 
   getSecondaryAssignment(id) { bounded(id, 80, "secondary assignment id"); const row = this.db.prepare("SELECT * FROM secondary_assignments WHERE id=?").get(id); return row ? normalizeSecondaryAssignment(row) : null; }
@@ -629,7 +660,7 @@ function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: r
 function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
 function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"), source: row.source ?? "runtime-api", status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) throw new Error("Stored improvement status is invalid."); return {
   id: row.id, title: row.title, summary: row.summary, status: row.status, testSummary: row.test_summary,
   createdAt: row.created_at, decidedAt: row.decided_at, activatedAt: row.activated_at,
@@ -671,3 +702,8 @@ function validateObjectiveTask(value) {
 function bounded(value, max, name) { if (typeof value !== "string" || value.length < 1 || value.length > max || /[\r\n]/.test(value)) throw new TypeError(`${name} is invalid.`); }
 function boundedMultiline(value, max, name) { if (typeof value !== "string" || value.trim().length < 1 || value.length > max || /\u0000/.test(value)) throw new TypeError(`${name} is invalid.`); }
 function slug(value, name) { if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) throw new TypeError(`${name} is invalid.`); }
+function coordinationPaths(value) {
+  if (!Array.isArray(value) || value.length > 32 || new Set(value).size !== value.length) throw new TypeError("Secondary assignment allowed paths are invalid.");
+  for (const item of value) if (typeof item !== "string" || item.length < 1 || item.length > 160 || item.startsWith("/") || item.startsWith("\\") || item.includes("..") || item.includes("\\") || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(item)) throw new TypeError("Secondary assignment allowed path is invalid.");
+  return [...value];
+}

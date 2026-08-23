@@ -7,6 +7,7 @@ export const ESSENTIAL_FILES = [
   "package.json",
   "src/cli.mjs",
   "src/capability-registry.mjs",
+  "src/coordination-mailbox.mjs",
   "src/coordination-records.mjs",
   "src/codex-cloud-contract.mjs",
   "src/codex-builder-worker.mjs",
