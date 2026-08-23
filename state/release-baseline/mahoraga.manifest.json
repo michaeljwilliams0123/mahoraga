@@ -628,8 +628,8 @@
         "workspace.read",
         "execution-readiness.read"
       ],
-      "lastSuccessfulCheck": "2026-08-13T04:59:07.432Z",
-      "latencyMs": 4976,
+      "lastSuccessfulCheck": "2026-08-23T07:13:01.355Z",
+      "latencyMs": 9000,
       "error": null,
       "notes": "Mahoraga Cloud Control Plane 3.0.2 adds explicit cloud-execution readiness diagnostics while retaining the public read-only boundary. Public mutations, inbound desktop tunnels, arbitrary execution, and unauthenticated relay controls are not exposed."
     },
