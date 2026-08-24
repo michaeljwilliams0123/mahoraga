@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Mahoraga">
+  <defs><linearGradient id="g" x1="8" y1="7" x2="56" y2="57" gradientUnits="userSpaceOnUse"><stop stop-color="#20d3a8"/><stop offset="1" stop-color="#08745e"/></linearGradient></defs>
+  <rect width="64" height="64" rx="18" fill="url(#g)"/>
+  <path d="M17 44V20h7l8 10 8-10h7v24h-8V32l-7 9-7-9v12z" fill="white"/>
+</svg>

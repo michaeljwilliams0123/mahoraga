@@ -1,13 +1,14 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.3.0",
+  "version": "3.4.0",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.3.0",
+    "runtime": "3.4.0",
     "controlCenter": "5.3.0",
-    "cloudControlPlane": "3.0.2",
+    "cloudControlPlane": "3.1.0",
+    "cloudWorkspace": "1.0.0",
     "capabilityRegistry": "1.0.0",
     "taskSchema": "3",
     "workerContract": "2"
