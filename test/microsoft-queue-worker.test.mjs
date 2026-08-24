@@ -58,7 +58,10 @@ test("queue status requires a working silent Dataverse credential for unattended
   assert.equal(result.receiptMetadata.tenantConfigured, true);
   assert.equal(result.receiptMetadata.silentAuthAvailable, true);
   assert.equal(calls.length, 1);
-  assert.deepEqual(calls[0].args.slice(-2), ["scripts/auth.py", "--diagnose"]);
+  assert.deepEqual(
+    calls[0].args.slice(-2).map((value) => value.replaceAll("\\", "/")),
+    ["scripts/auth.py", "--diagnose"],
+  );
   assert.equal(calls[0].timeoutMs, 20000);
   const serialized = JSON.stringify(result);
   assert.equal(serialized.includes("org9aade5b6"), false);
