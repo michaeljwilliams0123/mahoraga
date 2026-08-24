@@ -76,9 +76,9 @@ credential from the secondary user's computer is required.
 The target contract includes tabs, open, navigate, read, inspect, click, type,
 select, upload, download, wait, screenshot, network, console, and close. The
 current production local adapter implements isolated Chrome health, verified
-Control Center smoke, and `browser.observe` for the loopback Control Center
-only. That observation uses a Mahoraga-owned headless profile and CDP child,
-returns the DOM title only in the transient worker result, and persists only
+Control Center smoke, and `browser.observe` for the loopback Control Center only.
+That observation uses a Mahoraga-owned headless profile and CDP child, returns
+the DOM title only in the transient worker result, and persists only
 title/screenshot digests, dimensions, and bounded network/console counts. The
 worker rejects an unowned loopback CDP endpoint rather than attaching to an
 existing user browser. Screenshots live under local runtime state for at most 24
@@ -93,9 +93,23 @@ copied or attached.
 3. Windows UI Automation.
 4. Visual computer use.
 
-Each desktop action uses: select exactly one returned window, observe current
-state, perform one bounded action, re-observe, then verify. The Desktop Worker
-remains disabled until its application allowlist and production receipt land.
+The Desktop Worker process contract now exists in `src/desktop-worker.mjs` and is
+wired into the isolated worker process. Its fixed application allowlist is
+Chrome, Edge, Excel, Word, PowerPoint, and Visio. `desktop.inspect` observes only
+whether the session is interactive plus allowlisted process/window counts; it
+does not persist window titles, document content, screenshots, or arbitrary
+process details.
+
+The first production-bounded `desktop.interact` action is `focus-window`. The
+task must select an allowlisted application through its fixed task-area alias,
+exactly one top-level window must be present, and the worker re-observes the
+foreground handle after the action. Caller-selected executable paths, arbitrary
+PowerShell, click/type sequences, and unrestricted UI automation are rejected.
+
+The worker remains disabled in the production manifest until an attended Windows
+session validates this process contract and the user activates it. This separates
+the now-implemented code/allowlist/receipt gap from the remaining live-machine
+activation gap.
 
 ## Persistent discourse
 
