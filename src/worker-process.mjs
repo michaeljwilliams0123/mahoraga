@@ -6,6 +6,7 @@ import { executeMicrosoftQueueCapability } from "./microsoft-queue-worker.mjs";
 import { executeCopilotCapability } from "./copilot-worker.mjs";
 import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
 import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
+import { executeDesktopCapability } from "./desktop-worker.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -36,6 +37,7 @@ async function execute(capability, task) {
   if (capability.startsWith("copilot.")) return executeCopilotCapability(capability, task, worker);
   if (capability.startsWith("codex.")) return executeCodexBuilderCapability(capability, task, worker);
   if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
+  if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
   switch (capability) {
     case "assistant.respond":
       return {
@@ -63,6 +65,7 @@ function classifyError(error) {
   if (error?.code === "ENOENT") return "required-file-missing";
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
+  if (/desktop/i.test(error?.message ?? "")) return "desktop-provider-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";
   if (/workspace-agent/i.test(error?.message ?? "")) return "workspace-agent-provider-failed";
