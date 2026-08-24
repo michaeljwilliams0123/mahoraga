@@ -56,6 +56,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "high",
     summary: "Desktop Worker process contract, fixed application allowlist, bounded focus action, and content-free receipts are implemented and tested.",
   });
+  record(closed, has("src/microsoft-queue-worker.mjs") && has("test/microsoft-queue-worker.test.mjs"), {
+    id: "microsoft-queue-readiness-contract",
+    priority: "high",
+    summary: "Microsoft queue readiness now fails closed, diagnoses silent Dataverse authentication non-interactively, and sanitizes poll receipts.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",
@@ -80,7 +85,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     id: "microsoft-durable-queue",
     priority: "high",
     state: "blocked",
-    summary: "Dataverse/Microsoft durable queue worker is not active.",
+    summary: "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
     dependency: queueDependency(manifest),
   });
   gap(open, worker("local-reasoner")?.enabled !== true, {
@@ -141,7 +146,7 @@ function gap(target, condition, item) {
 function queueDependency(manifest) {
   const queue = manifest.queue ?? {};
   if (String(queue.state ?? "").includes("awaiting-authentication")) {
-    return `Dataverse authentication remains pending for ${queue.environmentName ?? "the configured environment"}/${queue.solutionName ?? "the configured solution"}.`;
+    return `Run queue.status on the live Windows host and establish a silent Dataverse credential for ${queue.environmentName ?? "the configured environment"}/${queue.solutionName ?? "the configured solution"}; then validate one outbound poll before activation.`;
   }
-  return "Live Dataverse authentication and queue health validation are required before activation.";
+  return "Run queue.status on the live Windows host, prove a silent Dataverse credential, and validate one outbound poll before activation.";
 }
