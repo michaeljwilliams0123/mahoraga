@@ -30,14 +30,16 @@ analysis as long as the expected work and allowed paths are explicit.
   task metadata even when the target is not the Mahoraga repository.
 - Actual Git changes are checked against both the assignment allowlist and the
   secondary machine's narrower-or-equal project allowlist before any push.
-- Retries are bounded, overlapping runs are suppressed by Task Scheduler, and
-  only `secondary/<assignment-id>` may be pushed.
+- A local single-flight lock suppresses overlapping scheduled and manual runs.
+  Only `secondary/<assignment-id>` may be pushed.
 - Every poll records a bounded timestamp and outcome in ignored local runtime
   state. The Control Center Coordination view exposes only that sanitized
   heartbeat, never the configured checkout path or a credential.
-- Each execution uses a unique isolated worktree path, so an interrupted clone
-  cannot poison a later attempt. An operator may explicitly re-arm one exhausted
-  assignment without editing the state file.
+- Idle polls do not invoke or health-check Codex. Each execution uses a unique
+  isolated worktree path, so an interrupted clone cannot poison a later attempt.
+  A failed first attempt remains paused until an operator explicitly re-arms it;
+  a crash also leaves a durable `running` marker that requires an explicit retry.
+  The configured maximum-attempt ceiling applies to all manual retries.
 
 ## One-time activation on the secondary PC
 
@@ -56,9 +58,8 @@ ChatGPT subscription status, writes a local ignored configuration, registers a
 limited per-user scheduled task, and starts the first poll. It does not require
 an inbound listener or public tunnel.
 
-The current connectivity assignment is
-`sec-ae4135e2-a201-4467-b59e-8d16ed9e784a`; a healthy runner returns
-`secondary/sec-ae4135e2-a201-4467-b59e-8d16ed9e784a`.
+Completed or rejected bootstrap assignment IDs are historical evidence. Do not
+re-arm them. New work must use a new immutable assignment ID.
 
 ## Register another project
 
@@ -72,7 +73,8 @@ node .\scripts\secondary-codex-runner.mjs configure `
   --checkout "C:\Projects\REPOSITORY" `
   --allowed-paths "src,test,docs" `
   --default-branch "main" `
-  --max-runtime-minutes "90"
+  --max-runtime-minutes "90" `
+  --max-attempts "3"
 ```
 
 Main Codex then creates an assignment on Mahoraga `main` with the same
@@ -89,6 +91,8 @@ node .\scripts\secondary-codex-runner.mjs status
 node .\scripts\secondary-codex-runner.mjs retry --id "sec-..."
 ```
 
-`retry` fails closed if the assignment is unknown, outside a registered task
-area, or already has a remote return branch. It clears only the selected local
-attempt record; the immutable GitHub assignment is unchanged.
+`retry` is the explicit approval boundary for another model attempt. It fails
+closed if the assignment is unknown, has not failed, is outside a registered
+task area, already has a remote return branch, or has reached `maxAttempts`. It
+preserves the attempt counter and re-arms only the selected assignment; the
+immutable GitHub assignment is unchanged.

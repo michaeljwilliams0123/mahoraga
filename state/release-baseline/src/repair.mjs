@@ -1,4 +1,4 @@
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 
@@ -52,8 +52,11 @@ export async function scanRepairState(manifest) {
   for (const relative of ESSENTIAL_FILES) {
     const live = path.join(ROOT, relative);
     const baseline = path.join(baselineRoot, relative);
-    if (!(await healthyFile(live))) issues.push({ code: "live-file-missing-or-empty", relative });
-    if (!(await healthyFile(baseline))) issues.push({ code: "baseline-file-missing-or-empty", relative });
+    const liveHealthy = await healthyFile(live);
+    const baselineHealthy = await healthyFile(baseline);
+    if (!liveHealthy) issues.push({ code: "live-file-missing-or-empty", relative });
+    if (!baselineHealthy) issues.push({ code: "baseline-file-missing-or-empty", relative });
+    if (liveHealthy && baselineHealthy && !await filesMatch(live, baseline)) issues.push({ code: "baseline-file-out-of-date", relative });
   }
   return { issues, checked: ESSENTIAL_FILES.length, healthy: issues.length === 0 };
 }
@@ -77,4 +80,8 @@ export async function applyAutomaticRepairs(manifest) {
 
 async function healthyFile(file) {
   try { return (await stat(file)).isFile() && (await stat(file)).size > 0; } catch { return false; }
+}
+async function filesMatch(left, right) {
+  const [leftSource, rightSource] = await Promise.all([readFile(left), readFile(right)]);
+  return leftSource.equals(rightSource);
 }

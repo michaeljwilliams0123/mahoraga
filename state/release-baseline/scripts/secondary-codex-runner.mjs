@@ -13,7 +13,7 @@ else if (command === "run-once") await runOnce();
 else if (command === "retry") await retry();
 else {
   console.log(`Usage:
-  node scripts/secondary-codex-runner.mjs configure --task-area <slug> --repository <github-https-url> --checkout <absolute-path> --allowed-paths <csv> [--default-branch main] [--max-runtime-minutes 60] [--enabled true]
+  node scripts/secondary-codex-runner.mjs configure --task-area <slug> --repository <github-https-url> --checkout <absolute-path> --allowed-paths <csv> [--default-branch main] [--max-runtime-minutes 60] [--max-attempts 3] [--enabled true]
   node scripts/secondary-codex-runner.mjs status
   node scripts/secondary-codex-runner.mjs run-once
   node scripts/secondary-codex-runner.mjs retry --id <sec-id>`);
@@ -35,7 +35,7 @@ async function configure() {
   const config = validateSecondaryRunnerConfig({
     schemaVersion: 1,
     controlBranch: current?.controlBranch ?? "main",
-    maxAttempts: current?.maxAttempts ?? 3,
+    maxAttempts: numberOption("max-attempts", current?.maxAttempts ?? 3),
     projects: projects.sort((left, right) => left.taskArea.localeCompare(right.taskArea)),
   });
   await atomicWrite(CONFIG_FILE, config);

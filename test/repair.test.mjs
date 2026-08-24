@@ -11,6 +11,27 @@ test("release baseline covers every essential production file", async () => {
   assert.equal(scan.healthy, true, JSON.stringify(scan.issues));
 });
 
+test("release baseline rejects stale production copies", async () => {
+  const manifest = await loadManifest();
+  const relative = `state/repair-drift-test-${Date.now()}/core.mjs`;
+  const live = path.join(process.cwd(), relative);
+  const baseline = path.join(process.cwd(), manifest.repair.baselineDirectory, relative);
+  try {
+    mkdirSync(path.dirname(live), { recursive: true });
+    mkdirSync(path.dirname(baseline), { recursive: true });
+    writeFileSync(live, "current-production", "utf8");
+    writeFileSync(baseline, "obsolete-production", "utf8");
+    ESSENTIAL_FILES.push(relative);
+    const scan = await scanRepairState(manifest);
+    assert.equal(scan.healthy, false);
+    assert.deepEqual(scan.issues.filter((issue) => issue.relative === relative), [{ code: "baseline-file-out-of-date", relative }]);
+  } finally {
+    ESSENTIAL_FILES.pop();
+    rmSync(path.dirname(live), { recursive: true, force: true });
+    rmSync(path.dirname(baseline), { recursive: true, force: true });
+  }
+});
+
 test("core repair defects are staged rather than silently restored", async () => {
   const manifest = await loadManifest();
   const relative = `state/repair-test-${Date.now()}/core.mjs`;

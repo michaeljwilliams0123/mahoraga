@@ -110,3 +110,21 @@ branch head, and compares its claimed files with the actual Git diff. A result
 fails validation if it has no assignment, changes a path outside the assignment
 scope, conceals or fabricates a changed file, adds an undeclared field, changes
 its assignment record, or weakens the explicit privacy declaration.
+
+## Credit and request discipline
+
+The Windows scheduled task may check the Git mailbox frequently, but an idle
+poll performs Git metadata work only and does not invoke or even health-check the
+Codex CLI. A newly observed assignment receives one model attempt. If that
+attempt fails, the assignment stays paused until an operator deliberately runs
+`node scripts/secondary-codex-runner.mjs retry --id <sec-id>`; the configured
+`maxAttempts` ceiling still applies across those explicit retries.
+
+A local single-flight lock rejects overlapping scheduled or manual polls, so two
+processes on the same machine cannot spend credits on the same assignment. The
+attempt is durably marked `running` before Codex starts; a process crash therefore
+pauses the assignment instead of automatically spending another attempt. Task
+IDs, return branches, cloud-task idempotency keys, and existing-issue reuse remain
+the cross-run deduplication boundary. These controls do not transfer subscription
+credentials or credits between Codex instances; each model execution uses only
+the authenticated instance that accepted the bounded task.
