@@ -7,7 +7,7 @@ import { ROOT } from "../src/config.mjs";
 const file = path.join(ROOT, ".github", "workflows", "codex-cloud-dispatch.yml");
 
 async function workflow() {
-  return readFile(file, "utf8");
+  return (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
 }
 
 test("Codex cloud dispatch remains main-only and repository-scoped", async () => {
@@ -18,7 +18,7 @@ test("Codex cloud dispatch remains main-only and repository-scoped", async () =>
 
   const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(block, "permissions block missing");
-  const permissions = block.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean).sort();
+  const permissions = block.trim().split(/\n/).map((line) => line.trim()).filter(Boolean).sort();
   assert.deepEqual(permissions, ["contents: read", "issues: write"]);
 });
 
