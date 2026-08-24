@@ -9,13 +9,13 @@ importers:
   .:
     dependencies:
       '@microsoft/dataverse':
-        specifier: latest
-        version: 1.0.63
+        specifier: 1.0.72
+        version: 1.0.72
 
 packages:
 
-  '@microsoft/dataverse@1.0.63':
-    resolution: {integrity: sha512-gjva9njJFc1dubaa9UgDuowqr/aST5/ayxZ/yTCqHdqduoyb60KDGXw7BnhGBFA0K9U0Gq3px0hH+6h3RtEZow==}
+  '@microsoft/dataverse@1.0.72':
+    resolution: {integrity: sha512-UY/3eUQED0k6mk8+n+08ZPoRpgMH4Di8YV7oU01bY/FAmq7Yl2MXJnt/lj3bx6NoLu3us8AJwzaY/SnjPiAFLg==}
     engines: {node: '>=16.0.0'}
     cpu: [x64, arm64]
     os: [win32, darwin, linux]
@@ -23,4 +23,4 @@ packages:
 
 snapshots:
 
-  '@microsoft/dataverse@1.0.63': {}
+  '@microsoft/dataverse@1.0.72': {}
