@@ -97,19 +97,39 @@ dropped before persistence. Live activation still requires one successful
 Windows-host status probe and one outbound poll against the configured Dataverse
 environment.
 
+## Local provider readiness
+
+Run `npm run providers:probe` on the authoritative Windows checkout to perform a
+single non-activating readiness pass across the attended Desktop contract,
+Dataverse queue authentication, LM Studio loopback provider, GitHub Copilot CLI,
+Primary Codex Builder invocation, and Workspace Agent credential state.
+
+The report is deliberately sanitized. It reduces each provider to bounded
+availability/credential/readiness metadata and does not include document titles,
+model identifiers, Dataverse tenant values, tokens, prompts, provider stdout,
+or model responses. A successful readiness probe never flips a feature flag or
+claims end-to-end task execution.
+
+LM Studio now has a fixed read-only health probe at
+`http://127.0.0.1:1234/v1/models`. It records only the number of available models.
+Actual `reason.local` execution remains disabled until Mahoraga has a transient
+result channel that can consume generated content without persisting prompts or
+model responses in the runtime database.
+
 ## Remaining live capability gaps
 
 The following declarations remain intentionally inactive until their provider or
 machine prerequisites are proven:
 
-- Desktop Worker: code/allowlist/receipt contract is prepared; live attended
-  Windows validation and explicit activation remain.
+- Desktop Worker: code/allowlist/receipt contract is prepared; run the provider
+  probe on the attended Windows host, then explicitly activate only after the
+  result verifies the session.
 - Signed-in browser control: disabled pending an owned signed-session provider
   and deterministic verification receipts.
 - Microsoft durable queue worker: code and unattended-auth diagnostics are
   prepared; a live Windows silent credential and successful outbound poll remain.
-- LM Studio/local reasoner: disabled pending a fresh local provider probe and a
-  result channel that does not persist prompts/model responses.
+- LM Studio/local reasoner: loopback health diagnostics are prepared; a live
+  model probe plus a non-persistent result channel remain before execution.
 - Direct Primary Codex Builder execution: disabled; subscription-backed
   Secondary Codex and Codex Cloud remain available repository execution lanes.
 - GitHub Copilot worker and Workspace Agent cloud trigger: optional declared

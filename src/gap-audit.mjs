@@ -61,6 +61,16 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "high",
     summary: "Microsoft queue readiness now fails closed, diagnoses silent Dataverse authentication non-interactively, and sanitizes poll receipts.",
   });
+  record(closed, has("scripts/provider-readiness.mjs") && has("src/provider-readiness.mjs") && has("test/provider-readiness.test.mjs"), {
+    id: "local-provider-readiness-probe",
+    priority: "high",
+    summary: "A single sanitized local probe can inspect desktop, Dataverse queue, LM Studio, Copilot CLI, Codex Builder, and Workspace Agent readiness without activating providers.",
+  });
+  record(closed, has("src/local-reasoner-provider.mjs") && has("test/local-reasoner-provider.test.mjs"), {
+    id: "local-reasoner-health-contract",
+    priority: "medium",
+    summary: "LM Studio readiness is probed only on loopback and returns model counts without model identifiers or generated content.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",
@@ -72,7 +82,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "high",
     state: "blocked",
     summary: "Desktop Worker contract is prepared but production activation is not yet proven.",
-    dependency: "Live attended Windows validation and explicit production activation. The current interaction contract is intentionally limited to focusing exactly one allowlisted Chrome, Edge, Excel, Word, PowerPoint, or Visio window.",
+    dependency: "Run npm run providers:probe on the live attended Windows host, verify the Desktop readiness result, then explicitly activate the worker. The current interaction contract is intentionally limited to focusing exactly one allowlisted Chrome, Edge, Excel, Word, PowerPoint, or Visio window.",
   });
   gap(open, manifest.browser?.signedSessionEnabled !== true, {
     id: "signed-browser-session",
@@ -92,29 +102,29 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     id: "local-reasoner",
     priority: "medium",
     state: "blocked",
-    summary: "Local reasoning provider is not active.",
-    dependency: "Fresh local LM Studio/provider probe and a result channel that does not persist prompts or model responses.",
+    summary: "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
+    dependency: "Run npm run providers:probe on the live Windows host to prove LM Studio/model availability. Functional reasoning still requires a transient result channel that does not persist prompts or model responses before the worker can be activated.",
   });
   gap(open, manifest.featureFlags?.primaryCodexBuilder !== true || worker("primary-codex-builder")?.adapter?.directExecutionEnabled !== true, {
     id: "primary-codex-builder",
     priority: "medium",
     state: "open",
     summary: "Direct local Primary Codex Builder execution remains disabled.",
-    dependency: "Supported subscription-authenticated local execution contract; existing Secondary Codex and Codex Cloud lanes remain the fallback.",
+    dependency: "Run npm run providers:probe to refresh the local invocation state. A supported subscription-authenticated local execution contract is still required; existing Secondary Codex and Codex Cloud lanes remain the fallback.",
   });
   gap(open, manifest.featureFlags?.githubCopilotWorker !== true, {
     id: "github-copilot-worker",
     priority: "low",
     state: "optional",
     summary: "GitHub Copilot CLI worker is declared but disabled.",
-    dependency: "Live provider health/authentication probe before activation.",
+    dependency: "Run npm run providers:probe for local CLI presence; authentication/quota still require an approved live provider task before activation.",
   });
   gap(open, manifest.featureFlags?.workspaceAgentCloud !== true, {
     id: "workspace-agent-cloud",
     priority: "low",
     state: "optional",
     summary: "Workspace Agent cloud trigger is declared but disabled.",
-    dependency: "Admin-provisioned workspace-agent credential; this is separate from ChatGPT Plus/Codex authentication.",
+    dependency: "Run npm run providers:probe for credential-state diagnostics. Admin-provisioned Workspace Agent credentials are separate from ChatGPT Plus/Codex authentication.",
   });
 
   const priorityRank = new Map([["critical", 0], ["high", 1], ["medium", 2], ["low", 3]]);
@@ -146,7 +156,7 @@ function gap(target, condition, item) {
 function queueDependency(manifest) {
   const queue = manifest.queue ?? {};
   if (String(queue.state ?? "").includes("awaiting-authentication")) {
-    return `Run queue.status on the live Windows host and establish a silent Dataverse credential for ${queue.environmentName ?? "the configured environment"}/${queue.solutionName ?? "the configured solution"}; then validate one outbound poll before activation.`;
+    return `Run npm run providers:probe on the live Windows host and establish a silent Dataverse credential for ${queue.environmentName ?? "the configured environment"}/${queue.solutionName ?? "the configured solution"}; then validate one outbound poll before activation.`;
   }
-  return "Run queue.status on the live Windows host, prove a silent Dataverse credential, and validate one outbound poll before activation.";
+  return "Run npm run providers:probe on the live Windows host, prove a silent Dataverse credential, and validate one outbound poll before activation.";
 }
