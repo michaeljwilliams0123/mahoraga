@@ -93,9 +93,8 @@ export function sanitizeQueuePollReceipt(value) {
 }
 
 function runPython(args, timeoutMs) {
-  const executable = process.env.MAHORAGA_PYTHON_PATH || DEFAULT_PYTHON;
   return new Promise((resolve, reject) => {
-    const child = spawn(executable, args, {
+    const child = spawn(DEFAULT_PYTHON, args, {
       cwd: ROOT,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
