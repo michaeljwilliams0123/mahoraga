@@ -1,0 +1,28 @@
+name: Chromebook Control Plane Smoke
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Confirm deployed control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .github/workflows/chromebook-control-plane.yml
+          grep -q "workflow_dispatch" .github/workflows/chromebook-control-plane.yml
+          grep -q "secondary-assignment" .github/workflows/chromebook-control-plane.yml
+          grep -q "codex-cloud-task" .github/workflows/chromebook-control-plane.yml
+      - name: Verify Mahoraga repository
+        run: npm run verify
