@@ -736,7 +736,7 @@
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": "reusable-dataverse-authentication-pending",
-      "notes": "The user confirmed Vaco (default) (Upgrade), https://org9aade5b6.crm.dynamics.com/, MahoragaPlatform, and the permanent mhg_ publisher prefix on 2026-08-13. A fresh Microsoft device-code session is active for reusable Dataverse authentication."
+      "notes": "The configured Dataverse environment, MahoragaPlatform solution, and permanent mhg_ publisher prefix are recorded as deployment metadata. Reusable authentication remains pending; credentials are never stored in the repository."
     },
     {
       "id": "chatgpt-browser-surface",

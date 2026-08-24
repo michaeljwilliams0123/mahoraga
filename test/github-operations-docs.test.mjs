@@ -29,7 +29,16 @@ test("pull requests require deterministic evidence and public-repository privacy
   const template = await source(".github/pull_request_template.md");
   assert.match(template, /node src\/cli\.mjs validate/);
   assert.match(template, /node scripts\/coordination\.mjs validate/);
+  assert.match(template, /npm run github:audit/);
   assert.match(template, /node --test --test-isolation=none/);
   assert.match(template, /No credentials, tokens, prompts, model responses, browser data/);
   assert.match(template, /does not change repository visibility/);
+});
+
+test("security baseline preserves the control path while recording live hardening", async () => {
+  const baseline = await source("docs/GITHUB-SECURITY-BASELINE.md");
+  assert.match(baseline, /does not change repository visibility/);
+  assert.match(baseline, /secret scanning, push protection, Dependabot alerts/);
+  assert.match(baseline, /Do not require pull requests\s+until the Chromebook control workflow is migrated/);
+  assert.match(baseline, /Do not enable a setting\s+that silently disables this outbound control path/);
 });
