@@ -59,7 +59,7 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw 'Git is not av
 $origin = (& git -C $RepositoryRoot remote get-url origin).Trim()
 if ($LASTEXITCODE -ne 0 -or -not $origin) { throw 'The Mahoraga checkout must have an origin remote.' }
 & git -C $RepositoryRoot fetch origin main --quiet
-if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication or private repository access failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication or repository access failed.' }
 
 Write-Output 'ChatGPT Codex subscription authentication: ready'
 Write-Output 'Windows keyring credential storage: ready'
