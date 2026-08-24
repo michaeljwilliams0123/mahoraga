@@ -19,6 +19,7 @@ test("gap audit distinguishes closed repository controls from live-machine block
     "chromebook-control-plane",
     "cross-platform-ci",
     "desktop-worker-contract",
+    "microsoft-queue-readiness-contract",
     "secondary-codex-mailbox",
     "no-default-metered-openai-api",
   ]) assert.ok(closed.has(id), `expected closed control: ${id}`);
@@ -29,6 +30,7 @@ test("gap audit distinguishes closed repository controls from live-machine block
   }
 
   assert.match(open.get("desktop-worker").dependency, /live attended Windows validation/i);
+  assert.match(open.get("microsoft-durable-queue").dependency, /queue\.status/i);
   assert.ok(!open.has("no-default-metered-openai-api"));
 });
 
@@ -39,4 +41,5 @@ test("gap audit does not claim file-backed controls when their files are absent"
   assert.ok(!closed.has("chromebook-control-plane"));
   assert.ok(!closed.has("cross-platform-ci"));
   assert.ok(!closed.has("desktop-worker-contract"));
+  assert.ok(!closed.has("microsoft-queue-readiness-contract"));
 });
