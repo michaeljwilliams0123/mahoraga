@@ -65,6 +65,7 @@ function classifyError(error) {
   if (error?.code === "ENOENT") return "required-file-missing";
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
+  if (/microsoft-queue|dataverse/i.test(error?.message ?? "")) return "microsoft-queue-provider-failed";
   if (/desktop/i.test(error?.message ?? "")) return "desktop-provider-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";
