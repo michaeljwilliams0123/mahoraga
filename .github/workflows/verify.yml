@@ -36,3 +36,6 @@ jobs:
 
       - name: Verify authoritative repository
         run: npm run verify
+
+      - name: Render declared capability gap audit
+        run: npm run gap:audit
