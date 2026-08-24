@@ -61,19 +61,34 @@ objectives, repository evidence, browser state, and declared providers.
 This closes the foundation gap. Higher-level autonomous decomposition and
 provider-specific execution can continue to evolve on top of these primitives.
 
+## Desktop Worker contract
+
+The repository now contains a bounded Windows Desktop Worker execution contract.
+It is wired into the isolated worker process with a fixed allowlist for Chrome,
+Edge, Excel, Word, PowerPoint, and Visio. Inspection receipts contain only
+interactive-session state and allowlisted window counts. The initial interaction
+primitive is `focus-window`, which requires exactly one allowlisted top-level
+window and verifies the foreground handle after the action.
+
+The manifest flag remains disabled until the real Windows host validates the
+attended-session contract. This is an activation blocker, not a missing worker
+implementation. Arbitrary executables, arbitrary PowerShell, click/type
+sequences, window titles, document content, and screenshots are not part of this
+initial production contract.
+
 ## Remaining live capability gaps
 
 The following declarations remain intentionally inactive until their provider or
 machine prerequisites are proven:
 
-- Desktop Worker: disabled pending the Windows process contract, application
-  allowlist, attended-session receipts, and live-machine validation.
+- Desktop Worker: code/allowlist/receipt contract is prepared; live attended
+  Windows validation and explicit activation remain.
 - Signed-in browser control: disabled pending an owned signed-session provider
   and deterministic verification receipts.
 - Microsoft durable queue worker: disabled while Dataverse authentication is
   still pending for the configured environment and solution.
-- LM Studio/local reasoner: disabled pending a fresh local provider probe and
-  live activation.
+- LM Studio/local reasoner: disabled pending a fresh local provider probe and a
+  result channel that does not persist prompts/model responses.
 - Direct Primary Codex Builder execution: disabled; subscription-backed
   Secondary Codex and Codex Cloud remain available repository execution lanes.
 - GitHub Copilot worker and Workspace Agent cloud trigger: optional declared
