@@ -76,6 +76,27 @@ implementation. Arbitrary executables, arbitrary PowerShell, click/type
 sequences, window titles, document content, and screenshots are not part of this
 initial production contract.
 
+## Microsoft durable queue readiness
+
+The Dataverse queue implementation remains outbound-only and the production
+feature flag remains disabled until authentication is proven on the Windows
+host. The queue worker now distinguishes repository/configuration readiness from
+unattended authentication readiness rather than treating the presence of `.env`
+and a script as proof that polling can succeed.
+
+`queue.status` performs a non-interactive `scripts/auth.py --diagnose` probe only
+when the publisher prefix, Dataverse URL, tenant identifier, queue script, and
+auth script are present. It marks the queue ready for unattended polling only
+when the existing authentication chain reports a silent credential tier. It
+never returns the Dataverse URL, tenant identifier, token, credential, or raw
+diagnostic transcript in the worker receipt.
+
+`queue.poll` also constrains the Python result to the expected relay identifier
+and bounded `claimed`, `completed`, and `requeued` counts. Unexpected fields are
+dropped before persistence. Live activation still requires one successful
+Windows-host status probe and one outbound poll against the configured Dataverse
+environment.
+
 ## Remaining live capability gaps
 
 The following declarations remain intentionally inactive until their provider or
@@ -85,8 +106,8 @@ machine prerequisites are proven:
   Windows validation and explicit activation remain.
 - Signed-in browser control: disabled pending an owned signed-session provider
   and deterministic verification receipts.
-- Microsoft durable queue worker: disabled while Dataverse authentication is
-  still pending for the configured environment and solution.
+- Microsoft durable queue worker: code and unattended-auth diagnostics are
+  prepared; a live Windows silent credential and successful outbound poll remain.
 - LM Studio/local reasoner: disabled pending a fresh local provider probe and a
   result channel that does not persist prompts/model responses.
 - Direct Primary Codex Builder execution: disabled; subscription-backed
