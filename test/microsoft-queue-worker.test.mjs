@@ -95,13 +95,21 @@ test("queue poll receipt is strict, bounded, and drops untrusted extra fields", 
     relay: "primary-windows",
   });
 
-  const result = await executeMicrosoftQueueCapability("queue.poll", {}, {
+  const result = await executeMicrosoftQueueCapability("queue.poll", {
     runPythonImpl: async () => ({
       stdout: `${JSON.stringify({ verified: true, claimed: 1, completed: 0, requeued: 0, relay: "primary-windows", document: "private" })}\n`,
       stderr: "",
     }),
-  }).catch(() => null);
-  assert.equal(result, null);
+  });
+  assert.equal(result.verified, true);
+  assert.deepEqual(result.receiptMetadata, {
+    verified: true,
+    claimed: 1,
+    completed: 0,
+    requeued: 0,
+    relay: "primary-windows",
+  });
+  assert.equal(JSON.stringify(result).includes("private"), false);
 });
 
 test("queue poll rejects malformed relay receipts", () => {
