@@ -6,8 +6,12 @@ import { ROOT } from "../src/config.mjs";
 
 const file = path.join(ROOT, ".github", "workflows", "verify.yml");
 
+async function workflow() {
+  return (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
+}
+
 test("canonical CI verifies Linux and Windows with Node 24", async () => {
-  const source = await readFile(file, "utf8");
+  const source = await workflow();
   assert.match(source, /pull_request:/);
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
   assert.match(source, /ubuntu-latest/);
@@ -20,9 +24,9 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
 });
 
 test("canonical CI remains read-only", async () => {
-  const source = await readFile(file, "utf8");
+  const source = await workflow();
   const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(block, "permissions block missing");
-  assert.deepEqual(block.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean), ["contents: read"]);
+  assert.deepEqual(block.trim().split(/\n/).map((line) => line.trim()).filter(Boolean), ["contents: read"]);
   assert.doesNotMatch(source, /\$\{\{\s*secrets\./);
 });
