@@ -36,8 +36,8 @@ suites are source material for later worker migration.
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
   and diagnostic controls remain available as compact workspace views. A
-  dedicated Coordination console now exposes the Primary-led repository mailbox
-  lifecycle, bounded Secondary return branches, and deterministic validation
+  dedicated Coordination console now exposes the bidirectional repository mailbox
+  lifecycle, bounded return branches, and deterministic validation
   state plus a sanitized outbound-runner heartbeat without exposing chats,
   credentials, local checkout paths, or model output.
 - Candidate improvements that cannot be approved without a candidate-specific

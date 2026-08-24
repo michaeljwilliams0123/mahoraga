@@ -1,8 +1,15 @@
 # GitHub coordination for separate Codex instances
 
-GitHub is the only shared coordination surface. The main Codex creates bounded
-assignment records and the secondary Codex returns an ordinary branch and commit.
-Neither instance reads or exports the other instance's ChatGPT conversations.
+GitHub is the only shared coordination surface. Any user-authorized controller
+may create a bounded assignment record, implement scoped repository work, review
+the reciprocal return, or merge verified work. The `Primary` and `Secondary`
+names identify execution lanes and attribution, not an ownership hierarchy.
+No instance reads or exports another instance's ChatGPT conversations.
+
+The version 1 mailbox keeps `main-codex` to `secondary-codex` role fields and a
+`secondary/<assignment-id>` return branch for runner compatibility. Those are
+transport roles: any authorized controller may operate the assigning or review
+role, and either controller may merge a verified return.
 
 ## Privacy boundary
 
@@ -27,7 +34,7 @@ conversations, browser data, personal files, and model output are not returned.
 Assignment creation and controller intake remain behind the existing
 authenticated API and repository workflow.
 
-## Main Codex workflow
+## Assigning controller workflow
 
 1. Start from the code commit the secondary implementation must retain. That
    commit becomes the assignment's immutable `expectedBaseCommit`.
@@ -46,21 +53,21 @@ authenticated API and repository workflow.
    small mailbox commit will naturally be newer than `expectedBaseCommit`.
    The local supervisor imports the validated record into its durable assignment
    table idempotently before it polls for the return branch.
-4. Give the secondary instance only the assignment ID and repository URL.
+4. Give the implementing instance only the assignment ID and repository URL.
 5. Wait for `secondary/<assignment-id>`. Verify the returned commit against the
    assignment's `expectedBaseCommit`, allowed paths, and test evidence before
    merging. The existing Repository Worker performs ancestry, manifest, and
    `git diff --check` validation without checking out the branch.
 
-## Secondary Codex workflow
+## Implementing controller workflow
 
 1. Fetch `main` and read only `coordination/assignments/<assignment-id>.json` plus
    repository files needed for the assignment.
 2. Create `secondary/<assignment-id>` from the `main` commit containing that
    assignment. Confirm that `expectedBaseCommit` is an ancestor of the branch;
    do not start from an unrelated or older history line.
-3. Change only `allowedPaths`, run focused verification, and commit with a
-   `[SECONDARY]` prefix.
+3. Change only `allowedPaths`, run focused verification, and commit with the
+   attribution prefix for the controller that performed the work.
 4. Commit the implementation, then record the result on the return branch. The
    result's `returnCommit` identifies that implementation commit; the later
    metadata-only result commit may become the branch head.
@@ -84,14 +91,15 @@ must explain the repository-level blocker without copying a chat transcript.
 
 ## Codex cloud lane
 
-For background work that should use the ChatGPT-linked Codex cloud service, the
-Primary Codex may instead create a validated GitHub issue containing `@codex`.
+For background work that should use the ChatGPT-linked Codex cloud service, any
+authorized controller may instead create a validated GitHub issue containing
+`@codex`.
 That lane returns a pull request rather than a `secondary/<assignment-id>` branch
-and remains subject to the same repository-only privacy boundary. Primary Codex
-reviews and integrates verified work when the task explicitly uses
-`merge-after-verify`; Secondary Codex never merges. See
+and remains subject to the same repository-only privacy boundary. Any authorized
+controller may review and integrate verified work when the task explicitly uses
+`merge-after-verify`. See
 [`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
-marker, private-repository setup, and Primary review workflow.
+marker, connected-repository setup, and reciprocal review workflow.
 
 ## Validation
 
