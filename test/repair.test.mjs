@@ -5,6 +5,22 @@ import { applyAutomaticRepairs, ESSENTIAL_FILES, scanRepairState } from "../src/
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
+test("release baseline covers GitHub governance and automation controls", () => {
+  for (const relative of [
+    "AGENTS.md",
+    "SECURITY.md",
+    ".githooks/pre-push",
+    ".github/CODEOWNERS",
+    ".github/dependabot.yml",
+    ".github/pull_request_template.md",
+    ".github/workflows/chromebook-control-plane.yml",
+    ".github/workflows/codex-cloud-dispatch.yml",
+    ".github/workflows/verify.yml",
+    "src/github-audit.mjs",
+    "scripts/github-audit.mjs",
+  ]) assert.ok(ESSENTIAL_FILES.includes(relative), `${relative} is missing from the release baseline`);
+});
+
 test("release baseline covers every essential production file", async () => {
   const manifest = await loadManifest();
   const scan = await scanRepairState(manifest);

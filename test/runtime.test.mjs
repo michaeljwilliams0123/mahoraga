@@ -34,16 +34,27 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const html = await (await fetch(base)).text();
   assert.match(html, /data-page="capabilities"/);
   assert.match(html, /data-page="coordination"/);
+  assert.match(html, /BIDIRECTIONAL · REPOSITORY-ONLY/);
+  assert.match(html, /id="github-assurance-list"/);
+  assert.doesNotMatch(html, /PRIMARY-LED|no merge authority/i);
   runtime.database.createSecondaryAssignment({
     title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
     expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],
   });
   const coordination = await (await fetch(`${base}/api/coordination`)).json();
   assert.equal(coordination.transport.outboundOnly, true);
-  assert.equal(coordination.authority.model, "primary-led-subordinate-secondary");
+  assert.equal(coordination.authority.model, "peer-authorized-bidirectional");
+  assert.equal(coordination.authority.rolesAreTransportOnly, true);
   assert.equal(coordination.authority.primaryIntegrationAuthority, true);
-  assert.equal(coordination.authority.secondaryCanCreateAssignments, false);
-  assert.equal(coordination.authority.secondaryCanMerge, false);
+  assert.equal(coordination.authority.secondaryCanCreateAssignments, true);
+  assert.equal(coordination.authority.secondaryCanMerge, true);
+  assert.equal(coordination.authority.eitherControllerMayAssign, true);
+  assert.equal(coordination.authority.eitherControllerMayImplement, true);
+  assert.equal(coordination.authority.eitherControllerMayReview, true);
+  assert.equal(coordination.authority.eitherControllerMayMergeAfterVerification, true);
+  assert.equal(coordination.automation.modelInvocation, "explicit-task-only");
+  assert.equal(coordination.automation.idlePollingInvokesModel, false);
+  assert.equal(coordination.automation.actionReferences, "immutable-commit-sha");
   assert.equal(coordination.privacy.chatAccess, false);
   assert.equal(coordination.privacy.credentialsIncluded, false);
   assert.equal(typeof coordination.runner.configured, "boolean");

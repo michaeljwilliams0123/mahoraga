@@ -20,6 +20,7 @@ test("Chromebook control plane keeps owner gate and supported command modes", as
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
+  assert.match(source, /github-audit\.mjs --format markdown >> "\$GITHUB_STEP_SUMMARY"/);
 });
 
 test("Chromebook control plane remains subscription-first and tunnel-free", async () => {

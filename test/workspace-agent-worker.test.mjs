@@ -20,6 +20,8 @@ test("Workspace Agent envelope is fixed to ChatGPT and the declared secondary br
   assert.equal(item.enabled, false);
   assert.match(envelope.endpoint, /^https:\/\/api\.chatgpt\.com\/v1\/workspace_agents\/agtch_/);
   assert.equal(envelope.body.conversation_key, task.assignmentId);
+  assert.match(envelope.body.input, /task-scoped cloud Codex execution lane/);
+  assert.doesNotMatch(envelope.body.input, /subordinate/i);
   assert.match(envelope.body.input, /Push only secondary\/sec-ac0c314a/);
   assert.match(envelope.body.input, /Do not access or export ChatGPT conversation history/);
   assert.equal(JSON.stringify(envelope).includes(env.AGENT_ACCESS_TOKEN), false);

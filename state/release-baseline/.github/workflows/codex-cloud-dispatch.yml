@@ -1,0 +1,78 @@
+name: Dispatch Codex Cloud tasks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - coordination/cloud-tasks/*.json
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mahoraga-codex-cloud-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Validate and dispatch bounded tasks
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const output = await exec.getExecOutput(
+              "node",
+              ["scripts/codex-cloud-task.mjs", "dispatch-bundle"],
+              { silent: true }
+            );
+            if (output.exitCode !== 0) {
+              core.setFailed("Mahoraga rejected the Codex Cloud task mailbox.");
+              return;
+            }
+            const bundle = JSON.parse(output.stdout);
+            const { owner, repo } = context.repo;
+            const requiredLabels = [
+              { name: "codex:queued", color: "1d76db", description: "Queued for bounded Codex Cloud execution" },
+              { name: "privacy:repo-only", color: "5319e7", description: "Repository-only context; no chats or credentials" },
+            ];
+            for (const label of requiredLabels) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: label.name });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({ owner, repo, ...label });
+              }
+            }
+            const existingIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: "all",
+              per_page: 100,
+            });
+            for (const task of bundle.tasks) {
+              const taskMarker = `task-id=${task.taskId}`;
+              const idempotencyMarker = `idempotency-key=${task.idempotencyKey}`;
+              const existing = existingIssues.find((issue) =>
+                !issue.pull_request &&
+                issue.body?.includes(taskMarker) &&
+                issue.body?.includes(idempotencyMarker)
+              );
+              if (existing) {
+                core.notice(`Reused issue #${existing.number} for ${task.taskId}.`);
+                continue;
+              }
+              const created = await github.rest.issues.create({
+                owner,
+                repo,
+                title: task.issue.title,
+                body: task.issue.body,
+                labels: task.issue.labels,
+              });
+              existingIssues.push(created.data);
+              core.notice(`Created issue #${created.data.number} for ${task.taskId}.`);
+            }
