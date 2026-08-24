@@ -26,6 +26,7 @@
     "codex-cloud:dispatch-bundle": "node scripts/codex-cloud-task.mjs dispatch-bundle",
     "codex-cloud:validate": "node scripts/codex-cloud-task.mjs validate",
     "codex-cloud:render": "node scripts/codex-cloud-task.mjs render",
+    "gap:audit": "node scripts/gap-audit.mjs",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
     "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node --test --test-isolation=none"
