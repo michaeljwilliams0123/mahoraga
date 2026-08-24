@@ -10,6 +10,7 @@
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" href="./mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./skills.css">
 </head>
 <body>
   <div class="app-shell">
@@ -24,7 +25,9 @@
       <nav class="nav-list">
         <button type="button" class="active" data-view-target="workspace"><span>◈</span> Workspace</button>
         <button type="button" data-view-target="activity"><span>↻</span> Activity <b id="activity-count">—</b></button>
-        <button type="button" data-view-target="tools"><span>⌘</span> Tools</button>
+        <button type="button" data-view-target="skills"><span>✦</span> Skills <b>7</b></button>
+        <button type="button" data-view-target="approvals"><span>✓</span> Approvals <b id="approval-count">—</b></button>
+        <button type="button" data-view-target="releases"><span>⬡</span> Releases</button>
         <button type="button" data-view-target="connections"><span>⌁</span> Connections</button>
         <button type="button" data-view-target="security"><span>◇</span> Security</button>
       </nav>
@@ -47,11 +50,19 @@
           <div class="welcome">
             <img src="./mark.svg" alt="" width="56" height="56">
             <h1>What should Mahoraga work on?</h1>
-            <p>Start repository work in the cloud, attach repository-safe files in GitHub, or run deterministic maintenance without opening the desktop.</p>
+            <p>Choose a skill, approve its execution lane, and follow the work from cloud intake through a verified return.</p>
+          </div>
+
+          <div class="skill-dock" aria-label="Installed skill presets">
+            <button type="button" data-skill-preset="repository" data-lane="codex"><i>⌘</i><span>Build</span></button>
+            <button type="button" data-skill-preset="testing" data-lane="actions"><i>✓</i><span>Verify</span></button>
+            <button type="button" data-skill-preset="security" data-lane="actions"><i>◇</i><span>Audit</span></button>
+            <button type="button" data-skill-preset="release" data-lane="actions"><i>⬡</i><span>Release</span></button>
+            <button type="button" data-skill-preset="auto" data-lane="desktop"><i>⇄</i><span>Desktop</span></button>
           </div>
 
           <div class="quick-actions" aria-label="Quick actions">
-            <button type="button" data-quick="Improve the Mahoraga cloud interface and verify the result." data-tool="ui">Improve the interface<span>Codex cloud · explicit credits</span></button>
+            <button type="button" data-quick="Improve the Mahoraga cloud interface and verify the result." data-tool="ui" data-lane="codex">Improve the interface<span>UI skill · Codex cloud</span></button>
             <a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Verify repository<span>GitHub Actions · zero model credits</span></a>
             <a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Run gap audit<span>Deterministic · zero model credits</span></a>
             <a href="https://github.com/michaeljwilliams0123/mahoraga/pulls">Review returns<span>Merge from either authorized Codex</span></a>
@@ -63,7 +74,7 @@
             <textarea id="task-text" maxlength="2400" rows="1" placeholder="Describe a bounded repository task" aria-label="Task description"></textarea>
             <div class="composer-tools">
               <button id="attachment-help" class="icon-button" type="button" title="Attach files securely in GitHub" aria-label="Attach files securely in GitHub">＋</button>
-              <label class="select-chip">Tool
+              <label class="select-chip">Skill
                 <select id="tool-profile" aria-label="Tool profile">
                   <option value="auto">Auto</option>
                   <option value="repository">Repository engineer</option>
@@ -71,6 +82,14 @@
                   <option value="security">Security review</option>
                   <option value="testing">Testing and verification</option>
                   <option value="documentation">Documentation</option>
+                  <option value="release">Release engineering</option>
+                </select>
+              </label>
+              <label class="select-chip">Lane
+                <select id="execution-lane" aria-label="Execution lane">
+                  <option value="codex">Codex cloud</option>
+                  <option value="desktop">Desktop Codex</option>
+                  <option value="actions">Deterministic Actions</option>
                 </select>
               </label>
               <label class="select-chip">Return
@@ -100,16 +119,38 @@
         </div>
       </section>
 
-      <section class="view page" data-view="tools">
-        <div class="page-head"><div><p class="eyebrow">Declared capability surface</p><h1>Tools</h1><p>Each tool names its execution plane and credit behavior before it runs.</p></div></div>
-        <div class="tool-grid">
-          <article class="tool-card"><i>⌘</i><div><h2>Codex cloud task</h2><p>Repository-scoped implementation with a pull-request return.</p><span class="tag explicit">Explicit model use</span></div><button type="button" data-new-cloud-task>Open</button></article>
-          <article class="tool-card"><i>✓</i><div><h2>Repository verify</h2><p>Manifest, coordination, security audit, and full tests on GitHub runners.</p><span class="tag free">Zero model credits</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Open</a></article>
-          <article class="tool-card"><i>⌕</i><div><h2>Gap audit</h2><p>Compare declared providers with implemented, authenticated capabilities.</p><span class="tag free">Zero model credits</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Open</a></article>
-          <article class="tool-card"><i>⇄</i><div><h2>Desktop relay</h2><p>Queue a bounded assignment for the outbound-only Windows poller.</p><span class="tag free">No idle model use</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Open</a></article>
-          <article class="tool-card"><i>◫</i><div><h2>Pull-request review</h2><p>Inspect, verify, and merge work returned by either authorized Codex.</p><span class="tag explicit">Explicit review</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/pulls">Open</a></article>
-          <article class="tool-card"><i>◇</i><div><h2>Security center</h2><p>Code scanning, Dependabot, secret scanning, and repository policy.</p><span class="tag free">Zero model credits</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/security">Open</a></article>
+      <section class="view page" data-view="skills">
+        <div class="page-head"><div><p class="eyebrow">Installed capability packs</p><h1>Skills</h1><p>Every skill is bound to a declared lane, permission boundary, and visible credit policy.</p></div><button type="button" data-new-cloud-task>New skilled task</button></div>
+        <div class="skill-summary"><span><b>7</b> installed</span><span><b>4</b> zero-credit</span><span><b>2</b> Codex lanes</span><span><b>1</b> staged release lane</span></div>
+        <div class="tool-grid skill-grid">
+          <article class="tool-card featured"><i>⌘</i><div><p class="skill-type">Engineering</p><h2>Repository engineer</h2><p>Scoped implementation, tests, and pull-request return through the owner-approved gateway.</p><span class="tag explicit">Codex cloud</span><span class="tag installed">Installed</span></div><button type="button" data-skill-preset="repository" data-lane="codex">Use</button></article>
+          <article class="tool-card"><i>◫</i><div><p class="skill-type">Experience</p><h2>UI and frontend</h2><p>Cloud workspace, accessibility, responsive layout, and browser-safe interactions.</p><span class="tag explicit">Codex cloud</span><span class="tag installed">Installed</span></div><button type="button" data-skill-preset="ui" data-lane="codex">Use</button></article>
+          <article class="tool-card"><i>✓</i><div><p class="skill-type">Quality</p><h2>Testing and verification</h2><p>Manifest, mailbox, audit, and full cross-platform regression checks.</p><span class="tag free">Zero credits</span><span class="tag installed">Ready</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Run</a></article>
+          <article class="tool-card"><i>◇</i><div><p class="skill-type">Assurance</p><h2>Security review</h2><p>CodeQL, dependency safety, secret scanning, path boundaries, and repository policy.</p><span class="tag free">Zero credits</span><span class="tag installed">Ready</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/security">Open</a></article>
+          <article class="tool-card"><i>⇄</i><div><p class="skill-type">Execution</p><h2>Desktop Codex relay</h2><p>Owner-approved assignments collected by the outbound-only Windows poller.</p><span class="tag explicit">Explicit model use</span><span class="tag installed">Installed</span></div><button type="button" data-skill-preset="auto" data-lane="desktop">Use</button></article>
+          <article class="tool-card"><i>⬡</i><div><p class="skill-type">Delivery</p><h2>Release engineering</h2><p>Verified update archive, SHA-256 manifest, provenance, beta/stable channels, and staged activation.</p><span class="tag free">Zero credits</span><span class="tag installed">Owner-started</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/release.yml">Run</a></article>
+          <article class="tool-card"><i>⌕</i><div><p class="skill-type">Recovery</p><h2>Gap and recovery audit</h2><p>Declared-provider gaps and the versioned essential-file baseline without device mutation.</p><span class="tag free">Zero credits</span><span class="tag installed">Ready</span></div><a href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/chromebook-control-plane.yml">Run</a></article>
         </div>
+      </section>
+
+      <section class="view page" data-view="approvals">
+        <div class="page-head"><div><p class="eyebrow">Owner-controlled gateway</p><h1>Approvals</h1><p>Opening a task spends nothing. The owner selects the execution lane with an exact audited command.</p></div><button type="button" data-new-cloud-task>New request</button></div>
+        <div class="approval-flow"><article><b>1</b><span>Submit task</span><small>GitHub identity and repository-safe attachments</small></article><i>→</i><article><b>2</b><span>Owner approves</span><small>Exact command and preferred lane must match</small></article><i>→</i><article><b>3</b><span>Dispatch runs</span><small>Idempotent record and deterministic validation</small></article><i>→</i><article><b>4</b><span>Return verified</span><small>PR or outbound desktop branch</small></article></div>
+        <div class="split-grid">
+          <section class="panel"><div class="panel-head"><h2>Waiting for owner</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/issues?q=is%3Aissue+is%3Aopen+%5BMAHORAGA%5D">Open GitHub ↗</a></div><div id="approval-list" class="activity-list"><p class="empty">Loading approval queue…</p></div></section>
+          <section class="panel command-panel"><div class="panel-head"><h2>Exact commands</h2></div><code>/mahoraga dispatch codex</code><p>Creates or idempotently reuses a bounded Codex cloud record.</p><code>/mahoraga dispatch desktop mahoraga</code><p>Creates a bounded assignment for the outbound desktop poller.</p><div class="credit-rule"><strong>No command, no model spend.</strong><span>Public issue authors cannot activate either lane.</span></div></section>
+        </div>
+      </section>
+
+      <section class="view page" data-view="releases">
+        <div class="page-head"><div><p class="eyebrow">Verified cloud-to-desktop delivery</p><h1>Releases</h1><p>Immutable packages are verified and attested in GitHub, then remain staged until the user activates them.</p></div><a class="page-action" href="https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/release.yml">Publish update ↗</a></div>
+        <div class="metric-grid">
+          <article><span>Latest release</span><strong id="release-latest">None</strong><small id="release-latest-time">Owner-started only</small></article>
+          <article><span>Available channels</span><strong>2</strong><small>Stable and beta</small></article>
+          <article><span>Activation</span><strong>Staged</strong><small>User-only authority</small></article>
+          <article><span>Integrity</span><strong>SHA-256</strong><small>GitHub provenance attached</small></article>
+        </div>
+        <section class="panel"><div class="panel-head"><h2>Published updates</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/releases">All releases ↗</a></div><div id="release-list" class="activity-list"><p class="empty">Loading releases…</p></div></section>
       </section>
 
       <section class="view page" data-view="connections">
@@ -145,7 +186,8 @@
         <li id="copy-state">Your task text will be copied to the clipboard.</li>
         <li>Paste it into the <strong>Bounded task</strong> field.</li>
         <li>Drag files or paste images into the attachment field, then submit.</li>
-        <li>After review, the repository owner explicitly invokes Codex.</li>
+        <li>Select the same skill and execution lane in the authenticated form.</li>
+        <li>After review, the owner posts <code id="dispatch-command">/mahoraga dispatch codex</code>.</li>
       </ol>
       <p class="warning">Only share repository-safe material. GitHub attachments follow the repository's visibility.</p>
       <div class="dialog-actions"><button value="cancel">Cancel</button><button id="continue-github" class="primary" value="default">Open authenticated task form ↗</button></div>

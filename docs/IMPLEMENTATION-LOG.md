@@ -1,8 +1,20 @@
 # Mahoraga implementation log
 
-Updated: 2026-08-23
+Updated: 2026-08-24
 
 ## Current wave
+
+Wave 9 is repository-deployed and awaiting ordinary downstream Git sync. Cloud
+Workspace 2.0 presents installed Skills, approval and release views, execution
+lane selection, and the exact credit boundary. The Cloud Task Gateway converts
+only owner-approved issue commands into deterministic Codex cloud or desktop
+records. The staged release lane adds full verification, strict SHA-256 update
+metadata, and provenance without activating a local device.
+
+No Windows runtime, browser session, GitHub Desktop setting, or local provider
+was changed as part of Wave 9.
+
+## Previous wave
 
 Wave 8 safe first increment is deployed. The Browser Worker now owns an
 isolated headless Chrome profile and can observe only the loopback Control

@@ -1,8 +1,8 @@
 # Mahoraga Cloud Workspace
 
 The Mahoraga Cloud Workspace is a credential-free static interface deployed by
-GitHub Pages. It is a cloud launcher and repository-status dashboard, not a
-public proxy to the Windows runtime.
+GitHub Pages. It is a cloud launcher, Skills catalog, approval queue, release
+dashboard, and repository-status surface—not a public proxy to Windows.
 
 ## Security model
 
@@ -20,13 +20,27 @@ public proxy to the Windows runtime.
   repository-safe references and expressly rejects chats, credentials, personal
   documents, raw plugin results, and unrelated context.
 
+## Owner-approved task gateway
+
+Opening a workspace issue does not invoke a model. The owner reviews the issue,
+confirms the selected lane, and posts exactly one of these commands:
+
+- `/mahoraga dispatch codex`
+- `/mahoraga dispatch desktop mahoraga`
+
+The GitHub workflow independently revalidates owner identity, form structure,
+privacy confirmation, secrets, base commit, tool profile, lane, paths, and
+verification commands. It creates a deterministic record ID and reuses that
+record on retries. Public contributors cannot dispatch a lane. Attachment URLs
+remain in the source issue and are never copied into coordination JSON.
+
 ## Credit boundary
 
 Repository verification, gap audits, security scanning, dependency updates, and
 status inspection use deterministic GitHub automation and do not invoke a model.
-Opening a workspace issue does not automatically invoke Codex. The repository
-owner reviews the issue and makes a deliberate Codex delegation, preventing a
-public issue author from consuming subscription-backed execution.
+Opening a workspace issue does not automatically invoke Codex. The exact owner
+gateway command is the explicit model-spend boundary, preventing a public issue
+author from consuming subscription-backed execution.
 
 ## Private repository behavior
 

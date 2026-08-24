@@ -51,6 +51,16 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "high",
     summary: "Canonical verification workflow is present.",
   });
+  record(closed, has(".github/workflows/cloud-task-gateway.yml") && has("src/cloud-task-gateway.mjs") && has("test/cloud-task-gateway.test.mjs"), {
+    id: "owner-approved-cloud-gateway",
+    priority: "high",
+    summary: "Public task intake is separated from exact owner-approved, idempotent Codex and desktop dispatch commands.",
+  });
+  record(closed, has(".github/workflows/release.yml") && has("src/update-contract.mjs") && has("test/update-contract.test.mjs"), {
+    id: "staged-attested-update-channel",
+    priority: "high",
+    summary: "Owner-started updates are verified, SHA-256 bound, provenance-attested, and fixed to stage-only user activation.",
+  });
   record(closed, has("src/desktop-worker.mjs") && has("test/desktop-worker.test.mjs"), {
     id: "desktop-worker-contract",
     priority: "high",

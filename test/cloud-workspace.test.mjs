@@ -17,7 +17,7 @@ test("cloud workspace is credential-free and never controls localhost", async ()
   assert.match(docs, /localhost runtime remains bound to `127\.0\.0\.1`/);
 });
 
-test("cloud task handoff keeps prompts out of URLs and makes attachment visibility explicit", async () => {
+test("cloud task handoff keeps prompts out of URLs and exposes real skills and lanes", async () => {
   const [html, app, template] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read(".github/ISSUE_TEMPLATE/codex-cloud-task.yml")]);
   assert.match(app, /navigator\.clipboard\.writeText/);
   assert.doesNotMatch(app, /encodeURIComponent\(state\.draft\)/);
@@ -25,6 +25,13 @@ test("cloud task handoff keeps prompts out of URLs and makes attachment visibili
   assert.match(template, /id: attachments/);
   assert.match(template, /Attachments inherit repository visibility/);
   assert.match(template, /does not spend model credits/);
+  assert.match(html, /data-view="skills"/);
+  assert.match(html, /data-view="approvals"/);
+  assert.match(html, /data-view="releases"/);
+  assert.match(html, /id="execution-lane"/);
+  assert.match(html, /\/mahoraga dispatch codex/);
+  assert.match(template, /label: Preferred execution lane/);
+  assert.match(app, /github\('\/releases\?per_page=12'\)/);
   assert.doesNotMatch(template, /^\s+- codex:queued\s*$/m);
 });
 
@@ -38,4 +45,15 @@ test("Pages deployment is least-privilege and immutable", async () => {
   }
   assert.doesNotMatch(workflow, /\$\{\{\s*secrets\.|OPENAI_API_KEY/);
   assert.match(workflow, /path: cloud/);
+});
+
+test("cloud gateway workflow is owner-only, event-file parsed, and model-free", async () => {
+  const workflow = await read(".github/workflows/cloud-task-gateway.yml");
+  assert.match(workflow, /issue_comment:/);
+  assert.match(workflow, /github\.actor == github\.repository_owner/);
+  assert.match(workflow, /startsWith\(github\.event\.comment\.body, '\/mahoraga dispatch '\)/);
+  assert.match(workflow, /--event "\$GITHUB_EVENT_PATH"/);
+  assert.match(workflow, /node scripts\/coordination\.mjs validate/);
+  assert.match(workflow, /node scripts\/codex-cloud-task\.mjs dispatch-bundle/);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex exec|\$\{\{\s*secrets\./);
 });

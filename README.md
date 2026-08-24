@@ -1,4 +1,4 @@
-# Mahoraga 3.4 — Production runtime
+# Mahoraga 3.5 — Production runtime
 
 Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
 the PowerShell/WPF application host with a Node.js supervisor, process-isolated
@@ -42,12 +42,19 @@ suites are source material for later worker migration.
   outbound-runner heartbeat without exposing chats, credentials, local checkout
   paths, or model output. Operations views are bookmarkable and background tabs
   stop polling until visible again.
-- Cloud Workspace 1.0 adds a ChatGPT-style GitHub Pages launcher and read-only
-  activity dashboard. Authenticated task submission, image paste, and file
+- Cloud Workspace 2.0 adds a ChatGPT-style GitHub Pages launcher, installed
+  Skills catalog, approvals queue, release dashboard, and read-only activity
+  status. Authenticated task submission, image paste, and file
   attachment use GitHub's own signed-in issue form; the page stores no token,
-  prompt, attachment, or chat history. It never reaches into the Windows device,
-  and deterministic maintenance remains visibly separated from explicit Codex
+  prompt, attachment, or chat history. An exact owner-authored gateway command
+  idempotently routes an approved issue to Codex cloud or the outbound desktop
+  poller. Deterministic Actions remain visibly separated from explicit model
   work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
+- The staged update channel packages immutable source, verifies it, publishes a
+  strict SHA-256 manifest, and attaches GitHub provenance. Beta and stable
+  releases never install or activate themselves; user-only activation and
+  rollback evidence remain mandatory. See
+  [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.
@@ -88,7 +95,7 @@ for the exact trigger boundary.
 
 ## Current connection state
 
-The 3.4.0 repository contract, Control Center 5.3.0, and Cloud Workspace 1.0.0 are staged for deployment on
+The 3.5.0 repository contract, Control Center 5.3.0, and Cloud Workspace 2.0.0 are staged for deployment on
 2026-08-24. The per-user `Mahoraga Production Runtime` launcher is registered,
 and the four enabled isolated workers are supervised on loopback.
 
