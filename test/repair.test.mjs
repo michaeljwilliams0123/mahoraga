@@ -12,6 +12,10 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".githooks/pre-push",
     ".github/CODEOWNERS",
     ".github/dependabot.yml",
+    ".github/agents/mahoraga-assurance.agent.md",
+    ".github/agents/mahoraga-coordinator.agent.md",
+    ".github/agents/mahoraga-experience.agent.md",
+    ".github/agents/mahoraga-relay.agent.md",
     ".github/pull_request_template.md",
     ".github/workflows/chromebook-control-plane.yml",
     ".github/workflows/codex-cloud-dispatch.yml",
@@ -19,6 +23,11 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/workflows/release.yml",
     ".github/workflows/verify.yml",
     "src/github-audit.mjs",
+    "src/task-relay-contract.mjs",
+    "src/return-reconciler.mjs",
+    "src/artifact-contract.mjs",
+    "docs/COPILOT-AGENTS.md",
+    "docs/TASK-RELAY-PROTOCOL-3.0.1.md",
     "scripts/github-audit.mjs",
   ]) assert.ok(ESSENTIAL_FILES.includes(relative), `${relative} is missing from the release baseline`);
 });

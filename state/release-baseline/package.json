@@ -1,6 +1,6 @@
 {
   "name": "project-mahoraga-v2",
-  "version": "3.5.0",
+  "version": "3.6.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -31,6 +31,7 @@
     "gap:audit": "node scripts/gap-audit.mjs",
     "github:audit": "node scripts/github-audit.mjs",
     "providers:probe": "node scripts/provider-readiness.mjs",
+    "pressure:test": "node --test --test-isolation=none test/task-relay-contract.test.mjs test/return-reconciler.test.mjs test/artifact-contract.test.mjs test/copilot-agent-profiles.test.mjs test/control-pr-delivery.test.mjs",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
     "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node scripts/github-audit.mjs && node --test --test-isolation=none"

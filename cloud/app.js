@@ -18,6 +18,7 @@ document.querySelectorAll('[data-quick]').forEach((button) => button.addEventLis
 }));
 document.querySelectorAll('[data-new-cloud-task]').forEach((button) => button.addEventListener('click', () => showView('workspace')));
 document.querySelectorAll('[data-skill-preset]').forEach((button) => button.addEventListener('click', () => selectSkill(button.dataset.skillPreset, button.dataset.lane)));
+document.querySelectorAll('[data-agent-profile]').forEach((button) => button.addEventListener('click', () => selectAgent(button.dataset.agentProfile)));
 $('task-text').addEventListener('input', resizeComposer);
 $('task-draft').addEventListener('submit', (event) => { event.preventDefault(); prepareHandoff(); });
 $('attachment-help').addEventListener('click', () => prepareHandoff(true));
@@ -97,10 +98,22 @@ function emptyRow() { const item = document.createElement('p'); item.className =
 function prepareHandoff(attachmentsOnly = false) {
   state.draft = $('task-text').value.trim();
   const lane = $('execution-lane').value;
-  $('dispatch-command').textContent = lane === 'desktop' ? '/mahoraga dispatch desktop mahoraga' : lane === 'codex' ? '/mahoraga dispatch codex' : 'No model command — run the selected Action';
+  const activation = lane === 'desktop'
+    ? '/mahoraga dispatch desktop mahoraga'
+    : lane === 'codex'
+      ? '/mahoraga dispatch codex'
+      : lane === 'copilot'
+        ? 'Owner/policy action required — cloud launch unavailable'
+        : 'No model command — run the selected Action';
+  $('dispatch-command').textContent = activation;
+  $('activation-step').firstChild.textContent = lane === 'copilot'
+    ? 'The profile can be selected after merge. '
+    : lane === 'actions'
+      ? 'Continue with the deterministic workflow. '
+      : 'After review, the owner posts ';
   $('dialog-title').textContent = attachmentsOnly ? 'Attach securely in GitHub' : 'Continue task in GitHub';
   $('copy-state').textContent = state.draft ? 'Your task text will be copied to the clipboard.' : 'The authenticated GitHub task form will open.';
-  $('continue-github').textContent = lane === 'actions' ? 'Open deterministic Action ↗' : 'Open authenticated task form ↗';
+  $('continue-github').textContent = lane === 'actions' ? 'Open deterministic Action ↗' : lane === 'copilot' ? 'Open staged task intake ↗' : 'Open authenticated task form ↗';
   $('handoff-dialog').showModal();
 }
 
@@ -116,7 +129,7 @@ async function openGithubTask() {
     location.assign(action);
     return;
   }
-  const title = state.draft ? `[MAHORAGA] ${state.draft.split(/\s+/).slice(0, 9).join(' ').slice(0, 72)}` : '[MAHORAGA] ';
+  const title = $('tool-profile').value.startsWith('mahoraga-') ? `[MAHORAGA] ${$('tool-profile').selectedOptions[0].textContent} task` : '[MAHORAGA] Repository task';
   location.assign(`${ISSUE_TEMPLATE}&title=${encodeURIComponent(title)}`);
 }
 
@@ -126,6 +139,14 @@ function selectSkill(skill, lane) {
   showView('workspace');
   $('task-text').focus();
   toast(`${$('tool-profile').selectedOptions[0].textContent} skill selected`);
+}
+
+function selectAgent(profile) {
+  $('tool-profile').value = profile;
+  $('execution-lane').value = 'copilot';
+  showView('workspace');
+  $('task-text').focus();
+  toast(`${$('tool-profile').selectedOptions[0].textContent} profile selected · owner launch still required`);
 }
 
 function resizeComposer() { const input = $('task-text'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 170)}px`; }

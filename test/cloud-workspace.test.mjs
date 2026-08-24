@@ -29,10 +29,34 @@ test("cloud task handoff keeps prompts out of URLs and exposes real skills and l
   assert.match(html, /data-view="approvals"/);
   assert.match(html, /data-view="releases"/);
   assert.match(html, /id="execution-lane"/);
+  assert.match(html, /GitHub Copilot/);
+  assert.match(html, /Codex cloud/);
+  assert.match(html, /Desktop Codex/);
+  assert.match(html, /Deterministic Actions/);
   assert.match(html, /\/mahoraga dispatch codex/);
   assert.match(template, /label: Preferred execution lane/);
   assert.match(app, /github\('\/releases\?per_page=12'\)/);
   assert.doesNotMatch(template, /^\s+- codex:queued\s*$/m);
+  assert.doesNotMatch(app, /state\.draft\.split/);
+});
+
+test("Mahoraga 4 fleet is honest about profile, relay, launch, and artifact state", async () => {
+  const [html, app] = await Promise.all([read("cloud/index.html"), read("cloud/app.js")]);
+  for (const profile of ["mahoraga-coordinator", "mahoraga-relay", "mahoraga-assurance", "mahoraga-experience"]) {
+    assert.match(html, new RegExp(`data-agent-profile="${profile}"`));
+    assert.match(html, new RegExp(`<option value="${profile}">`));
+  }
+  assert.match(html, /Protocol 3\.0\.1/);
+  assert.match(html, /At-least-once/);
+  assert.match(html, /Idempotent/);
+  assert.match(html, /Fenced/);
+  assert.match(html, /Cloud launch unavailable/);
+  assert.match(html, /Owner action/);
+  assert.match(html, /Private artifact plane/);
+  assert.match(html, /not active/i);
+  assert.match(html, /public-safe/i);
+  assert.match(app, /value = 'copilot'/);
+  assert.doesNotMatch(`${html}\n${app}`, /cloud launch active|private artifact (?:service|storage) active/i);
 });
 
 test("Pages deployment is least-privilege and immutable", async () => {

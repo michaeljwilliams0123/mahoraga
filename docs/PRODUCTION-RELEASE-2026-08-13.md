@@ -31,13 +31,13 @@ and the Control Center remained healthy.
 
 ## Microsoft queue target discovery
 
-- Environment: `Vaco (default) (Upgrade)`
-- Environment ID: `Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d`
-- URL: `https://org9aade5b6.crm.dynamics.com/`
+- Environment: moved to ignored runtime configuration.
+- Environment ID: moved to ignored runtime configuration.
+- URL: moved to ignored runtime configuration.
 - Signed-in identity: intentionally omitted from current repository records and receipts.
 - Proposed unmanaged solution: `MahoragaPlatform`
-- State: awaiting explicit environment and solution confirmation before the first
-  Dataverse mutation.
+- State: the private environment was confirmed during the historical rollout;
+  unattended authentication and activation remain separate user-controlled steps.
 
 ## Persistent discourse
 

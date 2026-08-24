@@ -70,15 +70,19 @@ export function validateManifest(value) {
   if (!isRecord(value.queue)) throw new TypeError("Queue configuration is missing.");
   bounded(value.queue.provider, 40, "queue provider");
   bounded(value.queue.state, 80, "queue state");
-  bounded(value.queue.environmentName, 100, "queue environment name");
-  bounded(value.queue.environmentId, 80, "queue environment id");
-  if (!/^https:\/\/[a-z0-9-]+\.crm\.dynamics\.com\/$/i.test(value.queue.environmentUrl)) throw new TypeError("Queue environment URL is invalid.");
+  if (value.queue.configurationSource !== "runtime-environment") throw new TypeError("Queue configuration must remain runtime-bound.");
+  runtimeReference(value.queue.environmentName, "queue environment name");
+  runtimeReference(value.queue.environmentId, "queue environment id");
+  runtimeReference(value.queue.environmentUrl, "queue environment URL");
   slug(value.queue.solutionName.toLowerCase(), "queue solution name");
   bounded(value.queue.relayId, 64, "queue relay id");
   integer(value.queue.pollIntervalMs, 1000, 300000, "queue pollIntervalMs");
   integer(value.queue.leaseMs, 5000, 3600000, "queue leaseMs");
   integer(value.queue.maximumAttempts, 1, 20, "queue maximumAttempts");
-  if (value.queue.outboundOnly !== true || value.queue.exactlyOnce !== true) throw new TypeError("Queue must remain outbound-only and idempotent.");
+  if (value.queue.outboundOnly !== true || value.queue.deliveryMode !== "at-least-once" ||
+      value.queue.effectSemantics !== "idempotent" || value.queue.leaseFencing !== true) {
+    throw new TypeError("Queue must remain outbound-only with at-least-once delivery, idempotent effects, and lease fencing.");
+  }
   if (!isRecord(value.featureFlags)) throw new TypeError("Feature flags are missing.");
   for (const [flag, enabled] of Object.entries(value.featureFlags)) {
     bounded(flag, 64, "feature flag");
@@ -174,6 +178,9 @@ export function validateManifest(value) {
 function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function bounded(value, max, name) {
   if (typeof value !== "string" || value.length < 1 || value.length > max || /[\r\n]/.test(value)) throw new TypeError(`${name} is invalid.`);
+}
+function runtimeReference(value, name) {
+  if (typeof value !== "string" || !/^\$\{[A-Z][A-Z0-9_]{2,63}\}$/.test(value)) throw new TypeError(`${name} must use a runtime environment reference.`);
 }
 function slug(value, name) {
   if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) throw new TypeError(`${name} is invalid.`);

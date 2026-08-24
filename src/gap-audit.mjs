@@ -166,7 +166,7 @@ function gap(target, condition, item) {
 function queueDependency(manifest) {
   const queue = manifest.queue ?? {};
   if (String(queue.state ?? "").includes("awaiting-authentication")) {
-    return `Run npm run providers:probe on the live Windows host and establish a silent Dataverse credential for ${queue.environmentName ?? "the configured environment"}/${queue.solutionName ?? "the configured solution"}; then validate one outbound poll before activation.`;
+    return `Run npm run providers:probe on the live Windows host and establish a silent Dataverse credential for the private runtime-configured environment/${queue.solutionName ?? "the configured solution"}; then validate one outbound poll before activation.`;
   }
   return "Run npm run providers:probe on the live Windows host, prove a silent Dataverse credential, and validate one outbound poll before activation.";
 }

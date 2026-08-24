@@ -25,6 +25,7 @@
       <nav class="nav-list">
         <button type="button" class="active" data-view-target="workspace"><span>◈</span> Workspace</button>
         <button type="button" data-view-target="activity"><span>↻</span> Activity <b id="activity-count">—</b></button>
+        <button type="button" data-view-target="agents"><span>◎</span> Agents <b>4</b></button>
         <button type="button" data-view-target="skills"><span>✦</span> Skills <b>7</b></button>
         <button type="button" data-view-target="approvals"><span>✓</span> Approvals <b id="approval-count">—</b></button>
         <button type="button" data-view-target="releases"><span>⬡</span> Releases</button>
@@ -49,8 +50,15 @@
         <div class="conversation">
           <div class="welcome">
             <img src="./mark.svg" alt="" width="56" height="56">
+            <div class="foundation-badge"><span></span> Mahoraga 4 foundation</div>
             <h1>What should Mahoraga work on?</h1>
             <p>Choose a skill, approve its execution lane, and follow the work from cloud intake through a verified return.</p>
+          </div>
+
+          <div class="control-strip" aria-label="Mahoraga control-plane status">
+            <button type="button" data-view-target="agents"><span class="control-icon protocol">3.0.1</span><span><strong>Relay protocol</strong><small>Contract ready · private service not connected</small></span><i>View fleet →</i></button>
+            <button type="button" data-view-target="agents"><span class="control-icon fleet">4</span><span><strong>Copilot profiles</strong><small>Ready after merge · owner launch required</small></span><i>Inspect →</i></button>
+            <button type="button" data-view-target="security"><span class="control-icon artifact">＋</span><span><strong>Private artifact plane</strong><small>Staged · GitHub attachments remain public-safe only</small></span><i>Boundary →</i></button>
           </div>
 
           <div class="skill-dock" aria-label="Installed skill presets">
@@ -83,10 +91,15 @@
                   <option value="testing">Testing and verification</option>
                   <option value="documentation">Documentation</option>
                   <option value="release">Release engineering</option>
+                  <option value="mahoraga-coordinator">Mahoraga coordinator</option>
+                  <option value="mahoraga-relay">Mahoraga relay</option>
+                  <option value="mahoraga-assurance">Mahoraga assurance</option>
+                  <option value="mahoraga-experience">Mahoraga experience</option>
                 </select>
               </label>
               <label class="select-chip">Lane
                 <select id="execution-lane" aria-label="Execution lane">
+                  <option value="copilot">GitHub Copilot</option>
                   <option value="codex">Codex cloud</option>
                   <option value="desktop">Desktop Codex</option>
                   <option value="actions">Deterministic Actions</option>
@@ -101,7 +114,7 @@
               <button class="send" type="submit" aria-label="Continue task in GitHub">↑</button>
             </div>
           </form>
-          <p class="composer-note">Submission and file upload happen in GitHub under your signed-in account. This page stores no prompt, token, attachment, or chat history.</p>
+          <p class="composer-note"><strong>Public-safe intake only.</strong> Submission and file upload happen in GitHub under your signed-in account. This page stores no prompt, token, attachment, file bytes, or chat history.</p>
         </div>
       </section>
 
@@ -116,6 +129,58 @@
         <div class="split-grid">
           <section class="panel"><div class="panel-head"><h2>Task queue</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/issues">All issues ↗</a></div><div id="task-list" class="activity-list"><p class="empty">Loading tasks…</p></div></section>
           <section class="panel"><div class="panel-head"><h2>Workflow runs</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/actions">All runs ↗</a></div><div id="run-list" class="activity-list"><p class="empty">Loading runs…</p></div></section>
+        </div>
+      </section>
+
+      <section class="view page" data-view="agents">
+        <div class="page-head fleet-head"><div><p class="eyebrow">Specialist profiles and execution lanes</p><h1>Agents &amp; fleet</h1><p>Four bounded GitHub Copilot profiles are ready in the repository. They become selectable after merge to <code>main</code>; cloud-agent launch still requires repository-owner policy access.</p></div><a class="page-action" href="https://github.com/michaeljwilliams0123/mahoraga/tree/main/.github/agents">View profiles ↗</a></div>
+
+        <div class="fleet-banner" role="status">
+          <div><span class="pulse-dot"></span><strong>Profiles ready</strong><small>Definitions are staged on the Mahoraga 4 feature branch.</small></div>
+          <div><span class="lock-dot">!</span><strong>Cloud launch unavailable</strong><small>GitHub currently reports the Copilot coding agent as not assignable. Owner or organization policy action is required.</small></div>
+        </div>
+
+        <div class="fleet-layout">
+          <section class="agent-grid" aria-label="GitHub Copilot profiles">
+            <article class="agent-card coordinator">
+              <div class="agent-top"><span class="agent-mark">CO</span><span class="state-pill ready">Profile ready</span></div>
+              <p class="skill-type">Orchestration</p><h2>mahoraga-coordinator</h2>
+              <p>Decomposes bounded repository objectives, routes specialists, prevents path collisions, and returns verified pull requests.</p>
+              <div class="agent-scope"><span>Repository only</span><span>Agent delegation</span></div>
+              <button type="button" data-agent-profile="mahoraga-coordinator">Prepare task</button>
+            </article>
+            <article class="agent-card relay">
+              <div class="agent-top"><span class="agent-mark">RL</span><span class="state-pill ready">Profile ready</span></div>
+              <p class="skill-type">Protocol 3.0.1</p><h2>mahoraga-relay</h2>
+              <p>Pressure-tests idempotency, expiring leases, fencing tokens, retries, stale writers, and outbound-runner contracts.</p>
+              <div class="agent-scope"><span>At-least-once</span><span>Idempotent effects</span></div>
+              <button type="button" data-agent-profile="mahoraga-relay">Prepare task</button>
+            </article>
+            <article class="agent-card assurance">
+              <div class="agent-top"><span class="agent-mark">AS</span><span class="state-pill ready">Profile ready</span></div>
+              <p class="skill-type">Security and recovery</p><h2>mahoraga-assurance</h2>
+              <p>Audits privacy, repository policy, supply-chain integrity, malicious inputs, failure recovery, and bounded receipts.</p>
+              <div class="agent-scope"><span>Fail closed</span><span>Deterministic evidence</span></div>
+              <button type="button" data-agent-profile="mahoraga-assurance">Prepare task</button>
+            </article>
+            <article class="agent-card experience">
+              <div class="agent-top"><span class="agent-mark">EX</span><span class="state-pill ready">Profile ready</span></div>
+              <p class="skill-type">Cloud experience</p><h2>mahoraga-experience</h2>
+              <p>Builds accessible cloud workspace, multimodal intake, task visualization, approval UX, and clear privacy boundaries.</p>
+              <div class="agent-scope"><span>Static-safe UI</span><span>Accessible</span></div>
+              <button type="button" data-agent-profile="mahoraga-experience">Prepare task</button>
+            </article>
+          </section>
+
+          <aside class="fleet-rail" aria-label="Execution lane status">
+            <div class="panel-head"><h2>Execution lanes</h2><span>Current contract</span></div>
+            <article><i class="lane-icon github">GH</i><div><strong>GitHub Copilot</strong><small>Profiles ready after merge</small></div><span class="state-pill action">Owner action</span></article>
+            <article><i class="lane-icon codex">CX</i><div><strong>Codex cloud</strong><small>Exact owner dispatch</small></div><span class="state-pill bounded">Bounded</span></article>
+            <article><i class="lane-icon desktop">PC</i><div><strong>Desktop Codex</strong><small>Outbound polling only</small></div><span class="state-pill bounded">Bounded</span></article>
+            <article><i class="lane-icon actions">✓</i><div><strong>Deterministic Actions</strong><small>No model invocation</small></div><span class="state-pill free">Zero credit</span></article>
+            <div class="protocol-card"><span>Relay contract</span><strong>Protocol 3.0.1</strong><dl><div><dt>Delivery</dt><dd>At-least-once</dd></div><div><dt>Effects</dt><dd>Idempotent</dd></div><div><dt>Leases</dt><dd>Fenced</dd></div><div><dt>Backend</dt><dd>Not connected</dd></div></dl></div>
+            <div class="artifact-card"><span>Staged foundation</span><strong>Private artifact plane</strong><p>Encrypted private upload and task-scoped grants are not active yet. Attachments still follow GitHub repository visibility.</p></div>
+          </aside>
         </div>
       </section>
 
@@ -169,7 +234,7 @@
           <article><span>01</span><h2>No browser token</h2><p>The page never asks for a PAT and uses no local or session storage. Authenticated writes happen on github.com.</p></article>
           <article><span>02</span><h2>No device control</h2><p>Cloud changes flow through Git. The interface cannot open, inspect, or alter the Windows desktop.</p></article>
           <article><span>03</span><h2>Explicit credit use</h2><p>Deterministic Actions run without a model. Codex work begins only after an owner-approved trigger.</p></article>
-          <article><span>04</span><h2>Repository-only context</h2><p>Do not upload private chats, credentials, personal documents, or unrelated files—especially while the repository is public.</p></article>
+          <article><span>04</span><h2>Public-safe attachments</h2><p>The private artifact plane is staged, not active. Do not upload private chats, credentials, personal documents, or unrelated files while intake uses GitHub.</p></article>
           <article><span>05</span><h2>Outbound-only relay</h2><p>The local runtime stays on 127.0.0.1 and polls for bounded work. There is no inbound tunnel.</p></article>
           <article><span>06</span><h2>Verified integration</h2><p>Path boundaries, tests, immutable Action references, and pull-request evidence protect both-direction merges.</p></article>
         </div>
@@ -187,9 +252,9 @@
         <li>Paste it into the <strong>Bounded task</strong> field.</li>
         <li>Drag files or paste images into the attachment field, then submit.</li>
         <li>Select the same skill and execution lane in the authenticated form.</li>
-        <li>After review, the owner posts <code id="dispatch-command">/mahoraga dispatch codex</code>.</li>
+        <li id="activation-step">After review, the owner posts <code id="dispatch-command">/mahoraga dispatch codex</code>.</li>
       </ol>
-      <p class="warning">Only share repository-safe material. GitHub attachments follow the repository's visibility.</p>
+      <p class="warning"><strong>Private artifact storage is not active.</strong> Only share repository-safe material. GitHub attachments follow the repository's visibility and may be public.</p>
       <div class="dialog-actions"><button value="cancel">Cancel</button><button id="continue-github" class="primary" value="default">Open authenticated task form ↗</button></div>
     </form>
   </dialog>

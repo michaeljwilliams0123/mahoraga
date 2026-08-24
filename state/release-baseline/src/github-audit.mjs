@@ -15,8 +15,17 @@ const GOVERNANCE_FILES = Object.freeze([
 ]);
 const SAFE_EMAIL_DOMAINS = new Set(["example.com", "odata.bind", "users.noreply.github.com"]);
 const TEXT_FILE = /(?:^|\/)(?:[^/]+\.(?:cjs|css|html|js|json|md|mjs|ps1|py|sh|txt|yaml|yml)|AGENTS\.md|CODEOWNERS)$/i;
+const DEPLOYMENT_METADATA_ASSIGNMENTS = Object.freeze([
+  /[`"']?(?:(dataverse|power[ _.-]?platform)[ _.-]?)?(environment|tenant)[ _.-]?(name|id|url)[`"']?\s*(?:=|:)\s*(?:"([^"\r\n]*)"|'([^'\r\n]*)'|`([^`\r\n]*)`|([^\s,;#}\]\r\n]+))/gim,
+  /^\s*(?:[-*]\s*)?(?:\*\*)?(?:(dataverse|power[ _.-]?platform)\s+)?(environment|tenant)\s+(name|id|url)(?:\*\*)?\s*:\s*(.+?)\s*$/gim,
+]);
+const DATAVERSE_URL = /\bhttps:\/\/[a-z0-9][a-z0-9.-]*\.crm(?:\d+)?\.(?:dynamics\.com|dynamics\.cn|microsoftdynamics\.de|dynamics\.us|appsplatform\.us)(?::\d+)?(?:\/[^\s"'`<>]*)?/gi;
+const SAFE_DEPLOYMENT_VALUE = /^(?:|null|none|n\/a|example|sample|fixture|mock|test|dev|development|local|localhost)$/i;
+const SAFE_DEPLOYMENT_PREFIX = /^(?:example|sample|fixture|mock|fake|contoso|your|replace(?:[-_ ]?me)?)(?:[-_ ./:]|$)/i;
+const RUNTIME_REFERENCE = /^(?:\$\{|\{\{|<[^>]+>$|%[^%]+%$|process\.env\b|deno\.env\b|os\.(?:environ|getenv)\b|env\(|getenv\(|(?:env|vars|secrets|inputs|config|settings)\.)/i;
+const CONCRETE_IDENTIFIER = /^(?:default[-_:])?[a-z0-9/][a-z0-9._:/-]{7,}$/i;
 
-export async function buildGithubAudit({ root = ROOT, listTrackedFiles = trackedFiles } = {}) {
+export async function buildGithubAudit({ root = ROOT, listTrackedFiles = trackedFiles, deploymentMetadata = undefined } = {}) {
   const files = (await listTrackedFiles(root)).sort();
   const fileSet = new Set(files);
   const checks = [];
@@ -116,6 +125,15 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     privacyFindings.length ? { files: privacyFindings.slice(0, 20) } : undefined,
   );
 
+  const deploymentMetadataFindings = await publicDeploymentMetadataFindings(root, files, deploymentMetadata);
+  add(
+    "public-deployment-metadata",
+    deploymentMetadataFindings.length === 0,
+    "blocking",
+    deploymentMetadataFindings.length ? `${deploymentMetadataFindings.length} tracked file(s) contain concrete deployment metadata.` : "Tracked text contains no concrete environment, tenant, or provider deployment metadata.",
+    deploymentMetadataFindings.length ? { files: deploymentMetadataFindings.slice(0, 20) } : undefined,
+  );
+
   const manifest = JSON.parse(await readFile(path.join(root, "mahoraga.manifest.json"), "utf8"));
   add(
     "loopback-runtime",
@@ -152,6 +170,51 @@ export function isDeterministicDependency(specification) {
   return /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(specification)
     || /^(?:file|link):[^\r\n]+$/.test(specification)
     || /^git\+https:\/\/[^\s#]+#[a-f0-9]{40}$/i.test(specification);
+}
+
+/**
+ * Detects non-secret deployment identifiers without returning the matched value.
+ * Callers may supply additional high-confidence patterns for provider-specific
+ * metadata. A custom pattern contributes only its bounded category label.
+ */
+export function findSensitiveDeploymentMetadata(source, {
+  assignmentPatterns = DEPLOYMENT_METADATA_ASSIGNMENTS,
+  directUrlPatterns = [DATAVERSE_URL],
+  additionalPatterns = [],
+} = {}) {
+  if (typeof source !== "string") return Object.freeze({ sensitive: false, categories: Object.freeze([]) });
+  const categories = new Set();
+
+  for (const configuredPattern of assignmentPatterns) {
+    const pattern = freshGlobalPattern(configuredPattern);
+    for (const match of source.matchAll(pattern)) {
+      const provider = match[1]?.toLowerCase().replace(/[^a-z]/g, "") ?? "";
+      const scope = match[2]?.toLowerCase();
+      const kind = match[3]?.toLowerCase();
+      const value = match.slice(4).find((candidate) => candidate !== undefined) ?? "";
+      if (!scope || !kind || isSafeDeploymentValue(value)) continue;
+      if (kind === "url" && !isConcreteDeploymentUrl(value)) continue;
+      if (kind === "id" && !isConcreteDeploymentIdentifier(value)) continue;
+      if (kind === "name" && !isConcreteDeploymentName(value)) continue;
+      categories.add(`${provider === "powerplatform" ? "power-platform" : provider || scope}-${kind}`);
+    }
+  }
+
+  for (const configuredPattern of directUrlPatterns) {
+    const pattern = freshGlobalPattern(configuredPattern);
+    for (const match of source.matchAll(pattern)) {
+      if (!isSafeDeploymentValue(match[0])) categories.add("dataverse-url");
+    }
+  }
+
+  for (const entry of additionalPatterns) {
+    if (!entry || typeof entry.category !== "string" || !(entry.pattern instanceof RegExp)) continue;
+    const pattern = freshPattern(entry.pattern);
+    if (pattern.test(source)) categories.add(entry.category.replace(/[^a-z0-9-]/gi, "-").slice(0, 64));
+  }
+
+  const boundedCategories = Object.freeze([...categories].sort().slice(0, 20));
+  return Object.freeze({ sensitive: boundedCategories.length > 0, categories: boundedCategories });
 }
 
 export function renderGithubAuditMarkdown(report) {
@@ -211,4 +274,57 @@ async function publicPrivacyFindings(root, files) {
     if (prohibited) findings.push(file);
   }
   return findings;
+}
+
+async function publicDeploymentMetadataFindings(root, files, configuration) {
+  const findings = [];
+  for (const file of files.filter((candidate) => TEXT_FILE.test(candidate))) {
+    const source = await readFile(path.join(root, file), "utf8");
+    if (findSensitiveDeploymentMetadata(source, configuration).sensitive) findings.push(file);
+  }
+  return findings;
+}
+
+function isSafeDeploymentValue(rawValue) {
+  const value = String(rawValue ?? "").trim().replace(/^[`"']+|[`"',.;]+$/g, "");
+  if (SAFE_DEPLOYMENT_VALUE.test(value) || SAFE_DEPLOYMENT_PREFIX.test(value) || RUNTIME_REFERENCE.test(value)) return true;
+  if (/^[A-Z][A-Z0-9_]*(?:ENVIRONMENT|TENANT)[A-Z0-9_]*$/.test(value)) return true;
+  if (/^(?:0{8}|1{8})-(?:0{4}|1{4})-(?:0{4}|1{4})-(?:0{4}|1{4})-(?:0{12}|1{12})$/i.test(value)) return true;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host.endsWith(".invalid")
+      || host === "example.com" || host.endsWith(".example.com")
+      || host.split(".").some((label) => ["example", "sample", "fixture", "mock", "contoso"].includes(label));
+  } catch {
+    return false;
+  }
+}
+
+function isConcreteDeploymentUrl(value) {
+  try {
+    const url = new URL(String(value).trim().replace(/^[`"']+|[`"',.;]+$/g, ""));
+    return ["http:", "https:"].includes(url.protocol) && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isConcreteDeploymentIdentifier(value) {
+  const candidate = String(value).trim().replace(/^[`"']+|[`"',.;]+$/g, "");
+  return CONCRETE_IDENTIFIER.test(candidate) && /\d/.test(candidate);
+}
+
+function isConcreteDeploymentName(value) {
+  const candidate = String(value).trim().replace(/^[`"']+|[`"',.;]+$/g, "");
+  return candidate.length >= 3 && candidate.length <= 160 && /[a-z0-9]/i.test(candidate) && !/[()[\]{}]/.test(candidate);
+}
+
+function freshGlobalPattern(pattern) {
+  if (!(pattern instanceof RegExp)) throw new TypeError("Deployment metadata patterns must be regular expressions.");
+  return new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+}
+
+function freshPattern(pattern) {
+  return new RegExp(pattern.source, pattern.flags.replaceAll("g", ""));
 }

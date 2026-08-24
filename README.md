@@ -110,9 +110,10 @@ and the four enabled isolated workers are supervised on loopback.
   checks only. Browser screenshots stay in local runtime state for at most 24
   hours; signed-in browsing remains disabled pending explicit user approval.
   Desktop Worker remains off pending its process contract and application-specific receipts.
-- Microsoft 365 queue: Vaco (default) (Upgrade), MahoragaPlatform, and the
-  permanent `mhg_` publisher are confirmed. Activation awaits completion of the
-  reusable Dataverse CLI authentication now in progress.
+- Microsoft 365 queue: private environment identity is supplied only through
+  ignored runtime configuration. The `MahoragaPlatform` solution and permanent
+  `mhg_` publisher are confirmed. Activation awaits a silent Dataverse credential
+  and one verified outbound poll on the live host.
 
 ## Update model
 

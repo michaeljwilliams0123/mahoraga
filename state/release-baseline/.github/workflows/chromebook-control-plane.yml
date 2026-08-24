@@ -55,7 +55,7 @@ on:
 permissions:
   contents: write
   issues: read
-  pull-requests: read
+  pull-requests: write
   actions: read
 
 concurrency:
@@ -67,7 +67,7 @@ jobs:
     # The repository is public. Only the repository owner may operate this control lane.
     if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Check out authoritative main
@@ -132,10 +132,25 @@ jobs:
             }
           fi
 
-          idempotency_key="${IDEMPOTENCY_KEY:-chromebook-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}"
+          idempotency_key="${IDEMPOTENCY_KEY:-chromebook-${GITHUB_RUN_ID}}"
+          record_id=""
+          record_path=""
+          control_branch=""
+          if [ "$MODE" = "secondary-assignment" ]; then
+            record_id="sec-${GITHUB_RUN_ID}"
+            record_path="coordination/assignments/${record_id}.json"
+            control_branch="control/chromebook/${MODE}-${GITHUB_RUN_ID}"
+          elif [ "$MODE" = "codex-cloud-task" ]; then
+            record_id="ccx-${GITHUB_RUN_ID}"
+            record_path="coordination/cloud-tasks/${record_id}.json"
+            control_branch="control/chromebook/${MODE}-${GITHUB_RUN_ID}"
+          fi
           {
             echo "base_commit=$base_commit"
             echo "idempotency_key=$idempotency_key"
+            echo "record_id=$record_id"
+            echo "record_path=$record_path"
+            echo "control_branch=$control_branch"
           } >> "$GITHUB_OUTPUT"
 
           {
@@ -199,14 +214,38 @@ jobs:
           TASK_TEXT: ${{ inputs.task }}
           ALLOWED_PATHS: ${{ inputs.allowed_paths }}
           BASE_COMMIT: ${{ steps.envelope.outputs.base_commit }}
+          IDEMPOTENCY_KEY: ${{ steps.envelope.outputs.idempotency_key }}
+          RECORD_ID: ${{ steps.envelope.outputs.record_id }}
+          RECORD_PATH: ${{ steps.envelope.outputs.record_path }}
         run: |
           set -euo pipefail
-          node scripts/coordination.mjs create-assignment \
-            --title "$TITLE" \
-            --task-area "$TASK_AREA" \
-            --task "$TASK_TEXT" \
-            --allowed-paths "$ALLOWED_PATHS" \
-            --base-commit "$BASE_COMMIT"
+          if [ -f "$RECORD_PATH" ]; then
+            node -e '
+              const fs = require("node:fs");
+              const record = JSON.parse(fs.readFileSync(process.env.RECORD_PATH, "utf8"));
+              const paths = process.env.ALLOWED_PATHS.split(",").map((value) => value.trim()).filter(Boolean);
+              const expected = {
+                assignmentId: process.env.RECORD_ID,
+                correlationId: process.env.IDEMPOTENCY_KEY,
+                title: process.env.TITLE,
+                taskArea: process.env.TASK_AREA,
+                expectedTask: process.env.TASK_TEXT,
+                allowedPaths: paths,
+              };
+              for (const [key, value] of Object.entries(expected)) {
+                if (JSON.stringify(record[key]) !== JSON.stringify(value)) throw new Error(`Existing assignment conflicts at ${key}.`);
+              }
+            '
+          else
+            node scripts/coordination.mjs create-assignment \
+              --id "$RECORD_ID" \
+              --correlation-id "$IDEMPOTENCY_KEY" \
+              --title "$TITLE" \
+              --task-area "$TASK_AREA" \
+              --task "$TASK_TEXT" \
+              --allowed-paths "$ALLOWED_PATHS" \
+              --base-commit "$BASE_COMMIT"
+          fi
           node scripts/coordination.mjs validate
 
       - name: Queue subscription-backed Codex cloud task
@@ -220,49 +259,178 @@ jobs:
           VERIFICATION: ${{ inputs.verification }}
           IDEMPOTENCY_KEY: ${{ steps.envelope.outputs.idempotency_key }}
           INTEGRATION_MODE: ${{ inputs.integration_mode }}
+          RECORD_ID: ${{ steps.envelope.outputs.record_id }}
+          RECORD_PATH: ${{ steps.envelope.outputs.record_path }}
         run: |
           set -euo pipefail
-          node scripts/codex-cloud-task.mjs create \
-            --idempotency-key "$IDEMPOTENCY_KEY" \
-            --base-commit "$BASE_COMMIT" \
-            --title "$TITLE" \
-            --task "$TASK_TEXT" \
-            --allowed-paths "$ALLOWED_PATHS" \
-            --verification "$VERIFICATION" \
-            --integration-mode "$INTEGRATION_MODE"
+          if [ -f "$RECORD_PATH" ]; then
+            node -e '
+              const fs = require("node:fs");
+              const record = JSON.parse(fs.readFileSync(process.env.RECORD_PATH, "utf8"));
+              const csv = (value) => value.split(",").map((item) => item.trim()).filter(Boolean);
+              const expected = {
+                taskId: process.env.RECORD_ID,
+                idempotencyKey: process.env.IDEMPOTENCY_KEY,
+                title: process.env.TITLE,
+                task: process.env.TASK_TEXT,
+                allowedPaths: csv(process.env.ALLOWED_PATHS),
+                verification: csv(process.env.VERIFICATION),
+                integrationMode: process.env.INTEGRATION_MODE,
+              };
+              for (const [key, value] of Object.entries(expected)) {
+                if (JSON.stringify(record[key]) !== JSON.stringify(value)) throw new Error(`Existing cloud task conflicts at ${key}.`);
+              }
+            '
+          else
+            node scripts/codex-cloud-task.mjs create \
+              --id "$RECORD_ID" \
+              --idempotency-key "$IDEMPOTENCY_KEY" \
+              --base-commit "$BASE_COMMIT" \
+              --title "$TITLE" \
+              --task "$TASK_TEXT" \
+              --allowed-paths "$ALLOWED_PATHS" \
+              --verification "$VERIFICATION" \
+              --integration-mode "$INTEGRATION_MODE"
+          fi
           node scripts/codex-cloud-task.mjs dispatch-bundle > /tmp/codex-cloud-dispatch.json
 
-      - name: Commit queued command to main
+      - name: Queue command through a deterministic control pull request
+        id: publish
         if: inputs.mode == 'secondary-assignment' || inputs.mode == 'codex-cloud-task'
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           MODE: ${{ inputs.mode }}
+          RECORD_PATH: ${{ steps.envelope.outputs.record_path }}
+          CONTROL_BRANCH: ${{ steps.envelope.outputs.control_branch }}
         run: |
           set -euo pipefail
           git config user.name "Mahoraga Chromebook Control Plane"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A coordination
+
+          git add -- "$RECORD_PATH"
           if git diff --cached --quiet; then
-            echo "No new coordination record was created." >&2
-            exit 3
+            {
+              echo "delivery=already-on-main"
+              echo "commit=$(git rev-parse HEAD)"
+              echo "pr_number="
+              echo "pr_url="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          git commit -m "[CONTROL] Queue ${MODE} from Chromebook"
-          git pull --rebase origin main
+
+          changed_paths="$(git diff --cached --name-only)"
+          test "$changed_paths" = "$RECORD_PATH" || {
+            echo "The control commit contains paths outside the validated coordination record." >&2
+            exit 4
+          }
+          candidate="$RUNNER_TEMP/mahoraga-candidate.json"
+          cp "$RECORD_PATH" "$candidate"
+
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" || {
+            echo "Authoritative main advanced while the command was being validated; retry without rebasing generated content." >&2
+            exit 4
+          }
+          # Safety invariant: never run git pull --rebase origin main over a generated coordination record.
+
+          delivery="created"
+          if git ls-remote --exit-code --heads origin "$CONTROL_BRANCH" > /dev/null 2>&1; then
+            git fetch --no-tags origin "refs/heads/${CONTROL_BRANCH}:refs/remotes/origin/${CONTROL_BRANCH}"
+            merge_base="$(git merge-base origin/main "origin/$CONTROL_BRANCH")"
+            remote_paths="$(git diff --name-only "$merge_base" "origin/$CONTROL_BRANCH")"
+            test "$remote_paths" = "$RECORD_PATH" || {
+              echo "Existing control branch contains conflicting paths; refusing to overwrite it." >&2
+              exit 4
+            }
+            git show "origin/${CONTROL_BRANCH}:${RECORD_PATH}" > "$RUNNER_TEMP/mahoraga-existing.json"
+            node -e '
+              const fs = require("node:fs");
+              const candidate = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const existing = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+              for (const key of ["createdAt", "baseCommit", "expectedBaseCommit"]) {
+                if (Object.hasOwn(candidate, key) && Object.hasOwn(existing, key)) candidate[key] = existing[key];
+              }
+              if (JSON.stringify(candidate) !== JSON.stringify(existing)) {
+                throw new Error("Existing control branch record conflicts with the validated command.");
+              }
+            ' "$candidate" "$RUNNER_TEMP/mahoraga-existing.json"
+            git checkout "origin/$CONTROL_BRANCH" -- "$RECORD_PATH"
+            control_commit="$(git rev-parse "origin/$CONTROL_BRANCH")"
+            delivery="reused"
+          else
+            git commit -m "[CONTROL] Queue ${MODE} from Chromebook"
+            control_commit="$(git rev-parse HEAD)"
+            git push origin "HEAD:refs/heads/${CONTROL_BRANCH}"
+          fi
+
           node scripts/coordination.mjs validate
           node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
-          git push origin HEAD:main
+
+          pr_json="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$CONTROL_BRANCH" --base main --state all --json number,state,url)"
+          pr_count="$(node -e 'const rows=JSON.parse(process.argv[1]); process.stdout.write(String(rows.length));' "$pr_json")"
+          if [ "$pr_count" -gt 1 ]; then
+            echo "Multiple pull requests exist for the deterministic control branch." >&2
+            exit 4
+          fi
+          if [ "$pr_count" -eq 1 ]; then
+            pr_state="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(row.state);' "$pr_json")"
+            test "$pr_state" = "OPEN" || {
+              echo "The deterministic control branch belongs to a non-open pull request; refusing to bypass its disposition." >&2
+              exit 4
+            }
+            pr_number="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(String(row.number));' "$pr_json")"
+            pr_url="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(row.url);' "$pr_json")"
+            delivery="reused"
+          else
+            pr_url="$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$CONTROL_BRANCH" \
+              --title "[CONTROL] Queue ${MODE} from Chromebook" \
+              --body "Queues one owner-authorized, privacy-bounded coordination record. The record reaches main only through required checks and merge policy.")"
+            pr_number="${pr_url##*/}"
+          fi
+
+          checks_seen=false
+          for _ in {1..24}; do
+            check_count="$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+            if [ "$check_count" -gt 0 ]; then checks_seen=true; break; fi
+            sleep 5
+          done
+          test "$checks_seen" = true || {
+            echo "No pull-request checks registered; auto-merge remains disabled." >&2
+            exit 4
+          }
+          gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" --watch --fail-fast
+          gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch
+
+          {
+            echo "delivery=$delivery"
+            echo "commit=$control_commit"
+            echo "pr_number=$pr_number"
+            echo "pr_url=$pr_url"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Summarize queued command
         if: inputs.mode == 'secondary-assignment' || inputs.mode == 'codex-cloud-task'
         shell: bash
         env:
           MODE: ${{ inputs.mode }}
+          DELIVERY: ${{ steps.publish.outputs.delivery }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
         run: |
           set -euo pipefail
           {
             echo
             echo "#### Queued"
-            echo "The validated \`$MODE\` record was committed to authoritative \`main\`."
+            if [ "$DELIVERY" = "already-on-main" ]; then
+              echo "The identical validated \`$MODE\` record is already present on authoritative \`main\`."
+            else
+              echo "The validated \`$MODE\` record was queued through pull request [#$PR_NUMBER]($PR_URL)."
+              echo "It is not activated on \`main\` until pull-request checks and merge requirements succeed."
+            fi
             if [ "$MODE" = "secondary-assignment" ]; then
               echo "The Windows Secondary Codex runner can pick it up on its next outbound poll."
             else

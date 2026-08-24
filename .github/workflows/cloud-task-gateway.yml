@@ -7,6 +7,7 @@ on:
 permissions:
   contents: write
   issues: write
+  pull-requests: write
 
 concurrency:
   group: mahoraga-cloud-gateway-${{ github.event.issue.number }}
@@ -20,7 +21,7 @@ jobs:
       github.actor == github.repository_owner &&
       startsWith(github.event.comment.body, '/mahoraga dispatch ')
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     steps:
       - name: Check out authoritative main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -56,25 +57,127 @@ jobs:
           node scripts/coordination.mjs validate
           node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
 
-      - name: Commit new dispatch to main
+      - name: Queue dispatch through a deterministic control pull request
         id: publish
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           ISSUE_NUMBER: ${{ github.event.issue.number }}
           MODE: ${{ steps.gateway.outputs.mode }}
+          RECORD_ID: ${{ steps.gateway.outputs.recordId }}
+          RECORD_PATH: ${{ steps.gateway.outputs.recordPath }}
         run: |
           set -euo pipefail
           git config user.name "Mahoraga Cloud Gateway"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- coordination/assignments coordination/cloud-tasks
-          if ! git diff --cached --quiet; then
-            git commit -m "[CONTROL] Dispatch ${MODE} from issue #${ISSUE_NUMBER}"
-            git pull --rebase origin main
-            node scripts/coordination.mjs validate
-            node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
-            git push origin HEAD:main
+
+          control_branch="control/cloud-gateway/${RECORD_ID}"
+          git add -- "$RECORD_PATH"
+          if git diff --cached --quiet; then
+            {
+              echo "delivery=already-on-main"
+              echo "branch=$control_branch"
+              echo "commit=$(git rev-parse HEAD)"
+              echo "pr_number="
+              echo "pr_url="
+            } >> "$GITHUB_OUTPUT"
+            exit 0
           fi
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+          changed_paths="$(git diff --cached --name-only)"
+          test "$changed_paths" = "$RECORD_PATH" || {
+            echo "The control commit contains paths outside the validated coordination record." >&2
+            exit 4
+          }
+          candidate="$RUNNER_TEMP/mahoraga-candidate.json"
+          cp "$RECORD_PATH" "$candidate"
+
+          git fetch --no-tags origin main
+          test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" || {
+            echo "Authoritative main advanced while the dispatch was being validated; retry without rebasing generated content." >&2
+            exit 4
+          }
+
+          delivery="created"
+          if git ls-remote --exit-code --heads origin "$control_branch" > /dev/null 2>&1; then
+            git fetch --no-tags origin "refs/heads/${control_branch}:refs/remotes/origin/${control_branch}"
+            merge_base="$(git merge-base origin/main "origin/$control_branch")"
+            remote_paths="$(git diff --name-only "$merge_base" "origin/$control_branch")"
+            test "$remote_paths" = "$RECORD_PATH" || {
+              echo "Existing control branch contains conflicting paths; refusing to overwrite it." >&2
+              exit 4
+            }
+            git show "origin/${control_branch}:${RECORD_PATH}" > "$RUNNER_TEMP/mahoraga-existing.json"
+            node -e '
+              const fs = require("node:fs");
+              const candidate = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+              const existing = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
+              for (const key of ["baseCommit", "expectedBaseCommit"]) {
+                if (Object.hasOwn(candidate, key) && Object.hasOwn(existing, key)) {
+                  candidate[key] = existing[key];
+                }
+              }
+              if (JSON.stringify(candidate) !== JSON.stringify(existing)) {
+                throw new Error("Existing control branch record conflicts with the validated dispatch.");
+              }
+            ' "$candidate" "$RUNNER_TEMP/mahoraga-existing.json"
+            git checkout "origin/$control_branch" -- "$RECORD_PATH"
+            control_commit="$(git rev-parse "origin/$control_branch")"
+            delivery="reused"
+          else
+            git commit -m "[CONTROL] Dispatch ${MODE} from issue #${ISSUE_NUMBER}"
+            control_commit="$(git rev-parse HEAD)"
+            git push origin "HEAD:refs/heads/${control_branch}"
+          fi
+
+          node scripts/coordination.mjs validate
+          node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
+
+          pr_json="$(gh pr list --repo "$GITHUB_REPOSITORY" --head "$control_branch" --base main --state all --json number,state,url)"
+          pr_count="$(node -e 'const rows=JSON.parse(process.argv[1]); process.stdout.write(String(rows.length));' "$pr_json")"
+          if [ "$pr_count" -gt 1 ]; then
+            echo "Multiple pull requests exist for the deterministic control branch." >&2
+            exit 4
+          fi
+          if [ "$pr_count" -eq 1 ]; then
+            pr_state="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(row.state);' "$pr_json")"
+            test "$pr_state" = "OPEN" || {
+              echo "The deterministic control branch belongs to a non-open pull request; refusing to bypass its disposition." >&2
+              exit 4
+            }
+            pr_number="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(String(row.number));' "$pr_json")"
+            pr_url="$(node -e 'const [row]=JSON.parse(process.argv[1]); process.stdout.write(row.url);' "$pr_json")"
+            delivery="reused"
+          else
+            pr_url="$(gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --head "$control_branch" \
+              --title "[CONTROL] Dispatch ${MODE} from issue #${ISSUE_NUMBER}" \
+              --body "Queues one owner-approved, privacy-bounded coordination record from #${ISSUE_NUMBER}. The record reaches main only through required checks and merge policy.")"
+            pr_number="${pr_url##*/}"
+          fi
+
+          checks_seen=false
+          for _ in {1..24}; do
+            check_count="$(gh pr view "$pr_number" --repo "$GITHUB_REPOSITORY" --json statusCheckRollup --jq '.statusCheckRollup | length')"
+            if [ "$check_count" -gt 0 ]; then checks_seen=true; break; fi
+            sleep 5
+          done
+          test "$checks_seen" = true || {
+            echo "No pull-request checks registered; auto-merge remains disabled." >&2
+            exit 4
+          }
+          gh pr checks "$pr_number" --repo "$GITHUB_REPOSITORY" --watch --fail-fast
+          gh pr merge "$pr_number" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch
+
+          {
+            echo "delivery=$delivery"
+            echo "branch=$control_branch"
+            echo "commit=$control_commit"
+            echo "pr_number=$pr_number"
+            echo "pr_url=$pr_url"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Label and acknowledge accepted dispatch
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
@@ -83,7 +186,11 @@ jobs:
           RECORD_ID: ${{ steps.gateway.outputs.recordId }}
           RECORD_PATH: ${{ steps.gateway.outputs.recordPath }}
           CHANGED: ${{ steps.gateway.outputs.changed }}
+          DELIVERY: ${{ steps.publish.outputs.delivery }}
+          CONTROL_BRANCH: ${{ steps.publish.outputs.branch }}
           COMMIT: ${{ steps.publish.outputs.commit }}
+          PR_NUMBER: ${{ steps.publish.outputs.pr_number }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
           ATTACHMENT_COUNT: ${{ steps.gateway.outputs.attachmentReferenceCount }}
         with:
           script: |
@@ -103,15 +210,19 @@ jobs:
               }
             }
             await github.rest.issues.addLabels({ owner, repo, issue_number: context.issue.number, labels: labels.map((item) => item.name) });
-            const state = process.env.CHANGED === "true" ? "created" : "reused idempotently";
             const attachments = Number(process.env.ATTACHMENT_COUNT) > 0
               ? ` ${process.env.ATTACHMENT_COUNT} attachment reference(s) remain in this source issue and were not copied into the coordination record.`
               : "";
+            const alreadyOnMain = process.env.DELIVERY === "already-on-main";
+            const state = process.env.DELIVERY === "reused" ? "reused idempotently" : "created";
+            const delivery = alreadyOnMain
+              ? `Mahoraga reused the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\`; the identical record is already on \`main\` at \`${process.env.COMMIT.slice(0, 12)}\`.`
+              : `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` and queued control pull request [#${process.env.PR_NUMBER}](${process.env.PR_URL}) from \`${process.env.CONTROL_BRANCH}\`. The record is not activated on \`main\` until pull-request checks and merge requirements succeed.`;
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: context.issue.number,
-              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
+              body: `${delivery}${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
             });
 
       - name: Report rejected dispatch without echoing issue content

@@ -8,8 +8,8 @@ import {
 
 const READY_ENV = [
   "PUBLISHER_PREFIX=mhg",
-  "DATAVERSE_URL=https://org9aade5b6.crm.dynamics.com/",
-  "TENANT_ID=120aeae9-286f-438a-bbf3-de3ab96fcf5d",
+  "DATAVERSE_URL=https://example.crm.dynamics.com/",
+  "TENANT_ID=00000000-0000-0000-0000-000000000000",
 ].join("\n");
 
 const fileStat = { isFile: () => true };
@@ -64,8 +64,8 @@ test("queue status requires a working silent Dataverse credential for unattended
   );
   assert.equal(calls[0].timeoutMs, 20000);
   const serialized = JSON.stringify(result);
-  assert.equal(serialized.includes("org9aade5b6"), false);
-  assert.equal(serialized.includes("120aeae9"), false);
+  assert.equal(serialized.includes("example.crm.dynamics.com"), false);
+  assert.equal(serialized.includes("00000000-0000"), false);
 });
 
 test("queue status reports configured-but-blocked when only interactive authentication remains", async () => {

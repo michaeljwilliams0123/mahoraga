@@ -1,14 +1,16 @@
 # Copilot Studio connected-agent 404 evidence
 
-Captured 2026-08-13 from the published **General Mahoraga** agent in the **Vaco (default) (Upgrade)** environment.
+Captured 2026-08-13 from the published **General Mahoraga** agent in a private
+Microsoft environment. The environment identity and service correlation values
+are intentionally omitted from the repository.
 
 ## Runtime failures supplied by the user
 
 | Connected agent | Result | Conversation ID | UTC |
 |---|---|---|---|
-| Researcher | `connectorRequestFailure`, HTTP 404 | `a63eba48-2cfe-40c9-9366-b7840a587fa3` | `2026-08-13T03:48:26.752Z` |
-| App Builder | `connectorRequestFailure`, HTTP 404 | `3049bffe-df68-4abd-9ade-4bb8ace3c8ae` | `2026-08-13T03:56:37.804Z` |
-| Researcher, after creating and saving a fresh connection | `ConnectorRequestFailure`, HTTP 404 | `350eb491-9cfe-4c96-98b1-d98d81c01c41` | `2026-08-13T04:27:43.544Z` |
+| Researcher | `connectorRequestFailure`, HTTP 404 | omitted | `2026-08-13T03:48:26.752Z` |
+| App Builder | `connectorRequestFailure`, HTTP 404 | omitted | `2026-08-13T03:56:37.804Z` |
+| Researcher, after creating and saving a fresh connection | `ConnectorRequestFailure`, HTTP 404 | omitted | `2026-08-13T04:27:43.544Z` |
 
 ## Studio configuration evidence
 
