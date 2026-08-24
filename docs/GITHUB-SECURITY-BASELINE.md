@@ -34,12 +34,12 @@ them after every ownership, plan, or visibility change:
 5. The default workflow token remains read-only and no repository secret stores
    Codex, ChatGPT, browser-session, or local Windows runtime authentication.
 
-## Remaining workflow hardening
+## Workflow hardening
 
-GitHub Actions references currently use GitHub-owned major-version tags. Moving
-them to immutable commit SHAs requires a workflow-authorized GitHub credential
-and a verified cross-platform run. Until that migration is complete, the live
-Actions allowlist should remain restricted to GitHub-owned actions.
+Every GitHub Action reference is pinned to an immutable, signature-verified
+commit SHA with its major version retained in a comment for reviewability.
+Dependabot remains responsible for proposing future GitHub Actions updates, and
+the live Actions allowlist remains restricted to GitHub-owned actions.
 
 The Chromebook control workflow still fast-forwards bounded task records to
 `main`. Full required-status-check protection depends on first changing that
