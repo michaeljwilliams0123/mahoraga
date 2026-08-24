@@ -1,0 +1,128 @@
+name: Mahoraga Cloud Task Gateway
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: mahoraga-cloud-gateway-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Validate owner approval and dispatch
+    if: >-
+      github.event.issue.pull_request == null &&
+      github.actor == github.repository_owner &&
+      startsWith(github.event.comment.body, '/mahoraga dispatch ')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out authoritative main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Parse and validate owner-approved issue
+        id: gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/cloud-task-gateway.mjs dispatch \
+            --event "$GITHUB_EVENT_PATH" \
+            --base-commit "$(git rev-parse HEAD)" > "$RUNNER_TEMP/mahoraga-gateway.json"
+          node -e '
+            const fs = require("node:fs");
+            const result = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, "utf8"));
+            for (const key of ["mode", "recordId", "recordPath", "changed", "issueNumber", "attachmentReferenceCount"]) {
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
+            }
+          '
+        env:
+          RESULT_FILE: ${{ runner.temp }}/mahoraga-gateway.json
+
+      - name: Validate coordination ledgers
+        run: |
+          node scripts/coordination.mjs validate
+          node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
+
+      - name: Commit new dispatch to main
+        id: publish
+        shell: bash
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          MODE: ${{ steps.gateway.outputs.mode }}
+        run: |
+          set -euo pipefail
+          git config user.name "Mahoraga Cloud Gateway"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- coordination/assignments coordination/cloud-tasks
+          if ! git diff --cached --quiet; then
+            git commit -m "[CONTROL] Dispatch ${MODE} from issue #${ISSUE_NUMBER}"
+            git pull --rebase origin main
+            node scripts/coordination.mjs validate
+            node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
+            git push origin HEAD:main
+          fi
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Label and acknowledge accepted dispatch
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          MODE: ${{ steps.gateway.outputs.mode }}
+          RECORD_ID: ${{ steps.gateway.outputs.recordId }}
+          RECORD_PATH: ${{ steps.gateway.outputs.recordPath }}
+          CHANGED: ${{ steps.gateway.outputs.changed }}
+          COMMIT: ${{ steps.publish.outputs.commit }}
+          ATTACHMENT_COUNT: ${{ steps.gateway.outputs.attachmentReferenceCount }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const mode = process.env.MODE;
+            const labels = [
+              { name: "mahoraga:dispatched", color: "0e8a16", description: "Owner-approved Mahoraga dispatch" },
+              mode === "codex"
+                ? { name: "lane:codex-cloud", color: "1d76db", description: "Explicit Codex cloud execution lane" }
+                : { name: "lane:desktop", color: "d876e3", description: "Outbound desktop Codex execution lane" },
+            ];
+            for (const label of labels) {
+              try { await github.rest.issues.getLabel({ owner, repo, name: label.name }); }
+              catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({ owner, repo, ...label });
+              }
+            }
+            await github.rest.issues.addLabels({ owner, repo, issue_number: context.issue.number, labels: labels.map((item) => item.name) });
+            const state = process.env.CHANGED === "true" ? "created" : "reused idempotently";
+            const attachments = Number(process.env.ATTACHMENT_COUNT) > 0
+              ? ` ${process.env.ATTACHMENT_COUNT} attachment reference(s) remain in this source issue and were not copied into the coordination record.`
+              : "";
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
+            });
+
+      - name: Report rejected dispatch without echoing issue content
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: context.issue.number,
+              body: `Mahoraga rejected this dispatch before model execution. No execution record was activated. Review the bounded workflow evidence: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            });

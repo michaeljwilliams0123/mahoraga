@@ -15,6 +15,8 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/pull_request_template.md",
     ".github/workflows/chromebook-control-plane.yml",
     ".github/workflows/codex-cloud-dispatch.yml",
+    ".github/workflows/cloud-task-gateway.yml",
+    ".github/workflows/release.yml",
     ".github/workflows/verify.yml",
     "src/github-audit.mjs",
     "scripts/github-audit.mjs",

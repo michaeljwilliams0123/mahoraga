@@ -24,6 +24,8 @@ test("gap audit distinguishes closed repository controls from live-machine block
     "local-reasoner-health-contract",
     "secondary-codex-mailbox",
     "no-default-metered-openai-api",
+    "owner-approved-cloud-gateway",
+    "staged-attested-update-channel",
   ]) assert.ok(closed.has(id), `expected closed control: ${id}`);
 
   for (const id of ["desktop-worker", "signed-browser-session", "microsoft-durable-queue", "local-reasoner"]) {
@@ -47,4 +49,6 @@ test("gap audit does not claim file-backed controls when their files are absent"
   assert.ok(!closed.has("microsoft-queue-readiness-contract"));
   assert.ok(!closed.has("local-provider-readiness-probe"));
   assert.ok(!closed.has("local-reasoner-health-contract"));
+  assert.ok(!closed.has("owner-approved-cloud-gateway"));
+  assert.ok(!closed.has("staged-attested-update-channel"));
 });

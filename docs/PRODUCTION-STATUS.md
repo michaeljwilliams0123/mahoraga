@@ -1,4 +1,4 @@
-# Production status — repository baseline 2026-08-23
+# Production status — repository baseline 2026-08-24
 
 This record describes the authoritative GitHub production baseline. It does not
 claim that a particular Windows process has already fetched, restarted, or
@@ -7,10 +7,11 @@ runtime evidence.
 
 ## Repository production baseline
 
-- Product version: `3.3.0`
-- Runtime version declared by the manifest: `3.3.0`
-- Control Center: `5.2.0`
-- Cloud control plane declaration: `3.0.2`
+- Product version: `3.5.0`
+- Runtime version declared by the manifest: `3.5.0`
+- Control Center: `5.3.0`
+- Cloud control plane declaration: `3.2.0`
+- Cloud Workspace: `2.0.0`
 - Capability registry: `1.0.0`
 - Node runtime contract: `>=24`
 - Phase/environment: `production`
@@ -52,6 +53,13 @@ mailbox when enabled.
   it is not an OpenAI Platform API-key integration.
 - Canonical CI runs `npm run verify` and the declared gap audit on Linux and
   Windows GitHub-hosted runners.
+- Cloud Workspace task issues remain inert until an exact owner-authored gateway
+  command selects Codex cloud or a registered desktop task area. The gateway
+  revalidates the issue, writes one idempotent record, and posts bounded status
+  back without copying attachment URLs into coordination JSON.
+- The staged update workflow verifies authoritative `main`, packages an
+  immutable archive, emits SHA-256 metadata, and records GitHub provenance.
+  Publishing never installs or activates an update on a device.
 
 ## Implemented planner/observer foundation
 
@@ -145,5 +153,5 @@ Run `npm run gap:audit` for the machine-readable repository-declared gap report.
 
 The previous version of this document described a `3.2.0`/Control Center `4.1.0`
 baseline dated 2026-08-13. That record is superseded for repository state by the
-3.3 production line. It should not be used as evidence that the current Windows
+3.5 production line. It should not be used as evidence that the current Windows
 process has already been restarted onto this commit.

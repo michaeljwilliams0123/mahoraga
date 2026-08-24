@@ -14,6 +14,8 @@ whether work exists.
 | Secret scanning and push protection | Git object publication | Blocks or alerts on supported credential patterns |
 | Secondary runner poll | Local Windows scheduled task | Fetches and validates bounded metadata; an idle poll stops before Codex |
 | Repository status, verify, and gap audit | Owner-started GitHub workflow | Deterministic status or test evidence only |
+| Cloud task intake and validation | Issue submission and owner review | No model; validates metadata and waits for an exact owner dispatch command |
+| Staged update packaging | Owner-started release workflow | Verification, archive, SHA-256 manifest, and provenance only |
 
 These paths use GitHub-hosted compute or local deterministic processes. They do
 not send a prompt to ChatGPT, Codex, Copilot, or an OpenAI Platform endpoint.
@@ -25,6 +27,7 @@ A model may run only after one of these deliberate actions:
 - a new validated Secondary assignment reaches a registered local runner;
 - the operator explicitly retries a failed Secondary assignment;
 - the owner deliberately creates a Codex cloud task; or
+- the owner posts an exact `/mahoraga dispatch codex` or registered desktop-lane command; or
 - the owner invokes another declared model-backed provider capability.
 
 Idle polling, provider readiness checks, CI, security scanning, dependency

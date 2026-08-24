@@ -9,7 +9,11 @@ body:
       value: |
         This form is the authenticated write and attachment surface for the Mahoraga Cloud Workspace.
 
-        It does **not** automatically invoke a model. After reviewing the submitted task, the repository owner may explicitly delegate it to Codex with an owner-authored `@codex` command. Use only repository-safe context: no chats, credentials, personal documents, browser history, raw plugin responses, or unrelated files.
+        It does **not** automatically invoke a model. After reviewing the submitted task, the repository owner may explicitly dispatch an approved lane with an owner-authored `/mahoraga` command. Use only repository-safe context: no chats, credentials, personal documents, browser history, raw plugin responses, or unrelated files.
+
+        After submission, the owner uses exactly one audited command:
+        - `/mahoraga dispatch codex`
+        - `/mahoraga dispatch desktop mahoraga`
   - type: input
     id: idempotency_key
     attributes:
@@ -40,6 +44,19 @@ body:
         - Security review
         - Testing and verification
         - Documentation
+        - Release engineering
+      default: 0
+    validations:
+      required: true
+  - type: dropdown
+    id: execution_lane
+    attributes:
+      label: Preferred execution lane
+      description: Select where approved work should run. Deterministic Actions use the Actions console instead of the model gateway.
+      options:
+        - Codex cloud
+        - Desktop Codex
+        - Deterministic Actions
       default: 0
     validations:
       required: true
@@ -93,5 +110,5 @@ body:
       options:
         - label: This task and every attachment contain no chat transcript, credential, personal document, raw plugin response, or unrelated context.
           required: true
-        - label: I understand that opening this issue does not spend model credits; the repository owner explicitly invokes Codex after review.
+        - label: I understand that opening this issue does not spend model credits; the repository owner explicitly dispatches the selected lane after review.
           required: true

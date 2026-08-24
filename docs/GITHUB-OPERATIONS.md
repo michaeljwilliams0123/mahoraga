@@ -26,6 +26,17 @@ pre-push guard blocks deletion and non-fast-forward updates to `main` and the
 preserved production branch. The local guard complements GitHub verification;
 it does not replace review of the actual diff and declared task scope.
 
+The Cloud Task Gateway accepts only exact issue commands authored by the
+repository owner. A workspace issue, label, edit, attachment, or third-party
+comment cannot independently invoke a model. The gateway writes only validated,
+idempotent coordination metadata to `main`; the existing cloud dispatcher or
+outbound Windows poller performs the selected execution later.
+
+The release workflow is also owner-started. It builds only from authoritative
+`main`, runs full verification, emits a strict update manifest, and records
+provenance. Releases are staging artifacts, not an automatic core activation
+mechanism.
+
 Run `npm run github:audit` before publishing a branch. The deterministic audit
 checks the candidate repository state without reading GitHub credentials or
 emitting file contents. Account-level controls and their compatibility with the

@@ -1,0 +1,92 @@
+name: Publish Staged Mahoraga Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        default: beta
+        options:
+          - beta
+          - stable
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: mahoraga-release-${{ inputs.channel }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Verify, attest, and publish staged update
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out authoritative main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Verify authoritative release source
+        run: npm run verify
+
+      - name: Build immutable update archive and manifest
+        id: package
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          base_version="$(node -p 'require("./mahoraga.manifest.json").version')"
+          if [ "$CHANNEL" = "stable" ]; then version="$base_version"; else version="${base_version}-beta.${GITHUB_RUN_NUMBER}"; fi
+          tag="v${version}"
+          commit="$(git rev-parse HEAD)"
+          mkdir -p dist
+          artifact="dist/mahoraga-${version}.zip"
+          git archive --format=zip --prefix="mahoraga-${version}/" --output="$artifact" "$commit"
+          node scripts/update-manifest.mjs create \
+            --artifact "$artifact" \
+            --version "$version" \
+            --channel "$CHANNEL" \
+            --tag "$tag" \
+            --commit "$commit" \
+            --output dist/mahoraga-update.json
+          node scripts/update-manifest.mjs validate --file dist/mahoraga-update.json
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Attest release provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: |
+            ${{ steps.package.outputs.artifact }}
+            dist/mahoraga-update.json
+
+      - name: Publish staged GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANNEL: ${{ inputs.channel }}
+          TAG: ${{ steps.package.outputs.tag }}
+          VERSION: ${{ steps.package.outputs.version }}
+          ARTIFACT: ${{ steps.package.outputs.artifact }}
+          COMMIT: ${{ steps.package.outputs.commit }}
+        run: |
+          set -euo pipefail
+          flags=(--target "$COMMIT" --title "Mahoraga ${VERSION}" --notes "Verified ${CHANNEL} update. Activation remains staged and requires explicit user approval; rollback evidence is mandatory.")
+          if [ "$CHANNEL" = "beta" ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
+          gh release create "$TAG" "$ARTIFACT" dist/mahoraga-update.json "${flags[@]}"
