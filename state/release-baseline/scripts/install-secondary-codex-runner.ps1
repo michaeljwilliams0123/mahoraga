@@ -6,7 +6,8 @@ param(
   [string]$TargetCheckout = $RepositoryRoot,
   [string]$AllowedPaths = 'coordination/results',
   [string]$DefaultBranch = 'main',
-  [int]$MaxRuntimeMinutes = 60
+  [ValidateRange(5, 240)][int]$MaxRuntimeMinutes = 60,
+  [ValidateRange(1, 5)][int]$MaxAttempts = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +43,7 @@ if ($LASTEXITCODE -ne 0 -or -not $origin) { throw 'The Mahoraga checkout must ha
 if ($LASTEXITCODE -ne 0) { throw 'GitHub authentication or origin access failed.' }
 
 $node = Find-Node
-& $node $cli configure --task-area $TaskArea --repository $TargetRepository --checkout $TargetCheckout --allowed-paths $AllowedPaths --default-branch $DefaultBranch --max-runtime-minutes $MaxRuntimeMinutes
+& $node $cli configure --task-area $TaskArea --repository $TargetRepository --checkout $TargetCheckout --allowed-paths $AllowedPaths --default-branch $DefaultBranch --max-runtime-minutes $MaxRuntimeMinutes --max-attempts $MaxAttempts
 if ($LASTEXITCODE -ne 0) { throw 'Secondary Codex runner configuration failed.' }
 
 $argument = "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$runner`""
@@ -57,3 +58,4 @@ Start-ScheduledTask -TaskName $taskName
 Write-Output "Installed and started: $taskName"
 Write-Output "Task area: $TaskArea"
 Write-Output "Return branches: secondary/<assignment-id>"
+Write-Output "Model attempts per assignment: $MaxAttempts maximum; retries require an explicit retry command"

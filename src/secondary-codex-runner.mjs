@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 import { createResultRecord, pathAllowed, validateAssignmentRecord } from "./coordination-records.mjs";
@@ -10,6 +10,7 @@ const execFileAsync = promisify(execFile);
 const CONFIG_KEYS = new Set(["schemaVersion", "controlBranch", "maxAttempts", "projects"]);
 const PROJECT_KEYS = new Set(["taskArea", "repository", "checkout", "defaultBranch", "allowedPaths", "maxRuntimeMinutes", "enabled"]);
 export const SECONDARY_CODEX_ARGS = Object.freeze(["exec", "--sandbox", "workspace-write", "--ephemeral"]);
+const RUN_LOCK_STALE_MS = 5 * 60 * 60 * 1000;
 
 export function codexSubscriptionEnvironment(environment = process.env) {
   const safe = {};
@@ -101,6 +102,7 @@ export class SecondaryCodexRunner {
     this.executionId = executionId;
     this.configFile = path.join(root, "state", "secondary-runner.json");
     this.stateFile = path.join(root, "state", "secondary-runner-state.json");
+    this.lockFile = path.join(root, "state", "secondary-runner.lock");
     this.workRoot = path.join(root, "state", "secondary-worktrees");
   }
 
@@ -121,36 +123,61 @@ export class SecondaryCodexRunner {
   }
 
   async runOnce() {
+    const release = await this.acquireRunLock();
+    if (!release) return { status: "busy" };
+    try { return await this.runOnceLocked(); }
+    finally { await release(); }
+  }
+
+  async runOnceLocked() {
     const config = await this.loadConfig();
     const state = await this.loadState();
-    const codex = await this.commandHealth("codex", ["--version"]);
-    if (!codex.healthy) return this.finishRun(state, { status: "unavailable", reason: "codex-command-unavailable" });
     const assignments = await this.listAssignments(config.controlBranch);
     let observedReturn = null;
     for (const assignment of assignments) {
       const project = projectForAssignment(config, assignment);
       if (!project) continue;
       const record = state.assignments[assignment.assignmentId];
-      if (record?.state === "completed" || (record?.attempts ?? 0) >= config.maxAttempts) continue;
+      if (record?.state === "completed" || record?.state === "returned") continue;
+      if (record?.state === "running") {
+        if (await this.remoteBranchExists(project.repository, assignment.returnBranch)) {
+          state.assignments[assignment.assignmentId] = { attempts: record.attempts ?? 0, state: "returned", updatedAt: this.now().toISOString() };
+          observedReturn = { status: "returned", assignmentId: assignment.assignmentId, returnBranch: assignment.returnBranch };
+        }
+        continue;
+      }
+      if ((record?.attempts ?? 0) >= config.maxAttempts) continue;
+      if (record && record.state !== "retry-armed") continue;
       if (await this.remoteBranchExists(project.repository, assignment.returnBranch)) {
         state.assignments[assignment.assignmentId] = { attempts: record?.attempts ?? 0, state: "returned", updatedAt: this.now().toISOString() };
         observedReturn = { status: "returned", assignmentId: assignment.assignmentId, returnBranch: assignment.returnBranch };
         continue;
       }
+      const codex = await this.commandHealth("codex", ["--version"]);
+      if (!codex.healthy) return this.finishRun(state, { status: "unavailable", reason: "codex-command-unavailable" });
       const attempt = (record?.attempts ?? 0) + 1;
+      state.assignments[assignment.assignmentId] = { attempts: attempt, state: "running", updatedAt: this.now().toISOString() };
+      await this.saveState(state);
       try {
         const result = await this.executeAssignment(assignment, project, attempt);
         state.assignments[assignment.assignmentId] = { attempts: attempt, state: "completed", returnBranch: result.returnBranch, returnCommit: result.returnCommit, updatedAt: this.now().toISOString() };
         return this.finishRun(state, { status: "completed", assignmentId: assignment.assignmentId, returnBranch: result.returnBranch, returnCommit: result.returnCommit });
       } catch (error) {
-        state.assignments[assignment.assignmentId] = { attempts: attempt, state: attempt >= config.maxAttempts ? "failed" : "retryable", error: errorCode(error), updatedAt: this.now().toISOString() };
-        return this.finishRun(state, { status: attempt >= config.maxAttempts ? "failed" : "retryable", assignmentId: assignment.assignmentId, attempt, reason: errorCode(error) });
+        state.assignments[assignment.assignmentId] = { attempts: attempt, state: "failed", error: errorCode(error), updatedAt: this.now().toISOString() };
+        return this.finishRun(state, { status: "failed", assignmentId: assignment.assignmentId, attempt, reason: errorCode(error) });
       }
     }
     return this.finishRun(state, observedReturn ?? { status: "idle" });
   }
 
   async retry(assignmentId) {
+    const release = await this.acquireRunLock();
+    if (!release) return { status: "busy", assignmentId };
+    try { return await this.retryLocked(assignmentId); }
+    finally { await release(); }
+  }
+
+  async retryLocked(assignmentId) {
     if (typeof assignmentId !== "string" || !/^sec-[a-f0-9-]{8,72}$/i.test(assignmentId)) throw new TypeError("Secondary assignment ID is invalid.");
     const config = await this.loadConfig();
     const state = await this.loadState();
@@ -164,7 +191,10 @@ export class SecondaryCodexRunner {
       await this.saveState(state);
       return result;
     }
-    delete state.assignments[assignmentId];
+    const record = state.assignments[assignmentId];
+    if (!record || !new Set(["failed", "retryable", "running"]).has(record.state)) throw new Error("secondary-assignment-retry-not-required");
+    if ((record.attempts ?? 0) >= config.maxAttempts) throw new Error("secondary-assignment-attempts-exhausted");
+    state.assignments[assignmentId] = { attempts: record.attempts ?? 0, state: "retry-armed", updatedAt: this.now().toISOString() };
     state.lastOutcome = { status: "retry-armed", assignmentId };
     await this.saveState(state);
     return { status: "retry-armed", assignmentId };
@@ -254,6 +284,41 @@ export class SecondaryCodexRunner {
     }
   }
 
+  async acquireRunLock() {
+    await mkdir(path.dirname(this.lockFile), { recursive: true });
+    const acquire = async (allowRecovery) => {
+      try {
+        const handle = await open(this.lockFile, "wx", 0o600);
+        await handle.writeFile(`${JSON.stringify({ schemaVersion: 1, processId: process.pid, acquiredAt: this.now().toISOString() })}\n`);
+        return async () => {
+          await handle.close();
+          try { await unlink(this.lockFile); }
+          catch (error) { if (error?.code !== "ENOENT") throw error; }
+        };
+      } catch (error) {
+        if (error?.code !== "EEXIST") throw error;
+        if (!allowRecovery || !await this.runLockIsStale()) return null;
+        try { await unlink(this.lockFile); }
+        catch (unlinkError) { if (unlinkError?.code !== "ENOENT") return null; }
+        return acquire(false);
+      }
+    };
+    return acquire(true);
+  }
+
+  async runLockIsStale() {
+    try {
+      const source = JSON.parse(await readFile(this.lockFile, "utf8"));
+      const acquiredAt = Date.parse(source?.acquiredAt);
+      if (Number.isFinite(acquiredAt) && this.now().getTime() - acquiredAt > RUN_LOCK_STALE_MS) return true;
+      if (Number.isSafeInteger(source?.processId) && source.processId > 0) return !processAlive(source.processId);
+      return false;
+    } catch {
+      try { return this.now().getTime() - (await stat(this.lockFile)).mtimeMs > RUN_LOCK_STALE_MS; }
+      catch { return false; }
+    }
+  }
+
   async exec(command, args, options = {}) {
     return this.run(command, args, { encoding: "utf8", windowsHide: true, maxBuffer: 1_048_576, ...options });
   }
@@ -306,3 +371,7 @@ function normalizeRepoPath(value) {
 }
 function firstLine(value) { return String(value ?? "").split(/\r?\n/)[0].slice(0, 160); }
 function errorCode(error) { return String(error?.code ?? error?.message ?? "runner-error").toLowerCase().replace(/[^a-z0-9._-]+/g, "-").slice(0, 80) || "runner-error"; }
+function processAlive(processId) {
+  try { process.kill(processId, 0); return true; }
+  catch (error) { return error?.code !== "ESRCH"; }
+}

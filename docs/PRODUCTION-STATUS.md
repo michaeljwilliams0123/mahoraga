@@ -45,6 +45,9 @@ mailbox when enabled.
 - The Chromebook lane remains owner-gated and does not expose the Windows
   localhost runtime to the internet.
 - Secondary Codex coordination remains outbound-only through the GitHub mailbox.
+- Idle mailbox polls perform no Codex CLI call. Model execution is single-flight,
+  receives one initial attempt, and requires an explicit bounded retry after a
+  failure.
 - Codex Cloud delegation uses repository task metadata and ChatGPT/Codex sign-in;
   it is not an OpenAI Platform API-key integration.
 - Canonical CI runs `npm run verify` and the declared gap audit on Linux and

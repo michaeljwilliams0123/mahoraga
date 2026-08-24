@@ -12,7 +12,7 @@ export function secondaryRunnerSnapshot(root = ROOT) {
     enabledTaskAreas: safeTaskAreas(config.value?.projects),
     lastRunAt: safeTimestamp(state.value?.lastRunAt),
     lastOutcome: safeOutcome(state.value?.lastOutcome),
-    assignmentCounts: Object.fromEntries(["completed", "failed", "retryable", "returned"].map((name) => [name, assignmentStates.filter((stateName) => stateName === name).length])),
+    assignmentCounts: Object.fromEntries(["completed", "failed", "retry-armed", "retryable", "returned", "running"].map((name) => [name, assignmentStates.filter((stateName) => stateName === name).length])),
     error: config.invalid ? "runner-config-invalid" : state.invalid ? "runner-state-invalid" : null,
   };
 }
@@ -28,7 +28,7 @@ function safeTaskAreas(projects) {
 }
 
 function safeState(value) {
-  return new Set(["completed", "failed", "retryable", "returned"]).has(value) ? value : "unknown";
+  return new Set(["completed", "failed", "retry-armed", "retryable", "returned", "running"]).has(value) ? value : "unknown";
 }
 
 function safeTimestamp(value) {
