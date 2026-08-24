@@ -14,7 +14,8 @@ test("Codex cloud dispatch remains main-only and repository-scoped", async () =>
   const source = await workflow();
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
   assert.match(source, /coordination\/cloud-tasks\/\*\.json/);
-  assert.match(source, /actions\/checkout@v7/);
+  assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
+  assert.match(source, /actions\/github-script@[a-f0-9]{40} # v9/);
 
   const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(block, "permissions block missing");

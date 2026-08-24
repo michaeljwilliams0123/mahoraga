@@ -17,8 +17,8 @@ test("Chromebook control plane keeps owner gate and supported command modes", as
     assert.match(source, new RegExp(`- ${mode.replaceAll("-", "\\-")}`));
   }
   assert.match(source, /github\.actor == github\.repository_owner/);
-  assert.match(source, /actions\/checkout@v7/);
-  assert.match(source, /actions\/setup-node@v7/);
+  assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
+  assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
 });
 

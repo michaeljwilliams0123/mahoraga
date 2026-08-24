@@ -82,7 +82,7 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
 
   const actions = [];
   for (const [file, source] of workflowSources) {
-    for (const match of source.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)\s*$/gm)) {
+    for (const match of source.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#.*)?\s*$/gm)) {
       const value = match[1];
       if (value.startsWith("./") || value.startsWith("docker://")) continue;
       const [action, reference = ""] = value.split("@");

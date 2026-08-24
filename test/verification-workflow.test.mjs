@@ -16,8 +16,8 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
   assert.match(source, /ubuntu-latest/);
   assert.match(source, /windows-latest/);
-  assert.match(source, /actions\/checkout@v7/);
-  assert.match(source, /actions\/setup-node@v7/);
+  assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
+  assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
   assert.match(source, /npm run verify/);
   assert.match(source, /npm run gap:audit/);
