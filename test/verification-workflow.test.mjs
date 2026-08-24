@@ -1,0 +1,28 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { ROOT } from "../src/config.mjs";
+
+const file = path.join(ROOT, ".github", "workflows", "verify.yml");
+
+test("canonical CI verifies Linux and Windows with Node 24", async () => {
+  const source = await readFile(file, "utf8");
+  assert.match(source, /pull_request:/);
+  assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
+  assert.match(source, /ubuntu-latest/);
+  assert.match(source, /windows-latest/);
+  assert.match(source, /actions\/checkout@v7/);
+  assert.match(source, /actions\/setup-node@v7/);
+  assert.match(source, /node-version:\s*"24"/);
+  assert.match(source, /npm run verify/);
+  assert.match(source, /npm run gap:audit/);
+});
+
+test("canonical CI remains read-only", async () => {
+  const source = await readFile(file, "utf8");
+  const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
+  assert.ok(block, "permissions block missing");
+  assert.deepEqual(block.trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean), ["contents: read"]);
+  assert.doesNotMatch(source, /\$\{\{\s*secrets\./);
+});
