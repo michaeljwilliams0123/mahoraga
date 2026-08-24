@@ -1,0 +1,250 @@
+name: Chromebook Control Plane
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Action to run from the Chromebook"
+        required: true
+        type: choice
+        default: status
+        options:
+          - status
+          - verify
+          - secondary-assignment
+          - codex-cloud-task
+      title:
+        description: "Short task title (required for task modes)"
+        required: false
+        type: string
+      task_area:
+        description: "Registered Secondary Codex task area (secondary-assignment only)"
+        required: false
+        type: string
+      task:
+        description: "Bounded repository task (required for task modes)"
+        required: false
+        type: string
+      allowed_paths:
+        description: "Comma-separated repository paths allowed to change"
+        required: false
+        type: string
+      base_commit:
+        description: "Optional immutable base commit; defaults to current main HEAD"
+        required: false
+        type: string
+      verification:
+        description: "Comma-separated verification commands/evidence (Codex cloud only)"
+        required: false
+        type: string
+        default: "npm run verify"
+      idempotency_key:
+        description: "Optional stable retry key (Codex cloud only)"
+        required: false
+        type: string
+      integration_mode:
+        description: "Codex cloud return mode"
+        required: false
+        type: choice
+        default: pull-request
+        options:
+          - pull-request
+          - merge-after-verify
+
+permissions:
+  contents: write
+  issues: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: mahoraga-chromebook-control-plane
+  cancel-in-progress: false
+
+jobs:
+  control:
+    # The repository is public. Only the repository owner may operate this control lane.
+    if: github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out authoritative main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Resolve and validate command envelope
+        id: envelope
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+          TITLE: ${{ inputs.title }}
+          TASK_AREA: ${{ inputs.task_area }}
+          TASK_TEXT: ${{ inputs.task }}
+          ALLOWED_PATHS: ${{ inputs.allowed_paths }}
+          REQUESTED_BASE: ${{ inputs.base_commit }}
+          VERIFICATION: ${{ inputs.verification }}
+          IDEMPOTENCY_KEY: ${{ inputs.idempotency_key }}
+          INTEGRATION_MODE: ${{ inputs.integration_mode }}
+        run: |
+          set -euo pipefail
+
+          current_head="$(git rev-parse HEAD)"
+          base_commit="${REQUESTED_BASE:-$current_head}"
+          if ! [[ "$base_commit" =~ ^[0-9a-fA-F]{7,64}$ ]]; then
+            echo "Invalid base_commit." >&2
+            exit 2
+          fi
+
+          case "$MODE" in
+            status|verify)
+              ;;
+            secondary-assignment)
+              test -n "$TITLE" || { echo "title is required" >&2; exit 2; }
+              test -n "$TASK_AREA" || { echo "task_area is required" >&2; exit 2; }
+              test -n "$TASK_TEXT" || { echo "task is required" >&2; exit 2; }
+              test -n "$ALLOWED_PATHS" || { echo "allowed_paths is required" >&2; exit 2; }
+              ;;
+            codex-cloud-task)
+              test -n "$TITLE" || { echo "title is required" >&2; exit 2; }
+              test -n "$TASK_TEXT" || { echo "task is required" >&2; exit 2; }
+              test -n "$ALLOWED_PATHS" || { echo "allowed_paths is required" >&2; exit 2; }
+              ;;
+            *)
+              echo "Unsupported mode: $MODE" >&2
+              exit 2
+              ;;
+          esac
+
+          if [ -n "$REQUESTED_BASE" ]; then
+            git cat-file -e "${base_commit}^{commit}" 2>/dev/null || {
+              echo "base_commit is not present in the checked-out Mahoraga repository." >&2
+              echo "For a Secondary task mapped to another repository, enter that target repository's commit only if the Windows runner is configured for that task area." >&2
+              if [ "$MODE" != "secondary-assignment" ]; then exit 2; fi
+            }
+          fi
+
+          idempotency_key="${IDEMPOTENCY_KEY:-chromebook-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}}"
+          {
+            echo "base_commit=$base_commit"
+            echo "idempotency_key=$idempotency_key"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Mahoraga Chromebook command"
+            echo "- Actor: \`$GITHUB_ACTOR\`"
+            echo "- Mode: \`$MODE\`"
+            echo "- Main HEAD observed: \`$current_head\`"
+            echo "- Base commit: \`$base_commit\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Show portable coordination status
+        if: inputs.mode == 'status'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/coordination.mjs list > /tmp/secondary.json
+          node scripts/codex-cloud-task.mjs list > /tmp/cloud.json
+          {
+            echo
+            echo "#### Secondary assignments"
+            echo '```json'
+            cat /tmp/secondary.json
+            echo '```'
+            echo
+            echo "#### Codex cloud tasks"
+            echo '```json'
+            cat /tmp/cloud.json
+            echo '```'
+            echo
+            echo "This is repository coordination state, not the Windows localhost runtime health endpoint."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify repository
+        if: inputs.mode == 'verify'
+        shell: bash
+        run: npm run verify
+
+      - name: Queue bounded Secondary Codex assignment
+        if: inputs.mode == 'secondary-assignment'
+        shell: bash
+        env:
+          TITLE: ${{ inputs.title }}
+          TASK_AREA: ${{ inputs.task_area }}
+          TASK_TEXT: ${{ inputs.task }}
+          ALLOWED_PATHS: ${{ inputs.allowed_paths }}
+          BASE_COMMIT: ${{ steps.envelope.outputs.base_commit }}
+        run: |
+          set -euo pipefail
+          node scripts/coordination.mjs create-assignment \
+            --title "$TITLE" \
+            --task-area "$TASK_AREA" \
+            --task "$TASK_TEXT" \
+            --allowed-paths "$ALLOWED_PATHS" \
+            --base-commit "$BASE_COMMIT"
+          node scripts/coordination.mjs validate
+
+      - name: Queue subscription-backed Codex cloud task
+        if: inputs.mode == 'codex-cloud-task'
+        shell: bash
+        env:
+          TITLE: ${{ inputs.title }}
+          TASK_TEXT: ${{ inputs.task }}
+          ALLOWED_PATHS: ${{ inputs.allowed_paths }}
+          BASE_COMMIT: ${{ steps.envelope.outputs.base_commit }}
+          VERIFICATION: ${{ inputs.verification }}
+          IDEMPOTENCY_KEY: ${{ steps.envelope.outputs.idempotency_key }}
+          INTEGRATION_MODE: ${{ inputs.integration_mode }}
+        run: |
+          set -euo pipefail
+          node scripts/codex-cloud-task.mjs create \
+            --idempotency-key "$IDEMPOTENCY_KEY" \
+            --base-commit "$BASE_COMMIT" \
+            --title "$TITLE" \
+            --task "$TASK_TEXT" \
+            --allowed-paths "$ALLOWED_PATHS" \
+            --verification "$VERIFICATION" \
+            --integration-mode "$INTEGRATION_MODE"
+          node scripts/codex-cloud-task.mjs dispatch-bundle > /tmp/codex-cloud-dispatch.json
+
+      - name: Commit queued command to main
+        if: inputs.mode == 'secondary-assignment' || inputs.mode == 'codex-cloud-task'
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          git config user.name "Mahoraga Chromebook Control Plane"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A coordination
+          if git diff --cached --quiet; then
+            echo "No new coordination record was created." >&2
+            exit 3
+          fi
+          git commit -m "[CONTROL] Queue ${MODE} from Chromebook"
+          git push origin HEAD:main
+
+      - name: Summarize queued command
+        if: inputs.mode == 'secondary-assignment' || inputs.mode == 'codex-cloud-task'
+        shell: bash
+        env:
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          {
+            echo
+            echo "#### Queued"
+            echo "The validated \`$MODE\` record was committed to authoritative \`main\`."
+            if [ "$MODE" = "secondary-assignment" ]; then
+              echo "The Windows Secondary Codex runner can pick it up on its next outbound poll."
+            else
+              echo "The existing Codex cloud dispatch workflow will render the task to the GitHub/Codex bridge."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
