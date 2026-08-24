@@ -138,5 +138,9 @@ function boundedCount(value) {
 }
 
 function safeError(value) {
-  return String(value ?? "unknown").replace(/[\r\n\0]+/g, " ").replace(/(?:bearer|token|secret|password|client_secret)\s*[:=]\s*\S+/gi, "$1=[redacted]").trim().slice(-240) || "unknown";
+  return String(value ?? "unknown")
+    .replace(/[\r\n\0]+/g, " ")
+    .replace(/(?:bearer|token|secret|password|client_secret)\s*[:=]\s*\S+/gi, "credential=[redacted]")
+    .trim()
+    .slice(-240) || "unknown";
 }
