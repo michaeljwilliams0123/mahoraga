@@ -1,4 +1,4 @@
-# Mahoraga 3.3 — Production runtime
+# Mahoraga 3.4 — Production runtime
 
 Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
 the PowerShell/WPF application host with a Node.js supervisor, process-isolated
@@ -32,7 +32,7 @@ suites are source material for later worker migration.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- Control Center 5.2 uses a ChatGPT-style chat-first workspace with conversation
+- Control Center 5.3 uses a ChatGPT-style chat-first workspace with conversation
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
   and diagnostic controls remain available as compact workspace views. A
@@ -42,6 +42,12 @@ suites are source material for later worker migration.
   outbound-runner heartbeat without exposing chats, credentials, local checkout
   paths, or model output. Operations views are bookmarkable and background tabs
   stop polling until visible again.
+- Cloud Workspace 1.0 adds a ChatGPT-style GitHub Pages launcher and read-only
+  activity dashboard. Authenticated task submission, image paste, and file
+  attachment use GitHub's own signed-in issue form; the page stores no token,
+  prompt, attachment, or chat history. It never reaches into the Windows device,
+  and deterministic maintenance remains visibly separated from explicit Codex
+  work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.
@@ -82,8 +88,8 @@ for the exact trigger boundary.
 
 ## Current connection state
 
-The 3.3.0 runtime and Control Center 5.2.0 are staged for local deployment on
-2026-08-23. The per-user `Mahoraga Production Runtime` launcher is registered,
+The 3.4.0 repository contract, Control Center 5.3.0, and Cloud Workspace 1.0.0 are staged for deployment on
+2026-08-24. The per-user `Mahoraga Production Runtime` launcher is registered,
 and the four enabled isolated workers are supervised on loopback.
 
 - LM Studio: declared but disabled until a fresh local runtime probe passes.
