@@ -27,7 +27,7 @@ Token caching layout (path 2):
   Windows: %LocalAppData%\\Microsoft\\DataverseCli\\tokencache_msalv3.dat (DPAPI)
   macOS:   Keychain service ``dataverse_cli_service`` / account ``dataverse_cli_account``
   Linux:   libsecret schema ``com.microsoft.dataversecli`` (desktop), or a plaintext
-           ``tokencache_msalv3.dat`` under ``$XDG_DATA_HOME/Microsoft/DataverseCli``
+           ``tokencache_msalv3.dat`` under ``$HOME/.local/share/Microsoft/DataverseCli``
            on headless hosts with no keyring (matches the CLI's WithLinuxUnprotectedFile)
 
 Functions:
@@ -50,10 +50,11 @@ Reads from .env in the repo root (parent of scripts/) or current working directo
     TENANT_ID          — required
     CLIENT_ID          — optional, enables service principal auth
     CLIENT_SECRET      — optional, enables service principal auth
-    DATAVERSE_TOKEN_CACHE_DIR — optional; on ephemeral hosts (ChatGPT web / Codex
-                         sandbox) where $HOME is wiped between turns, set this to a
-                         workspace-relative dir (e.g. .dataverse) so the device-code
-                         token cache persists and refreshes silently within a session
+    DATAVERSE_TOKEN_CACHE_DIR — optional fixed-cache switch; on ephemeral hosts
+                         where $HOME is wiped between turns, set this to .dataverse,
+                         on, true, yes, 1, enable, or enabled. The cache location is
+                         always the repo-root .dataverse directory and cannot be
+                         redirected to a caller-selected filesystem path.
 """
 
 import os
@@ -71,7 +72,9 @@ _DATAVERSE_CLI_CLIENT_ID = "0c412cc3-0dd6-449b-987f-05b053db9457"
 # Legacy AuthenticationRecord path for the device-code fallback (path 3).
 # Kept for backward compatibility with workspaces that authenticated via the
 # previous auth.py before the shared-cache change.
-_AUTH_RECORD_PATH = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / ".IdentityService" / "dataverse_cli_auth_record.json"
+_HOME = Path.home().resolve()
+_LOCAL_DATA_ROOT = _HOME / "AppData" / "Local" if sys.platform == "win32" else _HOME / ".local" / "share"
+_AUTH_RECORD_PATH = _LOCAL_DATA_ROOT / ".IdentityService" / "dataverse_cli_auth_record.json"
 
 
 def load_env():
@@ -115,10 +118,7 @@ def _shared_cache_persistences():
     try:
         if sys.platform == "win32":
             from msal_extensions import FilePersistenceWithDataProtection
-            cache_path = (
-                Path(os.environ.get("LOCALAPPDATA", str(Path.home())))
-                / "Microsoft" / "DataverseCli" / "tokencache_msalv3.dat"
-            )
+            cache_path = _LOCAL_DATA_ROOT / "Microsoft" / "DataverseCli" / "tokencache_msalv3.dat"
             if cache_path.exists():
                 persistences.append(FilePersistenceWithDataProtection(str(cache_path)))
         elif sys.platform == "darwin":
@@ -126,12 +126,12 @@ def _shared_cache_persistences():
             # Fallback file path is required by msal-extensions but unused on
             # macOS -- the Keychain service/account match DataverseCLI's
             # PacAuthApplicationFactory constants exactly.
-            fallback = str(Path.home() / ".dataverse_cli_msal_cache")
+            fallback = str(_HOME / ".dataverse_cli_msal_cache")
             persistences.append(
                 KeychainPersistence(fallback, "dataverse_cli_service", "dataverse_cli_account")
             )
         else:
-            fallback = str(Path.home() / ".dataverse_cli_msal_cache")
+            fallback = str(_HOME / ".dataverse_cli_msal_cache")
             try:
                 from msal_extensions import LibsecretPersistence
                 persistences.append(
@@ -144,8 +144,7 @@ def _shared_cache_persistences():
             except Exception:
                 pass  # libsecret backend unavailable on this host -- skip it.
             from msal_extensions import FilePersistence
-            xdg_data = os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share")
-            plaintext_path = Path(xdg_data) / "Microsoft" / "DataverseCli" / "tokencache_msalv3.dat"
+            plaintext_path = _LOCAL_DATA_ROOT / "Microsoft" / "DataverseCli" / "tokencache_msalv3.dat"
             if plaintext_path.exists():
                 persistences.append(FilePersistence(str(plaintext_path)))
     except Exception:
@@ -248,6 +247,7 @@ _DEFAULT_WORKSPACE_CACHE_DIRNAME = ".dataverse"
 # Explicit opt-out values for DATAVERSE_TOKEN_CACHE_DIR: keep the OS default cache
 # (do not write a plaintext refresh token into the workspace).
 _CACHE_DIR_OPT_OUT = frozenset({"off", "0", "false", "no", "none", "disable", "disabled"})
+_CACHE_DIR_OPT_IN = frozenset({_DEFAULT_WORKSPACE_CACHE_DIRNAME, "on", "1", "true", "yes", "enable", "enabled"})
 
 
 def _should_use_workspace_cache():
@@ -260,10 +260,13 @@ def _should_use_workspace_cache():
       None       -- keep the OS default cache (desktop, CI, or an explicit opt-out).
     """
     cache_dir = os.environ.get("DATAVERSE_TOKEN_CACHE_DIR")
-    if cache_dir is not None and cache_dir.strip().lower() in _CACHE_DIR_OPT_OUT:
+    normalized = cache_dir.strip().lower() if cache_dir is not None else None
+    if normalized in _CACHE_DIR_OPT_OUT:
         return None  # explicit opt-out -- keep the per-process OS default cache
-    if cache_dir:
+    if normalized in _CACHE_DIR_OPT_IN:
         return "explicit"
+    if cache_dir:
+        return None  # reject caller-selected absolute, parent-relative, or alternate paths
     # No explicit setting: auto-default ONLY where the OS cache will not survive --
     # a headless, non-CI host. Desktop hosts keep their secure default cache; CI
     # never reaches an interactive tier (service principal is terminal earlier).
@@ -279,8 +282,8 @@ def _workspace_token_cache_path():
     a positive decision into a concrete, git-ignored, owner-only file path.
 
     Resolution (see _should_use_workspace_cache):
-      - DATAVERSE_TOKEN_CACHE_DIR set to a path -> use it (a relative dir is anchored
-        to the workspace root, matching how load_env finds .env).
+      - DATAVERSE_TOKEN_CACHE_DIR set to a supported opt-in value -> use the fixed
+        ``<workspace>/.dataverse`` directory.
       - opt-out value (off/false/0/no/none) -> None.
       - unset on a HEADLESS, non-CI host (ChatGPT web / Codex sandbox / SSH / container)
         -> DEFAULT to ``<workspace>/.dataverse`` (the OS cache lives under $HOME, which
@@ -298,19 +301,9 @@ def _workspace_token_cache_path():
     decision = _should_use_workspace_cache()
     if decision is None:
         return None
-    cache_dir = (
-        os.environ.get("DATAVERSE_TOKEN_CACHE_DIR")
-        if decision == "explicit"
-        else _DEFAULT_WORKSPACE_CACHE_DIRNAME
-    )
     try:
-        path = Path(cache_dir)
-        if not path.is_absolute():
-            # Anchor a relative dir to the workspace root (this file's parent dir's
-            # parent -- the deployed <project>/scripts/auth.py layout), NOT the
-            # current working directory, so the cache location is stable no matter
-            # where the process is launched from (matches how load_env finds .env).
-            path = Path(__file__).resolve().parent.parent / path
+        workspace_root = Path(__file__).resolve().parent.parent
+        path = workspace_root / _DEFAULT_WORKSPACE_CACHE_DIRNAME
         path.mkdir(parents=True, exist_ok=True)
         # Defense in depth: exclude the token cache from git even if the repo-root
         # .gitignore does not cover this dir.

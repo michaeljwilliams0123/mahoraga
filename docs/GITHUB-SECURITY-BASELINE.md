@@ -18,21 +18,21 @@ without a new explicit instruction.
   the preserved production branch.
 - The public-repository privacy checklist remains mandatory for pull requests.
 
-## Live GitHub controls to enforce
+## Live GitHub controls
 
-The following settings are account-level controls and cannot be guaranteed by a
-commit. Verify them after every ownership, plan, or visibility change:
+The following account-level settings were API-verified on 2026-08-24. Re-verify
+them after every ownership, plan, or visibility change:
 
-1. Enable secret scanning, push protection, Dependabot alerts and security
-   updates, private vulnerability reporting, and CodeQL default setup.
-2. Restrict Actions to GitHub-owned actions. Current workflows use only
+1. Secret scanning, push protection, Dependabot alerts/security updates, private
+   vulnerability reporting, and CodeQL default setup are enabled.
+2. Actions permits GitHub-owned actions only. Current workflows use only
    `actions/checkout`, `actions/setup-node`, and `actions/github-script`.
-3. Protect `main` against deletion and force pushes. Do not require pull requests
-   until the Chromebook control workflow is migrated from a direct fast-forward
-   push to a branch-and-pull-request return path.
-4. Disable any registered workflow whose path no longer exists on `main`.
-5. Keep the default workflow token read-only and do not add repository secrets
-   for Codex, ChatGPT, browser sessions, or the local Windows runtime.
+3. `main` blocks deletion and force pushes, including administrator bypass, but
+   does not require pull requests or status checks. Normal fast-forward updates
+   from the owner-gated Chromebook control workflow remain compatible.
+4. The registered workflow whose path no longer exists on `main` is disabled.
+5. The default workflow token remains read-only and no repository secret stores
+   Codex, ChatGPT, browser-session, or local Windows runtime authentication.
 
 ## Remaining workflow hardening
 
@@ -43,5 +43,5 @@ Actions allowlist should remain restricted to GitHub-owned actions.
 
 The Chromebook control workflow still fast-forwards bounded task records to
 `main`. Full required-status-check protection depends on first changing that
-workflow to publish a scoped branch and pull request. Do not enable a setting
-that silently disables this outbound control path.
+workflow to publish a scoped branch and pull request. The current history-only
+protection deliberately preserves that outbound control path.
