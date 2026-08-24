@@ -1,0 +1,16 @@
+# Mahoraga v2 working rules
+
+These instructions apply to this repository and everything below it.
+
+- `mahoraga.manifest.json` is the canonical declaration of runtime, workers, connections, cost routing, and update authority.
+- The user is the only authority that may activate a core update to Mahoraga itself. Known operational repairs may run automatically under the manifest's bounded repair policy; structural changes remain staged candidates until the user authorizes a production cutover.
+- Keep the control API bound to `127.0.0.1`. Do not introduce inbound tunnels or public listeners.
+- Capabilities belong to isolated workers. Do not add a generic unrestricted shell or a caller-selected executable path to the supervisor.
+- Cloud connectors must be opt-in and data-class aware. Enterprise data stays in the Microsoft tenant; local-only data stays on the device.
+- Never store credentials, prompts, model responses, browser history, or document content in the runtime database. Store bounded task and diagnostic metadata.
+- GitHub coordination records contain only bounded task metadata and repository evidence. Never copy ChatGPT conversations, Destiny's chats, credentials, personal files, or unrelated user context into assignments, results, commits, branches, issues, or pull requests.
+- GitHub is a bidirectional coordination surface. Any user-authorized Primary, Secondary, or cloud Codex instance may create assignments, edit code, review, push branches, and merge verified work from either direction. Preserve attribution and deterministic evidence; do not create an artificial ownership hierarchy between authorized instances.
+- GitHub `@codex` cloud tasks receive only validated repository task metadata. They use pull requests by default, but a task with `integrationMode: merge-after-verify` may be merged by either authorized Codex instance after the declared verification passes.
+- Automated secondary execution must use the secondary machine's local Codex authentication, an ephemeral workspace-write sandbox, explicit task-area project registration, actual changed-path enforcement, and bounded retries. It may implement scoped project work and is not limited to review or QA.
+- Preserve task idempotency, leases, crash recovery, worker heartbeats, and the append-only event ledger.
+- Add focused tests for behavior changes and run `npm run verify`.

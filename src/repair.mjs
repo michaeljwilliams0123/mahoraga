@@ -3,6 +3,15 @@ import path from "node:path";
 import { ROOT } from "./config.mjs";
 
 export const ESSENTIAL_FILES = [
+  "AGENTS.md",
+  "SECURITY.md",
+  ".githooks/pre-push",
+  ".github/CODEOWNERS",
+  ".github/dependabot.yml",
+  ".github/pull_request_template.md",
+  ".github/workflows/chromebook-control-plane.yml",
+  ".github/workflows/codex-cloud-dispatch.yml",
+  ".github/workflows/verify.yml",
   "mahoraga.manifest.json",
   "package.json",
   "src/cli.mjs",
@@ -17,6 +26,7 @@ export const ESSENTIAL_FILES = [
   "src/browser-cdp.mjs",
   "src/browser-worker.mjs",
   "src/database.mjs",
+  "src/github-audit.mjs",
   "src/microsoft-queue-worker.mjs",
   "src/repair.mjs",
   "src/router.mjs",
@@ -36,6 +46,7 @@ export const ESSENTIAL_FILES = [
   "web/styles.css",
   "scripts/auth.py",
   "scripts/coordination.mjs",
+  "scripts/github-audit.mjs",
   "scripts/workspace-agent.mjs",
   "scripts/codex-cloud-task.mjs",
   "scripts/secondary-codex-runner.mjs",

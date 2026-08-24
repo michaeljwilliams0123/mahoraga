@@ -33,12 +33,17 @@ After this workflow is on `main`, use Chrome on the Chromebook:
 3. Choose **Chromebook Control Plane**.
 4. Select **Run workflow**.
 5. Choose one mode:
-   - `status` — show repository coordination state.
+   - `status` — show repository coordination state plus the zero-credit GitHub
+     assurance dashboard.
    - `verify` — run Mahoraga's deterministic validation/test suite on GitHub-hosted compute.
    - `secondary-assignment` — create a bounded assignment for the registered Windows Secondary Codex runner.
    - `codex-cloud-task` — create a bounded Codex cloud task using the existing GitHub bridge.
 
 The workflow accepts an immutable base commit, an explicit allowed-path list, and bounded task text. It does not accept arbitrary shell commands.
+
+Every verification run also publishes a readable assurance table in the GitHub
+Actions summary. It reports the versioned repository controls, SHA-pinning
+state, and privacy boundary without invoking Codex or requiring the Windows host.
 
 ## One-time GitHub setting
 

@@ -1,5 +1,6 @@
 const $ = (id) => document.getElementById(id);
-const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: null, messages: [], activeConversation: readConversationHash(), activeView: 'chat', sending: false };
+const VIEWS = new Set(['chat', 'tasks', 'coordination', 'workers', 'capabilities', 'connections', 'improvements', 'diagnostics']);
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: null, messages: [], activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -10,6 +11,8 @@ async function api(url, options = {}) {
 const post = (url, body = {}, headers = {}) => api(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
 
 async function refresh(quiet = true) {
+  if (state.refreshing) return;
+  state.refreshing = true;
   try {
     const [status, coordination, taskData, conversationData, improvementData, diagnostics] = await Promise.all([
       api('/api/status'), api('/api/coordination'), api('/api/tasks'), api('/api/conversations'), api('/api/improvements'), api('/api/diagnostics'),
@@ -17,16 +20,18 @@ async function refresh(quiet = true) {
     Object.assign(state, { status, coordination, tasks: taskData.tasks, conversations: conversationData.conversations, improvements: improvementData.improvements, diagnostics });
     if (state.activeConversation && !state.conversations.some((item) => item.id === state.activeConversation)) state.activeConversation = null;
     state.messages = state.activeConversation ? (await api(`/api/conversations/${state.activeConversation}/messages`)).messages : [];
+    document.querySelector('.status-dot').classList.remove('offline');
     render();
     if (!quiet) notify('Workspace refreshed');
   } catch (error) {
     $('runtime-state').textContent = 'Runtime unavailable';
+    document.querySelector('.status-dot').classList.add('offline');
     notify(error.message, 'error');
-  }
+  } finally { state.refreshing = false; }
 }
 
 function render() {
-  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
+  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderGithubAssurance(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
 }
 
 function renderRuntime() {
@@ -106,10 +111,25 @@ function renderCoordination() {
     : '<p class="muted">No coordination assignments have been imported.</p>';
 }
 
+function renderGithubAssurance() {
+  const coordination = state.coordination;
+  if (!coordination) return;
+  const authority = coordination.authority;
+  const automation = coordination.automation;
+  const cards = [
+    ['Controller authority', authority.eitherControllerMayMergeAfterVerification ? 'Bidirectional' : 'Restricted', 'Either authorized controller may assign, implement, review, and merge after verification.'],
+    ['Action supply chain', automation.actionReferences === 'immutable-commit-sha' ? 'SHA pinned' : 'Review needed', 'Remote GitHub Actions are fixed to immutable commit identifiers.'],
+    ['Model spend boundary', automation.modelInvocation === 'explicit-task-only' ? 'Explicit only' : 'Review needed', 'CI, security scans, dependency updates, and idle polling do not invoke a model.'],
+    ['Network boundary', coordination.transport.outboundOnly ? 'Outbound only' : 'Review needed', 'The Windows runner polls GitHub; no inbound tunnel or public localhost listener is required.'],
+  ];
+  $('assurance-updated').textContent = `Policy snapshot ${formatTime(coordination.generatedAt)}`;
+  $('github-assurance-list').innerHTML = cards.map(([title, value, summary]) => `<article><span>${escapeHtml(title)}</span><strong>${escapeHtml(value)}</strong><p>${escapeHtml(summary)}</p></article>`).join('');
+}
+
 function coordinationCard(assignment) {
   const status = assignment.status.toLowerCase();
   const verification = assignment.verificationState ? ` · verification ${escapeHtml(assignment.verificationState)}` : '';
-  return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} · ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.assignmentId)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>Primary-created assignment with a bounded Secondary return branch.</p><div class="assignment-detail"><span>Authority</span><b>Primary integrates; Secondary returns work</b><span>Updated</span><b>${formatTime(assignment.updatedAt)}</b></div><small>${escapeHtml(assignment.returnBranch)}${verification}</small><div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
+  return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} · ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.assignmentId)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>Bounded repository assignment with a verified return branch.</p><div class="assignment-detail"><span>Authority</span><b>Either authorized controller may review and merge</b><span>Updated</span><b>${formatTime(assignment.updatedAt)}</b></div><small>${escapeHtml(assignment.returnBranch)}${verification}</small><div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
 }
 
 function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' · ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} · Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
@@ -156,7 +176,7 @@ function autoRoute(content) {
   return 'assistant.respond';
 }
 
-function showView(name) { state.activeView = name; document.querySelectorAll('[data-page]').forEach((page) => page.classList.toggle('active', page.dataset.page === name)); document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === name)); }
+function showView(name, persist = true) { state.activeView = name; document.querySelectorAll('[data-page]').forEach((page) => page.classList.toggle('active', page.dataset.page === name)); document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === name)); if (persist) writeView(name); }
 function selectConversation(id) { state.activeConversation = id; writeConversationHash(id); showView('chat'); refresh(); }
 function newChat() { state.activeConversation = null; state.messages = []; writeConversationHash(null); showView('chat'); renderChat(); $('chat-input').focus(); }
 function syncDataClass() { const metadata = state.status?.capabilities.find((item) => item.capability === $('task-capability').value); if (!metadata) return; const select = $('task-data-class'); [...select.options].forEach((option) => { option.disabled = !metadata.dataClasses.includes(option.value); }); if (!metadata.dataClasses.includes(select.value)) select.value = metadata.dataClasses[0]; }
@@ -188,10 +208,15 @@ async function runForm(event, action) { event.preventDefault(); return runButton
 function resizeComposer() { const input = $('chat-input'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
 function notify(message, kind = 'success') { const toast = $('toast'); toast.textContent = message; toast.className = `show ${kind === 'error' ? 'error' : ''}`; clearTimeout(notify.timer); notify.timer = setTimeout(() => { toast.className = ''; }, 3500); }
 function readConversationHash() { return /^#con-[a-f0-9-]+$/.test(location.hash) ? location.hash.slice(1) : null; }
-function writeConversationHash(id) { history.replaceState(null, '', id ? `#${id}` : location.pathname); }
+function readView() { const value = new URLSearchParams(location.search).get('view'); return VIEWS.has(value) ? value : 'chat'; }
+function writeView(name) { const url = new URL(location.href); if (name === 'chat') url.searchParams.delete('view'); else url.searchParams.set('view', name); history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`); }
+function writeConversationHash(id) { const url = new URL(location.href); url.hash = id ? `#${id}` : ''; history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`); }
 function toolLabel(capability) { return ({ 'assistant.respond': 'Conversation', 'system.health': 'System health', 'manifest.validate': 'Validate manifest', 'repository.status': 'Repository status', 'repository.inspect': 'Inspect repository', 'repository.history': 'Repository history', 'repository.verify': 'Verify repository', 'repair.scan': 'Scan recovery', 'repair.apply': 'Apply recovery', 'browser.status': 'Browser status', 'browser.smoke': 'Browser smoke' })[capability] || capability; }
 function formatTime(value) { return value ? new Date(value).toLocaleString() : 'never'; }
 function label(value) { return String(value).split('-').map((part) => part ? part[0].toUpperCase() + part.slice(1) : '').join(' '); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
 
-showView('chat'); refresh(false); setInterval(() => refresh(true), 2500);
+showView(state.activeView, false);
+refresh(false);
+setInterval(() => { if (!document.hidden) refresh(true); }, 5000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(true); });

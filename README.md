@@ -36,10 +36,12 @@ suites are source material for later worker migration.
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
   and diagnostic controls remain available as compact workspace views. A
-  dedicated Coordination console now exposes the bidirectional repository mailbox
-  lifecycle, bounded return branches, and deterministic validation
-  state plus a sanitized outbound-runner heartbeat without exposing chats,
-  credentials, local checkout paths, or model output.
+  dedicated Coordination console now exposes equal controller authority, the
+  bidirectional repository mailbox lifecycle, bounded return branches,
+  deterministic validation, GitHub assurance cards, and a sanitized
+  outbound-runner heartbeat without exposing chats, credentials, local checkout
+  paths, or model output. Operations views are bookmarkable and background tabs
+  stop polling until visible again.
 - Candidate improvements that cannot be approved without a candidate-specific
   user approval header. Approval records a decision; this phase intentionally
   implements no automatic activation path.

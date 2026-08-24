@@ -6,7 +6,7 @@
   "environment": "production",
   "versions": {
     "runtime": "3.3.0",
-    "controlCenter": "5.2.0",
+    "controlCenter": "5.3.0",
     "cloudControlPlane": "3.0.2",
     "capabilityRegistry": "1.0.0",
     "taskSchema": "3",

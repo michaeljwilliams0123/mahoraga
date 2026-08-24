@@ -35,7 +35,7 @@ export function buildWorkspaceAgentEnvelope({ task, worker, env = process.env })
   const allowedPaths = validatePaths(task?.allowedPaths);
   const triggerId = env[adapter.triggerIdEnvironmentVariable];
   const input = [
-    "You are the subordinate cloud Codex execution lane for Mahoraga.",
+    "You are a task-scoped cloud Codex execution lane for Mahoraga.",
     `Repository: ${adapter.repository}`,
     `Assignment: ${assignmentId}`,
     `Correlation: ${correlationId}`,

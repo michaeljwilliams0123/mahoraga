@@ -1,0 +1,27 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      official-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: npm
+    directory: /tools/dataverse-cli
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:15"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    groups:
+      dataverse-runtime:
+        patterns:
+          - "*"
