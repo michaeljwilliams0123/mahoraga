@@ -1,56 +1,90 @@
-# Production status — 2026-08-13
+# Production status — repository baseline 2026-08-23
 
-## Local runtime
+This record describes the authoritative GitHub production baseline. It does not
+claim that a particular Windows process has already fetched, restarted, or
+activated the latest commit. Live-machine activation must be supported by local
+runtime evidence.
 
-- Version: `3.2.0`
-- Phase: `production`
-- Cockpit: `http://127.0.0.1:4782`
-- Runtime: live and responding
-- Workers: `local-core`, `repository`, `browser`, and `self-healer`, all
-  process-isolated and supervised
-- Durability: SQLite WAL task store, leases, crash recovery, and bounded restarts
-- Startup: current-user scheduled task `Mahoraga Production Runtime` installed
-- Task contract: correlation IDs, priority, leases, maximum attempts,
-  verification state, immediate crash recovery, and append-only event receipts
-- Discourse: durable conversations, messages, worker questions, human wait
-  state, and queue resume are enabled in Control Center `4.1.0`
-- Update authority: user-only; there is no autonomous core activation route
+## Repository production baseline
 
-## Microsoft production plane
+- Product version: `3.3.0`
+- Runtime version declared by the manifest: `3.3.0`
+- Control Center: `5.2.0`
+- Cloud control plane declaration: `3.0.2`
+- Capability registry: `1.0.0`
+- Node runtime contract: `>=24`
+- Phase/environment: `production`
+- Local control address: `http://127.0.0.1:4782`
+- Update authority: user-only
+- Default autonomy mode: hybrid
+- OpenAI Platform API provider: disabled by default
 
-- Agent: `General Mahoraga`
-- Environment: `Vaco (default) (Upgrade)`
-- Model: GPT-4.1
-- Work IQ: enabled on 2026-08-12
-- Public web search: enabled
-- Knowledge sources: five ready sources observed
-- Tools: three GitHub MCP tools observed
-- Connected agents: Adobe, AI Learning Advisor, and Analyst observed
-- Topics: Goodbye, Greeting, and Start Over observed
-- Publication: forced-newest production publication completed on 2026-08-12
-- Triggers: none observed
+## Durable local architecture
 
-## Production-standby integrations
+The production repository retains the Node supervisor, isolated worker
+processes, SQLite WAL task/event state, leases, heartbeats, crash recovery,
+bounded restarts, durable conversations, execution receipts, improvement state,
+secondary assignments, and durable objective/task graphs.
 
-- LM Studio remains standby because the v2 local-reasoner worker has not yet
-  been implemented. The older local-agent prototype remains available separately.
-- Lenovo AI Now remains a bounded compatibility adapter, outside the critical
-  production path.
-- Browser Worker is production-enabled through a dedicated loopback-only Chrome
-  process. Desktop Worker remains disabled pending its application allowlist.
-- Dataverse is selected for the durable Microsoft task ledger. The outbound-only
-  relay remains disabled until the exact Dataverse environment URL and owning
-  solution are explicitly confirmed.
+Enabled production workers declared by the manifest are:
 
-## Cloud read plane
+- `local-core`
+- `repository`
+- `browser`
+- `self-healer`
 
-- Version: `3.0.1`
-- Production MCP: `https://mahoraga-cloud-contr-eea554e9.alpic.live/mcp`
-- Surface: five audited read-only health and identity tools
-- Public mutations and inbound device control: not exposed
+The supervisor reconciles objective graphs on every scheduler tick, performs
+bounded automatic operational repair, and monitors the outbound Secondary Codex
+mailbox when enabled.
 
-See [`ALPIC-3.0.1-BOUNDARY.md`](ALPIC-3.0.1-BOUNDARY.md) for the distinction
-between the Alpic deployment project, the public MCP read plane, and the
-authenticated task-relay contract.
+## Portable and cloud coordination
 
-This record distinguishes deployed capability from declared future capability.
+- The Chromebook Control Plane is repository-hosted through GitHub Actions and
+  supports `status`, `verify`, `gap-audit`, `secondary-assignment`, and
+  `codex-cloud-task` operations.
+- The Chromebook lane remains owner-gated and does not expose the Windows
+  localhost runtime to the internet.
+- Secondary Codex coordination remains outbound-only through the GitHub mailbox.
+- Codex Cloud delegation uses repository task metadata and ChatGPT/Codex sign-in;
+  it is not an OpenAI Platform API-key integration.
+- Canonical CI runs `npm run verify` and the declared gap audit on Linux and
+  Windows GitHub-hosted runners.
+
+## Implemented planner/observer foundation
+
+Earlier records described the Objective Planner and World-State Observer as
+future gaps. The current repository now contains durable objective graphs,
+dependency reconciliation, objective intake/status APIs, and a read-only
+world-state observer covering runtime health, workers, leases, task counts,
+objectives, repository evidence, browser state, and declared providers.
+
+This closes the foundation gap. Higher-level autonomous decomposition and
+provider-specific execution can continue to evolve on top of these primitives.
+
+## Remaining live capability gaps
+
+The following declarations remain intentionally inactive until their provider or
+machine prerequisites are proven:
+
+- Desktop Worker: disabled pending the Windows process contract, application
+  allowlist, attended-session receipts, and live-machine validation.
+- Signed-in browser control: disabled pending an owned signed-session provider
+  and deterministic verification receipts.
+- Microsoft durable queue worker: disabled while Dataverse authentication is
+  still pending for the configured environment and solution.
+- LM Studio/local reasoner: disabled pending a fresh local provider probe and
+  live activation.
+- Direct Primary Codex Builder execution: disabled; subscription-backed
+  Secondary Codex and Codex Cloud remain available repository execution lanes.
+- GitHub Copilot worker and Workspace Agent cloud trigger: optional declared
+  providers that remain disabled until their live authentication/health
+  prerequisites are satisfied.
+
+Run `npm run gap:audit` for the machine-readable repository-declared gap report.
+
+## Historical note
+
+The previous version of this document described a `3.2.0`/Control Center `4.1.0`
+baseline dated 2026-08-13. That record is superseded for repository state by the
+3.3 production line. It should not be used as evidence that the current Windows
+process has already been restarted onto this commit.

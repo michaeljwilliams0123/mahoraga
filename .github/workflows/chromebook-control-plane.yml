@@ -11,6 +11,7 @@ on:
         options:
           - status
           - verify
+          - gap-audit
           - secondary-assignment
           - codex-cloud-task
       title:
@@ -70,13 +71,13 @@ jobs:
 
     steps:
       - name: Check out authoritative main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
 
       - name: Use Mahoraga Node runtime
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "24"
 
@@ -104,7 +105,7 @@ jobs:
           fi
 
           case "$MODE" in
-            status|verify)
+            status|verify|gap-audit)
               ;;
             secondary-assignment)
               test -n "$TITLE" || { echo "title is required" >&2; exit 2; }
@@ -172,6 +173,22 @@ jobs:
         shell: bash
         run: npm run verify
 
+      - name: Audit declared capability gaps
+        if: inputs.mode == 'gap-audit'
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run --silent gap:audit > /tmp/gaps.json
+          {
+            echo
+            echo "#### Declared capability gap audit"
+            echo '```json'
+            cat /tmp/gaps.json
+            echo '```'
+            echo
+            echo "This report reflects repository-declared state and does not claim live Windows health."
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Queue bounded Secondary Codex assignment
         if: inputs.mode == 'secondary-assignment'
         shell: bash
@@ -229,6 +246,9 @@ jobs:
             exit 3
           fi
           git commit -m "[CONTROL] Queue ${MODE} from Chromebook"
+          git pull --rebase origin main
+          node scripts/coordination.mjs validate
+          node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
           git push origin HEAD:main
 
       - name: Summarize queued command
