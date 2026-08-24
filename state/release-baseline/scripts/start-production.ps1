@@ -7,7 +7,8 @@ $state = Join-Path $root 'state'
 $pidPath = Join-Path $state 'runtime.pid'
 $stdout = Join-Path $state 'runtime.out.log'
 $stderr = Join-Path $state 'runtime.err.log'
-$node = 'C:\Users\MikeWilliams\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+$userProfile = [Environment]::GetFolderPath('UserProfile')
+$node = Join-Path $userProfile '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
 $healthUrl = 'http://127.0.0.1:4782/api/status'
 
 if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {

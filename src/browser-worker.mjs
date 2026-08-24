@@ -74,8 +74,7 @@ export async function ensureChrome({ request = cdpJson, launch = spawn, mkdirPro
   }
   const ensureProfile = mkdirProfile ?? ((profile) => import("node:fs/promises").then(({ mkdir }) => mkdir(profile, { recursive: true })));
   await ensureProfile(PROFILE);
-  const executable = process.env.MAHORAGA_CHROME_PATH || DEFAULT_CHROME;
-  chromeProcess = launch(executable, [
+  chromeProcess = launch(DEFAULT_CHROME, [
     "--headless=new",
     `--remote-debugging-address=${CDP_HOST}`,
     `--remote-debugging-port=${CDP_PORT}`,

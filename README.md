@@ -68,9 +68,15 @@ localhost health endpoint before returning.
 ## Verify
 
 ```powershell
-& 'C:\Users\MikeWilliams\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' src\cli.mjs validate
-& 'C:\Users\MikeWilliams\.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe' --test --test-isolation=none
+$node = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
+& $node src\cli.mjs validate
+& $node --test --test-isolation=none
 ```
+
+GitHub verification, Dependabot, CodeQL, secret scanning, and idle mailbox
+polling are deterministic automation and do not invoke Codex or consume model
+credits. See [`docs/ZERO-CREDIT-AUTOMATION.md`](docs/ZERO-CREDIT-AUTOMATION.md)
+for the exact trigger boundary.
 
 ## Current connection state
 

@@ -5,7 +5,7 @@ import { ROOT } from "./config.mjs";
 import { validateManifest } from "./config.mjs";
 import { validateActualChanges, validateAssignmentRecord, validateResultRecord } from "./coordination-records.mjs";
 
-const GIT = process.env.MAHORAGA_GIT_EXECUTABLE || "git";
+const GIT = "git";
 
 export async function executeRepositoryCapability(capability, task = {}) {
   if (capability === "repository.inspect") {

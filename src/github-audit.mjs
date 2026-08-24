@@ -172,6 +172,8 @@ async function publicPrivacyFindings(root, files) {
     /\bgh[pousr]_[A-Za-z0-9]{36,}\b/,
     /\bgithub_pat_[A-Za-z0-9_]{40,}\b/,
     /\bAKIA[0-9A-Z]{16}\b/,
+    /\b[A-Z]:\\Users\\(?!<USER>\\)[^\\\r\n]+\\\.cache\\/i,
+    /\/(?:Users|home)\/(?!<USER>\/)[^/\r\n]+\/\.cache\//,
   ];
   const emailPattern = /\b[A-Z0-9._%+-]+@([A-Z0-9.-]+\.[A-Z]{2,})\b/gi;
   for (const file of files.filter((candidate) => TEXT_FILE.test(candidate))) {
