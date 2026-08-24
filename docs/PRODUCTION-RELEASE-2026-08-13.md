@@ -34,7 +34,7 @@ and the Control Center remained healthy.
 - Environment: `Vaco (default) (Upgrade)`
 - Environment ID: `Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d`
 - URL: `https://org9aade5b6.crm.dynamics.com/`
-- Signed-in user: `mike.williams@highspring.com`
+- Signed-in identity: intentionally omitted from current repository records and receipts.
 - Proposed unmanaged solution: `MahoragaPlatform`
 - State: awaiting explicit environment and solution confirmation before the first
   Dataverse mutation.

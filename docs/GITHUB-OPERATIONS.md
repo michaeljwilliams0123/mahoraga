@@ -25,3 +25,9 @@ also configures `core.hooksPath` to the versioned `.githooks` directory. Its
 pre-push guard blocks deletion and non-fast-forward updates to `main` and the
 preserved production branch. The local guard complements GitHub verification;
 it does not replace review of the actual diff and declared task scope.
+
+Run `npm run github:audit` before publishing a branch. The deterministic audit
+checks the candidate repository state without reading GitHub credentials or
+emitting file contents. Account-level controls and their compatibility with the
+outbound control workflow are documented in
+[`GITHUB-SECURITY-BASELINE.md`](GITHUB-SECURITY-BASELINE.md).
