@@ -6,7 +6,6 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
   if (!manifest || typeof manifest !== "object") throw new TypeError("Manifest is required for gap audit.");
 
   const worker = (id) => manifest.workers?.find((item) => item.id === id) ?? null;
-  const connection = (id) => manifest.connections?.find((item) => item.id === id) ?? null;
   const has = (relative) => fileExists(path.join(root, ...relative.split("/")));
 
   const closed = [];
@@ -52,6 +51,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "high",
     summary: "Canonical verification workflow is present.",
   });
+  record(closed, has("src/desktop-worker.mjs") && has("test/desktop-worker.test.mjs"), {
+    id: "desktop-worker-contract",
+    priority: "high",
+    summary: "Desktop Worker process contract, fixed application allowlist, bounded focus action, and content-free receipts are implemented and tested.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",
@@ -62,8 +66,8 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     id: "desktop-worker",
     priority: "high",
     state: "blocked",
-    summary: "Desktop interaction worker is not active.",
-    dependency: "Windows process contract, application allowlist, attended-session receipts, and live-machine validation.",
+    summary: "Desktop Worker contract is prepared but production activation is not yet proven.",
+    dependency: "Live attended Windows validation and explicit production activation. The current interaction contract is intentionally limited to focusing exactly one allowlisted Chrome, Edge, Excel, Word, PowerPoint, or Visio window.",
   });
   gap(open, manifest.browser?.signedSessionEnabled !== true, {
     id: "signed-browser-session",
@@ -84,7 +88,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "medium",
     state: "blocked",
     summary: "Local reasoning provider is not active.",
-    dependency: "Fresh local LM Studio/provider probe and live worker activation.",
+    dependency: "Fresh local LM Studio/provider probe and a result channel that does not persist prompts or model responses.",
   });
   gap(open, manifest.featureFlags?.primaryCodexBuilder !== true || worker("primary-codex-builder")?.adapter?.directExecutionEnabled !== true, {
     id: "primary-codex-builder",
