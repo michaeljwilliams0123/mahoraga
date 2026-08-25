@@ -20,6 +20,7 @@ concurrency:
 jobs:
   deploy:
     name: Publish credential-free cloud interface
+    if: ${{ github.event.repository.private == false }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment:

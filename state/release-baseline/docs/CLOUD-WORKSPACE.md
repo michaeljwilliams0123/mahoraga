@@ -44,14 +44,17 @@ author from consuming subscription-backed execution.
 
 ## Private repository behavior
 
-The static shell contains no private task data. If the repository becomes
-private, unauthenticated REST status is intentionally unavailable and the page
-shows authenticated GitHub links instead. Issue, Actions, pull-request, and App
-management links continue to rely on GitHub's own signed-in access control.
+The static shell contains no private task data. Mahoraga intentionally skips the
+Pages deployment while the repository is private: a personal-account Pages site
+is not the authenticated private UI for this control plane, and availability
+depends on the GitHub plan. Use the signed-in repository **Agents**, **Issues**,
+**Pull requests**, **Actions**, and **Deployments** views for cloud work. Use
+`http://127.0.0.1:4782` on the Windows host for the live Mahoraga Control Center.
+No route makes Windows localhost reachable from GitHub.
 
 ## Deployment
 
-`.github/workflows/pages.yml` publishes only `cloud/`. The workflow has explicit
-least-privilege permissions and pins every remote Action to an immutable commit.
-The local desktop receives source changes only through its ordinary Git sync and
-outbound relay behavior.
+`.github/workflows/pages.yml` publishes only `cloud/` and only while the
+repository is public. The workflow has explicit least-privilege permissions and
+pins every remote Action to an immutable commit. The local desktop receives
+source changes only through its ordinary Git sync and outbound relay behavior.

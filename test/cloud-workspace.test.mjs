@@ -40,6 +40,7 @@ test("Pages deployment is least-privilege and immutable", async () => {
   assert.match(workflow, /contents: read/);
   assert.match(workflow, /pages: write/);
   assert.match(workflow, /id-token: write/);
+  assert.match(workflow, /github\.event\.repository\.private == false/);
   for (const action of ["actions/checkout", "actions/configure-pages", "actions/upload-pages-artifact", "actions/deploy-pages"]) {
     assert.match(workflow, new RegExp(`${action.replace("/", "\\/")}@[a-f0-9]{40}`));
   }

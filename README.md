@@ -66,6 +66,24 @@ suites are source material for later worker migration.
 - VS Code prompt files for health review, repository drift review, and tested
   improvement-candidate creation.
 
+## Choose the right UI
+
+- **Operate Mahoraga on this Windows machine:** open
+  `http://127.0.0.1:4782`. This is the live Control Center for conversations,
+  workers, tasks, connections, improvements, diagnostics, and Primary/Secondary
+  coordination. Start the supervised runtime first if the page is unavailable.
+- **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
+  select `mahoraga`, choose `main` as the base branch, and start with a
+  read-only prompt such as `Inspect main and report current health; do not
+  modify files or create a pull request.` Use an issue assigned to Copilot when
+  a task should deliberately create a pull request.
+- **Use the Cloud Workspace launcher:** GitHub Pages is optional and public.
+  Mahoraga skips its Pages deployment while the repository is private. In
+  private mode, use GitHub's signed-in Agents, Issues, Pull requests, Actions,
+  and Deployments views instead; the private repository is not a secure
+  private-hosting mechanism for a personal-account Pages site.
+
+
 ## Production lifecycle
 
 Start the runtime in the background:

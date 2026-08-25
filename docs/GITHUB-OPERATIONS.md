@@ -1,13 +1,14 @@
 # GitHub operations
 
 The canonical remote is `https://github.com/michaeljwilliams0123/mahoraga`.
-The repository is intentionally public under the user's current directive.
+The repository is intentionally private under the user's current directive.
 Repository visibility is a user-controlled setting, not a Mahoraga protocol
 requirement; no script, issue, workflow, or controller may change it without a
 new explicit user instruction.
 
-Because every committed byte is publicly visible, Git history may contain only
-repository code and bounded coordination evidence. Credentials, prompts, model
+Although the current remote is private, committed bytes can later become visible
+through a visibility change, collaborator access, or a returned branch. Git
+history may contain only repository code and bounded coordination evidence. Credentials, prompts, model
 responses, browser data, personal files, raw plugin responses, and ChatGPT
 conversation content are prohibited.
 

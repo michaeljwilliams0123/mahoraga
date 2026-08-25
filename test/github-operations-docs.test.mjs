@@ -8,11 +8,11 @@ async function source(relativePath) {
   return (await readFile(path.join(ROOT, relativePath), "utf8")).replaceAll("\r\n", "\n");
 }
 
-test("GitHub operations preserve the user-directed public visibility boundary", async () => {
+test("GitHub operations preserve the user-directed private visibility boundary", async () => {
   const operations = await source("docs/GITHUB-OPERATIONS.md");
-  assert.match(operations, /intentionally public under the user's current directive/);
+  assert.match(operations, /intentionally private under the user's current directive/);
   assert.match(operations, /no script, issue, workflow, or controller may change it/);
-  assert.doesNotMatch(operations, /repository remains private as required/i);
+  assert.doesNotMatch(operations, /intentionally public under the user's current directive/);
 
   const connector = await source("scripts/connect-chatgpt-codex.ps1");
   assert.doesNotMatch(connector, /private repository access failed/i);
