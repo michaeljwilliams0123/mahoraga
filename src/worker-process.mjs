@@ -11,12 +11,13 @@ import { executeDesktopCapability } from "./desktop-worker.mjs";
 import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
+import { createContentVault } from "./content-vault.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
 
 const manifest = await loadManifest();
-const artifactStore = new LocalArtifactStore(process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts"));
+let artifactStorePromise = null;
 const worker = manifest.workers.find((item) => item.id === workerId && item.enabled);
 if (!worker) process.exit(3);
 
@@ -75,7 +76,7 @@ async function execute(capability, task) {
       };
 
     case "artifact.inspect":
-      return inspectTaskArtifacts(task, { store: artifactStore });
+      return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
     case "system.health":
       return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };
     case "manifest.validate":
@@ -90,6 +91,19 @@ async function execute(capability, task) {
     default:
       throw new Error("unsupported-capability");
   }
+}
+
+function artifactStoreForWorker() {
+  if (!artifactStorePromise) artifactStorePromise = (async () => {
+    const artifactRoot = process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts");
+    const stateRoot = path.dirname(artifactRoot);
+    const contentVault = await createContentVault({
+      root: process.env.MAHORAGA_CONTENT_VAULT_ROOT ?? path.join(stateRoot, "content-vault"),
+      keyFile: process.env.MAHORAGA_CONTENT_VAULT_KEY_FILE ?? path.join(stateRoot, "content-vault.key.dpapi"),
+    });
+    return new LocalArtifactStore(artifactRoot, { contentVault });
+  })();
+  return artifactStorePromise;
 }
 
 function classifyError(error) {

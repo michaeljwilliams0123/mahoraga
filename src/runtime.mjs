@@ -6,20 +6,26 @@ import { createControlServer } from "./server.mjs";
 import { loadPrimaryCodexToken } from "./local-auth.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createControlSessionManager } from "./control-session.mjs";
+import { createContentVault } from "./content-vault.mjs";
 
-export async function startRuntime({ port, databaseFile, artifactRoot, syncCoordinationMailbox = true, webRoot } = {}) {
+export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, syncCoordinationMailbox = true, webRoot } = {}) {
   const manifest = await loadManifest();
   const resolvedDatabaseFile = databaseFile ?? path.join(ROOT, manifest.runtime.database);
-  const database = new RuntimeDatabase(resolvedDatabaseFile);
+  const stateRoot = path.dirname(resolvedDatabaseFile);
+  const resolvedContentVaultRoot = contentVaultRoot ?? path.join(stateRoot, "content-vault");
+  const resolvedContentVaultKeyFile = contentVaultKeyFile ?? path.join(stateRoot, "content-vault.key.dpapi");
+  const contentVault = await createContentVault({ root: resolvedContentVaultRoot, keyFile: resolvedContentVaultKeyFile, masterKey: contentVaultMasterKey });
+  contentVault.deleteExpired();
+  const database = new RuntimeDatabase(resolvedDatabaseFile, { contentVault });
   const resolvedArtifactRoot = artifactRoot ?? path.join(path.dirname(resolvedDatabaseFile), "artifacts");
-  const artifactStore = new LocalArtifactStore(resolvedArtifactRoot);
-  const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, syncCoordinationMailbox });
+  const artifactStore = new LocalArtifactStore(resolvedArtifactRoot, { contentVault });
+  const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, contentVaultRoot: resolvedContentVaultRoot, contentVaultKeyFile: resolvedContentVaultKeyFile, syncCoordinationMailbox });
   const primaryCodexToken = await loadPrimaryCodexToken();
   const controlSessions = createControlSessionManager();
   const resolvedPort = port ?? manifest.runtime.port;
   supervisor.start();
   const server = createControlServer({
-    manifest, database, supervisor, primaryCodexToken, artifactStore, controlSessions,
+    manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault, controlSessions,
     controlOrigin: `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
   });
   await new Promise((resolve, reject) => {
@@ -32,5 +38,5 @@ export async function startRuntime({ port, databaseFile, artifactRoot, syncCoord
     await new Promise((resolve) => server.close(resolve));
     database.close();
   };
-  return { manifest, database, artifactStore, supervisor, server, controlSessions, address, stop };
+  return { manifest, database, artifactStore, contentVault, supervisor, server, controlSessions, address, stop };
 }

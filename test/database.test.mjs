@@ -8,7 +8,7 @@ import { createAssignmentRecord } from "../src/coordination-records.mjs";
 
 function databaseFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-"));
-  const database = new RuntimeDatabase(path.join(root, "state.sqlite"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
   t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   return database;
 }

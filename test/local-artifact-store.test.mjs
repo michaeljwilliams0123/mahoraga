@@ -9,7 +9,7 @@ import { startRuntime } from "../src/runtime.mjs";
 test("private local artifacts preserve integrity and support deterministic inspection", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-artifact-store-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const store = new LocalArtifactStore(root);
+  const store = new LocalArtifactStore(root, { allowLegacyPlaintextWrites: true });
   const artifact = await store.put({
     name: "evidence.csv",
     mimeType: "text/csv",
@@ -20,7 +20,8 @@ test("private local artifacts preserve integrity and support deterministic inspe
   assert.equal(result.verified, true);
   assert.equal(result.artifactCount, 1);
   assert.equal(result.observations[0].kind, "text");
-  assert.match(result.summary, /Quarter,Amount Q1,100/);
+  assert.match(result.summary, /content preview withheld/);
+  assert.doesNotMatch(result.summary, /Quarter,Amount/);
   const stored = await store.read(artifact.id);
   assert.equal(stored.bytes.toString("utf8"), "Quarter,Amount\nQ1,100\n");
 });
@@ -44,7 +45,7 @@ test("Control Center uploads, attaches, inspects, and protects a private artifac
   });
   assert.equal(uploadResponse.status, 201);
   const { artifact } = await uploadResponse.json();
-  assert.equal(artifact.storageClass, "device-local-private");
+  assert.equal(artifact.storageClass, "encrypted-local-private");
 
   const created = await (await fetch(`${base}/api/conversations`, {
     method: "POST",
@@ -70,7 +71,8 @@ test("Control Center uploads, attaches, inspects, and protects a private artifac
     const tasks = await (await fetch(`${base}/api/tasks`)).json();
     return tasks.tasks.find((task) => task.id === createdTask.task.id && task.status === "completed");
   });
-  assert.match(completed.resultSummary, /Quarter,Amount Q1,100/);
+  assert.equal(completed.resultSummary, null);
+  assert.match(completed.resultSummaryReference, /^vault:/);
 
   const contentResponse = await fetch(`${base}/api/artifacts/${artifact.id}/content`);
   assert.equal(contentResponse.status, 200);

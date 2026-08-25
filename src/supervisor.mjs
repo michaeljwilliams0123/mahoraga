@@ -10,8 +10,9 @@ import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mj
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database, artifactRoot, syncCoordinationMailbox = true }) {
-    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
+  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true }) {
+    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
+    this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -90,7 +91,12 @@ export class Supervisor extends EventEmitter {
   }
 
   #spawn(definition, restartCount = 0) {
-    const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"], env: { ...process.env, MAHORAGA_ARTIFACT_ROOT: this.artifactRoot } });
+    const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"], env: {
+      ...process.env,
+      MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
+      MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
+      MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
+    } });
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null };
     this.workers.set(definition.id, state);
@@ -267,7 +273,7 @@ export class Supervisor extends EventEmitter {
         executionTask = { ...task, integrationLease, executionSessionId: session.executionSessionId };
       }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
-      const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessages(task.conversationId) } : executionTask;
+      const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessagesForExecution(task.conversationId) } : executionTask;
       state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
     }
   }

@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
 import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
 
@@ -14,9 +14,14 @@ const CAPABILITY_CANARY_STATES = new Set(["never", "stale", "failed", "verified"
 const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unresolved"]);
 
 export class RuntimeDatabase {
-  constructor(file) {
+  constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
+    if (contentVault !== null && (!contentVault || typeof contentVault.put !== "function" || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function")) throw new TypeError("Content vault is invalid.");
+    if (!Number.isSafeInteger(contentTtlMs) || contentTtlMs < 1000) throw new TypeError("Content TTL is invalid.");
     mkdirSync(path.dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
+    this.contentVault = contentVault;
+    this.contentTtlMs = contentTtlMs;
+    this.allowLegacyPlaintextWrites = allowLegacyPlaintextWrites === true;
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     this.#migrate();
   }
@@ -211,6 +216,7 @@ export class RuntimeDatabase {
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
     this.#ensureSecondaryAssignmentColumns();
+    this.#ensureContentColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
   }
 
@@ -218,6 +224,8 @@ export class RuntimeDatabase {
     const current = new Set(this.db.prepare("PRAGMA table_info(tasks)").all().map((column) => column.name));
     const additions = [
       ["correlation_id", "TEXT"], ["task_type", "TEXT"], ["requested_outcome", "TEXT"],
+      ["requested_outcome_ref", "TEXT"], ["requested_outcome_sha256", "TEXT"], ["requested_outcome_size_bytes", "INTEGER"], ["requested_outcome_expires_at", "TEXT"],
+      ["result_summary_ref", "TEXT"], ["result_summary_sha256", "TEXT"], ["result_summary_size_bytes", "INTEGER"], ["result_summary_expires_at", "TEXT"],
       ["execution_plane", "TEXT NOT NULL DEFAULT 'local'"], ["priority", "TEXT NOT NULL DEFAULT 'normal'"],
       ["maximum_attempts", "INTEGER NOT NULL DEFAULT 3"], ["checkpoint", "TEXT"], ["verifier", "TEXT"],
       ["conversation_id", "TEXT"],
@@ -247,6 +255,17 @@ export class RuntimeDatabase {
     if (!current.has("source")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'runtime-api'");
   }
 
+  #ensureContentColumns() {
+    const conversations = new Set(this.db.prepare("PRAGMA table_info(conversations)").all().map((column) => column.name));
+    for (const [name, definition] of [
+      ["title_ref", "TEXT"], ["title_sha256", "TEXT"], ["title_size_bytes", "INTEGER"], ["title_classification", "TEXT"], ["title_expires_at", "TEXT"],
+    ]) if (!conversations.has(name)) this.db.exec(`ALTER TABLE conversations ADD COLUMN ${name} ${definition}`);
+    const messages = new Set(this.db.prepare("PRAGMA table_info(conversation_messages)").all().map((column) => column.name));
+    for (const [name, definition] of [
+      ["content_ref", "TEXT"], ["content_sha256", "TEXT"], ["content_size_bytes", "INTEGER"], ["content_classification", "TEXT"], ["content_expires_at", "TEXT"],
+    ]) if (!messages.has(name)) this.db.exec(`ALTER TABLE conversation_messages ADD COLUMN ${name} ${definition}`);
+  }
+
   submitPolicyTask(task) {
     if (!task || task.policyVersion !== "7.0.0-alpha.1") throw new TypeError("Task policy version is invalid.");
     if (!Array.isArray(task.allowedWorkerIds) || task.allowedWorkerIds.length < 1) throw new TypeError("Task policy has no allowed workers.");
@@ -266,6 +285,7 @@ export class RuntimeDatabase {
     bounded(idempotencyKey, 120, "idempotency key");
     bounded(correlationId, 120, "correlation id"); bounded(taskType, 64, "task type");
     bounded(requestedOutcome, 1000, "requested outcome"); bounded(executionPlane, 40, "execution plane");
+    const requestedOutcomeSha256 = digestText(requestedOutcome);
     bounded(completionCriteria, 400, "completion criteria");
     if (!PRIORITIES.has(priority)) throw new TypeError("Task priority is invalid.");
     if (!Number.isInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 20) throw new TypeError("Maximum attempts is invalid.");
@@ -297,19 +317,20 @@ export class RuntimeDatabase {
       if (existing) {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
-          correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
+          correlationId, taskType, requestedOutcomeSha256, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
           attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, baseCommit, allowedPaths: normalizedAllowedPaths, policyVersion,
         });
         return task;
       }
+      const requestedContent = this.#storeContent(requestedOutcome, { classification: dataClass, ownerType: "task", ownerId: id });
       this.db.prepare(`INSERT INTO tasks
-        (id, idempotency_key, correlation_id, task_type, requested_outcome, intent, capability, data_class, requested_mode,
+        (id, idempotency_key, correlation_id, task_type, requested_outcome, requested_outcome_ref, requested_outcome_sha256, requested_outcome_size_bytes, requested_outcome_expires_at, intent, capability, data_class, requested_mode,
          execution_plane, attended_required, allowed_worker_ids_json, authority_session_id, integration_lease_id,
          content_references_json, base_commit, allowed_paths_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
          excluded_worker_ids, completion_criteria, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
-        .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+        .run(id, idempotencyKey, correlationId, taskType, requestedContent ? "[vault-content]" : requestedOutcome, requestedContent?.reference ?? null, requestedContent?.sha256 ?? requestedOutcomeSha256, requestedContent?.sizeBytes ?? Buffer.byteLength(requestedOutcome, "utf8"), requestedContent?.expiresAt ?? null, intent, capability, dataClass, requestedMode,
           executionPlane, attendedRequired ? 1 : 0, JSON.stringify(allowedWorkerIds), authoritySessionId, integrationLeaseId,
           JSON.stringify(contentReferences), baseCommit, JSON.stringify(normalizedAllowedPaths), policyVersion, priority, maximumAttempts, conversationId, taskArea,
           JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
@@ -318,16 +339,18 @@ export class RuntimeDatabase {
     });
   }
 
-  createConversation({ title, initialMessage = null, attachments = [] }) {
+  createConversation({ title, initialMessage = null, attachments = [], classification = "local-only" }) {
     bounded(title, 200, "conversation title");
     if (initialMessage !== null) boundedMultiline(initialMessage, 12000, "initial message");
+    validateDataClass(classification);
     const normalizedAttachments = conversationAttachments(attachments);
     if (!initialMessage && normalizedAttachments.length === 0) throw new TypeError("Initial message or attachment is required.");
     const id = `con-${randomUUID()}`; const now = new Date().toISOString();
     this.#transaction(() => {
-      this.db.prepare("INSERT INTO conversations(id,title,status,created_at,updated_at) VALUES(?,?,'active',?,?)").run(id, title, now, now);
-      this.#event("conversation.created", id, { title });
-      if (initialMessage || normalizedAttachments.length) this.#addMessage({ conversationId: id, role: "user", content: initialMessage || "Attached file", attachments: normalizedAttachments, createdAt: now });
+      const titleContent = this.#storeContent(title, { classification, ownerType: "conversation", ownerId: id });
+      this.db.prepare("INSERT INTO conversations(id,title,title_ref,title_sha256,title_size_bytes,title_classification,title_expires_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)").run(id, titleContent ? "[vault-content]" : title, titleContent?.reference ?? null, titleContent?.sha256 ?? digestText(title), titleContent?.sizeBytes ?? Buffer.byteLength(title, "utf8"), classification, titleContent?.expiresAt ?? null, now, now);
+      this.#event("conversation.created", id, { titleSha256: digestText(title), classification });
+      if (initialMessage || normalizedAttachments.length) this.#addMessage({ conversationId: id, role: "user", content: initialMessage || "Attached file", attachments: normalizedAttachments, classification, createdAt: now });
     });
     return this.getConversation(id);
   }
@@ -343,27 +366,33 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?").all(size).map(normalizeConversation);
   }
 
-  addConversationMessage({ conversationId, taskId = null, role = "user", content, attachments = [], requiresResponse = false }) {
+  addConversationMessage({ conversationId, taskId = null, role = "user", content, attachments = [], requiresResponse = false, classification = null }) {
     bounded(conversationId, 80, "conversation id");
     if (taskId !== null) bounded(taskId, 80, "task id");
     if (!new Set(["user", "assistant", "system", "worker"]).has(role)) throw new TypeError("Conversation role is invalid.");
     boundedMultiline(content, 12000, "conversation message");
     const normalizedAttachments = conversationAttachments(attachments);
     if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing.");
-    const message = this.#addMessage({ conversationId, taskId, role, content, attachments: normalizedAttachments, requiresResponse });
+    const effectiveClassification = classification ?? (taskId ? this.getTask(taskId)?.dataClass : null) ?? "local-only";
+    validateDataClass(effectiveClassification);
+    const message = this.#addMessage({ conversationId, taskId, role, content, attachments: normalizedAttachments, requiresResponse, classification: effectiveClassification });
     this.#event("conversation.message", conversationId, { messageId: message.id, taskId, role, requiresResponse, attachmentCount: normalizedAttachments.length });
     return message;
   }
 
-  #addMessage({ conversationId, taskId = null, role, content, attachments = [], requiresResponse = false, createdAt = new Date().toISOString() }) {
+  #addMessage({ conversationId, taskId = null, role, content, attachments = [], requiresResponse = false, classification = "local-only", createdAt = new Date().toISOString() }) {
     const id = `msg-${randomUUID()}`;
-    this.db.prepare(`INSERT INTO conversation_messages(id,conversation_id,task_id,role,content,requires_response,created_at)
-      VALUES(?,?,?,?,?,?,?)`).run(id, conversationId, taskId, role, content, requiresResponse ? 1 : 0, createdAt);
+    const stored = this.#storeContent(content, { classification, ownerType: "message", ownerId: id });
+    this.db.prepare(`INSERT INTO conversation_messages(id,conversation_id,task_id,role,content,content_ref,content_sha256,content_size_bytes,content_classification,content_expires_at,requires_response,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, conversationId, taskId, role, stored ? "[vault-content]" : content, stored?.reference ?? null, stored?.sha256 ?? digestText(content), stored?.sizeBytes ?? Buffer.byteLength(content, "utf8"), classification, stored?.expiresAt ?? null, requiresResponse ? 1 : 0, createdAt);
     const insertAttachment = this.db.prepare(`INSERT INTO conversation_message_attachments
       (message_id,artifact_id,name,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,?,?,?)`);
     for (const attachment of attachments) insertAttachment.run(id, attachment.id, attachment.name, attachment.mimeType, attachment.sizeBytes, attachment.sha256, createdAt);
     this.db.prepare("UPDATE conversations SET updated_at=? WHERE id=?").run(createdAt, conversationId);
-    return { id, conversationId, taskId, role, content, attachments, requiresResponse: Boolean(requiresResponse), createdAt };
+    return { id, conversationId, taskId, role, content: stored ? null : content,
+      contentReference: stored?.reference ?? null, contentSha256: stored?.sha256 ?? digestText(content),
+      contentSizeBytes: stored?.sizeBytes ?? Buffer.byteLength(content, "utf8"), classification, expiresAt: stored?.expiresAt ?? null,
+      attachments, requiresResponse: Boolean(requiresResponse), createdAt };
   }
 
   listConversationMessages(conversationId, limit = 500) {
@@ -372,6 +401,12 @@ export class RuntimeDatabase {
     const attachmentQuery = this.db.prepare("SELECT artifact_id,name,mime_type,size_bytes,sha256 FROM conversation_message_attachments WHERE message_id=? ORDER BY created_at,artifact_id");
     return this.db.prepare("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY created_at, id LIMIT ?")
       .all(conversationId, size).map((row) => normalizeMessageWithAttachments(row, attachmentQuery.all(row.id)));
+  }
+
+  listConversationMessagesForExecution(conversationId, limit = 500) {
+    return this.listConversationMessages(conversationId, limit).map((message) => message.contentReference
+      ? Object.freeze({ ...message, content: this.#resolveContent(message.contentReference, { ownerType: "message", ownerId: message.id, classification: message.classification }).toString("utf8") })
+      : message);
   }
 
   isArtifactReferenced(artifactId) {
@@ -414,6 +449,13 @@ export class RuntimeDatabase {
     bounded(idempotencyKey, 120, "idempotency key");
     const row = this.db.prepare("SELECT * FROM tasks WHERE idempotency_key = ?").get(idempotencyKey);
     return row ? normalizeTask(row) : null;
+  }
+
+  getTaskForExecution(id) {
+    const task = this.getTask(id);
+    if (!task || !task.requestedOutcomeReference) return task;
+    const requestedOutcome = this.#resolveContent(task.requestedOutcomeReference, { ownerType: "task", ownerId: task.id, classification: task.dataClass }).toString("utf8");
+    return Object.freeze({ ...task, requestedOutcome });
   }
 
   listTasks(limit = 100) {
@@ -696,7 +738,7 @@ export class RuntimeDatabase {
         lease_expires_at=?, updated_at=? WHERE id=? AND status='queued'`).run(workerId, lease, now.toISOString(), row.id);
       if (changed.changes !== 1) return null;
       this.#event("task.claimed", row.id, { workerId, leaseExpiresAt: lease });
-      return this.getTask(row.id);
+      return this.getTaskForExecution(row.id);
     });
     return transaction();
   }
@@ -707,7 +749,7 @@ export class RuntimeDatabase {
     const changed = this.db.prepare("UPDATE tasks SET status='verifying', verifier=?, updated_at=? WHERE id=? AND status='running'")
       .run(verifier, now, id);
     if (changed.changes === 1) this.#event("task.verifying", id, { verifier });
-    return this.getTask(id);
+    return this.getTaskForExecution(id);
   }
 
   finishTask(id, { status, resultSummary = null, errorCode = null, receiptMetadata = {} }) {
@@ -716,8 +758,10 @@ export class RuntimeDatabase {
     if (errorCode !== null) bounded(errorCode, 80, "error code");
     const task = this.getTask(id);
     const now = new Date().toISOString();
-    const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
-      WHERE id=? AND status IN ('running','verifying')`).run(status, resultSummary, errorCode, now, id);
+    const storedResult = resultSummary === null ? null : this.#storeContent(resultSummary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+    const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+      WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
+        storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
     if (changed.changes === 1) {
       this.#event(`task.${status}`, id, { errorCode });
       this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.`, metadata: receiptMetadata });
@@ -742,8 +786,10 @@ export class RuntimeDatabase {
     const errorCode = status === "failed" ? "verification-failed" : null;
     const now = new Date().toISOString();
     const completed = this.#transaction(() => {
-      const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
-        WHERE id=? AND status IN ('running','verifying')`).run(status, receipt.summary, errorCode, now, id);
+      const storedResult = this.#storeContent(receipt.summary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+      const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : receipt.summary, storedResult?.reference ?? null,
+          storedResult?.sha256 ?? digestText(receipt.summary), storedResult?.sizeBytes ?? Buffer.byteLength(receipt.summary, "utf8"), storedResult?.expiresAt ?? null, errorCode, now, id);
       if (changed.changes !== 1) throw new Error("receipt-task-state-invalid");
       this.#event(`task.${status}`, id, { errorCode, receiptSha256: receiptDigest(receipt) });
       this.recordCapabilityReceipt({ task, receipt, verifier: task.verifier ?? "worker-result" });
@@ -761,8 +807,10 @@ export class RuntimeDatabase {
       return this.finishTask(id, { status: "failed", errorCode, resultSummary });
     } catch {
       const now = new Date().toISOString();
-      this.db.prepare(`UPDATE tasks SET status='failed', result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
-        WHERE id=? AND status IN ('running','verifying')`).run(resultSummary, errorCode, now, id);
+      const task = this.getTask(id); const storedResult = resultSummary === null || !task ? null : this.#storeContent(resultSummary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+      this.db.prepare(`UPDATE tasks SET status='failed', result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
+          storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
       return this.getTask(id);
     }
   }
@@ -773,10 +821,11 @@ export class RuntimeDatabase {
     const receipt = validateCapabilityReceipt(task.capability, value);
     const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
     const sha256 = receiptDigest(receipt);
+    const persistedReceipt = { ...receipt, summary: "[vault-content]" };
     this.db.prepare(`INSERT INTO execution_receipts
       (id,task_id,correlation_id,phase,verifier,summary,metadata_json,receipt_json,receipt_sha256,capability,outcome,created_at)
       VALUES(?,?,?,?,?,?,'{}',?,?,?,?,?)`)
-      .run(id, task.id, task.correlationId, receipt.outcome, verifier, receipt.summary, JSON.stringify(receipt), sha256, receipt.capability, receipt.outcome, createdAt);
+      .run(id, task.id, task.correlationId, receipt.outcome, verifier, "[vault-content]", JSON.stringify(persistedReceipt), sha256, receipt.capability, receipt.outcome, createdAt);
     this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase: receipt.outcome, verifier, capability: receipt.capability, sha256 });
     return { id, taskId: task.id, correlationId: task.correlationId, phase: receipt.outcome, verifier, summary: receipt.summary, receipt, sha256, createdAt };
   }
@@ -786,8 +835,9 @@ export class RuntimeDatabase {
     bounded(phase, 40, "receipt phase"); bounded(verifier, 80, "receipt verifier"); bounded(summary, 2000, "receipt summary");
     const receiptMetadata = normalizeReceiptMetadata(metadata);
     const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
+    const persistedMetadata = { ...receiptMetadata, summarySha256: digestText(summary) };
     this.db.prepare("INSERT INTO execution_receipts(id,task_id,correlation_id,phase,verifier,summary,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)")
-      .run(id, task.id, task.correlationId, phase, verifier, summary, JSON.stringify(receiptMetadata), createdAt);
+      .run(id, task.id, task.correlationId, phase, verifier, "[vault-content]", JSON.stringify(persistedMetadata), createdAt);
     this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase, verifier });
     return { id, taskId: task.id, correlationId: task.correlationId, phase, verifier, summary, metadata: receiptMetadata, createdAt };
   }
@@ -951,6 +1001,29 @@ export class RuntimeDatabase {
     return this.getImprovement(id);
   }
 
+  recordContentAccess({ reference, ownerType, ownerId, classification, mechanism = "unknown", sessionId = null }) {
+    if (typeof reference !== "string" || !/^vault:[a-f0-9-]{36}$/.test(reference)) throw new TypeError("Content reference is invalid.");
+    bounded(ownerType, 32, "content owner type"); bounded(ownerId, 120, "content owner id"); validateDataClass(classification);
+    if (!new Set(["bearer", "cookie"]).has(mechanism)) throw new TypeError("Content access mechanism is invalid.");
+    if (sessionId !== null) bounded(sessionId, 180, "content session id");
+    this.#event("content.accessed", ownerId, { referenceSha256: digestText(reference), ownerType, classification, mechanism, sessionBound: sessionId !== null });
+  }
+
+  #storeContent(value, { classification, ownerType, ownerId }) {
+    if (!this.contentVault) {
+      if (this.allowLegacyPlaintextWrites) return null;
+      throw new Error("content-vault-required");
+    }
+    const reference = this.contentVault.put(Buffer.from(value, "utf8"), { classification, ownerType, ownerId, ttlMs: this.contentTtlMs });
+    const metadata = this.contentVault.metadata(reference, { classification, ownerType, ownerId });
+    return { reference, sha256: metadata.sha256, sizeBytes: metadata.sizeBytes, expiresAt: metadata.expiresAt };
+  }
+
+  #resolveContent(reference, expected) {
+    if (!this.contentVault) throw new Error("content-vault-required");
+    return this.contentVault.get(reference, expected);
+  }
+
   #event(type, subjectId, metadata) {
     this.db.prepare("INSERT INTO events(timestamp,event_type,subject_id,metadata_json) VALUES(?,?,?,?)")
       .run(new Date().toISOString(), type, subjectId, JSON.stringify(metadata));
@@ -1018,9 +1091,14 @@ function answerEvaluationIdentity(value) {
 
 function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
   id: row.id, idempotencyKey: row.idempotency_key, correlationId: row.correlation_id, taskType: row.task_type,
-  requestedOutcome: row.requested_outcome, intent: row.intent ?? row.capability, capability: row.capability, dataClass: row.data_class,
+  requestedOutcome: row.requested_outcome_ref ? null : row.requested_outcome,
+  requestedOutcomeReference: row.requested_outcome_ref ?? null, requestedOutcomeSha256: row.requested_outcome_sha256 ?? digestText(row.requested_outcome ?? ""),
+  requestedOutcomeSizeBytes: row.requested_outcome_size_bytes ?? Buffer.byteLength(row.requested_outcome ?? "", "utf8"), requestedOutcomeExpiresAt: row.requested_outcome_expires_at ?? null,
+  intent: row.intent ?? row.capability, capability: row.capability, dataClass: row.data_class,
   requestedMode: row.requested_mode, status: row.status, assignedWorker: row.assigned_worker,
-  attemptCount: row.attempt_count, leaseExpiresAt: row.lease_expires_at, resultSummary: row.result_summary,
+  attemptCount: row.attempt_count, leaseExpiresAt: row.lease_expires_at, resultSummary: row.result_summary_ref ? null : row.result_summary,
+  resultSummaryReference: row.result_summary_ref ?? null, resultSummarySha256: row.result_summary_sha256 ?? (row.result_summary ? digestText(row.result_summary) : null),
+  resultSummarySizeBytes: row.result_summary_size_bytes ?? (row.result_summary ? Buffer.byteLength(row.result_summary, "utf8") : null), resultSummaryExpiresAt: row.result_summary_expires_at ?? null,
   errorCode: row.error_code, executionPlane: row.execution_plane, priority: row.priority,
   maximumAttempts: row.maximum_attempts, checkpoint: row.checkpoint, verifier: row.verifier,
   conversationId: row.conversation_id,
@@ -1033,7 +1111,7 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcome", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
+  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }
@@ -1050,8 +1128,19 @@ function idempotencyConflict(field) {
 }
 function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
+function normalizeConversation(row) { return {
+  id: row.id, title: row.title_ref ? null : row.title, titleReference: row.title_ref ?? null,
+  titleSha256: row.title_sha256 ?? digestText(row.title ?? ""), titleSizeBytes: row.title_size_bytes ?? Buffer.byteLength(row.title ?? "", "utf8"),
+  classification: row.title_classification ?? "local-only", expiresAt: row.title_expires_at ?? null,
+  status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at,
+}; }
+function normalizeMessage(row) { return {
+  id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role,
+  content: row.content_ref ? null : row.content, contentReference: row.content_ref ?? null,
+  contentSha256: row.content_sha256 ?? digestText(row.content ?? ""), contentSizeBytes: row.content_size_bytes ?? Buffer.byteLength(row.content ?? "", "utf8"),
+  classification: row.content_classification ?? "local-only", expiresAt: row.content_expires_at ?? null,
+  requiresResponse: Boolean(row.requires_response), createdAt: row.created_at,
+}; }
 function normalizeMessageWithAttachments(row, attachments) {
   return { ...normalizeMessage(row), attachments: attachments.map((item) => ({ id: item.artifact_id, name: item.name, mimeType: item.mime_type, sizeBytes: item.size_bytes, sha256: item.sha256 })) };
 }
@@ -1094,11 +1183,12 @@ function normalizeReceiptMetadata(value) {
   }
   return Object.freeze(metadata);
 }
+function digestText(value) { return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex"); }
 function conversationAttachments(value) {
   if (!Array.isArray(value) || value.length > 20 || new Set(value.map((item) => item?.id)).size !== value.length) throw new TypeError("Conversation attachments are invalid.");
   return value.map((item) => {
     if (!isRecord(item)) throw new TypeError("Conversation attachment is invalid.");
-    const allowed = new Set(["id", "name", "mimeType", "sizeBytes", "sha256", "source", "createdAt", "storageClass"]);
+    const allowed = new Set(["id", "name", "mimeType", "sizeBytes", "sha256", "source", "createdAt", "storageClass", "vaultReference"]);
     for (const key of Object.keys(item)) if (!allowed.has(key)) throw new TypeError("Conversation attachment field is invalid.");
     artifactReferenceId(item.id);
     bounded(item.name, 200, "attachment name");

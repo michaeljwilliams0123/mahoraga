@@ -40,12 +40,13 @@ export function snapshotStaticAssets(webRoot = WEB_ROOT) {
 }
 
 export function createControlServer({
-  manifest, database, supervisor, primaryCodexToken, artifactStore,
+  manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
   webRoot = WEB_ROOT,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
+  if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   return createServer(async (request, response) => {
     try {
@@ -74,6 +75,18 @@ export function createControlServer({
         if (sessionId) controlSessions.revokeSession(sessionId);
         response.setHeader("Set-Cookie", clearSessionCookie());
         return json(response, 200, { authenticated: false });
+      }
+      const contentRoute = url.pathname.match(/^\/api\/content\/(vault:[a-f0-9-]{36})$/);
+      if (request.method === "GET" && contentRoute) {
+        const expected = {
+          ownerType: requiredQuery(url, "ownerType"),
+          ownerId: requiredQuery(url, "ownerId"),
+          classification: requiredQuery(url, "classification"),
+        };
+        const metadata = contentVault.metadata(contentRoute[1], expected);
+        const bytes = contentVault.get(contentRoute[1], expected);
+        database.recordContentAccess({ reference: contentRoute[1], ...expected, mechanism: authentication.mechanism, sessionId: authentication.sessionId });
+        return contentBytes(response, metadata, bytes);
       }
       if (request.method === "GET" && url.pathname === "/api/expert-skills") return json(response, 200, { skills: listExpertSkills() });
       if (request.method === "POST" && url.pathname === "/api/expert-skills/select") {
@@ -159,7 +172,7 @@ export function createControlServer({
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments }) });
+        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments, classification: body.classification ?? "local-only" }) });
       }
       const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
       if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
@@ -316,6 +329,7 @@ function submitTask(database, manifest, body, options = {}) {
   else conversationId = database.createConversation({
       title: request.requestedOutcome ?? policy.intent,
       initialMessage: request.initialMessage ?? `Run ${policy.intent}`,
+      classification: policy.dataClass,
     }).id;
   return database.submitPolicyTask({ ...policyTaskInput(request, policy, manifest), conversationId });
 }
@@ -351,6 +365,19 @@ function artifactContent(response, { metadata, bytes }) {
   });
   response.end(bytes);
 }
+function contentBytes(response, metadata, bytes) {
+  response.writeHead(200, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": bytes.length,
+    "Content-Disposition": "attachment; filename=mahoraga-content.bin",
+    "X-Mahoraga-Content-Sha256": metadata.sha256,
+    "X-Mahoraga-Content-Classification": metadata.classification,
+    "X-Mahoraga-Content-Expires-At": metadata.expiresAt,
+    "Cache-Control": "no-store",
+  });
+  response.end(bytes);
+}
+function requiredQuery(url, name) { const value = url.searchParams.get(name); if (!value) throw new Error(`content-${name}-required`); return value; }
 async function bodyJson(request) {
   const chunks = []; let size = 0;
   for await (const chunk of request) { size += chunk.length; if (size > 16384) throw new Error("request-too-large"); chunks.push(chunk); }
@@ -367,5 +394,6 @@ function classify(error) {
   if (error instanceof SyntaxError) return "invalid-json";
   if (/invalid|required|missing|must|unknown|duplicate/i.test(error?.message ?? "")) return error.message;
   if (/^artifact-(?:empty|too-large|name-invalid|mime-invalid|source-invalid)$/.test(error?.message ?? "")) return error.message;
+  if (/^vault-(?:reference-invalid|owner-mismatch|classification-mismatch|record-expired|record-missing|authentication-failed)$/.test(error?.message ?? "")) return error.message;
   return "request-rejected";
 }
