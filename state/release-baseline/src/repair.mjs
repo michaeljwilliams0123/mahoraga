@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 
@@ -36,6 +36,7 @@ export const ESSENTIAL_FILES = [
   "src/database.mjs",
   "src/expert-skill-registry.mjs",
   "src/github-audit.mjs",
+  "src/microsoft365-worker.mjs",
   "src/microsoft-queue-worker.mjs",
   "src/repair.mjs",
   "src/router.mjs",
@@ -94,22 +95,48 @@ export async function scanRepairState(manifest) {
 }
 
 export async function applyAutomaticRepairs(manifest) {
+  const repairId = `${Date.now()}-${process.pid}`;
+  const rollbackRoot = path.join(ROOT, "state", "repairs", "rollback", repairId);
   await Promise.all(["state", "state/cache", "state/checkpoints", "state/repairs"].map((relative) => mkdir(path.join(ROOT, relative), { recursive: true })));
   const baselineRoot = path.join(ROOT, manifest.repair.baselineDirectory);
-  const staged = [];
+  const repaired = [];
+  const rolledBack = [];
   const unresolved = [];
   for (const relative of ESSENTIAL_FILES) {
     const live = path.join(ROOT, relative);
     const baseline = path.join(baselineRoot, relative);
     if (await healthyFile(live)) continue;
     if (!(await healthyFile(baseline))) { unresolved.push(relative); continue; }
-    const candidate = path.join(ROOT, "state", "repairs", `core-${Date.now()}-${relative.replace(/[\\/]/g, "_")}.json`);
-    await writeFile(candidate, JSON.stringify({ kind: "core-source-repair", relative, baseline: path.relative(ROOT, baseline), stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: manifest.repair.coreUpdateAuthority }, null, 2));
-    staged.push(relative);
+    const rollback = path.join(rollbackRoot, relative);
+    const hadLiveFile = await fileExists(live);
+    try {
+      await mkdir(path.dirname(live), { recursive: true });
+      if (hadLiveFile) {
+        await mkdir(path.dirname(rollback), { recursive: true });
+        await copyFile(live, rollback);
+      }
+      await copyFile(baseline, live);
+      if (!(await healthyFile(live)) || !(await filesMatch(live, baseline))) throw new Error("post-activation verification failed");
+      repaired.push(relative);
+      const receipt = path.join(ROOT, "state", "repairs", `core-${repairId}-${relative.replace(/[\\/]/g, "_")}.json`);
+      await writeFile(receipt, `${JSON.stringify({ kind: "core-source-repair", relative, baseline: path.relative(ROOT, baseline), activatedAt: new Date().toISOString(), activationAuthority: manifest.repair.coreUpdateAuthority, rollback: hadLiveFile ? path.relative(ROOT, rollback) : null, verified: true }, null, 2)}\n`, "utf8");
+    } catch {
+      try {
+        if (hadLiveFile && await fileExists(rollback)) await copyFile(rollback, live);
+        else await rm(live, { force: true });
+        rolledBack.push(relative);
+      } catch {
+        unresolved.push(relative);
+      }
+      if (!unresolved.includes(relative)) unresolved.push(relative);
+    }
   }
-  return { verified: unresolved.length === 0, repaired: [], staged, unresolved, summary: `Operational repair completed; ${staged.length} core repair candidate(s) staged for explicit activation and ${unresolved.length} unresolved.` };
+  return { verified: unresolved.length === 0, repaired, staged: [], rolledBack, unresolved, rollbackCheckpoint: repaired.length > 0 ? path.relative(ROOT, rollbackRoot) : null, summary: `Automatic repair completed; ${repaired.length} verified core repair(s) activated, ${rolledBack.length} rolled back, and ${unresolved.length} unresolved.` };
 }
 
+async function fileExists(file) {
+  try { return (await stat(file)).isFile(); } catch { return false; }
+}
 async function healthyFile(file) {
   try { return (await stat(file)).isFile() && (await stat(file)).size > 0; } catch { return false; }
 }

@@ -8,6 +8,7 @@ import { executeCopilotCapability } from "./copilot-worker.mjs";
 import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
 import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
+import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 
 const workerId = process.argv[2];
@@ -41,6 +42,7 @@ async function execute(capability, task) {
   if (capability.startsWith("codex.")) return executeCodexBuilderCapability(capability, task, worker);
   if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
   if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
+  if (capability.startsWith("m365.")) return executeMicrosoft365Capability(capability, task, worker);
   switch (capability) {
     case "assistant.respond":
       return {
@@ -79,6 +81,7 @@ function classifyError(error) {
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
   if (/microsoft-queue|dataverse/i.test(error?.message ?? "")) return "microsoft-queue-provider-failed";
+  if (/m365|microsoft 365/i.test(error?.message ?? "")) return "microsoft365-provider-failed";
   if (/desktop/i.test(error?.message ?? "")) return "desktop-provider-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";

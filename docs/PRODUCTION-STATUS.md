@@ -16,7 +16,7 @@ runtime evidence.
 - Node runtime contract: `>=24`
 - Phase/environment: `production`
 - Local control address: `http://127.0.0.1:4782`
-- Update authority: user-only
+- Update authority: verified automatic local activation with rollback
 - Default autonomy mode: hybrid
 - OpenAI Platform API provider: disabled by default
 

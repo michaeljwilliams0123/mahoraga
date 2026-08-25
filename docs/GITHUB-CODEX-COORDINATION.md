@@ -43,7 +43,7 @@ authenticated API and repository workflow.
 The controller identities are `primary-local-codex` and
 `primary-cloud-codex`; the location label is transport, not an authority tier.
 Both use the same bounded task record, repository evidence, verification gates,
-privacy rules, and user-only core-update activation boundary. Before updating
+privacy rules, and verified local automatic core-update activation with rollback. Before updating
 `main`, a controller must acquire the single integration lease, confirm it has
 not expired, revalidate the candidate and overlapping paths, and release it
 after the update. The lease coordinates integration; it does not authorize a

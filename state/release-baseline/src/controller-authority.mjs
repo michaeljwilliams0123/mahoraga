@@ -21,7 +21,7 @@ export function controllerAuthoritySnapshot() {
       verificationRequired: true,
     },
     pathCoordination: { overlapVisible: true, overlapProhibited: false },
-    coreUpdateActivationAuthority: "user-only",
+    coreUpdateActivationAuthority: "mahoraga-verified-automatic",
     secondary: {
       id: "secondary-codex",
       backwardCompatibleMailbox: true,

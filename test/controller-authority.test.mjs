@@ -12,7 +12,7 @@ test("local and cloud primary controllers have identical bounded capabilities", 
   assert.ok(authority.authorizedControllers[0].capabilities.includes("integrate"));
   assert.equal(authority.integration.concurrentHolders, 1);
   assert.equal(authority.integration.mergeIsAutomatic, false);
-  assert.equal(authority.coreUpdateActivationAuthority, "user-only");
+  assert.equal(authority.coreUpdateActivationAuthority, "mahoraga-verified-automatic");
   assert.equal(authority.secondary.backwardCompatibleMailbox, true);
   assert.equal(authority.secondary.canIntegrate, false);
 });

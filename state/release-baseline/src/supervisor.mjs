@@ -152,7 +152,7 @@ export class Supervisor extends EventEmitter {
       if (message.result?.verified === false) {
         this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
       } else {
-        this.database.finishTask(message.taskId, { status: "completed", resultSummary: normalizeSummary(message.result?.summary), receiptMetadata: message.result?.receiptMetadata ?? {} });
+        this.database.finishTask(message.taskId, { status: "completed", resultSummary: normalizeSummary(message.result?.summary), receiptMetadata: message.result?.receiptMetadata ?? message.result?.providerReceipt ?? {} });
       }
       this.#release(state);
     } else if (message?.type === "task.failed") {

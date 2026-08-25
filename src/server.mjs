@@ -92,7 +92,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
         const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-builder-${randomUUID()}`;
         const task = submitTask(database, manifest, builderIntakeBody(body, correlationId));
         const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: body.authoritySessionId ?? null });
-        return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "prepared", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment prepared; direct execution remains disabled." }), task });
+        return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment accepted for direct non-interactive execution." }), task });
       }
       const builderResult = url.pathname.match(/^\/api\/intake\/primary-codex\/builder\/(cbs-[a-f0-9-]+)\/result$/);
       if (request.method === "POST" && builderResult) {

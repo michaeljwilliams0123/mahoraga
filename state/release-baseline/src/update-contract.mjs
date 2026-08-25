@@ -13,7 +13,7 @@ export function createUpdateManifest(input, { now = new Date().toISOString() } =
     tag: input.tag,
     commit: String(input.commit ?? "").toLowerCase(),
     artifact: { name: input.artifactName, sizeBytes: input.sizeBytes, sha256: String(input.sha256 ?? "").toLowerCase() },
-    activation: { automatic: false, mode: "stage-only", authority: "user-only", rollbackRequired: true },
+    activation: { automatic: true, mode: "verified-auto-local", authority: "mahoraga", rollbackRequired: true },
     createdAt: now,
   });
 }
@@ -31,7 +31,7 @@ export function validateUpdateManifest(record) {
   if (!Number.isSafeInteger(record.artifact.sizeBytes) || record.artifact.sizeBytes < 1 || record.artifact.sizeBytes > 100_000_000) throw new TypeError("Update artifact size is invalid.");
   if (!/^[a-f0-9]{64}$/.test(record.artifact.sha256)) throw new TypeError("Update artifact digest is invalid.");
   exact(record.activation, ACTIVATION_KEYS, "update activation policy");
-  if (record.activation.automatic !== false || record.activation.mode !== "stage-only" || record.activation.authority !== "user-only" || record.activation.rollbackRequired !== true) {
+  if (record.activation.automatic !== true || record.activation.mode !== "verified-auto-local" || record.activation.authority !== "mahoraga" || record.activation.rollbackRequired !== true) {
     throw new TypeError("Update activation policy is invalid.");
   }
   if (typeof record.createdAt !== "string" || !Number.isFinite(Date.parse(record.createdAt))) throw new TypeError("Update creation time is invalid.");

@@ -2,9 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadManifest, validateManifest } from "../src/config.mjs";
 
-test("canonical manifest defines user-only update authority and localhost runtime", async () => {
+test("canonical manifest defines verified automatic update authority and localhost runtime", async () => {
   const manifest = await loadManifest();
-  assert.equal(manifest.updateAuthority, "user-only");
+  assert.equal(manifest.updateAuthority, "mahoraga-verified-automatic");
   assert.equal(manifest.runtime.host, "127.0.0.1");
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.queue.outboundOnly, true);
@@ -15,7 +15,7 @@ test("canonical manifest defines user-only update authority and localhost runtim
   assert.ok(manifest.workers.some((worker) => worker.id === "repository" && worker.enabled));
   assert.equal(manifest.browser.controlCenterUrl, "http://127.0.0.1:4782/");
   assert.equal(manifest.browser.signedSessionEnabled, false);
-  assert.deepEqual(manifest.repair.automaticRiskClasses, ["operational"]);
+  assert.deepEqual(manifest.repair.automaticRiskClasses, ["operational", "core"]);
   assert.equal(manifest.routingPolicy.interfaceOrder[0], "native-api");
   assert.ok(manifest.workers.every((worker) => worker.routing.reliability >= 0));
 });
@@ -29,13 +29,13 @@ test("manifest rejects external browser targets and premature signed browser acc
   assert.throws(() => validateManifest(manifest), /Signed browser session/);
 });
 
-test("manifest rejects public listeners and non-user update authority", async () => {
+test("manifest rejects public listeners and non-automatic update authority", async () => {
   const manifest = structuredClone(await loadManifest());
   manifest.runtime.host = "0.0.0.0";
   assert.throws(() => validateManifest(manifest), /localhost-only/);
   manifest.runtime.host = "127.0.0.1";
-  manifest.updateAuthority = "automatic";
-  assert.throws(() => validateManifest(manifest), /user-only/);
+  manifest.updateAuthority = "user-only";
+  assert.throws(() => validateManifest(manifest), /verified automatic/);
 });
 
 test("manifest rejects unknown routing fallbacks", async () => {

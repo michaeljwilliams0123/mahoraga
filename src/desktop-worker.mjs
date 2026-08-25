@@ -10,11 +10,14 @@ export const DESKTOP_APPLICATIONS = Object.freeze({
   word: "WINWORD",
   powerpoint: "POWERPNT",
   visio: "VISIO",
+  outlook: "olk",
+  "outlook-classic": "OUTLOOK",
+  teams: "ms-teams",
 });
 
 const INSPECT_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
-$names = @('chrome','msedge','EXCEL','WINWORD','POWERPNT','VISIO')
+$names = @('chrome','msedge','EXCEL','WINWORD','POWERPNT','VISIO','OUTLOOK','olk','ms-teams')
 $apps = @()
 foreach ($name in $names) {
   $windows = @(Get-Process -Name $name -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
@@ -33,7 +36,7 @@ const FOCUS_SCRIPT = String.raw`
 & {
   param([string]$target)
   $ErrorActionPreference = 'Stop'
-  $allowed = @('chrome','msedge','EXCEL','WINWORD','POWERPNT','VISIO')
+  $allowed = @('chrome','msedge','EXCEL','WINWORD','POWERPNT','VISIO','OUTLOOK','olk','ms-teams')
   if ($allowed -cnotcontains $target) { throw 'desktop-target-not-allowlisted' }
   $windows = @(Get-Process -Name $target -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
   if ($windows.Count -ne 1) {

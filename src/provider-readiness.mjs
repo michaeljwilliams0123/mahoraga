@@ -1,5 +1,5 @@
 export async function collectProviderReadiness(probes, { now = () => new Date() } = {}) {
-  const required = ["desktop", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
+  const required = ["desktop", "microsoft365", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
   for (const name of required) if (typeof probes?.[name] !== "function") throw new TypeError(`provider-readiness-probe-missing:${name}`);
 
   const entries = await Promise.all(required.map(async (name) => {
@@ -9,6 +9,7 @@ export async function collectProviderReadiness(probes, { now = () => new Date() 
   const raw = Object.fromEntries(entries);
   const providers = Object.freeze({
     desktop: desktopState(raw.desktop),
+    microsoft365: microsoft365State(raw.microsoft365),
     microsoftQueue: queueState(raw.microsoftQueue),
     localReasoner: localReasonerState(raw.localReasoner),
     githubCopilot: copilotState(raw.githubCopilot),
@@ -46,6 +47,18 @@ function queueState(result) {
     authDiagnosis: allowed(receipt.authDiagnosis, ["not-probed", "probe-unavailable", "silent-tier-available", "interactive-required", "indeterminate"], "indeterminate"),
   });
 }
+function microsoft365State(result) {
+  const health = result?.providerHealth ?? {};
+  return Object.freeze({
+    verified: result?.verified === true,
+    interactive: health.interactive === true,
+    visibleApplicationTypes: boundedCount(health.visibleApplicationTypes, 32),
+    oneDriveRootCount: boundedCount(health.oneDriveRootCount, 16),
+    dataverseProfileAuthenticated: health.dataverseProfileAuthenticated === true,
+    directGraphAuthentication: false,
+  });
+}
+
 
 function localReasonerState(result) {
   const health = result?.providerHealth ?? {};
@@ -72,9 +85,9 @@ function codexState(result) {
   const health = result?.providerHealth ?? {};
   return Object.freeze({
     verified: result?.verified === true,
-    availability: allowed(health.availability, ["configured", "unavailable"], "unavailable"),
-    invocation: allowed(health.invocation, ["desktop-appx-access-denied", "not-callable", "disabled-by-policy"], "not-callable"),
-    authentication: allowed(health.authentication, ["not-probed", "unverified", "verified"], "not-probed"),
+    availability: allowed(health.availability, ["healthy", "configured", "unavailable"], "unavailable"),
+    invocation: allowed(health.invocation, ["non-interactive-cli", "access-denied", "not-callable"], "not-callable"),
+    authentication: allowed(health.authentication, ["unverified", "verified"], "unverified"),
   });
 }
 

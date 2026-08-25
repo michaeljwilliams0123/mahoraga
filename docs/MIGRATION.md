@@ -5,7 +5,7 @@
 1. Establish one canonical manifest.
 2. Move process ownership from PowerShell/WPF into a persistent Node supervisor.
 3. Add SQLite durability, task leases, recovery, worker heartbeats, and restart.
-4. Add a localhost cockpit and user-only improvement decisions.
+4. Add a localhost cockpit and rollback-protected automatic improvement decisions.
 
 ## Phase 2 — local capability workers
 

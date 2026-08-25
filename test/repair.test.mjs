@@ -50,7 +50,7 @@ test("release baseline rejects stale production copies", async () => {
   }
 });
 
-test("core repair defects are staged rather than silently restored", async () => {
+test("core repair defects are automatically restored with a verification receipt", async () => {
   const manifest = await loadManifest();
   const relative = `state/repair-test-${Date.now()}/core.mjs`;
   const baseline = path.join(process.cwd(), manifest.repair.baselineDirectory, relative);
@@ -59,8 +59,9 @@ test("core repair defects are staged rather than silently restored", async () =>
     writeFileSync(baseline, "baseline", "utf8");
     ESSENTIAL_FILES.push(relative);
     const result = await applyAutomaticRepairs(manifest);
-    assert.deepEqual(result.staged, [relative]);
-    assert.equal(result.repaired.length, 0);
+    assert.deepEqual(result.repaired, [relative]);
+    assert.deepEqual(result.staged, []);
+    assert.equal(await import("node:fs/promises").then(({ readFile }) => readFile(path.join(process.cwd(), relative), "utf8")), "baseline");
   } finally {
     ESSENTIAL_FILES.pop();
     rmSync(path.dirname(path.join(process.cwd(), relative)), { recursive: true, force: true });

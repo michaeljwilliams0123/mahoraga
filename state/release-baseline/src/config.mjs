@@ -39,7 +39,7 @@ async function stageManifestRecoveryCandidate(error) {
     const directory = path.join(ROOT, "state", "repairs");
     await mkdir(directory, { recursive: true });
     const file = path.join(directory, `manifest-recovery-${Date.now()}-${process.pid}.json`);
-    const candidate = { kind: "core-source-repair", relative: "mahoraga.manifest.json", baseline: path.relative(ROOT, MANIFEST_BACKUP_PATH), stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: "user-only", reason: String(error?.code ?? error?.name ?? "manifest-invalid").slice(0, 80) };
+    const candidate = { kind: "core-source-repair", relative: "mahoraga.manifest.json", baseline: path.relative(ROOT, MANIFEST_BACKUP_PATH), stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: "mahoraga-verified-automatic", rollbackRequired: true, reason: String(error?.code ?? error?.name ?? "manifest-invalid").slice(0, 80) };
     await writeFile(file, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
   } catch {
     // Recovery remains read-only if candidate storage is unavailable.
@@ -58,7 +58,7 @@ export function validateManifest(value) {
     bounded(component, 40, "version component");
     bounded(version, 40, `${component} version`);
   }
-  if (value.updateAuthority !== "user-only") throw new TypeError("Update authority must remain user-only.");
+  if (value.updateAuthority !== "mahoraga-verified-automatic") throw new TypeError("Update authority must use verified automatic activation.");
   if (!isRecord(value.runtime)) throw new TypeError("Runtime configuration is missing.");
   if (value.runtime.host !== "127.0.0.1") throw new TypeError("Runtime must remain localhost-only.");
   integer(value.runtime.port, 1024, 65535, "port");
@@ -85,10 +85,10 @@ export function validateManifest(value) {
     if (typeof enabled !== "boolean") throw new TypeError(`Feature flag ${flag} is invalid.`);
   }
   if (!isRecord(value.repair) || value.repair.enabled !== true) throw new TypeError("Automatic operational repair must be enabled.");
-  if (value.repair.coreUpdateAuthority !== "user-only") throw new TypeError("Core update authority must remain user-only.");
+  if (value.repair.coreUpdateAuthority !== "mahoraga-verified-automatic") throw new TypeError("Core update authority must use verified automatic activation.");
   integer(value.repair.scanIntervalMs, 5000, 3600000, "repair scanIntervalMs");
-  if (!Array.isArray(value.repair.automaticRiskClasses) || value.repair.automaticRiskClasses.join(",") !== "operational") {
-    throw new TypeError("Only operational repairs may auto-activate.");
+  if (!Array.isArray(value.repair.automaticRiskClasses) || value.repair.automaticRiskClasses.join(",") !== "operational,core") {
+    throw new TypeError("Operational and verified core repairs must auto-activate.");
   }
   if (!/^state\/[a-z0-9._/-]+$/i.test(value.repair.baselineDirectory) || value.repair.baselineDirectory.includes("..")) {
     throw new TypeError("Repair baseline must stay inside state/.");
@@ -188,6 +188,7 @@ function validateAdapter(adapter, workerId) {
   }
   if (workerId === "primary-codex-builder") return validateCodexBuilderAdapter(adapter);
   if (workerId === "workspace-agent-cloud") return validateWorkspaceAgentAdapter(adapter);
+  if (workerId === "microsoft365") return validateMicrosoft365Adapter(adapter);
   if (workerId !== "github-copilot" || adapter.kind !== "github-copilot-cli" || adapter.executable !== "copilot") throw new TypeError(`Worker ${workerId} adapter is invalid.`);
   if (adapter.workingDirectory !== "." || adapter.remoteSession !== false || adapter.remoteExport !== false || adapter.disableBuiltinMcps !== true || adapter.disallowTempDir !== true) {
     throw new TypeError("Copilot adapter boundary is invalid.");
@@ -202,8 +203,17 @@ function validateAdapter(adapter, workerId) {
   integer(adapter.maxOutputBytes, 1024, 131072, "Copilot adapter output limit");
 }
 function validateCodexBuilderAdapter(adapter) {
-  if (adapter.kind !== "codex-desktop-builder" || adapter.executable !== "codex" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== false || adapter.apiKeyRequired !== false) {
+  if (adapter.kind !== "codex-cli-builder" || adapter.executable !== "user-codex-cli" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== true || adapter.apiKeyRequired !== false || adapter.sandbox !== "workspace-write" || adapter.ephemeral !== true || adapter.ignoreUserConfig !== true) {
     throw new TypeError("Codex Builder adapter boundary is invalid.");
+  }
+  integer(adapter.maximumPromptBytes, 1024, 32768, "Codex Builder prompt limit");
+  integer(adapter.maximumEventBytes, 32768, 1048576, "Codex Builder event limit");
+  integer(adapter.executionTimeoutMs, 30000, 900000, "Codex Builder execution timeout");
+}
+function validateMicrosoft365Adapter(adapter) {
+  const exactHosts = ["sharepoint.com", "microsoft365.com", "office.com", "outlook.office.com", "teams.microsoft.com", "onedrive.live.com", "1drv.ms"];
+  if (adapter.kind !== "microsoft365-signed-app" || adapter.attendedSessionRequired !== true || adapter.directGraphAuthentication !== false || !Array.isArray(adapter.allowedHostSuffixes) || adapter.allowedHostSuffixes.join("|") !== exactHosts.join("|")) {
+    throw new TypeError("Microsoft 365 adapter boundary is invalid.");
   }
 }
 function validateWorkspaceAgentAdapter(adapter) {

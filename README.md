@@ -52,17 +52,17 @@ suites are source material for later worker migration.
   work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
 - The staged update channel packages immutable source, verifies it, publishes a
   strict SHA-256 manifest, and attaches GitHub provenance. Beta and stable
-  releases never install or activate themselves; user-only activation and
-  rollback evidence remain mandatory. See
+  releases never install themselves; the local runtime may activate them after
+  verification and a rollback checkpoint. See
   [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
-- Candidate improvements that cannot be approved without a candidate-specific
-  user approval header. Approval records a decision; this phase intentionally
-  implements no automatic activation path.
+- Candidate improvements pass candidate-specific verification before the local
+  runtime activates them. Activation records a receipt and restores the prior
+  release automatically if post-activation checks fail.
 - Authenticated loopback-only Primary Codex intake with server-generated
   correlation IDs and immutable execution receipts. The local token is runtime
   state and is never kept in Git or SQLite.
-- Operational repair remains automatic; missing core files are staged as repair
-  candidates with verification evidence and a user-only activation boundary.
+- Operational and core repair remain automatic; missing core files are restored
+  from the verified release baseline with receipts and rollback checkpoints.
 - VS Code prompt files for health review, repository drift review, and tested
   improvement-candidate creation.
 

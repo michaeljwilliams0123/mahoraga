@@ -16,10 +16,10 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     priority: "critical",
     summary: "Local control runtime remains bound to loopback.",
   });
-  record(closed, manifest.updateAuthority === "user-only", {
-    id: "owner-update-authority",
+  record(closed, manifest.updateAuthority === "mahoraga-verified-automatic", {
+    id: "verified-automatic-update-authority",
     priority: "critical",
-    summary: "Core update activation remains owner-only.",
+    summary: "Core updates use verified local automatic activation with rollback.",
   });
   record(closed, worker("browser")?.enabled === true, {
     id: "browser-worker-baseline",
@@ -34,7 +34,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
   record(closed, worker("self-healer")?.enabled === true, {
     id: "automatic-operational-repair",
     priority: "high",
-    summary: "Automatic operational repair is enabled below the core-update boundary.",
+    summary: "Automatic operational and verified core repair are enabled with rollback.",
   });
   record(closed, manifest.featureFlags?.secondaryCodexMailbox === true, {
     id: "secondary-codex-mailbox",
@@ -57,9 +57,9 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     summary: "Public task intake is separated from exact owner-approved, idempotent Codex and desktop dispatch commands.",
   });
   record(closed, has(".github/workflows/release.yml") && has("src/update-contract.mjs") && has("test/update-contract.test.mjs"), {
-    id: "staged-attested-update-channel",
+    id: "verified-attested-update-channel",
     priority: "high",
-    summary: "Owner-started updates are verified, SHA-256 bound, provenance-attested, and fixed to stage-only user activation.",
+    summary: "Owner-started releases are verified, SHA-256 bound, provenance-attested, and eligible for rollback-protected local automatic activation.",
   });
   record(closed, has("src/desktop-worker.mjs") && has("test/desktop-worker.test.mjs"), {
     id: "desktop-worker-contract",

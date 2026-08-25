@@ -22,7 +22,7 @@ test("coordination docs define equal primaries and guarded integration", async (
   const coordination = await source("docs/GITHUB-CODEX-COORDINATION.md");
   assert.match(coordination, /Local and cloud Primary Codex\s+are equal controllers/);
   assert.match(coordination, /single, time-bounded integration lease/);
-  assert.match(coordination, /user-only core-update activation boundary/);
+  assert.match(coordination, /verified local automatic core-update activation with rollback/);
   assert.match(coordination, /Secondary Codex implements scoped repository work only/);
   assert.match(coordination, /it never pushes or merges `main`/);
   assert.match(coordination, /paths may overlap/);

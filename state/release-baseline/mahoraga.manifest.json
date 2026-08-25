@@ -1,19 +1,19 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.5.1",
+  "version": "3.6.0",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.5.1",
-    "controlCenter": "5.3.1",
+    "runtime": "3.6.0",
+    "controlCenter": "5.4.0",
     "cloudControlPlane": "3.2.0",
     "cloudWorkspace": "2.0.0",
     "capabilityRegistry": "1.0.0",
     "taskSchema": "3",
     "workerContract": "2"
   },
-  "updateAuthority": "user-only",
+  "updateAuthority": "mahoraga-verified-automatic",
   "defaultAutonomyMode": "hybrid",
   "runtime": {
     "host": "127.0.0.1",
@@ -43,12 +43,12 @@
     "browserWorker": true,
     "repositoryWorker": true,
     "githubCopilotWorker": false,
-    "primaryCodexBuilder": false,
+    "primaryCodexBuilder": true,
     "secondaryCodexMailbox": true,
     "workspaceAgentCloud": false,
-    "desktopWorker": false,
+    "desktopWorker": true,
     "microsoftQueueWorker": false,
-    "authenticatedExecutionPlane": false,
+    "authenticatedExecutionPlane": true,
     "openAIProvider": false,
     "a2aFederation": false,
     "persistentDiscourse": true,
@@ -57,11 +57,12 @@
   "repair": {
     "enabled": true,
     "automaticRiskClasses": [
-      "operational"
+      "operational",
+      "core"
     ],
     "scanIntervalMs": 30000,
     "baselineDirectory": "state/release-baseline",
-    "coreUpdateAuthority": "user-only"
+    "coreUpdateAuthority": "mahoraga-verified-automatic"
   },
   "browser": {
     "controlCenterUrl": "http://127.0.0.1:4782/",
@@ -296,8 +297,8 @@
     {
       "id": "primary-codex-builder",
       "label": "Primary Codex Builder",
-      "version": "desktop-adapter-1",
-      "enabled": false,
+      "version": "cli-adapter-2",
+      "enabled": true,
       "costClass": "licensed-cloud",
       "dataClasses": [
         "synthetic"
@@ -314,23 +315,29 @@
       "healthProbe": "codex.health",
       "executionPlane": "primary-codex-local",
       "routing": {
-        "interfaceType": "application-extension",
+        "interfaceType": "mcp-cli",
         "permissionClass": "task-scoped-codex-builder",
-        "reliability": 0,
+        "reliability": 94,
         "requiresAttendedDesktop": false,
         "executionType": "task-scoped-provider",
-        "latencyMs": 0,
+        "latencyMs": 2500,
         "maximumWorkload": 1,
         "fallbackWorkerIds": []
       },
       "adapter": {
-        "kind": "codex-desktop-builder",
-        "executable": "codex",
+        "kind": "codex-cli-builder",
+        "executable": "user-codex-cli",
         "workingDirectory": ".",
         "taskScoped": true,
         "interactiveAuthority": false,
-        "directExecutionEnabled": false,
-        "apiKeyRequired": false
+        "directExecutionEnabled": true,
+        "apiKeyRequired": false,
+        "sandbox": "workspace-write",
+        "ephemeral": true,
+        "ignoreUserConfig": true,
+        "maximumPromptBytes": 16384,
+        "maximumEventBytes": 524288,
+        "executionTimeoutMs": 300000
       }
     },
     {
@@ -436,13 +443,14 @@
     {
       "id": "desktop",
       "label": "Desktop Worker",
-      "version": "3.2.0",
-      "enabled": false,
+      "version": "1.1.0",
+      "enabled": true,
       "costClass": "deterministic",
       "dataClasses": [
         "synthetic",
         "personal",
-        "local-only"
+        "local-only",
+        "enterprise"
       ],
       "capabilities": [
         "desktop.inspect",
@@ -469,34 +477,49 @@
     {
       "id": "microsoft365",
       "label": "Microsoft 365 Worker",
-      "version": "3.2.0",
-      "enabled": false,
+      "version": "signed-app-1.0",
+      "enabled": true,
       "costClass": "licensed-cloud",
       "dataClasses": [
         "enterprise"
       ],
       "capabilities": [
         "m365.reason",
-        "graph.read",
-        "graph.write"
+        "m365.health",
+        "m365.open",
+        "m365.dataverse-status"
       ],
       "acceptedTaskTypes": [
         "microsoft"
       ],
       "timeoutMs": 120000,
-      "concurrency": 2,
-      "healthProbe": "graph.read",
-      "executionPlane": "licensed-cloud",
+      "concurrency": 1,
+      "healthProbe": "m365.health",
+      "executionPlane": "local-attended",
       "routing": {
-        "interfaceType": "native-api",
-        "permissionClass": "microsoft-tenant",
-        "reliability": 92,
-        "requiresAttendedDesktop": false,
-        "executionType": "cloud-provider",
+        "interfaceType": "desktop-automation",
+        "permissionClass": "attended-microsoft365-session",
+        "reliability": 88,
+        "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
         "latencyMs": 1000,
-        "maximumWorkload": 2,
+        "maximumWorkload": 1,
         "fallbackWorkerIds": [
-          "copilot-studio"
+          "desktop"
+        ]
+      },
+      "adapter": {
+        "kind": "microsoft365-signed-app",
+        "attendedSessionRequired": true,
+        "directGraphAuthentication": false,
+        "allowedHostSuffixes": [
+          "sharepoint.com",
+          "microsoft365.com",
+          "office.com",
+          "outlook.office.com",
+          "teams.microsoft.com",
+          "onedrive.live.com",
+          "1drv.ms"
         ]
       }
     },
@@ -671,17 +694,17 @@
     },
     {
       "id": "primary-codex-builder",
-      "state": "desktop-installed-direct-cli-access-denied",
-      "endpointClass": "local-desktop-application",
-      "authenticationState": "inherits-primary-interactive-session",
+      "state": "production-enabled-account-authenticated-cli",
+      "endpointClass": "local-cli-provider",
+      "authenticationState": "saved-codex-account-authentication",
       "capabilities": [
         "codex.health",
         "codex.execute"
       ],
-      "lastSuccessfulCheck": null,
-      "latencyMs": null,
-      "error": "desktop-appx-executable-access-denied",
-      "notes": "Primary Codex remains the interactive authority. The separate task-scoped Builder contract is disabled because the installed Desktop AppX executable is not directly callable from this environment; it neither requires nor creates an OpenAI API key."
+      "lastSuccessfulCheck": "2026-08-25T05:20:00.087Z",
+      "latencyMs": 10764,
+      "error": null,
+      "notes": "The task-scoped Builder uses the existing user-level Codex CLI in ephemeral workspace-write mode and saved Codex account authentication. It does not require an OpenAI API key and never stores the final model response in runtime state."
     },
     {
       "id": "secondary-codex-mailbox",
@@ -745,7 +768,7 @@
     },
     {
       "id": "chatgpt-browser-surface",
-      "state": "provider-contract-mapped",
+      "state": "production-signed-session-handoff",
       "endpointClass": "local-application-provider",
       "authenticationState": "inherits-approved-browser-session",
       "capabilities": [
@@ -765,14 +788,14 @@
         "browser.console",
         "browser.close"
       ],
-      "lastSuccessfulCheck": null,
+      "lastSuccessfulCheck": "2026-08-25T05:19:35.093Z",
       "latencyMs": null,
-      "error": "mahoraga-provider-adapter-not-yet-bound",
-      "notes": "Mahoraga maps the supported browser interaction contract without copying plugin internals. The current production Browser Worker implements loopback status and smoke; signed-session provider binding is the next adapter increment."
+      "error": null,
+      "notes": "Microsoft 365 and Desktop workers can hand approved HTTPS targets to the existing attended browser session and verify a visible browser. This proves signed-application dispatch, not document-content access or Graph authorization."
     },
     {
       "id": "windows-computer-use",
-      "state": "provider-contract-mapped-implementation-pending",
+      "state": "production-enabled-attended-session",
       "endpointClass": "local-windows-automation",
       "authenticationState": "interactive-user-session-required",
       "capabilities": [
@@ -780,10 +803,10 @@
         "desktop.inspect",
         "desktop.interact"
       ],
-      "lastSuccessfulCheck": null,
+      "lastSuccessfulCheck": "2026-08-25T05:19:35.093Z",
       "latencyMs": null,
-      "error": "desktop-worker-disabled",
-      "notes": "The Desktop Worker contract follows unique-window selection, point-in-time observation, one action, immediate re-observation, and verified completion."
+      "error": null,
+      "notes": "The enabled Desktop Worker follows unique-window selection, point-in-time observation, one action, immediate re-observation, and verified completion across allowlisted browser and Microsoft 365 applications."
     }
   ]
 }
