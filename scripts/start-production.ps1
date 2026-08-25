@@ -29,7 +29,9 @@ if ($existing -and $existing.product -eq 'Mahoraga') {
         Write-Output "Mahoraga $($existing.version) is already running at http://127.0.0.1:4782"
         exit 0
     }
-    throw "Mahoraga activation required: live runtime $($existing.version) / Control Center $($existing.versions.controlCenter) does not match staged runtime $expectedVersion / Control Center $expectedControlCenterVersion. Stop and restart only after owner approval."
+    Write-Output "Replacing Mahoraga $($existing.version) / Control Center $($existing.versions.controlCenter) with verified runtime $expectedVersion / Control Center $expectedControlCenterVersion."
+    & (Join-Path $PSScriptRoot 'stop-production.ps1')
+    Start-Sleep -Milliseconds 500
 }
 
 $process = Start-Process -FilePath $node `
