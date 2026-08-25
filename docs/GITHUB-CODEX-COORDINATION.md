@@ -49,6 +49,14 @@ not expired, revalidate the candidate and overlapping paths, and release it
 after the update. The lease coordinates integration; it does not authorize a
 merge, bypass review, change visibility, or activate a release.
 
+The running control plane persists the lease in SQLite. Its bounded holder,
+paths, and expiry appear in `GET /api/coordination`. Either equal Primary uses
+the authenticated loopback endpoints below with the existing Primary Codex
+session token; a second holder receives HTTP 409 plus visible overlap evidence:
+
+- `POST /api/coordination/integration-lease/acquire`
+- `POST /api/coordination/integration-lease/release`
+
 1. Start from the code commit the secondary implementation must retain. That
    commit becomes the assignment's immutable `expectedBaseCommit`.
 2. Create the assignment:

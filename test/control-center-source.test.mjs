@@ -11,6 +11,7 @@ const APP = path.join(ROOT, "web", "app.js");
 test("Control Center browser source remains syntactically valid and encoding-clean", () => {
   const source = readFileSync(APP, "utf8");
   assert.doesNotMatch(source, /(?:Â|�|ú)/u);
+  assert.match(source, /authority\.integration\.activeLease/);
   const checked = spawnSync(process.execPath, ["--check", APP], { encoding: "utf8", windowsHide: true });
   assert.equal(checked.status, 0, checked.stderr || checked.stdout);
 });

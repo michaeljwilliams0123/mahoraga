@@ -174,8 +174,10 @@ function renderGithubAssurance() {
   if (!coordination) return;
   const authority = coordination.authority;
   const automation = coordination.automation;
+  const lease = authority.integration.activeLease;
   const cards = [
     ['Controller authority', authority.equalPrimaryCapability && authority.integration.concurrentHolders === 1 ? 'Equal · lease guarded' : 'Review needed', 'Local and cloud Primary have equal capability; one bounded lease coordinates integration.'],
+    ['Integration lease', lease ? `${label(lease.controllerId)} · held` : 'Available', lease ? `Expires ${formatTime(lease.expiresAt)} · ${lease.paths.length} path area${lease.paths.length === 1 ? '' : 's'}.` : 'No Primary currently holds the persisted integration lease.'],
     ['Action supply chain', automation.actionReferences === 'immutable-commit-sha' ? 'SHA pinned' : 'Review needed', 'Remote GitHub Actions are fixed to immutable commit identifiers.'],
     ['Model spend boundary', automation.modelInvocation === 'explicit-task-only' ? 'Explicit only' : 'Review needed', 'CI, security scans, dependency updates, and idle polling do not invoke a model.'],
     ['Network boundary', coordination.transport.outboundOnly ? 'Outbound only' : 'Review needed', 'The Windows runner polls GitHub; no inbound tunnel or public localhost listener is required.'],

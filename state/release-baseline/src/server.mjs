@@ -37,6 +37,17 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/coordination") return json(response, 200, coordinationPayload(manifest, database));
+      if (request.method === "POST" && url.pathname === "/api/coordination/integration-lease/acquire") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        const result = database.acquireIntegrationLease({ controllerId: body.controllerId, durationMs: body.durationMs, purpose: body.purpose, paths: body.paths ?? [] });
+        return json(response, result.acquired ? 201 : 409, result);
+      }
+      if (request.method === "POST" && url.pathname === "/api/coordination/integration-lease/release") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        return json(response, 200, database.releaseIntegrationLease({ controllerId: body.controllerId, leaseId: body.leaseId }));
+      }
       if (request.method === "POST" && url.pathname === "/api/artifacts") {
         const name = decodeURIComponent(headerValue(request, "x-mahoraga-file-name"));
         const mimeType = headerValue(request, "content-type") || "application/octet-stream";
@@ -191,6 +202,8 @@ export function coordinationPayload(manifest, database) {
   }, null);
   const validated = count("VALIDATED");
   const active = count("RETURNED") + count("VALIDATING");
+  const authority = controllerAuthoritySnapshot();
+  authority.integration.activeLease = database.getIntegrationLease();
   return {
     generatedAt: new Date().toISOString(),
     state: validated > 0 ? "validated" : active > 0 ? "return-detected" : assignments.length > 0 ? "monitoring" : "idle",
@@ -202,7 +215,7 @@ export function coordinationPayload(manifest, database) {
       returnBranchPrefix: "secondary/",
       enabled: manifest.featureFlags?.secondaryCodexMailbox === true,
     },
-    authority: controllerAuthoritySnapshot(),
+    authority,
     automation: {
       mode: "github-native-deterministic",
       modelInvocation: "explicit-task-only",

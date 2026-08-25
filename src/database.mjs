@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
+import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -147,6 +148,15 @@ export class RuntimeDatabase {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY(objective_id) REFERENCES objectives(id)
+      );
+      CREATE TABLE IF NOT EXISTS controller_integration_lease (
+        lease_id TEXT PRIMARY KEY,
+        controller_id TEXT NOT NULL,
+        purpose TEXT NOT NULL,
+        paths_json TEXT NOT NULL,
+        acquired_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        CHECK(controller_id IN ('primary-local-codex','primary-cloud-codex'))
       );
       CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
@@ -517,6 +527,49 @@ export class RuntimeDatabase {
     return this.getSecondaryAssignment(assignment.id);
   }
 
+  getIntegrationLease(now = new Date()) {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError("Integration lease observation time is invalid.");
+    this.db.prepare("DELETE FROM controller_integration_lease WHERE expires_at<=?").run(now.toISOString());
+    const row = this.db.prepare("SELECT * FROM controller_integration_lease LIMIT 1").get();
+    return row ? normalizeIntegrationLease(row) : null;
+  }
+
+  acquireIntegrationLease({ controllerId, durationMs, purpose, paths = [] }) {
+    integrationController(controllerId);
+    if (!Number.isInteger(durationMs) || durationMs < 1_000 || durationMs > MAX_INTEGRATION_LEASE_MS) throw new TypeError("Integration lease duration is invalid.");
+    bounded(purpose, 200, "integration lease purpose");
+    const normalizedPaths = integrationPaths(paths);
+    const acquiredAt = new Date();
+    return this.#transaction(() => {
+      this.db.prepare("DELETE FROM controller_integration_lease WHERE expires_at<=?").run(acquiredAt.toISOString());
+      const activeRow = this.db.prepare("SELECT * FROM controller_integration_lease LIMIT 1").get();
+      if (activeRow) {
+        const active = normalizeIntegrationLease(activeRow);
+        return { acquired: false, lease: active, overlaps: overlappingPaths(active.paths, normalizedPaths) };
+      }
+      const leaseId = `int-${randomUUID()}`;
+      const expiresAt = new Date(acquiredAt.getTime() + durationMs).toISOString();
+      this.db.prepare("INSERT INTO controller_integration_lease(lease_id,controller_id,purpose,paths_json,acquired_at,expires_at) VALUES(?,?,?,?,?,?)")
+        .run(leaseId, controllerId, purpose.trim(), JSON.stringify(normalizedPaths), acquiredAt.toISOString(), expiresAt);
+      this.#event("integration-lease.acquired", leaseId, { controllerId, expiresAt });
+      return { acquired: true, lease: normalizeIntegrationLease(this.db.prepare("SELECT * FROM controller_integration_lease WHERE lease_id=?").get(leaseId)), overlaps: [] };
+    });
+  }
+
+  releaseIntegrationLease({ controllerId, leaseId }) {
+    integrationController(controllerId);
+    if (typeof leaseId !== "string" || !/^int-[a-f0-9-]{36,}$/i.test(leaseId)) throw new TypeError("Integration lease ID is invalid.");
+    return this.#transaction(() => {
+      const row = this.db.prepare("SELECT * FROM controller_integration_lease WHERE lease_id=?").get(leaseId);
+      if (!row) return { released: false, lease: null };
+      const active = normalizeIntegrationLease(row);
+      if (active.controllerId !== controllerId) throw new Error("integration-lease-owner-required");
+      this.db.prepare("DELETE FROM controller_integration_lease WHERE lease_id=?").run(leaseId);
+      this.#event("integration-lease.released", leaseId, { controllerId });
+      return { released: true, lease: active };
+    });
+  }
+
   listEvents(limit = 200) {
     const size = Math.max(1, Math.min(Number(limit) || 200, 1000));
     return this.db.prepare("SELECT * FROM events ORDER BY sequence DESC LIMIT ?").all(size).map((row) => ({
@@ -716,6 +769,17 @@ function normalizeMessageWithAttachments(row, attachments) {
 }
 function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"), source: row.source ?? "runtime-api", status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function normalizeIntegrationLease(row) { return { leaseId: row.lease_id, controllerId: row.controller_id, purpose: row.purpose, paths: JSON.parse(row.paths_json), acquiredAt: row.acquired_at, expiresAt: row.expires_at }; }
+function integrationController(value) { if (!PRIMARY_CONTROLLERS.includes(value)) throw new TypeError("Primary integration controller is invalid."); return value; }
+function integrationPaths(value) {
+  if (!Array.isArray(value) || value.length > 64) throw new TypeError("Integration lease paths are invalid.");
+  return [...new Set(value.map((item) => {
+    if (typeof item !== "string") throw new TypeError("Integration lease path is invalid.");
+    const normalized = item.replace(/^\.\//, "").replace(/\/$/, "");
+    if (!normalized || normalized.length > 240 || normalized.startsWith("/") || normalized.includes("\\") || normalized.split("/").includes("..")) throw new TypeError("Integration lease path is invalid.");
+    return normalized;
+  }))].sort();
+}
 function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) throw new Error("Stored improvement status is invalid."); return {
   id: row.id, title: row.title, summary: row.summary, status: row.status, testSummary: row.test_summary,
   createdAt: row.created_at, decidedAt: row.decided_at, activatedAt: row.activated_at,
