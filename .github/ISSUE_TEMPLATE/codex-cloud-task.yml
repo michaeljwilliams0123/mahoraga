@@ -64,7 +64,7 @@ body:
     id: integration_mode
     attributes:
       label: Integration mode
-      description: Both authorized Codex instances may merge when explicitly permitted.
+      description: Primary Codex alone may merge after every declared verification passes.
       options:
         - Pull request for review
         - Merge after verification

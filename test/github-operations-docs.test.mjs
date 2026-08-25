@@ -18,11 +18,12 @@ test("GitHub operations preserve the user-directed public visibility boundary", 
   assert.doesNotMatch(connector, /private repository access failed/i);
 });
 
-test("coordination docs preserve equal controller authority", async () => {
+test("coordination docs preserve Primary integration authority", async () => {
   const coordination = await source("docs/GITHUB-CODEX-COORDINATION.md");
-  assert.match(coordination, /not an ownership hierarchy/);
-  assert.match(coordination, /Any authorized\s+controller may review and integrate verified work/);
-  assert.doesNotMatch(coordination, /Secondary Codex never merges/);
+  assert.match(coordination, /Primary alone integrates a validated return/);
+  assert.match(coordination, /Secondary Codex implements scoped repository work only/);
+  assert.match(coordination, /it never pushes or merges `main`/);
+  assert.doesNotMatch(coordination, /either controller may merge/i);
 });
 
 test("pull requests require deterministic evidence and public-repository privacy checks", async () => {

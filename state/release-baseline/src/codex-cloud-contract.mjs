@@ -92,8 +92,8 @@ export function renderCodexCloudIssue(record) {
     `- Maximum attempts: ${task.maximumAttempts}`,
     `- Integration mode: \`${task.integrationMode}\``,
     task.integrationMode === "merge-after-verify"
-      ? "- Return a pull request and merge it only after every declared verification command passes."
-      : "- Return a pull request for review; do not merge it as part of this task.",
+      ? "- Return a pull request for Primary review; Primary may merge only after every declared verification command passes."
+      : "- Return a pull request for Primary review; do not merge it as part of this task.",
     "",
     "## Verification",
     "",
@@ -101,7 +101,7 @@ export function renderCodexCloudIssue(record) {
     "",
     "## Privacy boundary",
     "",
-    "Use only this issue and repository contents. Do not access, request, or export ChatGPT conversations, browser history, personal files, credentials, tokens, plugin responses, or unrelated context. Do not place model transcripts in issues, commits, pull requests, or result records.",
+    "Use only this bounded GitHub task and repository contents. Do not access, request, or export ChatGPT conversations, browser history, personal files, credentials, tokens, plugin responses, or unrelated context. Do not place model transcripts in issues, commits, pull requests, or result records.",
   ].join("\n");
   return Object.freeze({
     title: `[CODEX] ${task.title}`,

@@ -13,11 +13,11 @@ conversation content are prohibited.
 
 The verified production history is published on `main`; production-worker and
 candidate branches remain available for attribution and recovery evidence.
-Authorized Primary, Secondary, Copilot, and cloud Codex controllers have equal
-repository authority: each may create scoped work, push a branch, review a
-reciprocal branch or pull request, and merge it after declared verification.
-Use the attribution prefixes `[PRIMARY]`, `[COPILOT]`, and `[SECONDARY]` without
-treating them as an ownership hierarchy.
+Primary Codex owns `main`, architecture, assignment creation, validation,
+integration, and merges. Secondary Codex may implement bounded assignments and
+push only `secondary/<assignment-id>`; Copilot and cloud Codex return branches
+or pull requests for Primary review. Use the attribution prefixes `[PRIMARY]`,
+`[COPILOT]`, and `[SECONDARY]` while preserving those authority boundaries.
 
 Implementation work should normally use a branch and pull request so GitHub's
 read-only Linux and Windows verification is visible before merge. The checkout

@@ -107,17 +107,20 @@ export class SecondaryCodexRunner {
   }
 
   async status() {
-    const config = await this.loadConfig();
+    let config = null;
+    try { config = await this.loadConfig(); }
+    catch (error) { if (error?.code !== "ENOENT") throw error; }
     const state = await this.loadState();
     const git = await this.commandHealth("git", ["--version"]);
     const codex = await this.commandHealth("codex", ["--version"]);
     return {
-      configured: true,
+      configured: config !== null,
+      reason: config === null ? "configuration-missing" : undefined,
       git,
       codex,
       lastRunAt: state.lastRunAt ?? null,
       lastOutcome: state.lastOutcome ?? null,
-      projects: config.projects.map(({ taskArea, repository, enabled }) => ({ taskArea, repository, enabled })),
+      projects: config?.projects.map(({ taskArea, repository, enabled }) => ({ taskArea, repository, enabled })) ?? [],
       assignments: state.assignments,
     };
   }

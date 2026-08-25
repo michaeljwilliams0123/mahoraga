@@ -1,7 +1,8 @@
 ## Scope
 
 - Task or assignment ID:
-- Authorized controller: Primary / Secondary / Copilot / Codex cloud
+- Executor lane: Primary / Secondary / Copilot / Codex cloud
+- Primary integration review:
 - Intended paths:
 
 ## Verification

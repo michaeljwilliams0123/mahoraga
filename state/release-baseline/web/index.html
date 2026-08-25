@@ -61,14 +61,14 @@
       </section>
 
       <section class="page operations-page" data-page="coordination">
-        <header class="page-header"><div><p>CODEX CONTROL PLANE</p><h1>Coordination</h1><span>Track assignments, branch returns, deterministic validation, and integration across authorized Codex controllers.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>CODEX CONTROL PLANE</p><h1>Coordination</h1><span>Track Primary-created assignments, bounded Secondary returns, deterministic validation, and Primary integration.</span></div><button data-refresh>Refresh</button></header>
         <div class="metric-row coordination-metrics"><article><span>Total assignments</span><strong id="coord-total">-</strong></article><article><span>Waiting return</span><strong id="coord-ready">-</strong></article><article><span>In validation</span><strong id="coord-active">-</strong></article><article><span>Validated</span><strong id="coord-validated">-</strong></article></div>
         <section class="bridge-overview">
-          <div class="bridge-head"><div><p class="eyebrow">BIDIRECTIONAL · REPOSITORY-ONLY</p><h2>GitHub coordination mailbox</h2></div><span class="badge" id="coord-state">Loading</span></div>
+          <div class="bridge-head"><div><p class="eyebrow">PRIMARY-LED · REPOSITORY-ONLY</p><h2>GitHub coordination mailbox</h2></div><span class="badge" id="coord-state">Loading</span></div>
           <div class="controller-grid">
-            <article><span class="controller-mark primary">M</span><div><strong>Main / local Codex</strong><small>May assign, implement, review, and merge verified work</small></div></article>
+            <article><span class="controller-mark primary">M</span><div><strong>Primary / local Codex</strong><small>Owns assignments, architecture, validation, integration, and merges</small></div></article>
             <div class="bridge-lane"><i></i><span>bounded metadata<br>verified integration</span><i></i></div>
-            <article><span class="controller-mark secondary">C</span><div><strong>ChatGPT / secondary Codex</strong><small>May assign, implement, review, and merge verified work</small></div></article>
+            <article><span class="controller-mark secondary">C</span><div><strong>ChatGPT / Secondary Codex</strong><small>Implements bounded work and returns only scoped branches or pull requests</small></div></article>
           </div>
           <p class="bridge-policy" id="coord-policy">No chats, credentials, browser data, or model output cross this mailbox.</p>
           <p class="bridge-runtime" id="coord-runner">Runner status is loading.</p>

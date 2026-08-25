@@ -14,17 +14,17 @@ usage. See the official OpenAI documentation for [Codex cloud](https://learn.cha
 
 ## Ownership and data boundary
 
-- User-authorized Primary, Secondary, and cloud Codex controllers may coordinate,
-  implement, review, and merge verified repository work. Lane names preserve
-  attribution and execution boundaries; they do not create an ownership hierarchy.
+- Primary Codex owns task creation, architecture, validation, integration, and
+  merges. Secondary and cloud Codex instances are bounded implementation or
+  review lanes that return branches or pull requests to Primary.
 - Codex cloud receives only the validated task issue and repository contents.
 - ChatGPT conversations, personal files, browser history, credentials, tokens,
   raw plugin responses, and unrelated context never enter GitHub.
 - If a plugin is needed, the connected controller performs that action locally
   and reduces the result to sanitized task metadata or repository evidence
   before delegation.
-- Codex cloud preserves a pull-request audit trail. It may merge after declared
-  verification only when the task explicitly uses `merge-after-verify`.
+- Codex cloud preserves a pull-request audit trail. Primary merges only after the
+  declared verification passes.
 
 ## Connected-repository setup
 
@@ -39,8 +39,8 @@ before making that separate user-directed setting change.
    base branch.
 3. Keep secrets out of the repository. Environment secrets, if ever needed,
    belong in the Codex cloud environment and are available only during setup.
-4. Test the connection by creating a bounded issue containing `@codex`. A
-   healthy integration acknowledges the mention and returns a branch or PR.
+4. Test the connection by mentioning `@codex` in a bounded pull-request comment.
+   A healthy integration reacts to the comment and works on that PR branch.
 5. Keep credentials outside Git and revoke bootstrap-only credentials when they
    are no longer required. Visibility remains unchanged unless the user directs it.
 
@@ -50,7 +50,7 @@ sharing ChatGPT conversations.
 
 ## Task lifecycle
 
-1. An authorized controller creates a strict task record on `main`. Use a stable
+1. Primary Codex creates a strict task record on `main`. Use a stable
    idempotency key for retries of the same logical work:
 
    ```powershell
@@ -65,9 +65,9 @@ sharing ChatGPT conversations.
 
    Commit the generated `coordination/cloud-tasks/<task-id>.json` file to
    `main`. The `codex-cloud-dispatch.yml` workflow validates every queued record,
-   reconciles it against all existing issues by task ID and idempotency key, and
-   creates the `@codex` issue with GitHub's repository-scoped workflow token.
-   No GitHub token or OpenAI API key is stored on either Windows computer.
+   reconciles it against all existing staging issues by task ID and idempotency key,
+   and creates a repository-only staging issue with `@codex` stripped. The workflow
+   never invokes a model and stores no GitHub token or OpenAI API key.
 
 2. The assigning controller can validate and render any task locally before
    commit:
@@ -77,17 +77,16 @@ sharing ChatGPT conversations.
    node .\scripts\codex-cloud-task.mjs render --file .\task.json
    ```
 
-3. GitHub Actions creates missing bridge labels, searches open and closed issues
-   for the exact rendered marker, and reuses an existing issue on reruns.
-4. If no issue exists, GitHub creates it with `codex:queued` and
-   `privacy:repo-only`. The body begins with `@codex`, which starts the connected
-   Codex cloud task.
-5. Codex cloud works from the immutable base commit and opens a PR. An authorized
-   controller changes the issue label to `codex:review`, checks the actual diff
-   and tests, and either requests a follow-up or merges according to
-   `integrationMode`.
-6. The reviewing controller records only bounded return evidence and changes the
-   issue to `codex:done`. Failures use `codex:blocked`; attempts remain bounded.
+3. GitHub Actions creates missing bridge labels, searches open and closed staging
+   issues for the exact rendered marker, and reuses an existing issue on reruns.
+4. Primary prepares a bounded implementation branch and pull request, then copies
+   the validated rendered task into a pull-request comment containing `@codex`.
+   This is the supported GitHub trigger surface. The connected GitHub App or an
+   authenticated Primary session may post the comment; no credential enters Git.
+5. Codex cloud works on that pull-request branch. Primary checks the actual diff
+   and tests, requests follow-up when needed, and performs the merge.
+6. Primary records only bounded return evidence and changes the staging issue to
+   `codex:done`. Failures use `codex:blocked`; attempts remain bounded.
 
 Recommended state labels are `codex:queued`, `codex:running`, `codex:review`,
 `codex:blocked`, `codex:done`, and `privacy:repo-only`.
@@ -97,11 +96,11 @@ Recommended state labels are `codex:queued`, `codex:running`, `codex:review`,
 | Operation | Owner | Interface |
 | --- | --- | --- |
 | Validate and render task | Mahoraga | Local deterministic Node command |
-| Search/create issue | GitHub Actions | Repository-scoped `GITHUB_TOKEN` |
-| Start implementation | GitHub | `@codex` issue or PR mention |
+| Validate and stage task issue | GitHub Actions | Repository-scoped `GITHUB_TOKEN` |
+| Start implementation | GitHub | `@codex` pull-request comment |
 | Execute repository work | Codex cloud | Isolated connected environment |
 | Return changes | Codex cloud | Pull request |
-| Inspect, approve, merge | Any authorized Codex controller | Connected GitHub App and local tests |
+| Inspect, approve, merge | Primary Codex | Connected GitHub App and local tests |
 
 There is no inbound listener on the Windows machine and no credential in task
 JSON. The main machine and secondary runner poll or receive GitHub events

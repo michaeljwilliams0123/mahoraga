@@ -43,7 +43,7 @@ test("issue rendering is deterministic and carries an idempotency marker", () =>
   assert.match(first.body, /^@codex/m);
   assert.match(first.body, /idempotency-key=mahoraga-private-bridge-v1/);
   assert.match(first.body, /Do not access, request, or export ChatGPT conversations/);
-  assert.match(first.body, /merge it only after every declared verification command passes/);
+  assert.match(first.body, /Primary may merge only after every declared verification command passes/);
   assert.deepEqual(first.labels, ["codex:queued", "privacy:repo-only"]);
 });
 

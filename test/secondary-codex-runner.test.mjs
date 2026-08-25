@@ -86,6 +86,25 @@ test("Codex execution cannot inherit API keys or credential-like environment val
   });
 });
 
+test("runner status fails closed when configuration has not been created", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-status-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const runner = new SecondaryCodexRunner({
+    root,
+    run: async (command) => ({ stdout: `${command} version\n`, stderr: "" }),
+  });
+  assert.deepEqual(await runner.status(), {
+    configured: false,
+    reason: "configuration-missing",
+    git: { healthy: true, version: "git version" },
+    codex: { healthy: true, version: "codex version" },
+    lastRunAt: null,
+    lastOutcome: null,
+    projects: [],
+    assignments: {},
+  });
+});
+
 test("the runner binds the immutable assignment before model execution", async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-runner-"));
   t.after(() => rm(root, { recursive: true, force: true }));

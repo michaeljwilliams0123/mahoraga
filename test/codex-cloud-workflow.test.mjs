@@ -27,6 +27,8 @@ test("Codex cloud dispatch uses the validated bundle and stores no OpenAI creden
   const source = await workflow();
   assert.match(source, /scripts\/codex-cloud-task\.mjs/);
   assert.match(source, /"dispatch-bundle"/);
+  assert.match(source, /body: task\.issue\.body\.replace\(\/\^@codex\\s\*\/i, ""\)/);
+  assert.match(source, /codex:pr-comment-required/);
   assert.doesNotMatch(source, /OPENAI_API_KEY/);
   assert.doesNotMatch(source, /\$\{\{\s*secrets\./);
   assert.doesNotMatch(source, /api[_-]?key\s*:/i);

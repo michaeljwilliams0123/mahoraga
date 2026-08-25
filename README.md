@@ -36,8 +36,8 @@ suites are source material for later worker migration.
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
   and diagnostic controls remain available as compact workspace views. A
-  dedicated Coordination console now exposes equal controller authority, the
-  bidirectional repository mailbox lifecycle, bounded return branches,
+  dedicated Coordination console now exposes Primary-led authority, the
+  assignment-and-return mailbox lifecycle, bounded Secondary branches,
   deterministic validation, GitHub assurance cards, and a sanitized
   outbound-runner heartbeat without exposing chats, credentials, local checkout
   paths, or model output. Operations views are bookmarkable and background tabs

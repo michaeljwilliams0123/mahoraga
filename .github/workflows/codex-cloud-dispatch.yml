@@ -37,8 +37,9 @@ jobs:
             const bundle = JSON.parse(output.stdout);
             const { owner, repo } = context.repo;
             const requiredLabels = [
-              { name: "codex:queued", color: "1d76db", description: "Queued for bounded Codex Cloud execution" },
+              { name: "codex:queued", color: "1d76db", description: "Validated task staged for a Primary-authored PR comment" },
               { name: "privacy:repo-only", color: "5319e7", description: "Repository-only context; no chats or credentials" },
+              { name: "codex:pr-comment-required", color: "fbca04", description: "Primary must place the bounded @codex task on a pull request" },
             ];
             for (const label of requiredLabels) {
               try {
@@ -70,9 +71,9 @@ jobs:
                 owner,
                 repo,
                 title: task.issue.title,
-                body: task.issue.body,
-                labels: task.issue.labels,
+                body: task.issue.body.replace(/^@codex\s*/i, ""),
+                labels: [...task.issue.labels, "codex:pr-comment-required"],
               });
               existingIssues.push(created.data);
-              core.notice(`Created issue #${created.data.number} for ${task.taskId}.`);
+              core.notice(`Staged issue #${created.data.number} for ${task.taskId}; no model was invoked.`);
             }

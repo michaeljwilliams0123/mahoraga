@@ -1,15 +1,15 @@
 # GitHub coordination for separate Codex instances
 
-GitHub is the only shared coordination surface. Any user-authorized controller
-may create a bounded assignment record, implement scoped repository work, review
-the reciprocal return, or merge verified work. The `Primary` and `Secondary`
-names identify execution lanes and attribution, not an ownership hierarchy.
+GitHub is the only shared coordination surface. Primary Codex creates bounded
+assignments on `main`, owns architecture and integration, validates returns,
+and performs merges. Secondary Codex implements scoped repository work only and
+returns it on `secondary/<assignment-id>`; it never pushes or merges `main`.
 No instance reads or exports another instance's ChatGPT conversations.
 
 The version 1 mailbox keeps `main-codex` to `secondary-codex` role fields and a
-`secondary/<assignment-id>` return branch for runner compatibility. Those are
-transport roles: any authorized controller may operate the assigning or review
-role, and either controller may merge a verified return.
+`secondary/<assignment-id>` return branch as an enforced authority boundary.
+Primary creates and reviews assignments; Secondary implements them within the
+declared paths. Primary alone integrates a validated return.
 
 ## Privacy boundary
 
@@ -34,7 +34,7 @@ conversations, browser data, personal files, and model output are not returned.
 Assignment creation and controller intake remain behind the existing
 authenticated API and repository workflow.
 
-## Assigning controller workflow
+## Primary controller workflow
 
 1. Start from the code commit the secondary implementation must retain. That
    commit becomes the assignment's immutable `expectedBaseCommit`.
@@ -59,7 +59,7 @@ authenticated API and repository workflow.
    merging. The existing Repository Worker performs ancestry, manifest, and
    `git diff --check` validation without checking out the branch.
 
-## Implementing controller workflow
+## Secondary implementation workflow
 
 1. Fetch `main` and read only `coordination/assignments/<assignment-id>.json` plus
    repository files needed for the assignment.
@@ -91,13 +91,12 @@ must explain the repository-level blocker without copying a chat transcript.
 
 ## Codex cloud lane
 
-For background work that should use the ChatGPT-linked Codex cloud service, any
-authorized controller may instead create a validated GitHub issue containing
-`@codex`.
+For background work that should use the ChatGPT-linked Codex cloud service,
+Primary Codex may instead prepare a validated pull request and place the
+`@codex` task in a pull-request comment.
 That lane returns a pull request rather than a `secondary/<assignment-id>` branch
-and remains subject to the same repository-only privacy boundary. Any authorized
-controller may review and integrate verified work when the task explicitly uses
-`merge-after-verify`. See
+and remains subject to the same repository-only privacy boundary. Primary Codex
+reviews and integrates verified work after the declared verification passes. See
 [`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
 marker, connected-repository setup, and reciprocal review workflow.
 
