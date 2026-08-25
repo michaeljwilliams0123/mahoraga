@@ -18,9 +18,12 @@ production. The wave adds:
 - evidence-derived runtime, provider, canary, routing, and gap-audit surfaces.
 
 Implementation slices were committed without per-slice test runs, honoring the
-owner's batch-verification preference. The focused integration gate, full suite,
-inactive runtime smoke, rollback drill, and exact-SHA GitHub Codex review remain
-pending. No production activation claim is made.
+owner's batch-verification preference. The focused integration gate, 247-test
+full suite, inactive runtime smoke, malformed-receipt resilience check, three
+quiet 84-file repair scans, and immutable 3.6.0 rollback drill passed. The
+verified implementation is `06820ba3597e23c69adcfe3535a10673e2128191`.
+Exact-SHA GitHub Codex review remains pending. No production activation claim
+is made.
 
 ## Previous wave
 

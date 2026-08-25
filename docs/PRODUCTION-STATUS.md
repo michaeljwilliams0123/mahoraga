@@ -12,6 +12,8 @@ listener, status, canary, and verification evidence.
 - Phase/environment: `alpha-candidate` / `candidate`
 - Candidate branch: `agent/mahoraga-7-truth-containment`
 - Loopback contract: `127.0.0.1:4782`; Task 11 uses inactive port `4783`
+- Verified implementation commit:
+  `06820ba3597e23c69adcfe3535a10673e2128191`
 - Update authority: verified automatic activation with rollback
 - OpenAI Platform API provider: disabled by default
 - Production activation: **not performed**
@@ -26,8 +28,8 @@ deduplication, and evidence-derived Control Center labels.
 - Production predecessor: `3.6.0`
 - Immutable baseline commit:
   `397acebf16766f44e3b4317f9d8b68b10de5f821`
-- Rollback target: `3.6.0` until the alpha inactive-runtime canary and rollback
-  drill pass
+- Rollback target: `3.6.0`; its inactive rollback drill passed on port `4783`
+  without touching production
 - Current live-process state: not asserted by this repository document
 
 Historical acceptance evidence for the predecessor reported a loopback runtime,
@@ -49,17 +51,24 @@ queue polling, Copilot Studio delegation, Lenovo AI execution, and the metered
 OpenAI API. Enabled declarations still require current provider and canary
 evidence before dispatch.
 
-## Pending release gates
+## Release-gate status
 
-1. Focused Truth and Containment integration gate.
-2. Complete repository suite.
-3. Release-baseline refresh and digest verification.
-4. Inactive candidate smoke on loopback port `4783` with temporary state.
-5. Malformed-receipt resilience check and three quiet healthy repair scans.
-6. Inactive rollback drill to `3.6.0`.
-7. Review-only GitHub Codex adversarial review against the exact verified SHA.
+1. Focused Truth and Containment integration gate: **passed**.
+2. Complete repository suite: **247/247 passed**.
+3. Release-baseline refresh and digest verification: **84/84 healthy**.
+4. Inactive candidate smoke on loopback port `4783`: **passed** with temporary
+   encrypted state.
+5. Malformed-receipt resilience and three quiet repair scans: **passed**; the
+   malformed receipt failed closed, its worker stayed alive, and no incident
+   was created.
+6. Inactive rollback drill to immutable `3.6.0`: **passed**; the temporary slot
+   was removed afterward.
+7. Review-only GitHub Codex adversarial review against the exact verified SHA:
+   **pending**.
 
-No production promotion recommendation exists until all gates produce receipts.
+The candidate is eligible for a review-only pull request, not production
+cutover or merge. The machine-readable receipt is
+[`verification/7.0.0-alpha.1-release.json`](verification/7.0.0-alpha.1-release.json).
 
 ## Durable architecture retained
 

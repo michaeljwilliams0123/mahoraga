@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "product": "Mahoraga",
+  "version": "7.0.0-alpha.1",
+  "gate": "release-candidate-and-inactive-runtime",
+  "status": "passed-review-pending",
+  "branch": "agent/mahoraga-7-truth-containment",
+  "verifiedImplementationCommit": "06820ba3597e23c69adcfe3535a10673e2128191",
+  "verifiedImplementationTree": "5b6be9c733dbe0a01e7f924825598e7f1f15f92e",
+  "focusedGateCommit": "cb7e1255e6391053c619df953df9560511dd3adc",
+  "rollbackCommit": "397acebf16766f44e3b4317f9d8b68b10de5f821",
+  "recordedAt": "2026-08-25T09:51:56.4607742Z",
+  "environment": {
+    "machine": "SD009WC7",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "architecture": "X64",
+    "node": "v24.19.0",
+    "workspace": "isolated-git-worktree"
+  },
+  "testGates": {
+    "initialFullSuite": {
+      "tests": 245,
+      "passed": 228,
+      "failed": 17,
+      "durationMs": 77800.1324,
+      "disposition": "root causes corrected in one batch"
+    },
+    "affectedBatch": {
+      "tests": 47,
+      "passed": 44,
+      "failed": 3,
+      "durationMs": 16744.4145
+    },
+    "preBaselineFullSuite": {
+      "tests": 246,
+      "passed": 245,
+      "failed": 1,
+      "durationMs": 67584.5936,
+      "onlyFailure": "release baseline correctly detected six changed essential files"
+    },
+    "finalFullSuite": {
+      "tests": 247,
+      "passed": 247,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "durationMs": 41783.4976
+    },
+    "finalStructuralConfirmation": {
+      "file": "test/executable-boundary.test.mjs",
+      "tests": 4,
+      "passed": 4,
+      "failed": 0,
+      "durationMs": 76.433
+    }
+  },
+  "releaseBaseline": {
+    "version": "7.0.0-alpha.1:state/release-baseline",
+    "essentialFiles": 84,
+    "finalScanHealthy": true,
+    "issues": 0
+  },
+  "inactiveCandidateSmoke": {
+    "port": 4783,
+    "temporaryState": true,
+    "version": "7.0.0-alpha.1",
+    "phase": "alpha-candidate",
+    "sessionBootstrap": "passed",
+    "repositoryInspection": "passed",
+    "malformedReceipt": {
+      "status": "failed",
+      "errorCode": "receipt-field-missing",
+      "workerAlive": true
+    },
+    "repairScans": [
+      { "healthy": true, "checked": 84, "issues": 0 },
+      { "healthy": true, "checked": 84, "issues": 0 },
+      { "healthy": true, "checked": 84, "issues": 0 }
+    ],
+    "newRepairIncidents": 0,
+    "releaseBlockersFoundAndFixed": [
+      "isolated workers inherited parent Node execution flags",
+      "repository health receipts scaled with dirty-worktree path output"
+    ]
+  },
+  "rollbackDrill": {
+    "temporaryDetachedSlot": true,
+    "commit": "397acebf16766f44e3b4317f9d8b68b10de5f821",
+    "version": "3.6.0",
+    "phase": "production",
+    "port": 4783,
+    "passed": true,
+    "slotRemovedAfterVerification": true
+  },
+  "productionBoundary": {
+    "activeListenerPreserved": "127.0.0.1:4782",
+    "activeListenerPidObserved": 43864,
+    "productionPortTouched": false,
+    "productionStateTouched": false,
+    "productionActivated": false
+  },
+  "promotionRecommendation": {
+    "eligibleForReviewOnlyPullRequest": true,
+    "eligibleForProductionCutover": false,
+    "remainingGate": "GitHub Codex adversarial review against the exact verified implementation commit",
+    "mergeAuthorized": false
+  }
+}
