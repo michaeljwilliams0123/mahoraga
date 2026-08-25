@@ -8,6 +8,7 @@ import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
 import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
 import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
+import { controllerAuthoritySnapshot } from "./controller-authority.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -178,20 +179,7 @@ export function coordinationPayload(manifest, database) {
       returnBranchPrefix: "secondary/",
       enabled: manifest.featureFlags?.secondaryCodexMailbox === true,
     },
-    authority: {
-      model: "primary-led-subordinate-workers",
-      primary: "main-codex",
-      secondary: "secondary-codex",
-      rolesAreTransportOnly: false,
-      authorizedControllers: ["main-codex"],
-      primaryIntegrationAuthority: true,
-      secondaryCanCreateAssignments: false,
-      secondaryCanImplement: true,
-      secondaryCanReview: true,
-      secondaryCanMerge: false,
-      secondaryBranchPrefix: "secondary/",
-      integrationRequiresVerification: true,
-    },
+    authority: controllerAuthoritySnapshot(),
     automation: {
       mode: "github-native-deterministic",
       modelInvocation: "explicit-task-only",

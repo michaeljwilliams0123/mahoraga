@@ -1,15 +1,19 @@
 # GitHub coordination for separate Codex instances
 
-GitHub is the only shared coordination surface. Primary Codex creates bounded
-assignments on `main`, owns architecture and integration, validates returns,
-and performs merges. Secondary Codex implements scoped repository work only and
+GitHub is the only shared coordination surface. Local and cloud Primary Codex
+are equal controllers: either may architect, decompose, create bounded
+assignments, implement, test, review, and integrate. Integration to `main`
+requires a single, time-bounded integration lease held by one primary at a time;
+it is never an auto-merge grant. Secondary Codex implements scoped repository work only and
 returns it on `secondary/<assignment-id>`; it never pushes or merges `main`.
 No instance reads or exports another instance's ChatGPT conversations.
 
 The version 1 mailbox keeps `main-codex` to `secondary-codex` role fields and a
 `secondary/<assignment-id>` return branch as an enforced authority boundary.
-Primary creates and reviews assignments; Secondary implements them within the
-declared paths. Primary alone integrates a validated return.
+Either primary creates and reviews assignments; Secondary implements them within
+the declared paths. A primary holding the integration lease alone integrates a
+validated return. Concurrent implementation paths may overlap, but controllers
+must surface and coordinate the overlap before integration.
 
 ## Privacy boundary
 
@@ -34,7 +38,16 @@ conversations, browser data, personal files, and model output are not returned.
 Assignment creation and controller intake remain behind the existing
 authenticated API and repository workflow.
 
-## Primary controller workflow
+## Equal primary controller workflow
+
+The controller identities are `primary-local-codex` and
+`primary-cloud-codex`; the location label is transport, not an authority tier.
+Both use the same bounded task record, repository evidence, verification gates,
+privacy rules, and user-only core-update activation boundary. Before updating
+`main`, a controller must acquire the single integration lease, confirm it has
+not expired, revalidate the candidate and overlapping paths, and release it
+after the update. The lease coordinates integration; it does not authorize a
+merge, bypass review, change visibility, or activate a release.
 
 1. Start from the code commit the secondary implementation must retain. That
    commit becomes the assignment's immutable `expectedBaseCommit`.
@@ -95,8 +108,11 @@ For background work that should use the ChatGPT-linked Codex cloud service,
 Primary Codex may instead prepare a validated pull request and place the
 `@codex` task in a pull-request comment.
 That lane returns a pull request rather than a `secondary/<assignment-id>` branch
-and remains subject to the same repository-only privacy boundary. Primary Codex
-reviews and integrates verified work after the declared verification passes. See
+and remains subject to the same repository-only privacy boundary. When a
+validated task designates it `primary-cloud-codex`, it has the same controller
+capabilities as local Primary; otherwise it remains a bounded execution or
+review lane. Integration still requires the single lease and deterministic
+verification. See
 [`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
 marker, connected-repository setup, and reciprocal review workflow.
 
