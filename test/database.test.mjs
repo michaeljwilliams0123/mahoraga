@@ -141,3 +141,52 @@ test("GitHub assignment imports are idempotent and reject conflicting metadata",
   assert.deepEqual(second.allowedPaths, ["src", "test"]);
   assert.throws(() => database.importSecondaryAssignment({ ...record, title: "Conflicting title" }), /Conflicting GitHub coordination assignment/);
 });
+test("answer evaluations persist content-free evidence and bounded retry state", (t) => {
+  const database = databaseFixture(t);
+  const conversation = database.createConversation({ title: "Quality loop", initialMessage: "Explain the concrete runtime fix." });
+  const task = database.submitTask({
+    capability: "assistant.respond", dataClass: "synthetic", idempotencyKey: "answer-quality-roundtrip",
+    conversationId: conversation.id, requestedOutcome: "Explain the concrete runtime fix.",
+    completionCriteria: "substantive-response", maximumAttempts: 2,
+  });
+  assert.equal(task.completionCriteria, "substantive-response");
+  assert.throws(() => database.submitTask({
+    capability: "assistant.respond", dataClass: "synthetic", idempotencyKey: "answer-quality-roundtrip",
+    conversationId: conversation.id, requestedOutcome: "Explain the concrete runtime fix.",
+    completionCriteria: "different-criteria", maximumAttempts: 2,
+  }), /completionCriteria/);
+
+  const evidence = {
+    summarySha256: "a".repeat(64), criteriaSha256: "b".repeat(64), summaryWordCount: 3,
+    criterionTokenCount: 4, matchedCriterionCount: 1, providerVerified: true, declaredEvidenceCount: 0,
+    acknowledgementDetected: true, vagueDetected: false, contradictionDetected: false,
+  };
+  database.claimNext({ workerId: "local-core", capabilities: ["assistant.respond"], leaseMs: 5000 });
+  database.markVerifying(task.id, "answer-quality");
+  const first = database.recordAnswerEvaluation({
+    taskId: task.id, attemptNumber: 1, evaluatorVersion: "1.0.0", decision: "retry",
+    reasons: ["mere-acknowledgement"], evidence,
+  });
+  assert.equal(first.decision, "retry");
+  assert.equal("summary" in first, false);
+  assert.deepEqual(database.recordAnswerEvaluation({
+    taskId: task.id, attemptNumber: 1, evaluatorVersion: "1.0.0", decision: "retry",
+    reasons: ["mere-acknowledgement"], evidence,
+  }), first);
+  assert.equal(database.requeueAfterAnswerEvaluation({ taskId: task.id, decision: "retry" }).status, "queued");
+
+  database.claimNext({ workerId: "local-core", capabilities: ["assistant.respond"], leaseMs: 5000 });
+  database.markVerifying(task.id, "answer-quality");
+  database.recordAnswerEvaluation({
+    taskId: task.id, attemptNumber: 2, evaluatorVersion: "1.0.0", decision: "unresolved",
+    reasons: ["mere-acknowledgement"], evidence,
+  });
+  database.finishTask(task.id, {
+    status: "failed", errorCode: "answer-quality-unresolved",
+    resultSummary: "Mahoraga could not verify a complete response after 2 bounded attempts. No claim of completion was recorded.",
+  });
+  assert.equal(database.getTask(task.id).status, "failed");
+  assert.equal(database.listAnswerEvaluations(task.id).length, 2);
+  const messages = database.listConversationMessages(conversation.id);
+  assert.match(messages.at(-1).content, /could not verify a complete response/i);
+});

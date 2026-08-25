@@ -9,7 +9,7 @@ const SECTION_REQUESTS = [
   ['diagnostics', '/api/diagnostics', (value) => value],
 ];
 const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-message, #attach-files, #attachment-input, #task-form input, #task-form select, #task-form button, #improvement-form input, #improvement-form button, [data-capability-action], [data-task-action], [data-worker-action], [data-improvement-decision]';
-const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], uploading: false, sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], uploading: false, queuedFiles: 0, uploadQueue: Promise.resolve(), sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -86,7 +86,7 @@ function setInteractionsEnabled(enabled) {
 }
 
 function render() {
-  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderGithubAssurance(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics(); setInteractionsEnabled(state.compatible);
+  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderGithubAssurance(); renderWorkers(); renderCapabilityRegistry(); renderExpertSkills(); renderConnections(); renderImprovements(); renderDiagnostics(); setInteractionsEnabled(state.compatible);
 }
 
 function renderRuntime() {
@@ -116,8 +116,8 @@ function renderChat() {
   const pending = state.activeConversation && state.tasks.some((task) => task.conversationId === state.activeConversation && ['queued', 'claimed', 'running', 'verifying'].includes(task.status));
   $('chat-messages').innerHTML = state.messages.map(messageHtml).join('') + (pending ? '<div class="message-row assistant"><span class="avatar">M</span><div class="message-body"><div class="typing"><i></i><i></i><i></i></div></div></div>' : '');
   renderPendingAttachments();
-  $('composer-status').textContent = state.uploading ? 'Securing files locally...' : pending ? 'Mahoraga is working...' : state.pendingAttachments.length ? `${state.pendingAttachments.length} file${state.pendingAttachments.length === 1 ? '' : 's'} ready` : 'Durable conversation';
-  $('send-message').disabled = state.sending || state.uploading;
+  $('composer-status').textContent = state.queuedFiles ? `Securing ${state.queuedFiles} file${state.queuedFiles === 1 ? '' : 's'} locally...` : pending ? 'Mahoraga is working...' : state.pendingAttachments.length ? `${state.pendingAttachments.length} file${state.pendingAttachments.length === 1 ? '' : 's'} ready` : 'Durable conversation';
+  $('send-message').disabled = state.sending || state.queuedFiles > 0;
   requestAnimationFrame(() => { const scroll = $('chat-scroll'); if (scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 500 || state.sending) scroll.scrollTop = scroll.scrollHeight; });
 }
 
@@ -202,6 +202,11 @@ function renderCapabilityRegistry() {
   }).join('');
 }
 
+function renderExpertSkills() {
+  const skills = state.status.expertSkills ?? [];
+  $('expert-skill-list').innerHTML = skills.length ? skills.map((item) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.domain)}</p><h3>${escapeHtml(item.title)}</h3></div><span class="badge ready">evidence-led</span></div><p>${escapeHtml(item.summary)}</p><small>${escapeHtml((item.activationTerms ?? []).join(' · '))}</small><div class="card-actions"><button disabled>${item.credentialClaim === false ? 'Method profile · no credential claim' : 'Review profile'}</button></div></article>`).join('') : '<p class="muted">No expert method profiles are loaded.</p>';
+}
+
 function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => { const probe = connection.capabilities.find((capability) => state.status.capabilities.some((item) => item.enabled && item.capability === capability)); return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${connection.error ? 'disabled' : 'ready'}">${escapeHtml(connection.state)}</span></div><p>${escapeHtml(connection.notes || '')}</p><small>Auth: ${escapeHtml(connection.authenticationState)}${connection.lastSuccessfulCheck ? ` · Checked ${formatTime(connection.lastSuccessfulCheck)}` : ''}</small>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe)}">Run ${escapeHtml(probe)}</button>` : '<button disabled>No local probe</button>'}</div></article>`; }).join(''); }
 
 function renderImprovements() { $('improvement-list').innerHTML = state.improvements.length ? state.improvements.map((item) => { const actions = item.status === 'proposed' ? `<div class="card-actions"><button data-improvement-decision="approved" data-improvement-id="${item.id}">Approve</button><button class="danger" data-improvement-decision="rejected" data-improvement-id="${item.id}">Reject</button></div>` : ''; return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${formatTime(item.createdAt)}</p><h3>${escapeHtml(item.title)}</h3></div><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></div><p>${escapeHtml(item.summary)}</p>${actions}</article>`; }).join('') : '<p class="muted">No improvement candidates.</p>'; }
@@ -211,7 +216,7 @@ async function sendChat(content, forcedCapability = null) {
   if (!state.compatible) return notify('Runtime update required. Restart Mahoraga after activating the matching release.', 'error');
   content = content.trim();
   const attachments = [...state.pendingAttachments];
-  if ((!content && attachments.length === 0) || state.sending || state.uploading) return;
+  if ((!content && attachments.length === 0) || state.sending || state.queuedFiles > 0) return;
   if (!content) content = `Analyze ${attachments.map((item) => item.name).join(', ')}`;
   state.sending = true; $('chat-input').value = ''; resizeComposer(); renderChat();
   try {
@@ -221,12 +226,13 @@ async function sendChat(content, forcedCapability = null) {
       const created = await post('/api/conversations', { title: content.slice(0, 72), initialMessage: content, attachmentIds });
       conversationId = created.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
     } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
-    state.pendingAttachments = [];
     const selected = forcedCapability || $('chat-tool').value;
     const capability = selected === 'auto' ? autoRoute(content, attachments) : selected;
     const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability);
     if (!metadata) throw new Error(`${capability} has no enabled worker`);
-    await post('/api/tasks', { capability, dataClass: metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    const dataClass = inferDataClass(content, attachments, metadata.dataClasses);
+    await post('/api/tasks', { capability, dataClass, requestedMode: state.status.autonomyMode, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    state.pendingAttachments = [];
     await refresh();
   } catch (error) { notify(error.message, 'error'); }
   finally { state.sending = false; renderChat(); $('chat-input').focus(); }
@@ -235,21 +241,59 @@ async function sendChat(content, forcedCapability = null) {
 function autoRoute(content, attachments = []) {
   const text = content.toLowerCase();
   if (attachments.length) return 'artifact.inspect';
-  if (/browser|chrome|web page|website/.test(text)) return /test|verify|smoke|open/.test(text) ? 'browser.smoke' : 'browser.status';
-  if (/repository|repo|github|\bgit\b|source code/.test(text)) return 'repository.inspect';
+  if (isMicrosoftWorkUrl(text)) return state.status?.capabilities.some((item) => item.enabled && item.capability === 'm365.reason') ? 'm365.reason' : 'provider.gap';
+  if (/\bbrowser\b|\bchrome\b|\bweb page\b|\bwebsite\b/.test(text)) return /\btest\b|\bverify\b|\bsmoke\b|\bopen\b/.test(text) ? 'browser.smoke' : 'browser.status';
+  if (/\brepository\b|\brepo\b|\bgithub\b|\bgit\b|\bsource code\b/.test(text)) return 'repository.inspect';
   if (/repair|recover|recovery|self-heal|baseline/.test(text)) return 'repair.scan';
   if (/manifest|configuration|config/.test(text)) return 'manifest.validate';
   if (/health|runtime|system status|working|online/.test(text)) return 'system.health';
   return 'assistant.respond';
 }
 
+
+function isMicrosoftWorkUrl(content) {
+  return /(?:https?:\/\/)?(?:[a-z0-9-]+\.)*sharepoint\.com(?:[\/:?#]|$)|(?:https?:\/\/)?(?:www\.)?(?:onedrive\.live\.com|1drv\.ms)(?:[\/:?#]|$)/i.test(content);
+}
+
+function inferDataClass(content, attachments, supported) {
+  if ((isMicrosoftWorkUrl(content) || /\benterprise\b/i.test(content)) && supported.includes('enterprise')) return 'enterprise';
+  if (attachments.length && supported.includes('local-only')) return 'local-only';
+  return supported[0];
+}
+
+function filesFromClipboard(clipboardData) {
+  const files = [];
+  for (const item of clipboardData?.items ?? []) {
+    if (item.kind !== 'file') continue;
+    const file = item.getAsFile();
+    if (file) files.push(file);
+  }
+  for (const file of clipboardData?.files ?? []) {
+    if (!files.some((item) => item === file || `${item.name}:${item.size}:${item.type}:${item.lastModified}` === `${file.name}:${file.size}:${file.type}:${file.lastModified}`)) files.push(file);
+  }
+  return files;
+}
+
+function enqueueFiles(fileList, source) {
+  if (!state.compatible) return notify('Runtime update required. Restart Mahoraga after activating the matching release.', 'error');
+  const available = Math.max(0, 20 - state.pendingAttachments.length - state.queuedFiles);
+  const files = [...fileList].slice(0, available);
+  if (!files.length) return notify(available ? 'No files were available to attach.' : 'A maximum of 20 files can be attached.', 'error');
+  state.queuedFiles += files.length;
+  renderChat();
+  state.uploadQueue = state.uploadQueue
+    .then(() => uploadFiles(files, source))
+    .finally(() => { state.queuedFiles -= files.length; renderChat(); });
+}
 async function uploadFiles(fileList, source) {
-  if (!state.compatible || state.uploading) return;
-  const files = [...fileList].slice(0, Math.max(0, 20 - state.pendingAttachments.length));
+  if (!state.compatible) return;
+  const files = [...fileList];
   if (!files.length) return;
   state.uploading = true; renderChat();
-  try {
-    for (const file of files) {
+  let uploaded = 0;
+  const failures = [];
+  for (const file of files) {
+    try {
       const response = await fetch('/api/artifacts', {
         method: 'POST',
         headers: { 'content-type': file.type || 'application/octet-stream', 'x-mahoraga-file-name': encodeURIComponent(file.name || `pasted-${Date.now()}.bin`), 'x-mahoraga-file-source': source },
@@ -258,10 +302,14 @@ async function uploadFiles(fileList, source) {
       const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
       if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
       state.pendingAttachments.push(data.artifact);
+      uploaded += 1;
+    } catch (error) {
+      failures.push(`${file.name || 'clipboard item'}: ${error.message}`);
     }
-    notify(`${files.length} file${files.length === 1 ? '' : 's'} ready for Mahoraga`);
-  } catch (error) { notify(error.message, 'error'); }
-  finally { state.uploading = false; $('attachment-input').value = ''; renderChat(); }
+  }
+  if (uploaded) notify(`${uploaded} file${uploaded === 1 ? '' : 's'} ready for Mahoraga`);
+  if (failures.length) notify(failures.join('; '), 'error');
+  state.uploading = false; renderChat();
 }
 
 async function removePendingAttachment(id) {
@@ -293,12 +341,12 @@ document.querySelector('.workspace-nav').addEventListener('click', (event) => { 
 $('chat-form').addEventListener('submit', (event) => { event.preventDefault(); sendChat($('chat-input').value); });
 $('chat-input').addEventListener('input', resizeComposer);
 $('chat-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('chat-form').requestSubmit(); } });
-$('chat-input').addEventListener('paste', (event) => { const files = [...(event.clipboardData?.files ?? [])]; if (files.length) { event.preventDefault(); uploadFiles(files, 'clipboard'); } });
+$('chat-input').addEventListener('paste', (event) => { const files = filesFromClipboard(event.clipboardData); if (files.length) { event.preventDefault(); enqueueFiles(files, 'clipboard'); } });
 $('attach-files').addEventListener('click', () => $('attachment-input').click());
-$('attachment-input').addEventListener('change', (event) => uploadFiles(event.target.files, 'picker'));
+$('attachment-input').addEventListener('change', (event) => { const files = [...event.target.files]; event.target.value = ''; enqueueFiles(files, 'picker'); });
 $('chat-form').addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('drag-active'); });
 $('chat-form').addEventListener('dragleave', (event) => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.classList.remove('drag-active'); });
-$('chat-form').addEventListener('drop', (event) => { event.preventDefault(); event.currentTarget.classList.remove('drag-active'); uploadFiles(event.dataTransfer?.files ?? [], 'drop'); });
+$('chat-form').addEventListener('drop', (event) => { event.preventDefault(); event.currentTarget.classList.remove('drag-active'); enqueueFiles(event.dataTransfer?.files ?? [], 'drop'); });
 $('attachment-preview').addEventListener('click', (event) => { const button = event.target.closest('[data-remove-attachment]'); if (button) removePendingAttachment(button.dataset.removeAttachment); });
 document.querySelector('.suggestions').addEventListener('click', (event) => { const button = event.target.closest('[data-suggestion]'); if (button) sendChat(button.dataset.suggestion, button.dataset.capability); });
 $('task-capability').addEventListener('change', syncDataClass);
@@ -323,7 +371,7 @@ function readConversationHash() { return /^#con-[a-f0-9-]+$/.test(location.hash)
 function readView() { const value = new URLSearchParams(location.search).get('view'); return VIEWS.has(value) ? value : 'chat'; }
 function writeView(name) { const url = new URL(location.href); if (name === 'chat') url.searchParams.delete('view'); else url.searchParams.set('view', name); history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`); }
 function writeConversationHash(id) { const url = new URL(location.href); url.hash = id ? `#${id}` : ''; history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`); }
-function toolLabel(capability) { return ({ 'assistant.respond': 'Conversation', 'system.health': 'System health', 'manifest.validate': 'Validate manifest', 'repository.status': 'Repository status', 'repository.inspect': 'Inspect repository', 'repository.history': 'Repository history', 'repository.verify': 'Verify repository', 'repair.scan': 'Scan recovery', 'repair.apply': 'Apply recovery', 'browser.status': 'Browser status', 'browser.smoke': 'Browser smoke' })[capability] || capability; }
+function toolLabel(capability) { return ({ 'assistant.respond': 'Conversation', 'provider.gap': 'Provider gap', 'system.health': 'System health', 'manifest.validate': 'Validate manifest', 'repository.status': 'Repository status', 'repository.inspect': 'Inspect repository', 'repository.history': 'Repository history', 'repository.verify': 'Verify repository', 'repair.scan': 'Scan recovery', 'repair.apply': 'Apply recovery', 'browser.status': 'Browser status', 'browser.smoke': 'Browser smoke' })[capability] || capability; }
 function formatTime(value) { return value ? new Date(value).toLocaleString() : 'never'; }
 function label(value) { return String(value).split('-').map((part) => part ? part[0].toUpperCase() + part.slice(1) : '').join(' '); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }

@@ -7,6 +7,7 @@ import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
 const IMPROVEMENT_STATES = new Set(["proposed", "approved", "rejected", "activated"]);
+const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unresolved"]);
 
 export class RuntimeDatabase {
   constructor(file) {
@@ -99,6 +100,26 @@ export class RuntimeDatabase {
         metadata_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS answer_evaluations (
+        id TEXT PRIMARY KEY,
+        task_id TEXT NOT NULL,
+        attempt_number INTEGER NOT NULL,
+        evaluator_version TEXT NOT NULL,
+        decision TEXT NOT NULL,
+        reason_codes_json TEXT NOT NULL,
+        summary_sha256 TEXT NOT NULL,
+        criteria_sha256 TEXT NOT NULL,
+        summary_word_count INTEGER NOT NULL,
+        criterion_token_count INTEGER NOT NULL,
+        matched_criterion_count INTEGER NOT NULL,
+        provider_verified INTEGER NOT NULL,
+        declared_evidence_count INTEGER NOT NULL,
+        acknowledgement_detected INTEGER NOT NULL,
+        vague_detected INTEGER NOT NULL,
+        contradiction_detected INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE(task_id, attempt_number), FOREIGN KEY(task_id) REFERENCES tasks(id)
+      );
       CREATE TABLE IF NOT EXISTS codex_builder_sessions (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL UNIQUE,
@@ -163,6 +184,7 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_message_attachments_artifact ON conversation_message_attachments(artifact_id);
       CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_answer_evaluations_task ON answer_evaluations(task_id, attempt_number);
       CREATE INDEX IF NOT EXISTS idx_builder_sessions_correlation ON codex_builder_sessions(correlation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_secondary_assignments_status ON secondary_assignments(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
@@ -181,6 +203,7 @@ export class RuntimeDatabase {
       ["maximum_attempts", "INTEGER NOT NULL DEFAULT 3"], ["checkpoint", "TEXT"], ["verifier", "TEXT"],
       ["conversation_id", "TEXT"],
       ["task_area", "TEXT"], ["excluded_worker_ids", "TEXT NOT NULL DEFAULT '[]'"],
+      ["completion_criteria", "TEXT NOT NULL DEFAULT 'worker-verified'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
   }
@@ -198,13 +221,15 @@ export class RuntimeDatabase {
 
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
-    conversationId = null, taskArea = "general", excludedWorkerIds = [] }) {
+    conversationId = null, taskArea = "general", excludedWorkerIds = [],
+    completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified" }) {
     validateCapability(capability);
     validateDataClass(dataClass);
     bounded(requestedMode, 30, "requested mode");
     bounded(idempotencyKey, 120, "idempotency key");
     bounded(correlationId, 120, "correlation id"); bounded(taskType, 64, "task type");
     bounded(requestedOutcome, 1000, "requested outcome"); bounded(executionPlane, 40, "execution plane");
+    bounded(completionCriteria, 400, "completion criteria");
     if (!PRIORITIES.has(priority)) throw new TypeError("Task priority is invalid.");
     if (!Number.isInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 20) throw new TypeError("Maximum attempts is invalid.");
     slug(taskArea, "task area");
@@ -219,16 +244,16 @@ export class RuntimeDatabase {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
           correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
-          executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds,
+          executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
         });
         return task;
       }
       this.db.prepare(`INSERT INTO tasks
         (id, idempotency_key, correlation_id, task_type, requested_outcome, capability, data_class, requested_mode,
-         execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+         execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, completion_criteria, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
         .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
-          executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), now, now);
+          executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
       this.#event("task.submitted", id, { correlationId, taskType, capability, dataClass, requestedMode, executionPlane, priority });
       return this.getTask(id);
     });
@@ -622,7 +647,7 @@ export class RuntimeDatabase {
       if (task?.conversationId) {
         const content = status === "completed"
           ? (resultSummary ?? "Task completed and verified.")
-          : `Task ${status}${errorCode ? `: ${errorCode}` : "."}`;
+          : (resultSummary ?? `Task ${status}${errorCode ? `: ${errorCode}` : "."}`);
         this.addConversationMessage({
           conversationId: task.conversationId, taskId: id,
           role: status === "completed" ? "assistant" : "system", content,
@@ -650,6 +675,56 @@ export class RuntimeDatabase {
       id: row.id, taskId: row.task_id, correlationId: row.correlation_id, phase: row.phase, verifier: row.verifier,
       summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"), createdAt: row.created_at,
     }));
+  }
+
+  recordAnswerEvaluation({ taskId, attemptNumber, evaluatorVersion, decision, reasons, evidence }) {
+    bounded(taskId, 80, "answer evaluation task id");
+    const task = this.getTask(taskId);
+    if (!task) throw new TypeError("Answer evaluation task is missing.");
+    const normalized = normalizeAnswerEvaluation({ taskId, attemptNumber, evaluatorVersion, decision, reasons, evidence });
+    if (normalized.attemptNumber !== task.attemptCount) throw new TypeError("Answer evaluation attempt does not match the task attempt.");
+    const existing = this.db.prepare("SELECT * FROM answer_evaluations WHERE task_id=? AND attempt_number=?").get(taskId, attemptNumber);
+    if (existing) {
+      const stored = normalizeAnswerEvaluationRow(existing);
+      if (answerEvaluationIdentity(stored) !== answerEvaluationIdentity(normalized)) throw new Error("answer-evaluation-conflict");
+      return stored;
+    }
+    const id = `ae-${randomUUID()}`; const createdAt = new Date().toISOString();
+    this.db.prepare(`INSERT INTO answer_evaluations
+      (id,task_id,attempt_number,evaluator_version,decision,reason_codes_json,summary_sha256,criteria_sha256,
+       summary_word_count,criterion_token_count,matched_criterion_count,provider_verified,declared_evidence_count,
+       acknowledgement_detected,vague_detected,contradiction_detected,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      id, taskId, normalized.attemptNumber, normalized.evaluatorVersion, normalized.decision, JSON.stringify(normalized.reasons),
+      normalized.evidence.summarySha256, normalized.evidence.criteriaSha256, normalized.evidence.summaryWordCount,
+      normalized.evidence.criterionTokenCount, normalized.evidence.matchedCriterionCount, normalized.evidence.providerVerified ? 1 : 0,
+      normalized.evidence.declaredEvidenceCount, normalized.evidence.acknowledgementDetected ? 1 : 0,
+      normalized.evidence.vagueDetected ? 1 : 0, normalized.evidence.contradictionDetected ? 1 : 0, createdAt);
+    this.#event("answer.evaluated", taskId, { evaluationId: id, attemptNumber, decision, reasons: normalized.reasons });
+    return normalizeAnswerEvaluationRow(this.db.prepare("SELECT * FROM answer_evaluations WHERE id=?").get(id));
+  }
+
+  listAnswerEvaluations(taskId, limit = 20) {
+    bounded(taskId, 80, "answer evaluation task id");
+    const size = Math.max(1, Math.min(Number(limit) || 20, 100));
+    return this.db.prepare("SELECT * FROM answer_evaluations WHERE task_id=? ORDER BY attempt_number DESC LIMIT ?")
+      .all(taskId, size).map(normalizeAnswerEvaluationRow);
+  }
+
+  requeueAfterAnswerEvaluation({ taskId, decision, excludedWorkerId = null }) {
+    if (!new Set(["retry", "reroute"]).has(decision)) throw new TypeError("Answer evaluation requeue decision is invalid.");
+    const task = this.getTask(taskId);
+    if (!task || task.status !== "verifying") return task;
+    if (task.attemptCount >= task.maximumAttempts) throw new Error("answer-evaluation-attempts-exhausted");
+    const excluded = new Set(task.excludedWorkerIds);
+    if (excludedWorkerId !== null) { slug(excludedWorkerId, "excluded answer worker"); excluded.add(excludedWorkerId); }
+    if (excluded.size > 16) throw new TypeError("Excluded worker IDs are invalid.");
+    const now = new Date().toISOString();
+    this.db.prepare(`UPDATE tasks SET status='queued', assigned_worker=NULL, lease_expires_at=NULL,
+      error_code=?, excluded_worker_ids=?, updated_at=? WHERE id=? AND status='verifying'`)
+      .run(`answer-quality-${decision}`, JSON.stringify([...excluded]), now, taskId);
+    this.#event("answer.requeued", taskId, { attemptNumber: task.attemptCount, decision, excludedWorkerId });
+    return this.getTask(taskId);
   }
 
   recoverExpired(now = new Date()) {
@@ -733,6 +808,53 @@ export class RuntimeDatabase {
   }
 }
 
+function normalizeAnswerEvaluation(value) {
+  if (!isRecord(value)) throw new TypeError("Answer evaluation is invalid.");
+  const keys = new Set(["taskId", "attemptNumber", "evaluatorVersion", "decision", "reasons", "evidence"]);
+  for (const key of Object.keys(value)) if (!keys.has(key)) throw new TypeError("Answer evaluation field is invalid.");
+  bounded(value.taskId, 80, "answer evaluation task id");
+  if (!Number.isInteger(value.attemptNumber) || value.attemptNumber < 1 || value.attemptNumber > 20) throw new TypeError("Answer evaluation attempt is invalid.");
+  if (typeof value.evaluatorVersion !== "string" || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(value.evaluatorVersion)) throw new TypeError("Answer evaluator version is invalid.");
+  if (!ANSWER_EVALUATION_STATES.has(value.decision)) throw new TypeError("Answer evaluation decision is invalid.");
+  if (!Array.isArray(value.reasons) || value.reasons.length > 12 || new Set(value.reasons).size !== value.reasons.length) throw new TypeError("Answer evaluation reasons are invalid.");
+  for (const reason of value.reasons) slug(reason, "answer evaluation reason");
+  if ((value.decision === "accepted") !== (value.reasons.length === 0)) throw new TypeError("Answer evaluation reasons do not match the decision.");
+  if (!isRecord(value.evidence)) throw new TypeError("Answer evaluation evidence is invalid.");
+  const evidenceKeys = new Set(["summarySha256", "criteriaSha256", "summaryWordCount", "criterionTokenCount", "matchedCriterionCount", "providerVerified", "declaredEvidenceCount", "acknowledgementDetected", "vagueDetected", "contradictionDetected"]);
+  for (const key of Object.keys(value.evidence)) if (!evidenceKeys.has(key)) throw new TypeError("Answer evaluation evidence field is invalid.");
+  for (const key of ["summarySha256", "criteriaSha256"]) if (typeof value.evidence[key] !== "string" || !/^[a-f0-9]{64}$/.test(value.evidence[key])) throw new TypeError("Answer evaluation digest is invalid.");
+  for (const key of ["summaryWordCount", "criterionTokenCount", "matchedCriterionCount", "declaredEvidenceCount"]) {
+    if (!Number.isInteger(value.evidence[key]) || value.evidence[key] < 0 || value.evidence[key] > 100000) throw new TypeError("Answer evaluation count is invalid.");
+  }
+  if (value.evidence.matchedCriterionCount > value.evidence.criterionTokenCount) throw new TypeError("Answer evaluation criterion counts are invalid.");
+  for (const key of ["providerVerified", "acknowledgementDetected", "vagueDetected", "contradictionDetected"]) {
+    if (typeof value.evidence[key] !== "boolean") throw new TypeError("Answer evaluation signal is invalid.");
+  }
+  return Object.freeze({
+    taskId: value.taskId, attemptNumber: value.attemptNumber, evaluatorVersion: value.evaluatorVersion,
+    decision: value.decision, reasons: Object.freeze([...value.reasons]), evidence: Object.freeze({ ...value.evidence }),
+  });
+}
+function normalizeAnswerEvaluationRow(row) {
+  const normalized = normalizeAnswerEvaluation({
+    taskId: row.task_id, attemptNumber: row.attempt_number, evaluatorVersion: row.evaluator_version, decision: row.decision,
+    reasons: JSON.parse(row.reason_codes_json), evidence: {
+      summarySha256: row.summary_sha256, criteriaSha256: row.criteria_sha256, summaryWordCount: row.summary_word_count,
+      criterionTokenCount: row.criterion_token_count, matchedCriterionCount: row.matched_criterion_count,
+      providerVerified: Boolean(row.provider_verified), declaredEvidenceCount: row.declared_evidence_count,
+      acknowledgementDetected: Boolean(row.acknowledgement_detected), vagueDetected: Boolean(row.vague_detected),
+      contradictionDetected: Boolean(row.contradiction_detected),
+    },
+  });
+  return Object.freeze({ id: row.id, ...normalized, createdAt: row.created_at });
+}
+function answerEvaluationIdentity(value) {
+  return JSON.stringify({
+    taskId: value.taskId, attemptNumber: value.attemptNumber, evaluatorVersion: value.evaluatorVersion,
+    decision: value.decision, reasons: value.reasons, evidence: value.evidence,
+  });
+}
+
 function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
   id: row.id, idempotencyKey: row.idempotency_key, correlationId: row.correlation_id, taskType: row.task_type,
   requestedOutcome: row.requested_outcome, capability: row.capability, dataClass: row.data_class,
@@ -742,10 +864,11 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   maximumAttempts: row.maximum_attempts, checkpoint: row.checkpoint, verifier: row.verifier,
   conversationId: row.conversation_id,
   taskArea: row.task_area ?? "general", excludedWorkerIds: JSON.parse(row.excluded_worker_ids ?? "[]"),
+  completionCriteria: row.completion_criteria ?? "worker-verified",
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcome", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea"];
+  const fields = ["correlationId", "taskType", "requestedOutcome", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }

@@ -47,6 +47,14 @@ async function execute(capability, task) {
         verified: true,
         summary: `I saved this assignment in our durable conversation: ${String(task?.requestedOutcome ?? "Continue the assignment").replace(/\s+/g, " ").trim().slice(0, 240)}. I will keep the context available while you are away.`,
       };
+    case "provider.gap":
+      return {
+        verified: true,
+        outcome: "provider-unavailable",
+        provider: "microsoft365",
+        summary: "Mahoraga kept this enterprise request local and recorded a provider gap. The Microsoft 365 execution provider is not enabled; attach a local copy for private inspection or activate an approved Microsoft provider before retrying the link.",
+      };
+
     case "artifact.inspect":
       return inspectTaskArtifacts(task, { store: artifactStore });
     case "system.health":

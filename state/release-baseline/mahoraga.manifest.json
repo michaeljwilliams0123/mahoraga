@@ -1,12 +1,12 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.5.0",
+  "version": "3.5.1",
   "phase": "production",
   "environment": "production",
   "versions": {
-    "runtime": "3.5.0",
-    "controlCenter": "5.3.0",
+    "runtime": "3.5.1",
+    "controlCenter": "5.3.1",
     "cloudControlPlane": "3.2.0",
     "cloudWorkspace": "2.0.0",
     "capabilityRegistry": "1.0.0",
@@ -125,12 +125,14 @@
       ],
       "capabilities": [
         "assistant.respond",
+        "provider.gap",
         "artifact.inspect",
         "system.health",
         "manifest.validate"
       ],
       "acceptedTaskTypes": [
         "assistant",
+        "provider-gap",
         "artifact",
         "health",
         "manifest"

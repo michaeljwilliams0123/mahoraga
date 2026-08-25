@@ -10,6 +10,7 @@ import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
 import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { controllerAuthoritySnapshot } from "./controller-authority.mjs";
+import { listExpertSkills, selectExpertSkills } from "./expert-skill-registry.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -36,6 +37,11 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/expert-skills") return json(response, 200, { skills: listExpertSkills() });
+      if (request.method === "POST" && url.pathname === "/api/expert-skills/select") {
+        const body = await bodyJson(request);
+        return json(response, 200, { selection: selectExpertSkills(body) });
+      }
       if (request.method === "GET" && url.pathname === "/api/coordination") return json(response, 200, coordinationPayload(manifest, database));
       if (request.method === "POST" && url.pathname === "/api/coordination/integration-lease/acquire") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
@@ -50,7 +56,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       }
       if (request.method === "POST" && url.pathname === "/api/artifacts") {
         const name = decodeURIComponent(headerValue(request, "x-mahoraga-file-name"));
-        const mimeType = headerValue(request, "content-type") || "application/octet-stream";
+        const mimeType = headerValue(request, "content-type").split(";", 1)[0].trim() || "application/octet-stream";
         const source = headerValue(request, "x-mahoraga-file-source") || "api";
         const bytes = await bodyBytes(request, artifactStore.maximumBytes);
         return json(response, 201, { artifact: await artifactStore.put({ name, mimeType, source, bytes }) });
@@ -186,7 +192,7 @@ export function statusPayload(manifest, database, supervisor) {
     },
     runtime: { host: manifest.runtime.host, port: manifest.runtime.port, ...supervisor.health() },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
-    workers, capabilities: capabilityIndex(manifest, workers), connections: manifest.connections,
+    workers, capabilities: capabilityIndex(manifest, workers), expertSkills: listExpertSkills(), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
     objectives: database.listObjectives(100),
@@ -262,6 +268,7 @@ function submitTask(database, manifest, body) {
     executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
     maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts, conversationId,
     taskArea: body.taskArea ?? "general", excludedWorkerIds: body.excludedWorkerIds ?? [],
+    completionCriteria: body.completionCriteria,
   });
 }
 
@@ -311,5 +318,6 @@ function headerValue(request, name) { const value = request.headers[name]; retur
 function classify(error) {
   if (error instanceof SyntaxError) return "invalid-json";
   if (/invalid|required|missing|must|unknown|duplicate/i.test(error?.message ?? "")) return error.message;
+  if (/^artifact-(?:empty|too-large|name-invalid|mime-invalid|source-invalid)$/.test(error?.message ?? "")) return error.message;
   return "request-rejected";
 }

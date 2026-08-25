@@ -3,6 +3,7 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { routeTask } from "./router.mjs";
+import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
@@ -117,7 +118,37 @@ export class Supervisor extends EventEmitter {
         this.#release(state);
         return;
       }
-      this.database.markVerifying(message.taskId, `${state.definition.id}:${state.definition.version}`);
+      const task = this.database.markVerifying(message.taskId, `${state.definition.id}:${state.definition.version}`);
+      if (task?.conversationId) {
+        const evaluation = evaluateAnswerQuality({ task, result: message.result ?? {} });
+        const alternate = task.attemptCount < task.maximumAttempts
+          ? routeTask(this.manifest, { ...task, excludedWorkerIds: [...task.excludedWorkerIds, state.definition.id] }, { workerStates: this.status() })
+          : { status: "waiting" };
+        const decision = evaluation.accepted
+          ? "accepted"
+          : task.attemptCount >= task.maximumAttempts
+            ? "unresolved"
+            : alternate.status === "routable" ? "reroute" : "retry";
+        this.database.recordAnswerEvaluation({
+          taskId: task.id, attemptNumber: task.attemptCount, evaluatorVersion: ANSWER_EVALUATOR_VERSION,
+          decision, reasons: evaluation.reasons, evidence: evaluation.evidence,
+        });
+        if (decision === "retry" || decision === "reroute") {
+          this.database.requeueAfterAnswerEvaluation({
+            taskId: task.id, decision, excludedWorkerId: decision === "reroute" ? state.definition.id : null,
+          });
+          this.#release(state);
+          return;
+        }
+        if (decision === "unresolved") {
+          this.database.finishTask(task.id, {
+            status: "failed", errorCode: "answer-quality-unresolved",
+            resultSummary: unresolvedAnswerSummary(evaluation, task.attemptCount),
+          });
+          this.#release(state);
+          return;
+        }
+      }
       if (message.result?.verified === false) {
         this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
       } else {
