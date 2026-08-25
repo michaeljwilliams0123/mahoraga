@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-97320b6b-b2c3-4e3a-bcc8-f9967b01c8ed",
+  "idempotencyKey": "mahoraga-dual-primary-controller-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "05ae19f5474260611338656b1502698531260c10",
+  "title": "Add guarded dual-primary Codex controller contract",
+  "task": "Implement a repository-native controller contract that gives primary-local-codex and primary-cloud-codex equal capability to architect, decompose, create bounded assignments, implement, test, review, and integrate. Preserve the user as sole core-update activation authority. Main integration must require a bounded integration lease held by one primary at a time; path overlap is visible and coordinated, not categorically prohibited. Keep the existing secondary mailbox backward compatible. Update the localhost coordination wording and focused tests. Do not change repository visibility, add credentials, expose localhost, touch ChromeOS, upload enterprise files, auto-merge, or activate a core update.",
+  "allowedPaths": [
+    "AGENTS.md",
+    "docs/GITHUB-CODEX-COORDINATION.md",
+    "docs/GITHUB-OPERATIONS.md",
+    "src/controller-authority.mjs",
+    "src/server.mjs",
+    "web/app.js",
+    "web/index.html",
+    "test/controller-authority.test.mjs",
+    "test/runtime.test.mjs",
+    "test/github-operations-docs.test.mjs"
+  ],
+  "verification": [
+    "node --test --test-isolation=none test/controller-authority.test.mjs test/runtime.test.mjs test/github-operations-docs.test.mjs"
+  ],
+  "maximumAttempts": 1,
+  "integrationMode": "pull-request",
+  "createdBy": "main-codex",
+  "createdAt": "2026-08-25T02:52:16.606Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
