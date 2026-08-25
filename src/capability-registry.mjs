@@ -101,8 +101,8 @@ function compareRoutes(left, right, { interfaceRank, availabilityRank, allowedCo
 }
 
 function sortableAvailability(entry) {
-  if (entry.process === "live") return "healthy";
-  if (entry.process === "busy") return "busy";
+  if (entry.process.status === "live") return "healthy";
+  if (entry.process.status === "busy") return "busy";
   return entry.availability;
 }
 

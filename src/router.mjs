@@ -15,7 +15,7 @@ export function routeTask(manifest, task, context = {}) {
   };
 }
 
-export function capabilityIndex(manifest, workerStates = []) {
-  return buildCapabilityRegistry(manifest, workerStates);
+export function capabilityIndex(manifest, workerStates = [], now = Date.now()) {
+  return buildCapabilityRegistry(manifest, workerStates, now);
 }
 

@@ -41,9 +41,9 @@ test("capability index keeps process liveness separate from verified readiness",
   const manifest = await loadManifest();
   const entry = capabilityIndex(manifest, [workerState({ canaryStatus: "never" })])
     .find((item) => item.workerId === "local-core" && item.capability === "system.health");
-  assert.equal(entry.process, "live");
-  assert.equal(entry.provider, "ready");
-  assert.equal(entry.canary, "never");
+  assert.equal(entry.process.status, "live");
+  assert.equal(entry.provider.status, "ready");
+  assert.equal(entry.canary.status, "never");
   assert.equal(entry.routable, false);
   assert.equal(entry.routingReason, "canary-never-run");
 });

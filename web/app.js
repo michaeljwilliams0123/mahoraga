@@ -9,7 +9,7 @@ const SECTION_REQUESTS = [
   ['diagnostics', '/api/diagnostics', (value) => value],
 ];
 const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-message, #attach-files, #attachment-input, #task-form input, #task-form select, #task-form button, #improvement-form input, #improvement-form button, [data-capability-action], [data-task-action], [data-worker-action], [data-improvement-decision]';
-const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], uploading: false, queuedFiles: 0, uploadQueue: Promise.resolve(), sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], contentCache: new Map(), uploading: false, queuedFiles: 0, uploadQueue: Promise.resolve(), sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, { credentials: 'same-origin', ...options });
@@ -51,9 +51,10 @@ async function refresh(quiet = true) {
       if (result.status === 'fulfilled') state[name] = select(result.value);
       else sectionErrors[name] = result.reason.message;
     });
+    state.conversations = await Promise.all(state.conversations.map(hydrateConversation));
     if (state.activeConversation && !state.conversations.some((item) => item.id === state.activeConversation)) state.activeConversation = null;
     if (state.activeConversation) {
-      try { state.messages = (await api(`/api/conversations/${state.activeConversation}/messages`)).messages ?? []; }
+      try { state.messages = await Promise.all(((await api(`/api/conversations/${state.activeConversation}/messages`)).messages ?? []).map(hydrateMessage)); }
       catch (error) { sectionErrors.messages = error.message; }
     } else state.messages = [];
     state.sectionErrors = sectionErrors;
@@ -61,13 +62,14 @@ async function refresh(quiet = true) {
     render();
     if (!quiet) {
       const unavailable = Object.keys(sectionErrors);
-      notify(unavailable.length ? `Runtime healthy; unavailable: ${unavailable.join(', ')}` : 'Workspace refreshed', unavailable.length ? 'error' : 'success');
+      notify(unavailable.length ? `Runtime observed; unavailable: ${unavailable.join(', ')}` : 'Workspace evidence refreshed', unavailable.length ? 'error' : 'success');
     }
   } catch (error) {
     state.compatible = false;
     state.status = null;
     state.sectionErrors = { runtime: error.message };
     $('runtime-state').textContent = error.status === 401 ? 'Local session required' : error.message.includes('update required') ? 'Runtime update required' : 'Runtime unavailable';
+    $('runtime-evidence').textContent = 'No current runtime evidence';
     $('runtime-version').textContent = '--';
     $('worker-pill').textContent = '0 workers';
     $('composer-status').textContent = error.status === 401 ? 'Run scripts/open-control-center.ps1' : 'Runtime connection required';
@@ -94,10 +96,13 @@ function render() {
 }
 
 function renderRuntime() {
-  const healthy = state.status.workers.filter((worker) => ['healthy', 'busy'].includes(worker.status)).length;
-  $('runtime-state').textContent = `Runtime healthy · ${healthy}/${state.status.workers.length}`;
+  const healthy = state.status.workers.filter((worker) => ['live', 'healthy', 'busy'].includes(worker.status)).length;
+  const runtime = state.status.runtime;
+  $('runtime-state').textContent = `Runtime ${runtime.processState} · ${healthy}/${state.status.workers.length} processes`;
   if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' · degraded';
+  $('runtime-evidence').textContent = `${label(runtime.evidenceLevel)} evidence · observed ${formatTime(runtime.lastObservedAt)} · ${runtime.repairScan?.activeIncidents ?? 0} repair incident${runtime.repairScan?.activeIncidents === 1 ? '' : 's'}`;
   $('runtime-version').textContent = state.status.versions.controlCenter;
+  $('repair-policy-note').textContent = `${state.status.repairPolicy.enabled ? 'Repair scanner enabled' : 'Repair scanner disabled'} · ${state.status.repairPolicy.coreUpdateAuthority} · last verified ${formatTime(runtime.repairScan?.lastVerifiedAt)}`;
   $('autonomy-pill').textContent = state.status.autonomyMode.toUpperCase();
   $('worker-pill').textContent = `${healthy} workers`;
   $('metric-workers').textContent = healthy;
@@ -108,13 +113,13 @@ function renderRuntime() {
 
 function renderSidebar() {
   const query = $('conversation-search').value.trim().toLowerCase();
-  const conversations = state.conversations.filter((item) => !query || item.title.toLowerCase().includes(query));
-  $('conversation-list').innerHTML = conversations.length ? conversations.map((item) => `<button class="conversation-item ${item.id === state.activeConversation ? 'active' : ''}" data-conversation-id="${item.id}" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</button>`).join('') : '<p class="muted">No matching chats.</p>';
+  const conversations = state.conversations.filter((item) => !query || conversationLabel(item).toLowerCase().includes(query));
+  $('conversation-list').innerHTML = conversations.length ? conversations.map((item) => `<button class="conversation-item ${item.id === state.activeConversation ? 'active' : ''}" data-conversation-id="${item.id}" title="${escapeHtml(conversationLabel(item))}">${escapeHtml(conversationLabel(item))}</button>`).join('') : '<p class="muted">No matching chats.</p>';
 }
 
 function renderChat() {
   const conversation = state.conversations.find((item) => item.id === state.activeConversation);
-  $('chat-title').textContent = conversation?.title || 'New chat';
+  $('chat-title').textContent = conversation ? conversationLabel(conversation) : 'New chat';
   $('chat-subtitle').textContent = conversation ? `Updated ${formatTime(conversation.updatedAt)}` : 'Durable local conversation';
   $('welcome').classList.toggle('hidden', state.messages.length > 0 || Boolean(conversation));
   const pending = state.activeConversation && state.tasks.some((task) => task.conversationId === state.activeConversation && ['queued', 'claimed', 'running', 'verifying'].includes(task.status));
@@ -128,12 +133,13 @@ function renderChat() {
 function messageHtml(message) {
   const role = message.role === 'user' ? 'user' : message.role === 'system' ? 'system' : 'assistant';
   const attachments = messageAttachmentsHtml(message.attachments ?? []);
-  if (role === 'user') return `<div class="message-row user"><div class="message-body"><p>${escapeHtml(message.content)}</p>${attachments}<span class="message-meta">${formatTime(message.createdAt)}</span></div></div>`;
-  return `<div class="message-row ${role}"><span class="avatar">${role === 'system' ? '!' : 'M'}</span><div class="message-body"><p>${escapeHtml(message.content)}</p>${attachments}<span class="message-meta">${role === 'system' ? 'System' : 'Mahoraga'} · ${formatTime(message.createdAt)}</span></div></div>`;
+  const content = message.content ?? `Encrypted content unavailable · ${shortDigest(message.contentSha256)}`;
+  if (role === 'user') return `<div class="message-row user"><div class="message-body"><p>${escapeHtml(content)}</p>${attachments}<span class="message-meta">${formatTime(message.createdAt)}</span></div></div>`;
+  return `<div class="message-row ${role}"><span class="avatar">${role === 'system' ? '!' : 'M'}</span><div class="message-body"><p>${escapeHtml(content)}</p>${attachments}<span class="message-meta">${role === 'system' ? 'System' : 'Mahoraga'} · ${formatTime(message.createdAt)}</span></div></div>`;
 }
 
 function renderCapabilities() {
-  const enabled = state.status.capabilities.filter((item) => item.enabled);
+  const enabled = state.status.capabilities.filter((item) => item.enabled && item.routable);
   const tool = $('chat-tool'); const selectedTool = tool.value || 'auto';
   tool.innerHTML = '<option value="auto">Auto</option>' + enabled.map((item) => `<option value="${escapeHtml(item.capability)}">${escapeHtml(toolLabel(item.capability))}</option>`).join('');
   tool.value = enabled.some((item) => item.capability === selectedTool) ? selectedTool : 'auto';
@@ -148,7 +154,8 @@ function taskCard(task) {
   const retry = ['failed', 'waiting', 'cancelled'].includes(task.status) ? `<button data-task-action="retry" data-task-id="${task.id}">Retry</button>` : '';
   const cancel = ['queued', 'claimed', 'running', 'verifying', 'waiting', 'waiting_for_user'].includes(task.status) ? `<button class="danger" data-task-action="cancel" data-task-id="${task.id}">Cancel</button>` : '';
   const input = task.status === 'waiting_for_user' ? `<button data-task-action="input" data-task-id="${task.id}">Respond</button>` : '';
-  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(task.priority)} · ${escapeHtml(task.executionPlane)}</p><h3>${escapeHtml(task.capability)}</h3></div><span class="badge ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span></div><p>${escapeHtml(task.requestedOutcome || task.capability)}</p><small>${escapeHtml(task.id)} · attempts ${task.attemptCount}/${task.maximumAttempts} · ${formatTime(task.updatedAt)}</small>${task.errorCode ? `<p class="error-text">${escapeHtml(task.errorCode)}</p>` : ''}<div class="card-actions">${input}${retry}${cancel}</div></article>`;
+  const outcome = task.requestedOutcome ?? `Encrypted input · ${formatBytes(task.requestedOutcomeSizeBytes ?? 0)} · ${shortDigest(task.requestedOutcomeSha256)}`;
+  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(task.priority)} · ${escapeHtml(task.executionPlane)}</p><h3>${escapeHtml(task.capability)}</h3></div><span class="badge ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span></div><p>${escapeHtml(outcome)}</p><small>${escapeHtml(task.id)} · attempts ${task.attemptCount}/${task.maximumAttempts} · ${formatTime(task.updatedAt)}</small>${task.errorCode ? `<p class="error-text">${escapeHtml(task.errorCode)}</p>` : ''}<div class="card-actions">${input}${retry}${cancel}</div></article>`;
 }
 
 function renderCoordination() {
@@ -164,6 +171,14 @@ function renderCoordination() {
   $('coord-policy').textContent = coordination.privacy.chatAccess === false && coordination.privacy.credentialsIncluded === false
     ? 'Repository metadata only · no chats, credentials, browser data, personal files, or model output.'
     : 'Coordination privacy policy is not in its expected fail-closed state.';
+  const authority = coordination.authority;
+  const equal = authority.equalPrimaryCapability === true;
+  $('local-controller-authority').textContent = equal ? `Equal Primary authority · integration holders ${authority.integration.concurrentHolders}` : 'Authority contract requires review';
+  $('cloud-controller-authority').textContent = equal ? `Equal Primary authority · lease ${authority.integration.activeLease ? 'held' : 'available'}` : 'Authority contract requires review';
+  $('secondary-controller-authority').textContent = authority.secondary?.canIntegrate === false ? 'Repository return only · cannot integrate' : 'Secondary authority requires review';
+  $('coordination-boundary').textContent = coordination.transport.outboundOnly && coordination.privacy.conversationTranscriptIncluded === false
+    ? 'outbound repository metadata · no conversation transcript'
+    : 'boundary requires review';
   const runner = coordination.runner;
   $('coord-runner').textContent = runner.configured
     ? `Outbound runner configured${runner.lastRunAt ? ` · last poll ${formatTime(runner.lastRunAt)}` : ' · awaiting first recorded poll'}${runner.lastOutcome?.status ? ` · ${runner.lastOutcome.status}` : ''}`
@@ -196,13 +211,19 @@ function coordinationCard(assignment) {
   return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} · ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.assignmentId)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>Bounded repository assignment with a verified return branch.</p><div class="assignment-detail"><span>Authority</span><b>Primary validates and integrates the Secondary return</b><span>Updated</span><b>${formatTime(assignment.updatedAt)}</b></div><small>${escapeHtml(assignment.returnBranch)}${verification}</small><div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
 }
 
-function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' · ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} · Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
+function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => {
+  const readiness = worker.readiness ?? [];
+  const verified = readiness.filter((item) => item.canaryStatus === 'verified').length;
+  const provider = readiness.length && readiness.every((item) => item.providerStatus === 'ready') ? 'ready' : readiness.some((item) => item.providerStatus === 'ready') ? 'mixed' : readiness[0]?.providerStatus ?? 'unknown';
+  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid ?? 'none'}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><div class="evidence-grid"><span>Process<b>${escapeHtml(worker.status)}</b></span><span>Provider<b>${escapeHtml(provider)}</b></span><span>Canary<b>${verified}/${readiness.length} verified</b></span><span>Observed<b>${formatTime(worker.lastHeartbeatAt)}</b></span></div><small>Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`;
+}).join(''); }
 
 function renderCapabilityRegistry() {
   $('capability-list').innerHTML = state.status.capabilities.map((item) => {
-    const runnable = item.enabled && !['crashed', 'hung', 'quarantined', 'stopped', 'disabled'].includes(item.availability);
+    const runnable = item.enabled && item.routable === true;
     const fallbacks = item.fallbackWorkerIds.length ? item.fallbackWorkerIds.map(label).join(', ') : 'None';
-    return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.interfaceType)} · ${escapeHtml(item.costClass)}</p><h3>${escapeHtml(item.capability)}</h3></div><span class="badge ${escapeHtml(item.availability)}">${escapeHtml(item.availability)}</span></div><p>${escapeHtml(item.workerLabel)} · ${escapeHtml(item.permissionClass)}</p><small>Reliability ${item.reliability}% · ${item.requiresAttendedDesktop ? 'Attended desktop required' : 'Can run unattended'} · Fallback: ${escapeHtml(fallbacks)}</small><div class="card-actions"><button data-capability-action="${escapeHtml(item.capability)}" ${runnable ? '' : 'disabled'}>Run capability</button></div></article>`;
+    const routing = runnable ? 'routable' : item.routingReason ?? 'not-routable';
+    return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.interfaceType)} · ${escapeHtml(item.costClass)}</p><h3>${escapeHtml(item.capability)}</h3></div><span class="badge ${runnable ? 'ready' : 'disabled'}">${escapeHtml(routing)}</span></div><div class="evidence-grid capability-evidence"><span>Runtime<b>${escapeHtml(item.process.status)}</b></span><span>Provider<b>${escapeHtml(item.provider.status)}</b></span><span>Canary<b>${escapeHtml(item.canary.status)}</b></span><span>Routing<b>${escapeHtml(routing)}</b></span><span>Evidence<b>${escapeHtml(item.evidenceLevel)}</b></span></div><p>${escapeHtml(item.workerLabel)} · ${escapeHtml(item.permissionClass)}</p><small>Verified ${formatTime(item.lastVerifiedAt)} · observed ${formatTime(item.lastObservedAt)} · fallback ${escapeHtml(fallbacks)}</small><div class="card-actions"><button data-capability-action="${escapeHtml(item.capability)}" ${runnable ? '' : 'disabled'} title="${escapeHtml(routing)}">Run capability</button></div></article>`;
   }).join('');
 }
 
@@ -211,10 +232,19 @@ function renderExpertSkills() {
   $('expert-skill-list').innerHTML = skills.length ? skills.map((item) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.domain)}</p><h3>${escapeHtml(item.title)}</h3></div><span class="badge ready">evidence-led</span></div><p>${escapeHtml(item.summary)}</p><small>${escapeHtml((item.activationTerms ?? []).join(' · '))}</small><div class="card-actions"><button disabled>${item.credentialClaim === false ? 'Method profile · no credential claim' : 'Review profile'}</button></div></article>`).join('') : '<p class="muted">No expert method profiles are loaded.</p>';
 }
 
-function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => { const probe = connection.capabilities.find((capability) => state.status.capabilities.some((item) => item.enabled && item.capability === capability)); return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${connection.error ? 'disabled' : 'ready'}">${escapeHtml(connection.state)}</span></div><p>${escapeHtml(connection.notes || '')}</p><small>Auth: ${escapeHtml(connection.authenticationState)}${connection.lastSuccessfulCheck ? ` · Checked ${formatTime(connection.lastSuccessfulCheck)}` : ''}</small>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe)}">Run ${escapeHtml(probe)}</button>` : '<button disabled>No local probe</button>'}</div></article>`; }).join(''); }
+function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => {
+  const routes = connection.capabilities.map((capability) => state.status.capabilities.find((item) => item.capability === capability)).filter(Boolean);
+  const probe = routes.find((item) => item.routable);
+  const verified = routes.filter((item) => item.evidenceLevel === 'verified').length;
+  const stateLabel = probe ? 'routable' : routes.length ? routes[0].routingReason ?? 'not-verified' : 'not-observed';
+  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${probe ? 'ready' : 'disabled'}">${escapeHtml(stateLabel)}</span></div><div class="evidence-grid"><span>Routes<b>${routes.length}</b></span><span>Verified<b>${verified}</b></span><span>Routing<b>${escapeHtml(stateLabel)}</b></span><span>Observed<b>${formatTime(routes[0]?.lastObservedAt)}</b></span></div>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe.capability)}">Run ${escapeHtml(probe.capability)}</button>` : '<button disabled>No verified route</button>'}</div></article>`;
+}).join(''); }
 
 function renderImprovements() { $('improvement-list').innerHTML = state.improvements.length ? state.improvements.map((item) => { const actions = item.status === 'proposed' ? `<div class="card-actions"><button data-improvement-decision="approved" data-improvement-id="${item.id}">Approve</button><button class="danger" data-improvement-decision="rejected" data-improvement-id="${item.id}">Reject</button></div>` : ''; return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${formatTime(item.createdAt)}</p><h3>${escapeHtml(item.title)}</h3></div><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></div><p>${escapeHtml(item.summary)}</p>${actions}</article>`; }).join('') : '<p class="muted">No improvement candidates.</p>'; }
-function renderDiagnostics() { $('event-list').innerHTML = state.diagnostics.events.map((event) => `<div class="event-row"><span>${event.sequence}</span><b>${escapeHtml(event.eventType)}</b><code>${escapeHtml(event.subjectId)}</code><small>${formatTime(event.timestamp)}</small></div>`).join(''); }
+function renderDiagnostics() {
+  $('incident-list').innerHTML = state.status.repairIncidents.length ? state.status.repairIncidents.map((item) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.condition)}</p><h3>${escapeHtml(item.relative)}</h3></div><span class="badge ${item.status === 'failed' ? 'failed' : 'waiting'}">${escapeHtml(item.status)}</span></div><div class="evidence-grid"><span>Recovery<b>${escapeHtml(item.recoveryState)}</b></span><span>Evidence<b>${escapeHtml(item.evidenceLevel)}</b></span><span>Observed<b>${formatTime(item.lastObservedAt)}</b></span><span>Digest<b>${shortDigest(item.observedSha256 ?? item.expectedSha256)}</b></span></div>${item.lastErrorCode ? `<p class="error-text">${escapeHtml(item.lastErrorCode)}</p>` : ''}</article>`).join('') : '<p class="muted">No active repair incidents.</p>';
+  $('event-list').innerHTML = state.diagnostics.events.map((event) => `<div class="event-row"><span>${event.sequence}</span><b>${escapeHtml(event.eventType)}</b><code>${escapeHtml(event.subjectId)}</code><small>${formatTime(event.timestamp)}</small></div>`).join('');
+}
 
 async function sendChat(content, forcedCapability = null) {
   if (!state.compatible) return notify('Runtime update required. Restart Mahoraga after activating the matching release.', 'error');
@@ -232,7 +262,7 @@ async function sendChat(content, forcedCapability = null) {
     } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
     const selected = forcedCapability || $('chat-tool').value;
     const intent = selected === 'auto' ? autoRoute(content, attachments) : selected;
-    if (!state.status.capabilities.some((item) => item.enabled && item.capability === intent)) throw new Error(`${intent} has no enabled worker`);
+    if (!state.status.capabilities.some((item) => item.routable && item.capability === intent)) throw new Error(`${intent} is not routable with current verified evidence`);
     await post('/api/tasks', { intent, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
     state.pendingAttachments = [];
     await refresh();
@@ -243,7 +273,7 @@ async function sendChat(content, forcedCapability = null) {
 function autoRoute(content, attachments = []) {
   const text = content.toLowerCase();
   if (attachments.length) return 'artifact.inspect';
-  if (isMicrosoftWorkUrl(text)) return state.status?.capabilities.some((item) => item.enabled && item.capability === 'm365.reason') ? 'm365.reason' : 'provider.gap';
+  if (isMicrosoftWorkUrl(text)) return state.status?.capabilities.some((item) => item.routable && item.capability === 'm365.reason') ? 'm365.reason' : 'provider.gap';
   if (/\bbrowser\b|\bchrome\b|\bweb page\b|\bwebsite\b/.test(text)) return /\btest\b|\bverify\b|\bsmoke\b|\bopen\b/.test(text) ? 'browser.smoke' : 'browser.status';
   if (/\brepository\b|\brepo\b|\bgithub\b|\bgit\b|\bsource code\b/.test(text)) return 'repository.inspect';
   if (/repair|recover|recovery|self-heal|baseline/.test(text)) return 'repair.scan';
@@ -364,7 +394,31 @@ document.body.addEventListener('click', async (event) => {
   const copyBranch = event.target.closest('[data-copy-branch]'); if (copyBranch) return runButton(copyBranch, async () => { await navigator.clipboard.writeText(copyBranch.dataset.copyBranch); notify('Return branch copied'); });
 });
 
-async function dispatch(intent, outcome, priority = 'high') { requireCompatibleRuntime(); if (!state.status.capabilities.some((item) => item.enabled && item.capability === intent)) throw new Error(`${intent} has no enabled worker`); await post('/api/tasks', { intent, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${intent}`); await refresh(); }
+async function dispatch(intent, outcome, priority = 'high') { requireCompatibleRuntime(); if (!state.status.capabilities.some((item) => item.routable && item.capability === intent)) throw new Error(`${intent} is not routable with current verified evidence`); await post('/api/tasks', { intent, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${intent}`); await refresh(); }
+
+async function hydrateConversation(item) {
+  if (!item.titleReference) return item;
+  const title = await resolveContent(item.titleReference, 'conversation', item.id, item.classification);
+  return { ...item, title };
+}
+async function hydrateMessage(item) {
+  if (!item.contentReference) return item;
+  const content = await resolveContent(item.contentReference, 'message', item.id, item.classification);
+  return { ...item, content };
+}
+async function resolveContent(reference, ownerType, ownerId, classification) {
+  if (state.contentCache.has(reference)) return state.contentCache.get(reference);
+  const query = new URLSearchParams({ ownerType, ownerId, classification });
+  try {
+    const response = await fetch(`/api/content/${reference}?${query}`, { credentials: 'same-origin' });
+    if (!response.ok) return null;
+    const content = await response.text();
+    state.contentCache.set(reference, content);
+    return content;
+  } catch { return null; }
+}
+function conversationLabel(item) { return item.title || `Encrypted chat · ${shortDigest(item.titleSha256)}`; }
+function shortDigest(value) { return typeof value === 'string' && value.length >= 12 ? value.slice(0, 12) : 'no-digest'; }
 async function runButton(button, action) { button.disabled = true; try { await action(); } catch (error) { notify(error.message, 'error'); } finally { button.disabled = false; } }
 async function runForm(event, action) { event.preventDefault(); return runButton(event.submitter, action); }
 function resizeComposer() { const input = $('chat-input'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }

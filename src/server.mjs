@@ -227,7 +227,11 @@ export function createControlServer({
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
   const workers = supervisor.status();
+  const generatedAt = new Date().toISOString();
+  const runtimeHealth = supervisor.health(Date.parse(generatedAt));
+  const capabilities = capabilityIndex(manifest, workers, Date.parse(generatedAt));
   return {
+    generatedAt,
     product: manifest.product, version: manifest.version, versions: manifest.versions, phase: manifest.phase,
     controlCenterApi: {
       protocolVersion: 1,
@@ -244,13 +248,50 @@ export function statusPayload(manifest, database, supervisor) {
       coreUpdateAuthority: manifest.repair.coreUpdateAuthority,
       scanIntervalMs: manifest.repair.scanIntervalMs,
     },
-    runtime: { host: manifest.runtime.host, port: manifest.runtime.port, ...supervisor.health() },
+    runtime: {
+      host: manifest.runtime.host, port: manifest.runtime.port, ...runtimeHealth,
+      processState: runtimeHealth.supervisorRunning ? "live" : "stopped",
+      evidenceLevel: runtimeHealth.supervisorRunning ? "observed" : "unknown",
+      lastObservedAt: runtimeHealth.startedAt ? generatedAt : null,
+    },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
-    workers, capabilities: capabilityIndex(manifest, workers), expertSkills: listExpertSkills(), connections: manifest.connections,
+    workers, capabilities, expertSkills: listExpertSkills(), connections: connectionProjections(manifest.connections, capabilities),
+    evidencePolicy: {
+      routeRequiresFreshCanary: true,
+      writeCanaryTtlMs: 15 * 60 * 1000,
+      deterministicReadCanaryTtlMs: 24 * 60 * 60 * 1000,
+      unknownIsRoutable: false,
+    },
+    repairIncidents: database.listRepairIncidents({ includeResolved: false }).map((incident) => ({
+      id: incident.id, relative: incident.relative, condition: incident.condition, status: incident.status,
+      recoveryState: incident.recoveryState, evidenceLevel: "observed", lastObservedAt: incident.updatedAt,
+      expectedSha256: incident.expectedSha256, observedSha256: incident.observedSha256, lastErrorCode: incident.lastErrorCode,
+    })),
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
     objectiveCounts: Object.fromEntries(["active", "completed", "failed", "cancelled"].map((state) => [state, database.listObjectives(100).filter((item) => item.status === state).length])),
   };
+}
+
+function connectionProjections(connections, capabilities) {
+  return connections.map((connection) => {
+    const routes = connection.capabilities.map((capability) => capabilities.find((item) => item.capability === capability)).filter(Boolean);
+    const routable = routes.filter((item) => item.routable);
+    const latestObservedAt = routes.map((item) => item.lastObservedAt).filter(Boolean).sort().at(-1) ?? null;
+    const latestVerifiedAt = routes.map((item) => item.lastVerifiedAt).filter(Boolean).sort().at(-1) ?? null;
+    return {
+      id: connection.id,
+      endpointClass: connection.endpointClass,
+      capabilities: [...connection.capabilities],
+      configuredState: connection.state,
+      observedState: routable.length > 0 ? "routable" : routes.length > 0 ? "not-routable" : "not-observed",
+      evidenceLevel: routable.length > 0 ? "verified" : routes.some((item) => item.evidenceLevel === "inferred") ? "inferred" : "observed",
+      lastObservedAt: latestObservedAt,
+      lastVerifiedAt: latestVerifiedAt,
+      routingReasons: [...new Set(routes.filter((item) => !item.routable).map((item) => item.routingReason ?? "not-verified"))],
+      routableCapabilities: routable.map((item) => item.capability),
+    };
+  });
 }
 
 export function identityPayload(manifest) {
