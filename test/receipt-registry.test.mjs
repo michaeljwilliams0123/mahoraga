@@ -16,6 +16,32 @@ test("worker results become bounded typed receipts", () => {
   assert.match(receiptDigest(receipt), /^[a-f0-9]{64}$/);
 });
 
+test("Codex receipts require contained candidate evidence", () => {
+  const providerReceipt = {
+    executionMode: "candidate-worktree",
+    cellId: `cell-${"b".repeat(20)}`,
+    executionSessionId: "cdb-receipt-test",
+    sandbox: "workspace-write",
+    approvalPolicy: "never",
+    networkAccess: false,
+    ephemeral: true,
+    baseCommit: "a".repeat(40),
+    headCommit: "c".repeat(40),
+    branch: "mahoraga/task-receipt-test-abcdef12",
+    worktreeIdentitySha256: "d".repeat(64),
+    allowedPaths: ["src"],
+    changedPaths: ["src/server.mjs"],
+    validationState: "passed",
+    quarantineState: "clear",
+    failureCode: null, threadId: null, outputSha256: null,
+    usage: { inputTokens: 1, cachedInputTokens: 0, outputTokens: 1, reasoningOutputTokens: 0 },
+    finalResponseStored: false,
+  };
+  const receipt = createCapabilityReceipt("codex.execute", { verified: true, summary: "Candidate contained.", providerReceipt }, { observedAt: NOW });
+  assert.equal(receipt.details.providerEvidence.validationState, "passed");
+  assert.throws(() => createCapabilityReceipt("codex.execute", { verified: true, summary: "Unsafe.", providerReceipt: { ...providerReceipt, changedPaths: ["secrets.txt"] } }, { observedAt: NOW }), /codex-receipt-path-outside-allowlist/);
+});
+
 test("unknown envelope fields and content-bearing evidence fail closed", () => {
   const receipt = createCapabilityReceipt("browser.observe", { verified: true, summary: "Observed.", receiptMetadata: { consoleErrors: 0 } }, { observedAt: NOW });
   assert.throws(() => validateCapabilityReceipt("browser.observe", { ...receipt, prompt: "secret" }), /receipt-envelope-field-unknown/);

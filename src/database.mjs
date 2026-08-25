@@ -226,6 +226,7 @@ export class RuntimeDatabase {
       ["intent", "TEXT"], ["attended_required", "INTEGER NOT NULL DEFAULT 0"],
       ["allowed_worker_ids_json", "TEXT NOT NULL DEFAULT '[]'"], ["authority_session_id", "TEXT"],
       ["integration_lease_id", "TEXT"], ["content_references_json", "TEXT NOT NULL DEFAULT '[]'"],
+      ["base_commit", "TEXT"], ["allowed_paths_json", "TEXT NOT NULL DEFAULT '[]'"],
       ["policy_version", "TEXT NOT NULL DEFAULT 'legacy-internal'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
@@ -257,7 +258,7 @@ export class RuntimeDatabase {
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
     attendedRequired = false, allowedWorkerIds = [], authoritySessionId = null, integrationLeaseId = null,
-    contentReferences = [], policyVersion = "legacy-internal" }) {
+    contentReferences = [], baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" }) {
     bounded(intent, 80, "task intent");
     validateCapability(capability);
     validateDataClass(dataClass);
@@ -278,6 +279,15 @@ export class RuntimeDatabase {
     if (integrationLeaseId !== null) bounded(integrationLeaseId, 128, "integration lease id");
     if (!Array.isArray(contentReferences) || contentReferences.length > 20) throw new TypeError("Content references are invalid.");
     contentReferences.forEach((item) => bounded(item, 180, "content reference"));
+    let normalizedAllowedPaths = [];
+    if (capability === "codex.execute") {
+      if (!/^[a-f0-9]{40,64}$/i.test(baseCommit ?? "")) throw new TypeError("Codex Builder base commit is invalid.");
+      if (integrationLeaseId === null) throw new TypeError("Codex Builder integration lease is missing.");
+      normalizedAllowedPaths = executionPaths(allowedPaths);
+      baseCommit = baseCommit.toLowerCase();
+    } else if (baseCommit !== null || (Array.isArray(allowedPaths) && allowedPaths.length > 0)) {
+      throw new TypeError("Execution cell contract is not allowed for this capability.");
+    }
     bounded(policyVersion, 40, "policy version");
     if (conversationId !== null) { bounded(conversationId, 80, "conversation id"); if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing."); }
     const id = `mhg-${randomUUID()}`;
@@ -289,19 +299,19 @@ export class RuntimeDatabase {
         assertIdempotentTaskRequest(task, {
           correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
-          attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, policyVersion,
+          attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, baseCommit, allowedPaths: normalizedAllowedPaths, policyVersion,
         });
         return task;
       }
       this.db.prepare(`INSERT INTO tasks
         (id, idempotency_key, correlation_id, task_type, requested_outcome, intent, capability, data_class, requested_mode,
          execution_plane, attended_required, allowed_worker_ids_json, authority_session_id, integration_lease_id,
-         content_references_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
+         content_references_json, base_commit, allowed_paths_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
          excluded_worker_ids, completion_criteria, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
         .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
           executionPlane, attendedRequired ? 1 : 0, JSON.stringify(allowedWorkerIds), authoritySessionId, integrationLeaseId,
-          JSON.stringify(contentReferences), policyVersion, priority, maximumAttempts, conversationId, taskArea,
+          JSON.stringify(contentReferences), baseCommit, JSON.stringify(normalizedAllowedPaths), policyVersion, priority, maximumAttempts, conversationId, taskArea,
           JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
       this.#event("task.submitted", id, { correlationId, taskType, intent, capability, dataClass, executionPlane, priority, policyVersion });
       return this.getTask(id);
@@ -509,7 +519,25 @@ export class RuntimeDatabase {
   }
 
   getCodexBuilderSession(id) { bounded(id, 80, "builder session id"); const row = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE id=?").get(id); return row ? normalizeCodexBuilderSession(row) : null; }
+  getCodexBuilderSessionByTaskId(taskId) { bounded(taskId, 80, "task id"); const row = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE task_id=?").get(taskId); return row ? normalizeCodexBuilderSession(row) : null; }
   listCodexBuilderSessions(limit = 100) { const size = Math.max(1, Math.min(Number(limit) || 100, 500)); return this.db.prepare("SELECT * FROM codex_builder_sessions ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeCodexBuilderSession); }
+
+  recordCodexBuilderExecution({ taskId, outcome, evidence }) {
+    bounded(taskId, 80, "task id");
+    if (!new Set(["succeeded", "failed", "waiting"]).has(outcome)) throw new TypeError("Codex Builder execution outcome is invalid.");
+    if (!isRecord(evidence) || evidence.executionMode !== "candidate-worktree") throw new TypeError("Codex Builder execution evidence is invalid.");
+    const session = this.getCodexBuilderSessionByTaskId(taskId);
+    if (!session || session.status !== "PREPARED") return session;
+    const now = new Date().toISOString();
+    const status = outcome === "succeeded" ? "RETURNED" : outcome === "waiting" ? "PREPARED" : "FAILED";
+    this.db.prepare("UPDATE codex_builder_sessions SET status=?, updated_at=? WHERE id=? AND status='PREPARED'").run(status, now, session.id);
+    this.#event("codex-builder.execution-recorded", session.id, {
+      taskId, status, validationState: evidence.validationState ?? "failed", quarantineState: evidence.quarantineState ?? "unknown",
+      worktreeIdentitySha256: evidence.worktreeIdentitySha256 ?? null, headCommit: evidence.headCommit?.slice(0, 12) ?? null,
+      changedFileCount: Array.isArray(evidence.changedPaths) ? evidence.changedPaths.length : 0,
+    });
+    return this.getCodexBuilderSession(session.id);
+  }
 
   recordCodexBuilderResult({ sessionId, status, verificationState = "not-run", changedFileCount = 0, commitId = null }) {
     bounded(sessionId, 80, "builder session id");
@@ -1001,14 +1029,15 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   attendedRequired: Boolean(row.attended_required), allowedWorkerIds: JSON.parse(row.allowed_worker_ids_json ?? "[]"),
   authoritySessionId: row.authority_session_id, integrationLeaseId: row.integration_lease_id,
   contentReferences: JSON.parse(row.content_references_json ?? "[]"), policyVersion: row.policy_version ?? "legacy-internal",
+  baseCommit: row.base_commit, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"),
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcome", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "policyVersion"];
+  const fields = ["correlationId", "taskType", "requestedOutcome", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }
-  for (const field of ["excludedWorkerIds", "allowedWorkerIds", "contentReferences"]) {
+  for (const field of ["excludedWorkerIds", "allowedWorkerIds", "contentReferences", "allowedPaths"]) {
     const stored = [...task[field]].sort();
     const requested = [...request[field]].sort();
     if (JSON.stringify(stored) !== JSON.stringify(requested)) throw idempotencyConflict(field);
@@ -1099,4 +1128,14 @@ function coordinationPaths(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 32 || new Set(value).size !== value.length) throw new TypeError("Secondary assignment allowed paths are invalid.");
   for (const item of value) if (typeof item !== "string" || item.length < 1 || item.length > 160 || item.startsWith("/") || item.startsWith("\\") || item.includes("..") || item.includes("\\") || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(item)) throw new TypeError("Secondary assignment allowed path is invalid.");
   return [...value];
+}
+function executionPaths(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) throw new TypeError("Codex Builder allowed paths are invalid.");
+  return [...new Set(value.map((item) => {
+    if (typeof item !== "string") throw new TypeError("Codex Builder allowed path is invalid.");
+    const normalized = item.replace(/^\.\//, "").replace(/\/$/, "");
+    const segments = normalized.split("/");
+    if (!normalized || normalized.length > 240 || normalized.startsWith("/") || normalized.includes("\\") || /[\u0000-\u001f\u007f:*?]/.test(normalized) || segments.some((segment) => !segment || segment === "." || segment === "..") || normalized === ".git" || normalized.startsWith(".git/")) throw new TypeError("Codex Builder allowed path is invalid.");
+    return normalized;
+  }))].sort();
 }

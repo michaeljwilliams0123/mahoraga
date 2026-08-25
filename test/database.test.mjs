@@ -106,7 +106,7 @@ test("objective graphs release dependencies, retain overlap evidence, and comple
 
 test("Codex Builder sessions preserve only task-scoped structured result metadata", (t) => {
   const database = databaseFixture(t);
-  const task = database.submitTask({ capability: "codex.execute", dataClass: "synthetic", idempotencyKey: "builder-task", correlationId: "pcx-builder" });
+  const task = database.submitTask({ capability: "codex.execute", dataClass: "synthetic", idempotencyKey: "builder-task", correlationId: "pcx-builder", integrationLeaseId: "int-00000000-0000-4000-8000-000000000004", baseCommit: "a".repeat(40), allowedPaths: ["src"] });
   const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: "primary-session" });
   assert.equal(session.status, "PREPARED");
   const recorded = database.recordCodexBuilderResult({ sessionId: session.id, status: "completed", verificationState: "passed", changedFileCount: 2, commitId: "abcdef0123456789" });

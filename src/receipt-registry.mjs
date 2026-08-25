@@ -49,10 +49,12 @@ export function validateCapabilityReceipt(capability, value) {
   const family = capabilityFamily(capability);
   if (value.details.family !== family || typeof value.details.verified !== "boolean") throw receiptError(`${family}-receipt-details-invalid`);
   if ((value.outcome === "succeeded") !== value.details.verified && value.outcome !== "waiting") throw receiptError("receipt-outcome-mismatch");
+  const providerEvidence = sanitizeRecord(value.details.providerEvidence);
+  if (capability === "codex.execute") validateCodexExecutionEvidence(value.outcome, providerEvidence);
   const details = Object.freeze({
     family,
     verified: value.details.verified,
-    providerEvidence: sanitizeRecord(value.details.providerEvidence),
+    providerEvidence,
     outputEvidence: sanitizeRecord(value.details.outputEvidence),
   });
   return Object.freeze({ schemaVersion: 1, capability, outcome: value.outcome, summary, evidence, metrics, details });
@@ -75,6 +77,37 @@ export function capabilityFamily(capability) {
   const family = FAMILY_PREFIXES.get(prefix);
   if (!family) throw receiptError("receipt-capability-family-unsupported");
   return family;
+}
+
+function validateCodexExecutionEvidence(outcome, evidence) {
+  const allowed = new Set([
+    "executionMode", "cellId", "executionSessionId", "sandbox", "approvalPolicy", "networkAccess", "ephemeral", "baseCommit", "headCommit",
+    "branch", "worktreeIdentitySha256", "allowedPaths", "changedPaths", "validationState", "quarantineState",
+    "failureCode", "threadId", "outputSha256", "usage", "finalResponseStored",
+  ]);
+  for (const key of Object.keys(evidence)) if (!allowed.has(key)) throw receiptError("codex-receipt-evidence-field-unknown");
+  if (evidence.executionMode !== "candidate-worktree" || evidence.sandbox !== "workspace-write" || evidence.approvalPolicy !== "never" || evidence.networkAccess !== false || evidence.ephemeral !== true || evidence.finalResponseStored !== false) throw receiptError("codex-receipt-containment-invalid");
+  if (!new Set(["passed", "failed"]).has(evidence.validationState) || !new Set(["clear", "quarantined", "not-created"]).has(evidence.quarantineState)) throw receiptError("codex-receipt-state-invalid");
+  if (outcome === "succeeded") {
+    if (evidence.validationState !== "passed" || evidence.quarantineState !== "clear") throw receiptError("codex-receipt-success-state-invalid");
+    if (!/^cell-[a-f0-9]{20}$/.test(evidence.cellId ?? "") || typeof evidence.executionSessionId !== "string" || evidence.executionSessionId.length < 1 || evidence.executionSessionId.length > 120) throw receiptError("codex-receipt-session-invalid");
+    if (!/^[a-f0-9]{40,64}$/.test(evidence.baseCommit ?? "") || !/^[a-f0-9]{40,64}$/.test(evidence.headCommit ?? "") || !/^[a-f0-9]{64}$/.test(evidence.worktreeIdentitySha256 ?? "")) throw receiptError("codex-receipt-commit-invalid");
+    if (typeof evidence.branch !== "string" || !/^mahoraga\/task-[a-z0-9-]{1,80}$/.test(evidence.branch)) throw receiptError("codex-receipt-branch-invalid");
+    validateReceiptPaths(evidence.allowedPaths, false);
+    validateReceiptPaths(evidence.changedPaths, true);
+    for (const changed of evidence.changedPaths) if (!evidence.allowedPaths.some((allowedPath) => changed === allowedPath || changed.startsWith(`${allowedPath}/`))) throw receiptError("codex-receipt-path-outside-allowlist");
+  } else if (evidence.quarantineState === "clear") {
+    throw receiptError("codex-receipt-failure-state-invalid");
+  }
+}
+
+function validateReceiptPaths(value, allowEmpty) {
+  if (!Array.isArray(value) || (!allowEmpty && value.length < 1) || value.length > 64) throw receiptError("codex-receipt-paths-invalid");
+  for (const item of value) {
+    if (typeof item !== "string") throw receiptError("codex-receipt-path-invalid");
+    const segments = item.split("/");
+    if (item.length < 1 || item.length > 240 || item.startsWith("/") || item.includes("\\") || /[\u0000-\u001f\u007f:*?]/.test(item) || segments.some((segment) => !segment || segment === "." || segment === "..") || item === ".git" || item.startsWith(".git/")) throw receiptError("codex-receipt-path-invalid");
+  }
 }
 
 function normalizeEvidence(value) {

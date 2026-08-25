@@ -120,20 +120,24 @@ export class Supervisor extends EventEmitter {
       this.#setProcessReadiness(state, "live", state.lastHeartbeatAt);
     } else if (message?.type === "provider.readiness") {
       const observedAt = message.observedAt ?? new Date().toISOString();
-      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null;
+      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null; let executionCellCanary = null;
       try {
         const receipt = validateCapabilityReceipt(state.definition.healthProbe, message.receipt);
         providerStatus = receipt.outcome === "succeeded" ? "ready" : "unavailable";
         canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
         canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
+        executionCellCanary = receipt.details.providerEvidence.executionCellCanary ?? null;
       } catch {}
-      for (const capability of state.definition.capabilities) this.database.setCapabilityReadiness({
-        workerId: state.definition.id, capability, processStatus: "live", providerStatus,
-        canaryStatus: capability === state.definition.healthProbe ? canaryStatus : "never",
-        processObservedAt: state.lastHeartbeatAt, providerObservedAt: observedAt,
-        canaryVerifiedAt: capability === state.definition.healthProbe ? canaryVerifiedAt : null,
-        lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
-      });
+      for (const capability of state.definition.capabilities) {
+        const exactCanary = capability === state.definition.healthProbe || (capability === "codex.execute" && executionCellCanary === "verified");
+        this.database.setCapabilityReadiness({
+          workerId: state.definition.id, capability, processStatus: "live", providerStatus,
+          canaryStatus: exactCanary ? canaryStatus : "never",
+          processObservedAt: state.lastHeartbeatAt, providerObservedAt: observedAt,
+          canaryVerifiedAt: exactCanary ? canaryVerifiedAt : null,
+          lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
+        });
+      }
       state.ready = true; state.status = "live";
     } else if (message?.type === "heartbeat") {
       state.lastHeartbeatAt = message.timestamp;
@@ -180,6 +184,9 @@ export class Supervisor extends EventEmitter {
       }
       try {
         const receipt = validateCapabilityReceipt(task.capability, message.result?.receipt);
+        if (task.capability === "codex.execute") {
+          this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
+        }
         this.database.completeTaskWithReceipt(message.taskId, receipt);
       } catch (error) {
         const failure = receiptFailure(error);
@@ -249,8 +256,18 @@ export class Supervisor extends EventEmitter {
         this.database.finishTask(task.id, { status: "waiting", errorCode: route.reason ?? "routing-changed" });
         continue;
       }
+      let executionTask = task;
+      if (task.capability === "codex.execute") {
+        const integrationLease = this.database.getIntegrationLease();
+        const session = this.database.getCodexBuilderSessionByTaskId(task.id);
+        if (!integrationLease || integrationLease.leaseId !== task.integrationLeaseId || !session || session.status !== "PREPARED") {
+          this.database.finishTask(task.id, { status: "waiting", errorCode: !integrationLease ? "integration-lease-not-active" : !session ? "codex-builder-session-missing" : "codex-builder-session-invalid" });
+          continue;
+        }
+        executionTask = { ...task, integrationLease, executionSessionId: session.executionSessionId };
+      }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
-      const envelope = task.conversationId ? { ...task, messages: this.database.listConversationMessages(task.conversationId) } : task;
+      const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessages(task.conversationId) } : executionTask;
       state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
     }
   }

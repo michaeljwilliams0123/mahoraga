@@ -8,7 +8,7 @@ const manifest = {
   workers: [
     { id: "repository", enabled: true, capabilities: ["repository.inspect"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
     { id: "desktop", enabled: true, capabilities: ["desktop.interact"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: true } },
-    { id: "codex", enabled: true, capabilities: ["codex.execute"], dataClasses: ["local-only"], executionPlane: "primary-codex-local", routing: { requiresAttendedDesktop: false } },
+    { id: "codex", enabled: true, capabilities: ["codex.execute"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
   ],
 };
 
@@ -30,6 +30,8 @@ test("repository policy derives capability, data boundary, plane, and worker", (
     authoritySessionId: null,
     integrationLeaseId: null,
     contentReferences: [],
+    baseCommit: null,
+    allowedPaths: [],
     policyVersion: "7.0.0-alpha.1",
   });
 });
@@ -37,6 +39,15 @@ test("repository policy derives capability, data boundary, plane, and worker", (
 test("attended and integration authority fail closed", () => {
   assert.throws(() => deriveTaskPolicy({ intent: "desktop.interact" }, { manifest }), /attended-session-required/);
   assert.throws(() => deriveTaskPolicy({ intent: "codex.execute" }, { manifest, internal: true }), /integration-lease-required/);
+});
+
+test("Codex policy binds an immutable base and allowlist to the active lease", () => {
+  const lease = { leaseId: "int-00000000-0000-4000-8000-000000000003", paths: ["src"], expiresAt: "2099-08-25T12:00:00.000Z" };
+  const policy = deriveTaskPolicy({ intent: "codex.execute", baseCommit: "a".repeat(40), allowedPaths: ["src/execution-cell.mjs"], integrationLeaseId: lease.leaseId }, { manifest, internal: true, integrationLease: lease });
+  assert.equal(policy.executionPlane, "candidate-worktree");
+  assert.equal(policy.integrationLeaseId, lease.leaseId);
+  assert.equal(policy.baseCommit, "a".repeat(40));
+  assert.deepEqual(policy.allowedPaths, ["src/execution-cell.mjs"]);
 });
 
 test("policy task input ignores caller execution assertions", () => {

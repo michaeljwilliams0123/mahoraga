@@ -301,7 +301,8 @@
       "enabled": true,
       "costClass": "licensed-cloud",
       "dataClasses": [
-        "synthetic"
+        "synthetic",
+        "local-only"
       ],
       "capabilities": [
         "codex.health",
@@ -313,7 +314,7 @@
       "timeoutMs": 300000,
       "concurrency": 1,
       "healthProbe": "codex.health",
-      "executionPlane": "primary-codex-local",
+      "executionPlane": "candidate-worktree",
       "routing": {
         "interfaceType": "mcp-cli",
         "permissionClass": "task-scoped-codex-builder",
@@ -327,12 +328,14 @@
       "adapter": {
         "kind": "codex-cli-builder",
         "executable": "user-codex-cli",
-        "workingDirectory": ".",
+        "workingDirectory": "candidate-worktree",
         "taskScoped": true,
         "interactiveAuthority": false,
         "directExecutionEnabled": true,
         "apiKeyRequired": false,
         "sandbox": "workspace-write",
+        "approvalPolicy": "never",
+        "networkAccess": false,
         "ephemeral": true,
         "ignoreUserConfig": true,
         "maximumPromptBytes": 16384,

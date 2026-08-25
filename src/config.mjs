@@ -203,7 +203,7 @@ function validateAdapter(adapter, workerId) {
   integer(adapter.maxOutputBytes, 1024, 131072, "Copilot adapter output limit");
 }
 function validateCodexBuilderAdapter(adapter) {
-  if (adapter.kind !== "codex-cli-builder" || adapter.executable !== "user-codex-cli" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== true || adapter.apiKeyRequired !== false || adapter.sandbox !== "workspace-write" || adapter.ephemeral !== true || adapter.ignoreUserConfig !== true) {
+  if (adapter.kind !== "codex-cli-builder" || adapter.executable !== "user-codex-cli" || adapter.workingDirectory !== "candidate-worktree" || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== true || adapter.apiKeyRequired !== false || adapter.sandbox !== "workspace-write" || adapter.approvalPolicy !== "never" || adapter.networkAccess !== false || adapter.ephemeral !== true || adapter.ignoreUserConfig !== true) {
     throw new TypeError("Codex Builder adapter boundary is invalid.");
   }
   integer(adapter.maximumPromptBytes, 1024, 32768, "Codex Builder prompt limit");

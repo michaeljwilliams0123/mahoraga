@@ -12,6 +12,7 @@ state/cache/
 state/checkpoints/
 state/repairs/
 state/artifacts/
+state/execution-cells/
 node_modules/
 .env
 .env.*

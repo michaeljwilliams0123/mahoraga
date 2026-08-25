@@ -43,7 +43,14 @@ export function deriveTaskPolicy(input, {
   const attendedRequired = eligible.some((worker) => worker.routing?.requiresAttendedDesktop === true);
   if (attendedRequired && !attendedSession?.active) throw policyError("attended-session-required");
   const integrationLeaseId = request.integrationLeaseId ?? integrationLease?.leaseId ?? null;
+  if (intent !== "codex.execute" && (request.baseCommit !== undefined || request.allowedPaths !== undefined || request.integrationLeaseId !== undefined)) throw policyError("execution-cell-contract-not-allowed");
   if (intent === "codex.execute" && !integrationLeaseId) throw policyError("integration-lease-required");
+  const baseCommit = intent === "codex.execute" ? normalizeCommit(request.baseCommit) : null;
+  const allowedPaths = intent === "codex.execute" ? normalizeAllowedPaths(request.allowedPaths) : [];
+  if (intent === "codex.execute") {
+    if (!integrationLease || integrationLease.leaseId !== integrationLeaseId || Date.parse(integrationLease.expiresAt) <= Date.now()) throw policyError("integration-lease-not-active");
+    if (!allowedPaths.every((allowed) => integrationLease.paths.some((leased) => allowed === leased || allowed.startsWith(`${leased}/`)))) throw policyError("integration-lease-paths-insufficient");
+  }
   const contentReferences = normalizeReferences(request.contentReferences ?? []);
   const executionPlanes = [...new Set(eligible.map((worker) => worker.executionPlane))];
   if (executionPlanes.length !== 1) throw policyError("task-execution-plane-ambiguous");
@@ -59,6 +66,8 @@ export function deriveTaskPolicy(input, {
     authoritySessionId: request.authoritySessionId ?? attendedSession?.sessionId ?? null,
     integrationLeaseId,
     contentReferences,
+    baseCommit,
+    allowedPaths,
     policyVersion: POLICY_VERSION,
   });
 }
@@ -83,6 +92,8 @@ export function policyTaskInput(request, policy, manifest) {
     authoritySessionId: policy.authoritySessionId,
     integrationLeaseId: policy.integrationLeaseId,
     contentReferences: policy.contentReferences,
+    baseCommit: policy.baseCommit,
+    allowedPaths: policy.allowedPaths,
     policyVersion: policy.policyVersion,
   });
 }
@@ -104,6 +115,22 @@ function normalizeReferences(value) {
   const references = [...new Set(value)];
   for (const item of references) if (typeof item !== "string" || !/^(?:art|vault)-?[a-z0-9:-]{16,160}$/i.test(item)) throw policyError("content-reference-invalid");
   return references.sort();
+}
+
+function normalizeCommit(value) {
+  if (typeof value !== "string" || !/^[a-f0-9]{40,64}$/i.test(value)) throw policyError("base-commit-invalid");
+  return value.toLowerCase();
+}
+
+function normalizeAllowedPaths(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) throw policyError("allowed-paths-invalid");
+  return [...new Set(value.map((item) => {
+    if (typeof item !== "string") throw policyError("allowed-path-invalid");
+    const normalized = item.replace(/^\.\//, "").replace(/\/$/, "");
+    const segments = normalized.split("/");
+    if (!normalized || normalized.length > 240 || normalized.startsWith("/") || normalized.includes("\\") || /[\u0000-\u001f\u007f:*?]/.test(normalized) || segments.some((segment) => !segment || segment === "." || segment === "..") || normalized === ".git" || normalized.startsWith(".git/")) throw policyError("allowed-path-invalid");
+    return normalized;
+  }))].sort();
 }
 
 function normalizePriority(value = "normal") {
