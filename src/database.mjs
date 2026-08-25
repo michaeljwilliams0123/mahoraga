@@ -3,6 +3,7 @@ import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
 import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
+import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -215,6 +216,10 @@ export class RuntimeDatabase {
   #ensureReceiptColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(execution_receipts)").all().map((column) => column.name));
     if (!current.has("metadata_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'");
+    if (!current.has("receipt_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN receipt_json TEXT");
+    if (!current.has("receipt_sha256")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN receipt_sha256 TEXT");
+    if (!current.has("capability")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN capability TEXT");
+    if (!current.has("outcome")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN outcome TEXT");
   }
 
   #ensureSecondaryAssignmentColumns() {
@@ -683,6 +688,53 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
+  completeTaskWithReceipt(id, value) {
+    const task = this.getTask(id);
+    if (!task) throw new TypeError("Receipt task is missing.");
+    const receipt = validateCapabilityReceipt(task.capability, value);
+    const status = receipt.outcome === "succeeded" ? "completed" : receipt.outcome === "waiting" ? "waiting" : "failed";
+    const errorCode = status === "failed" ? "verification-failed" : null;
+    const now = new Date().toISOString();
+    const completed = this.#transaction(() => {
+      const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(status, receipt.summary, errorCode, now, id);
+      if (changed.changes !== 1) throw new Error("receipt-task-state-invalid");
+      this.#event(`task.${status}`, id, { errorCode, receiptSha256: receiptDigest(receipt) });
+      this.recordCapabilityReceipt({ task, receipt, verifier: task.verifier ?? "worker-result" });
+      return this.getTask(id);
+    });
+    if (task.conversationId) this.addConversationMessage({
+      conversationId: task.conversationId, taskId: id,
+      role: status === "completed" ? "assistant" : "system", content: receipt.summary,
+    });
+    return completed;
+  }
+
+  failTaskSafely(id, { errorCode = "task-completion-failed", resultSummary = null } = {}) {
+    try {
+      return this.finishTask(id, { status: "failed", errorCode, resultSummary });
+    } catch {
+      const now = new Date().toISOString();
+      this.db.prepare(`UPDATE tasks SET status='failed', result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(resultSummary, errorCode, now, id);
+      return this.getTask(id);
+    }
+  }
+
+  recordCapabilityReceipt({ task, receipt: value, verifier }) {
+    if (!task) throw new TypeError("Task is required for a receipt.");
+    bounded(verifier, 80, "receipt verifier");
+    const receipt = validateCapabilityReceipt(task.capability, value);
+    const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
+    const sha256 = receiptDigest(receipt);
+    this.db.prepare(`INSERT INTO execution_receipts
+      (id,task_id,correlation_id,phase,verifier,summary,metadata_json,receipt_json,receipt_sha256,capability,outcome,created_at)
+      VALUES(?,?,?,?,?,?,'{}',?,?,?,?,?)`)
+      .run(id, task.id, task.correlationId, receipt.outcome, verifier, receipt.summary, JSON.stringify(receipt), sha256, receipt.capability, receipt.outcome, createdAt);
+    this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase: receipt.outcome, verifier, capability: receipt.capability, sha256 });
+    return { id, taskId: task.id, correlationId: task.correlationId, phase: receipt.outcome, verifier, summary: receipt.summary, receipt, sha256, createdAt };
+  }
+
   recordReceipt({ task, phase, verifier, summary, metadata = {} }) {
     if (!task) throw new TypeError("Task is required for a receipt.");
     bounded(phase, 40, "receipt phase"); bounded(verifier, 80, "receipt verifier"); bounded(summary, 2000, "receipt summary");
@@ -699,7 +751,9 @@ export class RuntimeDatabase {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM execution_receipts WHERE task_id=? ORDER BY created_at DESC LIMIT ?").all(taskId, size).map((row) => ({
       id: row.id, taskId: row.task_id, correlationId: row.correlation_id, phase: row.phase, verifier: row.verifier,
-      summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"), createdAt: row.created_at,
+      summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"),
+      receipt: row.receipt_json ? JSON.parse(row.receipt_json) : null, sha256: row.receipt_sha256 ?? null,
+      capability: row.capability ?? null, outcome: row.outcome ?? null, createdAt: row.created_at,
     }));
   }
 

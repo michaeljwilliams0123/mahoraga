@@ -10,6 +10,7 @@ import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
 import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
+import { createCapabilityReceipt } from "./receipt-registry.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -27,8 +28,10 @@ process.on("message", async (message) => {
   if (message?.type === "shutdown") { clearInterval(heartbeat); shutdownBrowser(); process.exit(0); }
   if (message?.type !== "task") return;
   try {
+    const startedAt = Date.now();
     const result = await execute(message.capability, message.task);
-    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result });
+    const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
+    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
   } catch (error) {
     process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode: classifyError(error) });
   }

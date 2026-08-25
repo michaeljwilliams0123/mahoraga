@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
+import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
@@ -149,17 +150,20 @@ export class Supervisor extends EventEmitter {
           return;
         }
       }
-      if (message.result?.verified === false) {
-        this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
-      } else {
-        this.database.finishTask(message.taskId, { status: "completed", resultSummary: normalizeSummary(message.result?.summary), receiptMetadata: message.result?.receiptMetadata ?? message.result?.providerReceipt ?? {} });
+      try {
+        const receipt = validateCapabilityReceipt(task.capability, message.result?.receipt);
+        this.database.completeTaskWithReceipt(message.taskId, receipt);
+      } catch (error) {
+        const failure = receiptFailure(error);
+        this.database.failTaskSafely(message.taskId, { errorCode: failure.errorCode, resultSummary: failure.boundedSummary });
+      } finally {
+        this.#release(state);
       }
-      this.#release(state);
     } else if (message?.type === "task.failed") {
       const failed = this.database.getTask(message.taskId);
       const assignmentId = secondaryAssignmentId(failed, "secondary-validate");
       if (assignmentId) this.database.completeSecondaryValidation({ taskId: failed.id, verified: false });
-      this.database.finishTask(message.taskId, { status: "failed", errorCode: message.errorCode });
+      this.database.failTaskSafely(message.taskId, { errorCode: message.errorCode });
       this.#release(state);
     }
   }
