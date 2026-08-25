@@ -28,10 +28,10 @@ usage. See the official OpenAI documentation for [Codex cloud](https://learn.cha
 
 ## Connected-repository setup
 
-Mahoraga is currently public under the user's explicit directive. Do not change
-repository visibility through an issue, workflow, script, or controller task.
-If the user later chooses private visibility, verify the connected GitHub App
-before making that separate user-directed setting change.
+Mahoraga is private under the user's explicit directive. The connected GitHub
+integration can read and write the private repository, whose canonical default
+branch is `main`. Do not change repository visibility through an issue,
+workflow, script, or controller task.
 
 1. In Codex cloud settings, connect GitHub and explicitly grant the Codex GitHub
    App access to `michaeljwilliams0123/mahoraga`.

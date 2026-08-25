@@ -1,18 +1,19 @@
 # Mahoraga implementation log
 
-Updated: 2026-08-24
+Updated: 2026-08-25
 
 ## Current wave
 
-Wave 9 is repository-deployed and awaiting ordinary downstream Git sync. Cloud
-Workspace 2.0 presents installed Skills, approval and release views, execution
-lane selection, and the exact credit boundary. The Cloud Task Gateway converts
-only owner-approved issue commands into deterministic Codex cloud or desktop
-records. The staged release lane adds full verification, strict SHA-256 update
-metadata, and provenance without activating a local device.
+Wave 10 is live on the Windows production runtime. Mahoraga 3.5.1 adds nine
+evidence-led expert methods, fixes SharePoint/OneDrive misrouting, hardens
+picker/paste attachment intake, and rejects acknowledgement-only or otherwise
+unverified answers through bounded retry/reroute and explicit unresolved
+receipts. The full repository verification passed 198/198 tests, followed by
+live browser acceptance for a pasted image, a private local Visio attachment,
+provider-gap routing, expert-method rendering, and an empty console error log.
 
-No Windows runtime, browser session, GitHub Desktop setting, or local provider
-was changed as part of Wave 9.
+Primary Cloud Codex review is dispatched through private GitHub issue `#36`
+using the validated, content-free task record in `coordination/cloud-tasks/`.
 
 ## Previous wave
 
@@ -24,11 +25,11 @@ bytes in SQLite.
 
 ## Active runtime
 
-The per-user supervised Mahoraga 3.3.0 runtime is healthy on
+The per-user supervised Mahoraga 3.5.1 runtime is healthy on
 `127.0.0.1:4782`. Enabled providers are `local-core`, `repository`, `browser`,
-and `self-healer`. The last successful deployment is `124dca8`; the live
-`browser.observe` boundary completed with worker verification and an immutable
-execution receipt.
+and `self-healer`. The last successful deployment is `8e7a17c`; the live
+acceptance run confirmed four current worker heartbeats, nine expert profiles,
+private multimodal intake, and bounded unresolved-answer receipts.
 
 ## Known boundaries
 

@@ -113,9 +113,9 @@ for the exact trigger boundary.
 
 ## Current connection state
 
-The 3.5.1 repository contract, Control Center 5.3.1, and Cloud Workspace 2.0.0 are staged for deployment on
-2026-08-24. The per-user `Mahoraga Production Runtime` launcher is registered,
-and the four enabled isolated workers are supervised on loopback.
+The 3.5.1 repository contract and Control Center 5.3.1 were verified and activated on
+2026-08-25. The per-user `Mahoraga Production Runtime` launcher is registered,
+and all four enabled isolated workers are supervised on loopback.
 
 - LM Studio: declared but disabled until a fresh local runtime probe passes.
 - Copilot Studio: General Mahoraga, Mahorago Tenant Health Reader, and Mahorago

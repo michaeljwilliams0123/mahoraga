@@ -1,4 +1,4 @@
-# Production status — repository baseline 2026-08-24
+# Production status — verified live baseline 2026-08-25
 
 This record describes the authoritative GitHub production baseline. It does not
 claim that a particular Windows process has already fetched, restarted, or
@@ -7,9 +7,9 @@ runtime evidence.
 
 ## Repository production baseline
 
-- Product version: `3.5.0`
-- Runtime version declared by the manifest: `3.5.0`
-- Control Center: `5.3.0`
+- Product version: `3.5.1`
+- Runtime version declared by the manifest: `3.5.1`
+- Control Center: `5.3.1`
 - Cloud control plane declaration: `3.2.0`
 - Cloud Workspace: `2.0.0`
 - Capability registry: `1.0.0`
@@ -32,6 +32,25 @@ Enabled production workers declared by the manifest are:
 - `local-core`
 - `repository`
 - `browser`
+## 3.5.1 live acceptance
+
+Commit `8e7a17c` is active on the authoritative Windows checkout. The loopback
+status endpoint reported runtime `3.5.1`, Control Center `5.3.1`, all four
+enabled workers healthy with current heartbeats, and nine evidence-led expert
+method profiles.
+
+The production acceptance run verified private pasted-image intake, a private
+local Visio attachment, expert-method rendering, SharePoint/OneDrive routing,
+bounded answer-quality correction, and an empty browser error/warning log. A
+Microsoft work URL now returns an explicit enterprise provider-gap receipt
+instead of being misclassified as repository work. An acknowledgement-only
+answer is retried at most three times and then records an explicit unresolved
+receipt without claiming completion.
+
+`npm run verify` completed with 198 passing tests. Semantic analysis of a
+SharePoint or Visio document still requires an enabled eligible Microsoft 365,
+signed-in application, Workspace Agent, or task-scoped Codex provider.
+
 - `self-healer`
 
 The supervisor reconciles objective graphs on every scheduler tick, performs
