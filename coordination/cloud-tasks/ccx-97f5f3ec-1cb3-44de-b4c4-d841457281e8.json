@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "taskId": "ccx-97320b6b-b2c3-4e3a-bcc8-f9967b01c8ed",
-  "idempotencyKey": "mahoraga-dual-primary-controller-v1",
+  "taskId": "ccx-97f5f3ec-1cb3-44de-b4c4-d841457281e8",
+  "idempotencyKey": "mahoraga-dual-primary-controller-v2",
   "repository": "michaeljwilliams0123/mahoraga",
-  "baseCommit": "05ae19f5474260611338656b1502698531260c10",
+  "baseCommit": "d87a224bf0401b7b695bf8d1b2b7a89615dc62a4",
   "title": "Add guarded dual-primary Codex controller contract",
   "task": "Implement a repository-native controller contract that gives primary-local-codex and primary-cloud-codex equal capability to architect, decompose, create bounded assignments, implement, test, review, and integrate. Preserve the user as sole core-update activation authority. Main integration must require a bounded integration lease held by one primary at a time; path overlap is visible and coordinated, not categorically prohibited. Keep the existing secondary mailbox backward compatible. Update the localhost coordination wording and focused tests. Do not change repository visibility, add credentials, expose localhost, touch ChromeOS, upload enterprise files, auto-merge, or activate a core update.",
   "allowedPaths": [
@@ -24,7 +24,7 @@
   "maximumAttempts": 1,
   "integrationMode": "pull-request",
   "createdBy": "main-codex",
-  "createdAt": "2026-08-25T02:52:16.606Z",
+  "createdAt": "2026-08-25T03:09:14.215Z",
   "privacy": {
     "chatAccess": false,
     "conversationTranscriptIncluded": false,
