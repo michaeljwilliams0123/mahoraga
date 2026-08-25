@@ -42,7 +42,10 @@ test("release baseline rejects stale production copies", async () => {
     ESSENTIAL_FILES.push(relative);
     const scan = await scanRepairState(manifest);
     assert.equal(scan.healthy, false);
-    assert.deepEqual(scan.issues.filter((issue) => issue.relative === relative), [{ code: "baseline-file-out-of-date", relative }]);
+    const issue = scan.issues.find((item) => item.relative === relative);
+    assert.equal(issue.code, "baseline-file-out-of-date");
+    assert.match(issue.expectedSha256, /^[a-f0-9]{64}$/);
+    assert.match(issue.observedSha256, /^[a-f0-9]{64}$/);
   } finally {
     ESSENTIAL_FILES.pop();
     rmSync(path.dirname(live), { recursive: true, force: true });

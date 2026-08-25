@@ -4,6 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { createHash, randomUUID } from "node:crypto";
 import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
 import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
+import { advanceRepairIncident, reconcileRepairIncidents as reconcileIncidentState } from "./repair-incidents.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -212,6 +213,23 @@ export class RuntimeDatabase {
         PRIMARY KEY(worker_id, capability)
       );
       CREATE INDEX IF NOT EXISTS idx_capability_readiness_route ON capability_readiness(capability, process_status, provider_status, canary_status);
+    `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS repair_incidents (
+        id TEXT PRIMARY KEY,
+        relative_path TEXT NOT NULL,
+        condition_code TEXT NOT NULL,
+        expected_sha256 TEXT,
+        observed_sha256 TEXT,
+        baseline_version TEXT NOT NULL,
+        status TEXT NOT NULL,
+        recovery_state TEXT NOT NULL,
+        opened_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        resolved_at TEXT,
+        last_error_code TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_repair_incidents_status ON repair_incidents(status, updated_at);
     `);
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
@@ -978,6 +996,51 @@ export class RuntimeDatabase {
     lastHeartbeatAt: row.last_heartbeat_at, lastErrorCode: row.last_error_code,
   })); }
 
+  listRepairIncidents({ includeResolved = true, limit = 500 } = {}) {
+    const size = Math.max(1, Math.min(Number(limit) || 500, 1000));
+    const rows = includeResolved
+      ? this.db.prepare("SELECT * FROM repair_incidents ORDER BY updated_at DESC, id LIMIT ?").all(size)
+      : this.db.prepare("SELECT * FROM repair_incidents WHERE status<>'resolved' ORDER BY updated_at DESC, id LIMIT ?").all(size);
+    return rows.map(normalizeRepairIncidentRow);
+  }
+
+  reconcileRepairIncidents(issues, baselineVersion, at = new Date()) {
+    const result = reconcileIncidentState(this.listRepairIncidents({ includeResolved: true, limit: 1000 }), issues, { baselineVersion, now: () => at });
+    if (result.events.length === 0) return { ...result, active: result.incidents.filter((item) => item.status !== "resolved") };
+    this.#transaction(() => {
+      for (const event of result.events) {
+        this.#upsertRepairIncident(event.incident);
+        this.#event(event.type, event.incident.id, {
+          relative: event.incident.relative, condition: event.incident.condition,
+          expectedSha256: event.incident.expectedSha256, observedSha256: event.incident.observedSha256,
+          baselineVersion: event.incident.baselineVersion, recoveryState: event.incident.recoveryState,
+        });
+      }
+    });
+    return { ...result, active: result.incidents.filter((item) => item.status !== "resolved") };
+  }
+
+  transitionRepairIncident(id, transition, { errorCode = null, at = new Date() } = {}) {
+    const current = this.listRepairIncidents({ includeResolved: true, limit: 1000 }).find((item) => item.id === id);
+    if (!current) throw new TypeError("Repair incident is missing.");
+    const result = advanceRepairIncident(current, transition, { errorCode, now: () => at });
+    this.#transaction(() => {
+      this.#upsertRepairIncident(result.incident);
+      this.#event(result.event.type, id, { relative: result.incident.relative, condition: result.incident.condition, recoveryState: result.incident.recoveryState, errorCode });
+    });
+    return result.incident;
+  }
+
+  #upsertRepairIncident(incident) {
+    this.db.prepare(`INSERT INTO repair_incidents
+      (id,relative_path,condition_code,expected_sha256,observed_sha256,baseline_version,status,recovery_state,opened_at,updated_at,resolved_at,last_error_code)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+      observed_sha256=excluded.observed_sha256,status=excluded.status,recovery_state=excluded.recovery_state,
+      updated_at=excluded.updated_at,resolved_at=excluded.resolved_at,last_error_code=excluded.last_error_code`)
+      .run(incident.id, incident.relative, incident.condition, incident.expectedSha256, incident.observedSha256, incident.baselineVersion,
+        incident.status, incident.recoveryState, incident.openedAt, incident.updatedAt, incident.resolvedAt, incident.lastErrorCode);
+  }
+
   proposeImprovement({ title, summary, testSummary = null }) {
     bounded(title, 160, "improvement title"); bounded(summary, 4000, "improvement summary");
     if (testSummary !== null) bounded(testSummary, 2000, "test summary");
@@ -1147,6 +1210,12 @@ function normalizeMessageWithAttachments(row, attachments) {
 function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"), source: row.source ?? "runtime-api", status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeIntegrationLease(row) { return { leaseId: row.lease_id, controllerId: row.controller_id, purpose: row.purpose, paths: JSON.parse(row.paths_json), acquiredAt: row.acquired_at, expiresAt: row.expires_at }; }
+function normalizeRepairIncidentRow(row) { return Object.freeze({
+  id: row.id, relative: row.relative_path, condition: row.condition_code,
+  expectedSha256: row.expected_sha256, observedSha256: row.observed_sha256, baselineVersion: row.baseline_version,
+  status: row.status, recoveryState: row.recovery_state, openedAt: row.opened_at, updatedAt: row.updated_at,
+  resolvedAt: row.resolved_at, lastErrorCode: row.last_error_code,
+}); }
 function integrationController(value) { if (!PRIMARY_CONTROLLERS.includes(value)) throw new TypeError("Primary integration controller is invalid."); return value; }
 function integrationPaths(value) {
   if (!Array.isArray(value) || value.length > 64) throw new TypeError("Integration lease paths are invalid.");

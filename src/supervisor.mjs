@@ -6,13 +6,16 @@ import { routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
+import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true }) {
     super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
-    this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
+    this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
+    this.lastRepairScanAt = null; this.lastRepairScanHealthy = null; this.lastRepairChecked = 0; this.nextRepairScanAt = 0; this.repairScanInFlight = false;
+    this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -20,7 +23,7 @@ export class Supervisor extends EventEmitter {
     this.startedAt = new Date().toISOString();
     for (const definition of this.manifest.workers.filter((item) => item.enabled)) this.#spawn(definition);
     this.database.recoverExpired();
-    this.#scheduleAutomaticRepair();
+    this.#scheduleRepairIncidentScan(true);
     this.#scheduleMicrosoftQueuePoll();
     this.#scheduleSecondaryMailboxMonitor();
     this.timer = setInterval(() => this.#tick(), 500);
@@ -62,7 +65,13 @@ export class Supervisor extends EventEmitter {
       const state = workers.find((worker) => worker.workerId === definition.id);
       return !state || !["live", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
     }).map((worker) => worker.id);
-    return { supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt, healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0, unhealthyWorkers: unhealthy };
+    const activeIncidents = this.database.listRepairIncidents({ includeResolved: false }).length;
+    return {
+      supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt,
+      healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0,
+      unhealthyWorkers: unhealthy,
+      repairScan: { lastVerifiedAt: this.lastRepairScanAt, healthy: this.lastRepairScanHealthy, checked: this.lastRepairChecked, inProgress: this.repairScanInFlight, activeIncidents },
+    };
   }
 
   restartWorker(workerId) {
@@ -243,7 +252,7 @@ export class Supervisor extends EventEmitter {
   #tick() {
     this.database.recoverExpired();
     this.database.reconcileObjectives();
-    this.#scheduleAutomaticRepair();
+    this.#scheduleRepairIncidentScan();
     this.#scheduleMicrosoftQueuePoll();
     this.#scheduleSecondaryMailboxMonitor();
     const now = Date.now();
@@ -278,17 +287,44 @@ export class Supervisor extends EventEmitter {
     }
   }
 
-  #scheduleAutomaticRepair() {
-    if (!this.manifest.repair?.enabled) return;
-    const bucket = Math.floor(Date.now() / this.manifest.repair.scanIntervalMs);
-    if (bucket === this.lastRepairBucket) return;
-    this.lastRepairBucket = bucket;
-    this.database.submitTask({
-      capability: "repair.apply",
-      dataClass: "local-only",
-      requestedMode: "local",
-      idempotencyKey: `automatic-operational-repair:${bucket}`,
-    });
+  #scheduleRepairIncidentScan(force = false) {
+    if (!this.manifest.repair?.enabled || this.repairScanInFlight || this.stopping) return;
+    const current = Date.now();
+    if (!force && current < this.nextRepairScanAt) return;
+    this.nextRepairScanAt = current + this.manifest.repair.scanIntervalMs;
+    this.repairScanInFlight = true;
+    void this.#runRepairIncidentScan().catch(() => {
+      this.lastRepairScanAt = new Date().toISOString();
+      this.lastRepairScanHealthy = false;
+    }).finally(() => { this.repairScanInFlight = false; });
+  }
+
+  async #runRepairIncidentScan() {
+    const scan = await scanRepairState(this.manifest);
+    this.lastRepairScanAt = new Date().toISOString();
+    this.lastRepairScanHealthy = scan.healthy;
+    this.lastRepairChecked = scan.checked;
+    const reconciled = this.database.reconcileRepairIncidents(scan.issues, scan.baselineVersion, new Date(this.lastRepairScanAt));
+    const recoverable = reconciled.events
+      .filter((event) => event.type === "repair-incident-opened" && event.incident.condition === "live-file-missing-or-empty" && event.incident.expectedSha256)
+      .map((event) => event.incident);
+    if (recoverable.length === 0 || !this.manifest.repair.automaticRiskClasses.includes("core")) return;
+    for (const incident of recoverable) this.database.transitionRepairIncident(incident.id, "recovery-attempted");
+    let recovery;
+    try {
+      recovery = await applyAutomaticRepairs(this.manifest);
+    } catch {
+      for (const incident of recoverable) this.database.transitionRepairIncident(incident.id, "recovery-failed", { errorCode: "automatic-repair-failed" });
+      return;
+    }
+    for (const incident of recoverable) {
+      if (recovery.repaired.includes(incident.relative)) this.database.transitionRepairIncident(incident.id, "recovery-verified");
+      else if (recovery.rolledBack.includes(incident.relative)) this.database.transitionRepairIncident(incident.id, "recovery-rolled-back", { errorCode: "repair-rolled-back" });
+      else this.database.transitionRepairIncident(incident.id, "recovery-failed", { errorCode: "repair-unresolved" });
+    }
+    const verified = await scanRepairState(this.manifest);
+    this.lastRepairScanAt = new Date().toISOString(); this.lastRepairScanHealthy = verified.healthy; this.lastRepairChecked = verified.checked;
+    this.database.reconcileRepairIncidents(verified.issues, verified.baselineVersion, new Date(this.lastRepairScanAt));
   }
 
   #scheduleMicrosoftQueuePoll() {

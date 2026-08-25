@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { copyFile, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
@@ -44,6 +45,7 @@ export const ESSENTIAL_FILES = [
   "src/github-audit.mjs",
   "src/microsoft365-worker.mjs",
   "src/microsoft-queue-worker.mjs",
+  "src/repair-incidents.mjs",
   "src/repair.mjs",
   "src/router.mjs",
   "src/repository-worker.mjs",
@@ -89,16 +91,20 @@ export const ESSENTIAL_FILES = [
 export async function scanRepairState(manifest) {
   const issues = [];
   const baselineRoot = path.join(ROOT, manifest.repair.baselineDirectory);
+  const baselineVersion = `${manifest.version}:${manifest.repair.baselineDirectory}`;
   for (const relative of ESSENTIAL_FILES) {
     const live = path.join(ROOT, relative);
     const baseline = path.join(baselineRoot, relative);
     const liveHealthy = await healthyFile(live);
     const baselineHealthy = await healthyFile(baseline);
-    if (!liveHealthy) issues.push({ code: "live-file-missing-or-empty", relative });
-    if (!baselineHealthy) issues.push({ code: "baseline-file-missing-or-empty", relative });
-    if (liveHealthy && baselineHealthy && !await filesMatch(live, baseline)) issues.push({ code: "baseline-file-out-of-date", relative });
+    const expectedSha256 = baselineHealthy ? await fileDigest(baseline) : null;
+    const observedSha256 = liveHealthy ? await fileDigest(live) : null;
+    const issue = (code) => ({ code, condition: code, relative, expectedSha256, observedSha256, baselineVersion });
+    if (!liveHealthy) issues.push(issue("live-file-missing-or-empty"));
+    if (!baselineHealthy) issues.push(issue("baseline-file-missing-or-empty"));
+    if (liveHealthy && baselineHealthy && observedSha256 !== expectedSha256) issues.push(issue("baseline-file-out-of-date"));
   }
-  return { issues, checked: ESSENTIAL_FILES.length, healthy: issues.length === 0 };
+  return { issues, checked: ESSENTIAL_FILES.length, healthy: issues.length === 0, baselineVersion };
 }
 
 export async function applyAutomaticRepairs(manifest) {
@@ -150,4 +156,7 @@ async function healthyFile(file) {
 async function filesMatch(left, right) {
   const [leftSource, rightSource] = await Promise.all([readFile(left), readFile(right)]);
   return leftSource.equals(rightSource);
+}
+async function fileDigest(file) {
+  return createHash("sha256").update(await readFile(file)).digest("hex");
 }
