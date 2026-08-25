@@ -3,7 +3,8 @@ import { buildCapabilityRegistry, rankCapabilityRoutes } from "./capability-regi
 export function routeTask(manifest, task, context = {}) {
   const ranked = rankCapabilityRoutes(manifest, task, context);
   const candidates = ranked.candidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId));
-  if (candidates.length === 0) return { status: "waiting", reason: ranked.reason, worker: null };
+  const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
+  if (candidates.length === 0) return { status: "waiting", reason, worker: null };
   const selected = candidates[0];
   return {
     status: "routable",

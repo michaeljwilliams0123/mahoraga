@@ -32,6 +32,9 @@ export class Supervisor extends EventEmitter {
     this.timer = null;
     this.startedAt = null;
     for (const state of this.workers.values()) {
+      const observedAt = new Date().toISOString();
+      this.#setProcessReadiness(state, "stopped", observedAt);
+      this.database.setWorkerState({ workerId: state.definition.id, status: "stopped", pid: null, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
       if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-stopping");
       state.process.send?.({ type: "shutdown" });
     }
@@ -39,13 +42,16 @@ export class Supervisor extends EventEmitter {
   }
 
   status() {
-    return [...this.workers.entries()].map(([workerId, state]) => ({
-      workerId, label: state.definition.label, version: state.definition.version,
-      status: state.status ?? (state.ready ? (state.busy ? "busy" : "healthy") : "starting"), pid: state.process.pid,
-      restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
-      currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
-      timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities,
-    }));
+    return [...this.workers.entries()].map(([workerId, state]) => {
+      const readiness = this.database.listCapabilityReadiness(workerId);
+      return {
+        workerId, label: state.definition.label, version: state.definition.version,
+        status: state.status ?? (state.busy ? "busy" : state.ready ? "live" : "starting"), pid: state.process.pid,
+        restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
+        currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
+        timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities, readiness,
+      };
+    });
   }
 
   health(now = Date.now()) {
@@ -53,7 +59,7 @@ export class Supervisor extends EventEmitter {
     const workers = this.status();
     const unhealthy = enabled.filter((definition) => {
       const state = workers.find((worker) => worker.workerId === definition.id);
-      return !state || !["healthy", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
+      return !state || !["live", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
     }).map((worker) => worker.id);
     return { supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt, healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0, unhealthyWorkers: unhealthy };
   }
@@ -88,6 +94,9 @@ export class Supervisor extends EventEmitter {
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null };
     this.workers.set(definition.id, state);
+    for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
+      workerId: definition.id, capability, processStatus: "starting", providerStatus: "unknown", canaryStatus: "never",
+    });
     this.database.setWorkerState({ workerId: definition.id, status: "starting", pid: child.pid, restartCount });
     child.on("message", (message) => this.#safeMessage(state, message));
     child.on("exit", (code) => this.#exit(state, code));
@@ -105,13 +114,32 @@ export class Supervisor extends EventEmitter {
 
   #message(state, message) {
     if (this.stopping) return;
-    if (message?.type === "ready") {
-      state.ready = true; state.status = "healthy"; state.lastHeartbeatAt = new Date().toISOString();
-      this.database.setWorkerState({ workerId: state.definition.id, status: "healthy", pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+    if (message?.type === "process.ready") {
+      state.status = "live"; state.lastHeartbeatAt = new Date().toISOString();
+      this.database.setWorkerState({ workerId: state.definition.id, status: "live", pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+      this.#setProcessReadiness(state, "live", state.lastHeartbeatAt);
+    } else if (message?.type === "provider.readiness") {
+      const observedAt = message.observedAt ?? new Date().toISOString();
+      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null;
+      try {
+        const receipt = validateCapabilityReceipt(state.definition.healthProbe, message.receipt);
+        providerStatus = receipt.outcome === "succeeded" ? "ready" : "unavailable";
+        canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
+        canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
+      } catch {}
+      for (const capability of state.definition.capabilities) this.database.setCapabilityReadiness({
+        workerId: state.definition.id, capability, processStatus: "live", providerStatus,
+        canaryStatus: capability === state.definition.healthProbe ? canaryStatus : "never",
+        processObservedAt: state.lastHeartbeatAt, providerObservedAt: observedAt,
+        canaryVerifiedAt: capability === state.definition.healthProbe ? canaryVerifiedAt : null,
+        lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
+      });
+      state.ready = true; state.status = "live";
     } else if (message?.type === "heartbeat") {
       state.lastHeartbeatAt = message.timestamp;
-      state.status = state.busy ? "busy" : "healthy";
+      state.status = state.busy ? "busy" : "live";
       this.database.setWorkerState({ workerId: state.definition.id, status: state.status, pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+      this.#setProcessReadiness(state, state.status, state.lastHeartbeatAt);
     } else if (message?.type === "task.completed") {
       this.#applySecondaryResult(message.taskId, message.result);
       if (message.result?.waitingForUser === true) {
@@ -169,7 +197,21 @@ export class Supervisor extends EventEmitter {
   }
 
   #release(state) {
-    state.busy = false; state.status = "healthy"; state.currentTaskId = null; state.currentTaskStartedAt = null;
+    state.busy = false; state.status = "live"; state.currentTaskId = null; state.currentTaskStartedAt = null;
+    this.#setProcessReadiness(state, "live", new Date().toISOString());
+  }
+
+  #setProcessReadiness(state, processStatus, observedAt) {
+    const current = new Map(this.database.listCapabilityReadiness(state.definition.id).map((item) => [item.capability, item]));
+    for (const capability of state.definition.capabilities) {
+      const previous = current.get(capability);
+      this.database.setCapabilityReadiness({
+        workerId: state.definition.id, capability, processStatus,
+        providerStatus: previous?.providerStatus ?? "unknown", canaryStatus: previous?.canaryStatus ?? "never",
+        processObservedAt: observedAt, providerObservedAt: previous?.providerObservedAt ?? null,
+        canaryVerifiedAt: previous?.canaryVerifiedAt ?? null, lastErrorCode: previous?.lastErrorCode ?? null,
+      });
+    }
   }
 
   #exit(state, code) {
@@ -177,6 +219,7 @@ export class Supervisor extends EventEmitter {
     this.workers.delete(state.definition.id);
     if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, `worker-exit-${code ?? "unknown"}`);
     const exhausted = state.restartCount >= this.manifest.runtime.maximumWorkerRestarts;
+    this.#setProcessReadiness(state, this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", new Date().toISOString());
     this.database.setWorkerState({ workerId: state.definition.id, status: this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", restartCount: state.restartCount, lastErrorCode: `exit-${code ?? "unknown"}` });
     if (!this.stopping && state.restartCount < this.manifest.runtime.maximumWorkerRestarts) {
       const delay = Math.min(1000 * (2 ** state.restartCount), 15000);

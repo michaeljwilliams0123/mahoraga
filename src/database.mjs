@@ -8,6 +8,9 @@ import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
 const IMPROVEMENT_STATES = new Set(["proposed", "approved", "rejected", "activated"]);
+const CAPABILITY_PROCESS_STATES = new Set(["stopped", "starting", "live", "busy", "stale", "crashed", "quarantined"]);
+const CAPABILITY_PROVIDER_STATES = new Set(["unknown", "unavailable", "degraded", "ready"]);
+const CAPABILITY_CANARY_STATES = new Set(["never", "stale", "failed", "verified"]);
 const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unresolved"]);
 
 export class RuntimeDatabase {
@@ -189,6 +192,21 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_builder_sessions_correlation ON codex_builder_sessions(correlation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_secondary_assignments_status ON secondary_assignments(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
+    `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS capability_readiness (
+        worker_id TEXT NOT NULL,
+        capability TEXT NOT NULL,
+        process_status TEXT NOT NULL,
+        provider_status TEXT NOT NULL,
+        canary_status TEXT NOT NULL,
+        process_observed_at TEXT,
+        provider_observed_at TEXT,
+        canary_verified_at TEXT,
+        last_error_code TEXT,
+        PRIMARY KEY(worker_id, capability)
+      );
+      CREATE INDEX IF NOT EXISTS idx_capability_readiness_route ON capability_readiness(capability, process_status, provider_status, canary_status);
     `);
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
@@ -832,6 +850,41 @@ export class RuntimeDatabase {
       }
     });
     return rows.length;
+  }
+
+  setCapabilityReadiness({
+    workerId, capability, processStatus, providerStatus, canaryStatus,
+    processObservedAt = null, providerObservedAt = null, canaryVerifiedAt = null, lastErrorCode = null,
+  }) {
+    slug(workerId, "readiness worker id");
+    validateCapability(capability);
+    if (!CAPABILITY_PROCESS_STATES.has(processStatus)) throw new TypeError("Capability process status is invalid.");
+    if (!CAPABILITY_PROVIDER_STATES.has(providerStatus)) throw new TypeError("Capability provider status is invalid.");
+    if (!CAPABILITY_CANARY_STATES.has(canaryStatus)) throw new TypeError("Capability canary status is invalid.");
+    for (const [value, name] of [[processObservedAt, "process observed at"], [providerObservedAt, "provider observed at"], [canaryVerifiedAt, "canary verified at"]]) {
+      if (value !== null && !Number.isFinite(Date.parse(value))) throw new TypeError(`Capability ${name} is invalid.`);
+    }
+    if (lastErrorCode !== null) bounded(lastErrorCode, 80, "readiness error code");
+    this.db.prepare(`INSERT INTO capability_readiness
+      (worker_id,capability,process_status,provider_status,canary_status,process_observed_at,provider_observed_at,canary_verified_at,last_error_code)
+      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(worker_id,capability) DO UPDATE SET
+      process_status=excluded.process_status,provider_status=excluded.provider_status,canary_status=excluded.canary_status,
+      process_observed_at=excluded.process_observed_at,provider_observed_at=excluded.provider_observed_at,
+      canary_verified_at=excluded.canary_verified_at,last_error_code=excluded.last_error_code`)
+      .run(workerId, capability, processStatus, providerStatus, canaryStatus, processObservedAt, providerObservedAt, canaryVerifiedAt, lastErrorCode);
+  }
+
+  listCapabilityReadiness(workerId = null) {
+    if (workerId !== null) slug(workerId, "readiness worker id");
+    const rows = workerId === null
+      ? this.db.prepare("SELECT * FROM capability_readiness ORDER BY worker_id, capability").all()
+      : this.db.prepare("SELECT * FROM capability_readiness WHERE worker_id=? ORDER BY capability").all(workerId);
+    return rows.map((row) => ({
+      workerId: row.worker_id, capability: row.capability, processStatus: row.process_status,
+      providerStatus: row.provider_status, canaryStatus: row.canary_status,
+      processObservedAt: row.process_observed_at, providerObservedAt: row.provider_observed_at,
+      canaryVerifiedAt: row.canary_verified_at, lastErrorCode: row.last_error_code,
+    }));
   }
 
   setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null }) {

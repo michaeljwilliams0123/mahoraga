@@ -20,7 +20,7 @@ const artifactStore = new LocalArtifactStore(process.env.MAHORAGA_ARTIFACT_ROOT 
 const worker = manifest.workers.find((item) => item.id === workerId && item.enabled);
 if (!worker) process.exit(3);
 
-process.send({ type: "ready", workerId, pid: process.pid, capabilities: worker.capabilities });
+process.send({ type: "process.ready", workerId, pid: process.pid, capabilities: worker.capabilities });
 const heartbeat = setInterval(() => process.send?.({ type: "heartbeat", workerId, timestamp: new Date().toISOString() }), manifest.runtime.heartbeatIntervalMs);
 heartbeat.unref();
 
@@ -36,6 +36,20 @@ process.on("message", async (message) => {
     process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode: classifyError(error) });
   }
 });
+
+void probeProviderReadiness();
+
+async function probeProviderReadiness() {
+  const observedAt = new Date().toISOString();
+  const startedAt = Date.now();
+  try {
+    const result = await execute(worker.healthProbe, { id: `startup-probe-${workerId}`, requestedOutcome: `Verify ${worker.label}` });
+    const receipt = createCapabilityReceipt(worker.healthProbe, result, { observedAt, durationMs: Date.now() - startedAt });
+    process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt, observedAt });
+  } catch (error) {
+    process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt: null, observedAt, errorCode: classifyError(error) });
+  }
+}
 
 async function execute(capability, task) {
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability, task);
