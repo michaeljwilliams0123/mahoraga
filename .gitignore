@@ -27,3 +27,6 @@ scripts/__pycache__/
 solutions/*.zip
 coverage/
 *.lcov
+state/enterprise-workspace.json
+state/enterprise-workspace/
+enterprise-workspace/

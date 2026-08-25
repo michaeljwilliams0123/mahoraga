@@ -1,6 +1,15 @@
 const $ = (id) => document.getElementById(id);
 const VIEWS = new Set(['chat', 'tasks', 'coordination', 'workers', 'capabilities', 'connections', 'improvements', 'diagnostics']);
-const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: null, messages: [], activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
+const CONTROL_CENTER_API_PROTOCOL = 1;
+const SECTION_REQUESTS = [
+  ['coordination', '/api/coordination', (value) => value],
+  ['tasks', '/api/tasks', (value) => value.tasks ?? []],
+  ['conversations', '/api/conversations', (value) => value.conversations ?? []],
+  ['improvements', '/api/improvements', (value) => value.improvements ?? []],
+  ['diagnostics', '/api/diagnostics', (value) => value],
+];
+const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-message, #task-form input, #task-form select, #task-form button, #improvement-form input, #improvement-form button, [data-capability-action], [data-task-action], [data-worker-action], [data-improvement-decision]';
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -8,35 +17,82 @@ async function api(url, options = {}) {
   if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
   return data;
 }
-const post = (url, body = {}, headers = {}) => api(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+const post = (url, body = {}, headers = {}) => {
+  requireCompatibleRuntime();
+  return api(url, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+};
+
+function requireCompatibleRuntime() {
+  if (!state.compatible) throw new Error('Runtime update required. Restart Mahoraga after activating the matching release.');
+}
+
+function assertCompatibleStatus(status) {
+  const contract = status?.controlCenterApi;
+  if (contract?.protocolVersion !== CONTROL_CENTER_API_PROTOCOL || contract.runtimeVersion !== status.version || contract.controlCenterVersion !== status.versions?.controlCenter) throw new Error('Runtime update required. Restart Mahoraga after activating the matching release.');
+}
 
 async function refresh(quiet = true) {
   if (state.refreshing) return;
   state.refreshing = true;
+  const wasCompatible = state.compatible;
   try {
-    const [status, coordination, taskData, conversationData, improvementData, diagnostics] = await Promise.all([
-      api('/api/status'), api('/api/coordination'), api('/api/tasks'), api('/api/conversations'), api('/api/improvements'), api('/api/diagnostics'),
-    ]);
-    Object.assign(state, { status, coordination, tasks: taskData.tasks, conversations: conversationData.conversations, improvements: improvementData.improvements, diagnostics });
+    const status = await api('/api/status');
+    assertCompatibleStatus(status);
+    state.compatible = true;
+    state.status = status;
+    const results = await Promise.allSettled(SECTION_REQUESTS.map(([, url]) => api(url)));
+    const sectionErrors = {};
+    results.forEach((result, index) => {
+      const [name, , select] = SECTION_REQUESTS[index];
+      if (result.status === 'fulfilled') state[name] = select(result.value);
+      else sectionErrors[name] = result.reason.message;
+    });
     if (state.activeConversation && !state.conversations.some((item) => item.id === state.activeConversation)) state.activeConversation = null;
-    state.messages = state.activeConversation ? (await api(`/api/conversations/${state.activeConversation}/messages`)).messages : [];
+    if (state.activeConversation) {
+      try { state.messages = (await api(`/api/conversations/${state.activeConversation}/messages`)).messages ?? []; }
+      catch (error) { sectionErrors.messages = error.message; }
+    } else state.messages = [];
+    state.sectionErrors = sectionErrors;
     document.querySelector('.status-dot').classList.remove('offline');
     render();
-    if (!quiet) notify('Workspace refreshed');
+    if (!quiet) {
+      const unavailable = Object.keys(sectionErrors);
+      notify(unavailable.length ? `Runtime healthy; unavailable: ${unavailable.join(', ')}` : 'Workspace refreshed', unavailable.length ? 'error' : 'success');
+    }
   } catch (error) {
-    $('runtime-state').textContent = 'Runtime unavailable';
+    state.compatible = false;
+    state.status = null;
+    state.sectionErrors = { runtime: error.message };
+    $('runtime-state').textContent = error.message.includes('update required') ? 'Runtime update required' : 'Runtime unavailable';
+    $('runtime-version').textContent = '--';
+    $('worker-pill').textContent = '0 workers';
+    $('composer-status').textContent = 'Runtime connection required';
     document.querySelector('.status-dot').classList.add('offline');
-    notify(error.message, 'error');
+    setInteractionsEnabled(false);
+    if (!quiet || wasCompatible) notify(error.message, 'error');
   } finally { state.refreshing = false; }
 }
 
+function setInteractionsEnabled(enabled) {
+  document.querySelectorAll(RUNTIME_ACTIONS).forEach((element) => {
+    if (!enabled) {
+      if (!element.disabled) element.dataset.runtimeGate = 'true';
+      element.disabled = true;
+    } else if (element.dataset.runtimeGate === 'true') {
+      element.disabled = false;
+      delete element.dataset.runtimeGate;
+    }
+  });
+}
+
 function render() {
-  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderGithubAssurance(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics();
+  renderRuntime(); renderSidebar(); renderChat(); renderCapabilities(); renderTasks(); renderCoordination(); renderGithubAssurance(); renderWorkers(); renderCapabilityRegistry(); renderConnections(); renderImprovements(); renderDiagnostics(); setInteractionsEnabled(state.compatible);
 }
 
 function renderRuntime() {
   const healthy = state.status.workers.filter((worker) => ['healthy', 'busy'].includes(worker.status)).length;
   $('runtime-state').textContent = `Runtime healthy Â· ${healthy}/${state.status.workers.length}`;
+  if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' ú degraded';
   $('runtime-version').textContent = state.status.versions.controlCenter;
   $('autonomy-pill').textContent = state.status.autonomyMode.toUpperCase();
   $('worker-pill').textContent = `${healthy} workers`;
@@ -148,6 +204,7 @@ function renderImprovements() { $('improvement-list').innerHTML = state.improvem
 function renderDiagnostics() { $('event-list').innerHTML = state.diagnostics.events.map((event) => `<div class="event-row"><span>${event.sequence}</span><b>${escapeHtml(event.eventType)}</b><code>${escapeHtml(event.subjectId)}</code><small>${formatTime(event.timestamp)}</small></div>`).join(''); }
 
 async function sendChat(content, forcedCapability = null) {
+  if (!state.compatible) return notify('Runtime update required. Restart Mahoraga after activating the matching release.', 'error');
   content = content.trim(); if (!content || state.sending) return;
   state.sending = true; $('chat-input').value = ''; resizeComposer(); renderChat();
   try {
@@ -202,7 +259,7 @@ document.body.addEventListener('click', async (event) => {
   const copyBranch = event.target.closest('[data-copy-branch]'); if (copyBranch) return runButton(copyBranch, async () => { await navigator.clipboard.writeText(copyBranch.dataset.copyBranch); notify('Return branch copied'); });
 });
 
-async function dispatch(capability, outcome, priority = 'high', dataClass = null) { const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability); if (!metadata) throw new Error(`${capability} has no enabled worker`); await post('/api/tasks', { capability, dataClass: dataClass || metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${capability}`); await refresh(); }
+async function dispatch(capability, outcome, priority = 'high', dataClass = null) { requireCompatibleRuntime(); const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability); if (!metadata) throw new Error(`${capability} has no enabled worker`); await post('/api/tasks', { capability, dataClass: dataClass || metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${capability}`); await refresh(); }
 async function runButton(button, action) { button.disabled = true; try { await action(); } catch (error) { notify(error.message, 'error'); } finally { button.disabled = false; } }
 async function runForm(event, action) { event.preventDefault(); return runButton(event.submitter, action); }
 function resizeComposer() { const input = $('chat-input'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }
@@ -216,6 +273,7 @@ function formatTime(value) { return value ? new Date(value).toLocaleString() : '
 function label(value) { return String(value).split('-').map((part) => part ? part[0].toUpperCase() + part.slice(1) : '').join(' '); }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character])); }
 
+setInteractionsEnabled(false);
 showView(state.activeView, false);
 refresh(false);
 setInterval(() => { if (!document.hidden) refresh(true); }, 5000);
