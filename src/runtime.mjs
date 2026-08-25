@@ -5,6 +5,7 @@ import { Supervisor } from "./supervisor.mjs";
 import { createControlServer } from "./server.mjs";
 import { loadPrimaryCodexToken } from "./local-auth.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
+import { createControlSessionManager } from "./control-session.mjs";
 
 export async function startRuntime({ port, databaseFile, artifactRoot, syncCoordinationMailbox = true, webRoot } = {}) {
   const manifest = await loadManifest();
@@ -14,11 +15,16 @@ export async function startRuntime({ port, databaseFile, artifactRoot, syncCoord
   const artifactStore = new LocalArtifactStore(resolvedArtifactRoot);
   const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, syncCoordinationMailbox });
   const primaryCodexToken = await loadPrimaryCodexToken();
+  const controlSessions = createControlSessionManager();
+  const resolvedPort = port ?? manifest.runtime.port;
   supervisor.start();
-  const server = createControlServer({ manifest, database, supervisor, primaryCodexToken, artifactStore, webRoot });
+  const server = createControlServer({
+    manifest, database, supervisor, primaryCodexToken, artifactStore, controlSessions,
+    controlOrigin: `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
+  });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port ?? manifest.runtime.port, manifest.runtime.host, resolve);
+    server.listen(resolvedPort, manifest.runtime.host, resolve);
   });
   const address = server.address();
   const stop = async () => {
@@ -26,5 +32,5 @@ export async function startRuntime({ port, databaseFile, artifactRoot, syncCoord
     await new Promise((resolve) => server.close(resolve));
     database.close();
   };
-  return { manifest, database, artifactStore, supervisor, server, address, stop };
+  return { manifest, database, artifactStore, supervisor, server, controlSessions, address, stop };
 }

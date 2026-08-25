@@ -11,6 +11,16 @@ import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { controllerAuthoritySnapshot } from "./controller-authority.mjs";
 import { listExpertSkills, selectExpertSkills } from "./expert-skill-registry.mjs";
+import {
+  authenticateLocalRequest,
+  classifyApiRoute,
+  clearSessionCookie,
+  cookieMutationOriginAllowed,
+  createControlSessionManager,
+  parseCookies,
+  sessionCookie,
+  CONTROL_SESSION_COOKIE,
+} from "./control-session.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -28,7 +38,12 @@ export function snapshotStaticAssets(webRoot = WEB_ROOT) {
   }]));
 }
 
-export function createControlServer({ manifest, database, supervisor, primaryCodexToken, artifactStore, webRoot = WEB_ROOT }) {
+export function createControlServer({
+  manifest, database, supervisor, primaryCodexToken, artifactStore,
+  controlSessions = createControlSessionManager(),
+  controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
+  webRoot = WEB_ROOT,
+}) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   return createServer(async (request, response) => {
@@ -37,6 +52,28 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
+      if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        return json(response, 201, { nonce: controlSessions.issueBootstrapNonce(), expiresInMs: controlSessions.snapshot().nonceTtlMs });
+      }
+      if (request.method === "GET" && url.pathname === "/session/bootstrap") {
+        const session = controlSessions.exchangeBootstrapNonce(url.searchParams.get("nonce"));
+        response.writeHead(302, { "Set-Cookie": sessionCookie(session.sessionId, session.idleTtlMs), Location: "/", "Cache-Control": "no-store" });
+        return response.end();
+      }
+      const routeClass = classifyApiRoute(request.method, url.pathname);
+      const authentication = authenticateLocalRequest(request, { primaryToken: primaryCodexToken, sessions: controlSessions });
+      if (routeClass !== "static" && !authentication.authenticated) return json(response, 401, { error: "local-session-required" });
+      if (routeClass === "mutation" && authentication.mechanism === "cookie" && !cookieMutationOriginAllowed(request, controlOrigin)) {
+        return json(response, 403, { error: "same-origin-required" });
+      }
+      if (request.method === "POST" && url.pathname === "/api/session/logout") {
+        const sessionId = parseCookies(request.headers.cookie)[CONTROL_SESSION_COOKIE];
+        if (sessionId) controlSessions.revokeSession(sessionId);
+        response.setHeader("Set-Cookie", clearSessionCookie());
+        return json(response, 200, { authenticated: false });
+      }
       if (request.method === "GET" && url.pathname === "/api/expert-skills") return json(response, 200, { skills: listExpertSkills() });
       if (request.method === "POST" && url.pathname === "/api/expert-skills/select") {
         const body = await bodyJson(request);
@@ -195,7 +232,17 @@ export function statusPayload(manifest, database, supervisor) {
     workers, capabilities: capabilityIndex(manifest, workers), expertSkills: listExpertSkills(), connections: manifest.connections,
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
-    objectives: database.listObjectives(100),
+    objectiveCounts: Object.fromEntries(["active", "completed", "failed", "cancelled"].map((state) => [state, database.listObjectives(100).filter((item) => item.status === state).length])),
+  };
+}
+
+export function identityPayload(manifest) {
+  return {
+    product: manifest.product,
+    version: manifest.version,
+    environment: manifest.environment,
+    loopbackOnly: manifest.runtime.host === "127.0.0.1",
+    controlCenterVersion: manifest.versions.controlCenter,
   };
 }
 

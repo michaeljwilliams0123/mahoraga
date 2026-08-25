@@ -12,9 +12,13 @@ const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-mes
 const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], uploading: false, queuedFiles: 0, uploadQueue: Promise.resolve(), sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
-  const response = await fetch(url, options);
+  const response = await fetch(url, { credentials: 'same-origin', ...options });
   const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
-  if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+  if (!response.ok) {
+    const error = new Error(data.error || `HTTP ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
   return data;
 }
 const post = (url, body = {}, headers = {}) => {
@@ -63,10 +67,10 @@ async function refresh(quiet = true) {
     state.compatible = false;
     state.status = null;
     state.sectionErrors = { runtime: error.message };
-    $('runtime-state').textContent = error.message.includes('update required') ? 'Runtime update required' : 'Runtime unavailable';
+    $('runtime-state').textContent = error.status === 401 ? 'Local session required' : error.message.includes('update required') ? 'Runtime update required' : 'Runtime unavailable';
     $('runtime-version').textContent = '--';
     $('worker-pill').textContent = '0 workers';
-    $('composer-status').textContent = 'Runtime connection required';
+    $('composer-status').textContent = error.status === 401 ? 'Run scripts/open-control-center.ps1' : 'Runtime connection required';
     document.querySelector('.status-dot').classList.add('offline');
     setInteractionsEnabled(false);
     if (!quiet || wasCompatible) notify(error.message, 'error');
