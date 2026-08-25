@@ -92,7 +92,7 @@ function render() {
 function renderRuntime() {
   const healthy = state.status.workers.filter((worker) => ['healthy', 'busy'].includes(worker.status)).length;
   $('runtime-state').textContent = `Runtime healthy · ${healthy}/${state.status.workers.length}`;
-  if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' � degraded';
+  if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' · degraded';
   $('runtime-version').textContent = state.status.versions.controlCenter;
   $('autonomy-pill').textContent = state.status.autonomyMode.toUpperCase();
   $('worker-pill').textContent = `${healthy} workers`;
@@ -175,7 +175,7 @@ function renderGithubAssurance() {
   const authority = coordination.authority;
   const automation = coordination.automation;
   const cards = [
-    ['Controller authority', authority.primaryIntegrationAuthority && !authority.secondaryCanMerge ? 'Primary-led' : 'Review needed', 'Primary creates assignments and integrates verified returns; Secondary implements bounded work only.'],
+    ['Controller authority', authority.equalPrimaryCapability && authority.integration.concurrentHolders === 1 ? 'Equal · lease guarded' : 'Review needed', 'Local and cloud Primary have equal capability; one bounded lease coordinates integration.'],
     ['Action supply chain', automation.actionReferences === 'immutable-commit-sha' ? 'SHA pinned' : 'Review needed', 'Remote GitHub Actions are fixed to immutable commit identifiers.'],
     ['Model spend boundary', automation.modelInvocation === 'explicit-task-only' ? 'Explicit only' : 'Review needed', 'CI, security scans, dependency updates, and idle polling do not invoke a model.'],
     ['Network boundary', coordination.transport.outboundOnly ? 'Outbound only' : 'Review needed', 'The Windows runner polls GitHub; no inbound tunnel or public localhost listener is required.'],

@@ -23,6 +23,7 @@ export const ESSENTIAL_FILES = [
   "src/coordination-mailbox.mjs",
   "src/coordination-records.mjs",
   "src/codex-cloud-contract.mjs",
+  "src/controller-authority.mjs",
   "src/cloud-task-gateway.mjs",
   "src/codex-builder-worker.mjs",
   "src/copilot-worker.mjs",
