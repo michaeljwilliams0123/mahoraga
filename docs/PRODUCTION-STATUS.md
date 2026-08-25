@@ -7,9 +7,9 @@ runtime evidence.
 
 ## Repository production baseline
 
-- Product version: `3.5.1`
-- Runtime version declared by the manifest: `3.5.1`
-- Control Center: `5.3.1`
+- Product version: `3.6.0`
+- Runtime version declared by the manifest: `3.6.0`
+- Control Center: `5.4.0`
 - Cloud control plane declaration: `3.2.0`
 - Cloud Workspace: `2.0.0`
 - Capability registry: `1.0.0`
@@ -32,10 +32,10 @@ Enabled production workers declared by the manifest are:
 - `local-core`
 - `repository`
 - `browser`
-## 3.5.1 live acceptance
+## 3.6.0 live acceptance
 
-Commit `8e7a17c` is active on the authoritative Windows checkout. The loopback
-status endpoint reported runtime `3.5.1`, Control Center `5.3.1`, all four
+Commit `5a6f474` is active on the authoritative Windows checkout. The loopback
+status endpoint reported runtime `3.6.0`, Control Center `5.4.0`, all seven
 enabled workers healthy with current heartbeats, and nine evidence-led expert
 method profiles.
 
@@ -47,7 +47,7 @@ instead of being misclassified as repository work. An acknowledgement-only
 answer is retried at most three times and then records an explicit unresolved
 receipt without claiming completion.
 
-`npm run verify` completed with 198 passing tests. Semantic analysis of a
+The full verification suite completed with 204 passing tests. Semantic analysis of a
 SharePoint or Visio document still requires an enabled eligible Microsoft 365,
 signed-in application, Workspace Agent, or task-scoped Codex provider.
 
