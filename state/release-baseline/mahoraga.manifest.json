@@ -1,12 +1,13 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "3.6.0",
-  "phase": "production",
-  "environment": "production",
+  "version": "7.0.0-alpha.1",
+  "phase": "alpha-candidate",
+  "environment": "candidate",
   "versions": {
-    "runtime": "3.6.0",
-    "controlCenter": "5.4.0",
+    "runtime": "7.0.0-alpha.1",
+    "controlCenter": "7.0.0-alpha.1",
+    "api": "7.0.0-alpha.1",
     "cloudControlPlane": "3.2.0",
     "cloudWorkspace": "2.0.0",
     "capabilityRegistry": "1.0.0",
@@ -63,6 +64,25 @@
     "scanIntervalMs": 30000,
     "baselineDirectory": "state/release-baseline",
     "coreUpdateAuthority": "mahoraga-verified-automatic"
+  },
+  "truthContracts": {
+    "controlSession": {
+      "idleTtlMs": 28800000,
+      "bootstrapNonceTtlMs": 30000
+    },
+    "capabilityReadiness": {
+      "deterministicReadCanaryTtlMs": 86400000,
+      "writeCanaryTtlMs": 900000
+    },
+    "contentVault": {
+      "root": "state/content-vault"
+    },
+    "executionCells": {
+      "root": "state/execution-cells/codex"
+    },
+    "receipts": {
+      "schemaVersion": 1
+    }
   },
   "browser": {
     "controlCenterUrl": "http://127.0.0.1:4782/",
@@ -301,7 +321,8 @@
       "enabled": true,
       "costClass": "licensed-cloud",
       "dataClasses": [
-        "synthetic"
+        "synthetic",
+        "local-only"
       ],
       "capabilities": [
         "codex.health",
@@ -313,7 +334,7 @@
       "timeoutMs": 300000,
       "concurrency": 1,
       "healthProbe": "codex.health",
-      "executionPlane": "primary-codex-local",
+      "executionPlane": "candidate-worktree",
       "routing": {
         "interfaceType": "mcp-cli",
         "permissionClass": "task-scoped-codex-builder",
@@ -327,12 +348,14 @@
       "adapter": {
         "kind": "codex-cli-builder",
         "executable": "user-codex-cli",
-        "workingDirectory": ".",
+        "workingDirectory": "candidate-worktree",
         "taskScoped": true,
         "interactiveAuthority": false,
         "directExecutionEnabled": true,
         "apiKeyRequired": false,
         "sandbox": "workspace-write",
+        "approvalPolicy": "never",
+        "networkAccess": false,
         "ephemeral": true,
         "ignoreUserConfig": true,
         "maximumPromptBytes": 16384,

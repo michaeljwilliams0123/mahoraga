@@ -10,16 +10,18 @@ import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
 import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
+import { createCapabilityReceipt } from "./receipt-registry.mjs";
+import { createContentVault } from "./content-vault.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
 
 const manifest = await loadManifest();
-const artifactStore = new LocalArtifactStore(process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts"));
+let artifactStorePromise = null;
 const worker = manifest.workers.find((item) => item.id === workerId && item.enabled);
 if (!worker) process.exit(3);
 
-process.send({ type: "ready", workerId, pid: process.pid, capabilities: worker.capabilities });
+process.send({ type: "process.ready", workerId, pid: process.pid, capabilities: worker.capabilities });
 const heartbeat = setInterval(() => process.send?.({ type: "heartbeat", workerId, timestamp: new Date().toISOString() }), manifest.runtime.heartbeatIntervalMs);
 heartbeat.unref();
 
@@ -27,12 +29,28 @@ process.on("message", async (message) => {
   if (message?.type === "shutdown") { clearInterval(heartbeat); shutdownBrowser(); process.exit(0); }
   if (message?.type !== "task") return;
   try {
+    const startedAt = Date.now();
     const result = await execute(message.capability, message.task);
-    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result });
+    const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
+    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
   } catch (error) {
     process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode: classifyError(error) });
   }
 });
+
+void probeProviderReadiness();
+
+async function probeProviderReadiness() {
+  const observedAt = new Date().toISOString();
+  const startedAt = Date.now();
+  try {
+    const result = await execute(worker.healthProbe, { id: `startup-probe-${workerId}`, requestedOutcome: `Verify ${worker.label}` });
+    const receipt = createCapabilityReceipt(worker.healthProbe, result, { observedAt, durationMs: Date.now() - startedAt });
+    process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt, observedAt });
+  } catch (error) {
+    process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt: null, observedAt, errorCode: classifyError(error) });
+  }
+}
 
 async function execute(capability, task) {
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability, task);
@@ -58,7 +76,7 @@ async function execute(capability, task) {
       };
 
     case "artifact.inspect":
-      return inspectTaskArtifacts(task, { store: artifactStore });
+      return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
     case "system.health":
       return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };
     case "manifest.validate":
@@ -73,6 +91,19 @@ async function execute(capability, task) {
     default:
       throw new Error("unsupported-capability");
   }
+}
+
+function artifactStoreForWorker() {
+  if (!artifactStorePromise) artifactStorePromise = (async () => {
+    const artifactRoot = process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts");
+    const stateRoot = path.dirname(artifactRoot);
+    const contentVault = await createContentVault({
+      root: process.env.MAHORAGA_CONTENT_VAULT_ROOT ?? path.join(stateRoot, "content-vault"),
+      keyFile: process.env.MAHORAGA_CONTENT_VAULT_KEY_FILE ?? path.join(stateRoot, "content-vault.key.dpapi"),
+    });
+    return new LocalArtifactStore(artifactRoot, { contentVault });
+  })();
+  return artifactStorePromise;
 }
 
 function classifyError(error) {

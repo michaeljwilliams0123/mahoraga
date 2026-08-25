@@ -11,6 +11,17 @@ import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { controllerAuthoritySnapshot } from "./controller-authority.mjs";
 import { listExpertSkills, selectExpertSkills } from "./expert-skill-registry.mjs";
+import {
+  authenticateLocalRequest,
+  classifyApiRoute,
+  clearSessionCookie,
+  cookieMutationOriginAllowed,
+  createControlSessionManager,
+  parseCookies,
+  sessionCookie,
+  CONTROL_SESSION_COOKIE,
+} from "./control-session.mjs";
+import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-policy.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -28,8 +39,14 @@ export function snapshotStaticAssets(webRoot = WEB_ROOT) {
   }]));
 }
 
-export function createControlServer({ manifest, database, supervisor, primaryCodexToken, artifactStore, webRoot = WEB_ROOT }) {
+export function createControlServer({
+  manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
+  controlSessions = createControlSessionManager(),
+  controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
+  webRoot = WEB_ROOT,
+}) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
+  if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   return createServer(async (request, response) => {
     try {
@@ -37,6 +54,40 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
+      if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        return json(response, 201, { nonce: controlSessions.issueBootstrapNonce(), expiresInMs: controlSessions.snapshot().nonceTtlMs });
+      }
+      if (request.method === "GET" && url.pathname === "/session/bootstrap") {
+        const session = controlSessions.exchangeBootstrapNonce(url.searchParams.get("nonce"));
+        response.writeHead(302, { "Set-Cookie": sessionCookie(session.sessionId, session.idleTtlMs), Location: "/", "Cache-Control": "no-store" });
+        return response.end();
+      }
+      const routeClass = classifyApiRoute(request.method, url.pathname);
+      const authentication = authenticateLocalRequest(request, { primaryToken: primaryCodexToken, sessions: controlSessions });
+      if (routeClass !== "static" && !authentication.authenticated) return json(response, 401, { error: "local-session-required" });
+      if (routeClass === "mutation" && authentication.mechanism === "cookie" && !cookieMutationOriginAllowed(request, controlOrigin)) {
+        return json(response, 403, { error: "same-origin-required" });
+      }
+      if (request.method === "POST" && url.pathname === "/api/session/logout") {
+        const sessionId = parseCookies(request.headers.cookie)[CONTROL_SESSION_COOKIE];
+        if (sessionId) controlSessions.revokeSession(sessionId);
+        response.setHeader("Set-Cookie", clearSessionCookie());
+        return json(response, 200, { authenticated: false });
+      }
+      const contentRoute = url.pathname.match(/^\/api\/content\/(vault:[a-f0-9-]{36})$/);
+      if (request.method === "GET" && contentRoute) {
+        const expected = {
+          ownerType: requiredQuery(url, "ownerType"),
+          ownerId: requiredQuery(url, "ownerId"),
+          classification: requiredQuery(url, "classification"),
+        };
+        const metadata = contentVault.metadata(contentRoute[1], expected);
+        const bytes = contentVault.get(contentRoute[1], expected);
+        database.recordContentAccess({ reference: contentRoute[1], ...expected, mechanism: authentication.mechanism, sessionId: authentication.sessionId });
+        return contentBytes(response, metadata, bytes);
+      }
       if (request.method === "GET" && url.pathname === "/api/expert-skills") return json(response, 200, { skills: listExpertSkills() });
       if (request.method === "POST" && url.pathname === "/api/expert-skills/select") {
         const body = await bodyJson(request);
@@ -77,7 +128,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
         const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-${randomUUID()}`;
-        const task = submitTask(database, manifest, { ...body, correlationId, executionPlane: "primary-codex-local", taskType: body.taskType ?? "primary-codex" });
+        const task = submitTask(database, manifest, { ...body, intent: body.intent ?? body.capability, correlationId }, { source: "primary-codex", internal: true });
         return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
       }
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/objectives") {
@@ -90,7 +141,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
         const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-builder-${randomUUID()}`;
-        const task = submitTask(database, manifest, builderIntakeBody(body, correlationId));
+        const task = submitTask(database, manifest, builderIntakeBody(body, correlationId), { source: "primary-codex-builder", internal: true });
         const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: body.authoritySessionId ?? null });
         return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment accepted for direct non-interactive execution." }), task });
       }
@@ -121,7 +172,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments }) });
+        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments, classification: body.classification ?? "local-only" }) });
       }
       const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
       if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
@@ -132,7 +183,7 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
-        const task = submitTask(database, manifest, body);
+        const task = submitTask(database, manifest, body, { source: "control-center", internal: false });
         return json(response, 202, { task });
       }
       const taskInput = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/input$/);
@@ -165,6 +216,9 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       json(response, 404, { error: "not-found" });
     } catch (error) {
       if (error?.code === "idempotency-conflict") return json(response, 409, { error: "idempotency-conflict" });
+      if (/^(?:task-|caller-|attended-|integration-)/.test(error?.code ?? "")) {
+        return json(response, 422, { error: error.code });
+      }
       json(response, 400, { error: classify(error) });
     }
   });
@@ -173,7 +227,11 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
   const workers = supervisor.status();
+  const generatedAt = new Date().toISOString();
+  const runtimeHealth = supervisor.health(Date.parse(generatedAt));
+  const capabilities = capabilityIndex(manifest, workers, Date.parse(generatedAt));
   return {
+    generatedAt,
     product: manifest.product, version: manifest.version, versions: manifest.versions, phase: manifest.phase,
     controlCenterApi: {
       protocolVersion: 1,
@@ -190,12 +248,59 @@ export function statusPayload(manifest, database, supervisor) {
       coreUpdateAuthority: manifest.repair.coreUpdateAuthority,
       scanIntervalMs: manifest.repair.scanIntervalMs,
     },
-    runtime: { host: manifest.runtime.host, port: manifest.runtime.port, ...supervisor.health() },
+    runtime: {
+      host: manifest.runtime.host, port: manifest.runtime.port, ...runtimeHealth,
+      processState: runtimeHealth.supervisorRunning ? "live" : "stopped",
+      evidenceLevel: runtimeHealth.supervisorRunning ? "observed" : "unknown",
+      lastObservedAt: runtimeHealth.startedAt ? generatedAt : null,
+    },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
-    workers, capabilities: capabilityIndex(manifest, workers), expertSkills: listExpertSkills(), connections: manifest.connections,
+    workers, capabilities, expertSkills: listExpertSkills(), connections: connectionProjections(manifest.connections, capabilities),
+    evidencePolicy: {
+      routeRequiresFreshCanary: true,
+      writeCanaryTtlMs: manifest.truthContracts.capabilityReadiness.writeCanaryTtlMs,
+      deterministicReadCanaryTtlMs: manifest.truthContracts.capabilityReadiness.deterministicReadCanaryTtlMs,
+      unknownIsRoutable: false,
+    },
+    repairIncidents: database.listRepairIncidents({ includeResolved: false }).map((incident) => ({
+      id: incident.id, relative: incident.relative, condition: incident.condition, status: incident.status,
+      recoveryState: incident.recoveryState, evidenceLevel: "observed", lastObservedAt: incident.updatedAt,
+      expectedSha256: incident.expectedSha256, observedSha256: incident.observedSha256, lastErrorCode: incident.lastErrorCode,
+    })),
     improvementsAwaitingUser: database.listImprovements().filter((item) => item.status === "proposed").length,
     conversations: { active: database.listConversations().filter((item) => item.status === "active").length },
-    objectives: database.listObjectives(100),
+    objectiveCounts: Object.fromEntries(["active", "completed", "failed", "cancelled"].map((state) => [state, database.listObjectives(100).filter((item) => item.status === state).length])),
+  };
+}
+
+function connectionProjections(connections, capabilities) {
+  return connections.map((connection) => {
+    const routes = connection.capabilities.map((capability) => capabilities.find((item) => item.capability === capability)).filter(Boolean);
+    const routable = routes.filter((item) => item.routable);
+    const latestObservedAt = routes.map((item) => item.lastObservedAt).filter(Boolean).sort().at(-1) ?? null;
+    const latestVerifiedAt = routes.map((item) => item.lastVerifiedAt).filter(Boolean).sort().at(-1) ?? null;
+    return {
+      id: connection.id,
+      endpointClass: connection.endpointClass,
+      capabilities: [...connection.capabilities],
+      configuredState: connection.state,
+      observedState: routable.length > 0 ? "routable" : routes.length > 0 ? "not-routable" : "not-observed",
+      evidenceLevel: routable.length > 0 ? "verified" : routes.some((item) => item.evidenceLevel === "inferred") ? "inferred" : "observed",
+      lastObservedAt: latestObservedAt,
+      lastVerifiedAt: latestVerifiedAt,
+      routingReasons: [...new Set(routes.filter((item) => !item.routable).map((item) => item.routingReason ?? "not-verified"))],
+      routableCapabilities: routable.map((item) => item.capability),
+    };
+  });
+}
+
+export function identityPayload(manifest) {
+  return {
+    product: manifest.product,
+    version: manifest.version,
+    environment: manifest.environment,
+    loopbackOnly: manifest.runtime.host === "127.0.0.1",
+    controlCenterVersion: manifest.versions.controlCenter,
   };
 }
 
@@ -251,34 +356,32 @@ export function coordinationPayload(manifest, database) {
   };
 }
 
-function submitTask(database, manifest, body) {
-  const existing = body.idempotencyKey ? database.getTaskByIdempotencyKey(body.idempotencyKey) : null;
+function submitTask(database, manifest, body, options = {}) {
+  const request = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);
+  const policy = deriveTaskPolicy(request, {
+    manifest, source: options.source ?? "control-center", internal: options.internal === true,
+    attendedSession: options.attendedSession ?? null, integrationLease: database.getIntegrationLease(),
+  });
+  const existing = request.idempotencyKey ? database.getTaskByIdempotencyKey(request.idempotencyKey) : null;
   let conversationId;
-  if (body.conversationId === false) conversationId = null;
-  else if (body.conversationId !== undefined) conversationId = body.conversationId;
+  if (request.conversationId === false) conversationId = null;
+  else if (request.conversationId !== undefined) conversationId = request.conversationId;
   else if (existing) conversationId = existing.conversationId;
   else conversationId = database.createConversation({
-      title: body.requestedOutcome ?? body.capability,
-      initialMessage: body.initialMessage ?? `Run ${body.capability}`,
+      title: request.requestedOutcome ?? policy.intent,
+      initialMessage: request.initialMessage ?? `Run ${policy.intent}`,
+      classification: policy.dataClass,
     }).id;
-  return database.submitTask({
-    capability: body.capability, dataClass: body.dataClass ?? "synthetic",
-    requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
-    correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
-    executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
-    maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts, conversationId,
-    taskArea: body.taskArea ?? "general", excludedWorkerIds: body.excludedWorkerIds ?? [],
-    completionCriteria: body.completionCriteria,
-  });
+  return database.submitPolicyTask({ ...policyTaskInput(request, policy, manifest), conversationId });
 }
 
 export function builderIntakeBody(body, correlationId) {
   return {
-    capability: "codex.execute", dataClass: "synthetic", requestedMode: body.requestedMode ?? "hybrid",
-    idempotencyKey: body.idempotencyKey, correlationId, taskType: "codex-builder",
-    requestedOutcome: body.requestedOutcome, executionPlane: "primary-codex-local",
-    priority: body.priority ?? "normal", maximumAttempts: 1, taskArea: body.taskArea ?? "codex-builder",
-    conversationId: false,
+    intent: "codex.execute", idempotencyKey: body.idempotencyKey, correlationId,
+    requestedOutcome: body.requestedOutcome, priority: body.priority ?? "normal", maximumAttempts: 1,
+    taskArea: body.taskArea ?? "codex-builder", conversationId: false,
+    authoritySessionId: body.authoritySessionId ?? null, integrationLeaseId: body.integrationLeaseId ?? null,
+    baseCommit: body.baseCommit, allowedPaths: body.allowedPaths,
   };
 }
 
@@ -303,6 +406,19 @@ function artifactContent(response, { metadata, bytes }) {
   });
   response.end(bytes);
 }
+function contentBytes(response, metadata, bytes) {
+  response.writeHead(200, {
+    "Content-Type": "application/octet-stream",
+    "Content-Length": bytes.length,
+    "Content-Disposition": "attachment; filename=mahoraga-content.bin",
+    "X-Mahoraga-Content-Sha256": metadata.sha256,
+    "X-Mahoraga-Content-Classification": metadata.classification,
+    "X-Mahoraga-Content-Expires-At": metadata.expiresAt,
+    "Cache-Control": "no-store",
+  });
+  response.end(bytes);
+}
+function requiredQuery(url, name) { const value = url.searchParams.get(name); if (!value) throw new Error(`content-${name}-required`); return value; }
 async function bodyJson(request) {
   const chunks = []; let size = 0;
   for await (const chunk of request) { size += chunk.length; if (size > 16384) throw new Error("request-too-large"); chunks.push(chunk); }
@@ -319,5 +435,6 @@ function classify(error) {
   if (error instanceof SyntaxError) return "invalid-json";
   if (/invalid|required|missing|must|unknown|duplicate/i.test(error?.message ?? "")) return error.message;
   if (/^artifact-(?:empty|too-large|name-invalid|mime-invalid|source-invalid)$/.test(error?.message ?? "")) return error.message;
+  if (/^vault-(?:reference-invalid|owner-mismatch|classification-mismatch|record-expired|record-missing|authentication-failed)$/.test(error?.message ?? "")) return error.message;
   return "request-rejected";
 }

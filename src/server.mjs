@@ -258,8 +258,8 @@ export function statusPayload(manifest, database, supervisor) {
     workers, capabilities, expertSkills: listExpertSkills(), connections: connectionProjections(manifest.connections, capabilities),
     evidencePolicy: {
       routeRequiresFreshCanary: true,
-      writeCanaryTtlMs: 15 * 60 * 1000,
-      deterministicReadCanaryTtlMs: 24 * 60 * 60 * 1000,
+      writeCanaryTtlMs: manifest.truthContracts.capabilityReadiness.writeCanaryTtlMs,
+      deterministicReadCanaryTtlMs: manifest.truthContracts.capabilityReadiness.deterministicReadCanaryTtlMs,
       unknownIsRoutable: false,
     },
     repairIncidents: database.listRepairIncidents({ includeResolved: false }).map((incident) => ({

@@ -20,6 +20,16 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/workflows/verify.yml",
     "src/github-audit.mjs",
     "scripts/github-audit.mjs",
+    "src/control-session.mjs",
+    "src/task-policy.mjs",
+    "src/receipt-registry.mjs",
+    "src/capability-readiness.mjs",
+    "src/execution-cell.mjs",
+    "src/content-vault.mjs",
+    "src/repair-incidents.mjs",
+    "scripts/content-vault-key.ps1",
+    "scripts/open-control-center.ps1",
+    "scripts/create-release-baseline.mjs",
   ]) assert.ok(ESSENTIAL_FILES.includes(relative), `${relative} is missing from the release baseline`);
 });
 

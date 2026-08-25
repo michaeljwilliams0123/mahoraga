@@ -22,6 +22,7 @@ test("gap audit distinguishes closed repository controls from live-machine block
 
   assert.equal(report.scope, "evidence-backed-contract-and-runtime-state");
   assert.equal(report.liveWindowsRuntimeVerified, true);
+  assert.equal(report.version, "7.0.0-alpha.1");
 
   const closed = new Set(report.closed.map((item) => item.id));
   const open = new Map(report.open.map((item) => [item.id, item]));

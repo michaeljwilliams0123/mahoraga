@@ -12,7 +12,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const manifest = await loadManifest();
   const resolvedDatabaseFile = databaseFile ?? path.join(ROOT, manifest.runtime.database);
   const stateRoot = path.dirname(resolvedDatabaseFile);
-  const resolvedContentVaultRoot = contentVaultRoot ?? path.join(stateRoot, "content-vault");
+  const resolvedContentVaultRoot = contentVaultRoot ?? (databaseFile ? path.join(stateRoot, "content-vault") : path.join(ROOT, manifest.truthContracts.contentVault.root));
   const resolvedContentVaultKeyFile = contentVaultKeyFile ?? path.join(stateRoot, "content-vault.key.dpapi");
   const contentVault = await createContentVault({ root: resolvedContentVaultRoot, keyFile: resolvedContentVaultKeyFile, masterKey: contentVaultMasterKey });
   contentVault.deleteExpired();
@@ -21,7 +21,10 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const artifactStore = new LocalArtifactStore(resolvedArtifactRoot, { contentVault });
   const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, contentVaultRoot: resolvedContentVaultRoot, contentVaultKeyFile: resolvedContentVaultKeyFile, syncCoordinationMailbox });
   const primaryCodexToken = await loadPrimaryCodexToken();
-  const controlSessions = createControlSessionManager();
+  const controlSessions = createControlSessionManager({
+    idleTtlMs: manifest.truthContracts.controlSession.idleTtlMs,
+    nonceTtlMs: manifest.truthContracts.controlSession.bootstrapNonceTtlMs,
+  });
   const resolvedPort = port ?? manifest.runtime.port;
   supervisor.start();
   const server = createControlServer({
