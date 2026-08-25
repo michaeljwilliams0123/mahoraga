@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { startRuntime } from "../src/runtime.mjs";
+import { snapshotStaticAssets } from "../src/server.mjs";
 import { normalizeSummary } from "../src/supervisor.mjs";
 import { bearerMatches } from "../src/local-auth.mjs";
 
@@ -19,6 +20,22 @@ test("Primary Codex intake bearer comparison fails closed", () => {
   assert.equal(bearerMatches({ headers: { authorization: "Bearer wrong" } }, "x".repeat(32)), false);
 });
 
+test("runtime snapshots one compatible static asset set at server creation", (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-static-snapshot-"));
+  const webRoot = path.join(root, "web");
+  mkdirSync(webRoot);
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  writeFileSync(path.join(webRoot, "index.html"), "<main>snapshot</main>");
+  writeFileSync(path.join(webRoot, "styles.css"), "body{}");
+  writeFileSync(path.join(webRoot, "control.css"), ".panel{}");
+  writeFileSync(path.join(webRoot, "discourse.css"), ".thread{}");
+  writeFileSync(path.join(webRoot, "app.js"), "window.assetSet='initial';");
+  const assets = snapshotStaticAssets(webRoot);
+  assert.equal(assets.get("/app.js").body.toString("utf8"), "window.assetSet='initial';");
+  writeFileSync(path.join(webRoot, "app.js"), "window.assetSet='mutated';");
+  assert.equal(assets.get("/app.js").body.toString("utf8"), "window.assetSet='initial';");
+});
+
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
@@ -27,6 +44,13 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
     return status.capabilities.some((item) => item.capability === "system.health" && item.availability === "healthy");
   });
   const status = await (await fetch(`${base}/api/status`)).json();
+  assert.equal(status.controlCenterApi.protocolVersion, 1);
+  assert.equal(status.controlCenterApi.runtimeVersion, status.version);
+  assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
+  assert.equal(status.controlCenterApi.staticAssetsSnapshotted, true);
+  const statusResponse = await fetch(`${base}/api/status`);
+  assert.equal(statusResponse.headers.get("x-mahoraga-runtime-version"), status.version);
+  assert.equal(statusResponse.headers.get("x-mahoraga-control-center-version"), status.versions.controlCenter);
   const healthCapability = status.capabilities.find((item) => item.capability === "system.health");
   assert.equal(healthCapability.permissionClass, "bounded-local");
   assert.equal(healthCapability.availability, "healthy");
@@ -130,6 +154,7 @@ test("completed worker receipts return to the chat conversation", async (t) => {
   })).json();
   await waitFor(async () => {
     const tasks = await (await fetch(`${base}/api/tasks`)).json();
+
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
   });
   const messages = await (await fetch(`${base}/api/conversations/${conversation.conversation.id}/messages`)).json();

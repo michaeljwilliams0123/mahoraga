@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 import { capabilityIndex } from "./router.mjs";
@@ -18,12 +18,20 @@ const STATIC = new Map([
   ["/control.css", ["control.css", "text/css; charset=utf-8"]],
 ]);
 
-export function createControlServer({ manifest, database, supervisor, primaryCodexToken }) {
+export function snapshotStaticAssets(webRoot = WEB_ROOT) {
+  return new Map([...STATIC].map(([route, [file, contentType]]) => [route, {
+    body: readFileSync(path.join(webRoot, file)),
+    contentType,
+  }]));
+}
+
+export function createControlServer({ manifest, database, supervisor, primaryCodexToken, webRoot = WEB_ROOT }) {
+  const staticAssets = snapshotStaticAssets(webRoot);
   return createServer(async (request, response) => {
     try {
-      setHeaders(response);
+      setHeaders(response, manifest);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
-      if (request.method === "GET" && STATIC.has(url.pathname)) return staticFile(response, ...STATIC.get(url.pathname));
+      if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/coordination") return json(response, 200, coordinationPayload(manifest, database));
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex") {
@@ -126,6 +134,13 @@ export function statusPayload(manifest, database, supervisor) {
   const workers = supervisor.status();
   return {
     product: manifest.product, version: manifest.version, versions: manifest.versions, phase: manifest.phase,
+    controlCenterApi: {
+      protocolVersion: 1,
+      runtimeVersion: manifest.version,
+      controlCenterVersion: manifest.versions.controlCenter,
+      assetSetId: `${manifest.version}:${manifest.versions.controlCenter}`,
+      staticAssetsSnapshotted: true,
+    },
     environment: manifest.environment, featureFlags: manifest.featureFlags, queue: manifest.queue,
     updateAuthority: manifest.updateAuthority, autonomyMode: manifest.defaultAutonomyMode, routingPolicy: manifest.routingPolicy,
     repairPolicy: {
@@ -236,12 +251,14 @@ export function builderIntakeBody(body, correlationId) {
   };
 }
 
-function setHeaders(response) {
+function setHeaders(response, manifest) {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
+  response.setHeader("X-Mahoraga-Runtime-Version", manifest.version);
+  response.setHeader("X-Mahoraga-Control-Center-Version", manifest.versions.controlCenter);
 }
-async function staticFile(response, file, contentType) { response.writeHead(200, { "Content-Type": contentType }); response.end(await readFile(path.join(WEB_ROOT, file))); }
+function staticFile(response, asset) { response.writeHead(200, { "Content-Type": asset.contentType }); response.end(asset.body); }
 function json(response, status, value) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify(value)); }
 async function bodyJson(request) {
   const chunks = []; let size = 0;

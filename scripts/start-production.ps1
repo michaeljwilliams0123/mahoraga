@@ -10,6 +10,9 @@ $stderr = Join-Path $state 'runtime.err.log'
 $userProfile = [Environment]::GetFolderPath('UserProfile')
 $node = Join-Path $userProfile '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
 $healthUrl = 'http://127.0.0.1:4782/api/status'
+$manifest = Get-Content -Raw -LiteralPath (Join-Path $root 'mahoraga.manifest.json') | ConvertFrom-Json
+$expectedVersion = [string]$manifest.version
+$expectedControlCenterVersion = [string]$manifest.versions.controlCenter
 
 if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
     throw 'The pinned Node.js runtime is unavailable.'
@@ -17,13 +20,17 @@ if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
 
 New-Item -ItemType Directory -Path $state -Force | Out-Null
 
+$existing = $null
 try {
     $existing = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-    if ($existing.product -eq 'Mahoraga') {
+} catch {}
+if ($existing -and $existing.product -eq 'Mahoraga') {
+    if ([string]$existing.version -eq $expectedVersion -and [string]$existing.versions.controlCenter -eq $expectedControlCenterVersion) {
         Write-Output "Mahoraga $($existing.version) is already running at http://127.0.0.1:4782"
         exit 0
     }
-} catch {}
+    throw "Mahoraga activation required: live runtime $($existing.version) / Control Center $($existing.versions.controlCenter) does not match staged runtime $expectedVersion / Control Center $expectedControlCenterVersion. Stop and restart only after owner approval."
+}
 
 $process = Start-Process -FilePath $node `
     -ArgumentList @('src\cli.mjs','start') `
@@ -42,7 +49,7 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
     }
     try {
         $status = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-        if ($status.product -eq 'Mahoraga') {
+        if ($status.product -eq 'Mahoraga' -and [string]$status.version -eq $expectedVersion -and [string]$status.versions.controlCenter -eq $expectedControlCenterVersion) {
             Write-Output "Mahoraga $($status.version) production is ready at http://127.0.0.1:4782"
             exit 0
         }
