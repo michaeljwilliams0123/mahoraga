@@ -14,8 +14,11 @@ conversation content are prohibited.
 
 The verified production history is published on `main`; production-worker and
 candidate branches remain available for attribution and recovery evidence.
-Primary Codex owns `main`, architecture, assignment creation, validation,
-integration, and merges. Secondary Codex may implement bounded assignments and
+Local and cloud Primary Codex have equal authority over architecture, assignment
+creation, implementation, validation, review, and integration. Updating `main`
+requires one primary to hold the repository's single bounded integration lease;
+path overlap is reported and coordinated, not automatically rejected. The lease
+does not auto-merge or bypass verification. Secondary Codex may implement bounded assignments and
 push only `secondary/<assignment-id>`; Copilot and cloud Codex return branches
 or pull requests for Primary review. Use the attribution prefixes `[PRIMARY]`,
 `[COPILOT]`, and `[SECONDARY]` while preserving those authority boundaries.
@@ -33,7 +36,8 @@ comment cannot independently invoke a model. The gateway writes only validated,
 idempotent coordination metadata to `main`; the existing cloud dispatcher or
 outbound Windows poller performs the selected execution later.
 
-The release workflow is also owner-started. It builds only from authoritative
+Neither primary may activate a core update: that decision belongs only to the
+user. The release workflow is also owner-started. It builds only from authoritative
 `main`, runs full verification, emits a strict update manifest, and records
 provenance. Releases are staging artifacts, not an automatic core activation
 mechanism.

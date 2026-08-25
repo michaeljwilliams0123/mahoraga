@@ -91,8 +91,8 @@ function render() {
 
 function renderRuntime() {
   const healthy = state.status.workers.filter((worker) => ['healthy', 'busy'].includes(worker.status)).length;
-  $('runtime-state').textContent = `Runtime healthy · ${healthy}/${state.status.workers.length}`;
-  if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' � degraded';
+  $('runtime-state').textContent = `Runtime healthy Â· ${healthy}/${state.status.workers.length}`;
+  if (Object.keys(state.sectionErrors).length > 0) $('runtime-state').textContent += ' ú degraded';
   $('runtime-version').textContent = state.status.versions.controlCenter;
   $('autonomy-pill').textContent = state.status.autonomyMode.toUpperCase();
   $('worker-pill').textContent = `${healthy} workers`;
@@ -134,7 +134,7 @@ function renderCapabilities() {
   tool.innerHTML = '<option value="auto">Auto</option>' + enabled.map((item) => `<option value="${escapeHtml(item.capability)}">${escapeHtml(toolLabel(item.capability))}</option>`).join('');
   tool.value = enabled.some((item) => item.capability === selectedTool) ? selectedTool : 'auto';
   const task = $('task-capability'); const selectedTask = task.value;
-  task.innerHTML = enabled.map((item) => `<option value="${escapeHtml(item.capability)}">${escapeHtml(item.capability)} · ${escapeHtml(item.workerLabel)}</option>`).join('');
+  task.innerHTML = enabled.map((item) => `<option value="${escapeHtml(item.capability)}">${escapeHtml(item.capability)} Â· ${escapeHtml(item.workerLabel)}</option>`).join('');
   if (enabled.some((item) => item.capability === selectedTask)) task.value = selectedTask;
   syncDataClass();
 }
@@ -144,7 +144,7 @@ function taskCard(task) {
   const retry = ['failed', 'waiting', 'cancelled'].includes(task.status) ? `<button data-task-action="retry" data-task-id="${task.id}">Retry</button>` : '';
   const cancel = ['queued', 'claimed', 'running', 'verifying', 'waiting', 'waiting_for_user'].includes(task.status) ? `<button class="danger" data-task-action="cancel" data-task-id="${task.id}">Cancel</button>` : '';
   const input = task.status === 'waiting_for_user' ? `<button data-task-action="input" data-task-id="${task.id}">Respond</button>` : '';
-  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(task.priority)} · ${escapeHtml(task.executionPlane)}</p><h3>${escapeHtml(task.capability)}</h3></div><span class="badge ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span></div><p>${escapeHtml(task.requestedOutcome || task.capability)}</p><small>${escapeHtml(task.id)} · attempts ${task.attemptCount}/${task.maximumAttempts} · ${formatTime(task.updatedAt)}</small>${task.errorCode ? `<p class="error-text">${escapeHtml(task.errorCode)}</p>` : ''}<div class="card-actions">${input}${retry}${cancel}</div></article>`;
+  return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(task.priority)} Â· ${escapeHtml(task.executionPlane)}</p><h3>${escapeHtml(task.capability)}</h3></div><span class="badge ${escapeHtml(task.status)}">${escapeHtml(task.status)}</span></div><p>${escapeHtml(task.requestedOutcome || task.capability)}</p><small>${escapeHtml(task.id)} Â· attempts ${task.attemptCount}/${task.maximumAttempts} Â· ${formatTime(task.updatedAt)}</small>${task.errorCode ? `<p class="error-text">${escapeHtml(task.errorCode)}</p>` : ''}<div class="card-actions">${input}${retry}${cancel}</div></article>`;
 }
 
 function renderCoordination() {
@@ -158,11 +158,11 @@ function renderCoordination() {
   $('coord-state').className = `badge ${coordination.state === 'validated' ? 'ready' : coordination.state === 'return-detected' ? 'verifying' : 'queued'}`;
   $('coord-updated').textContent = coordination.latestActivityAt ? `Latest activity ${formatTime(coordination.latestActivityAt)}` : 'No mailbox activity yet';
   $('coord-policy').textContent = coordination.privacy.chatAccess === false && coordination.privacy.credentialsIncluded === false
-    ? 'Repository metadata only · no chats, credentials, browser data, personal files, or model output.'
+    ['Controller authority', authority.equalPrimaryCapability && authority.integration.concurrentHolders === 1 ? 'Equal - lease guarded' : 'Review needed', 'Local and cloud Primary have equal capability; one bounded lease coordinates integration.'],
     : 'Coordination privacy policy is not in its expected fail-closed state.';
   const runner = coordination.runner;
   $('coord-runner').textContent = runner.configured
-    ? `Outbound runner configured${runner.lastRunAt ? ` · last poll ${formatTime(runner.lastRunAt)}` : ' · awaiting first recorded poll'}${runner.lastOutcome?.status ? ` · ${runner.lastOutcome.status}` : ''}`
+    ? `Outbound runner configured${runner.lastRunAt ? ` Â· last poll ${formatTime(runner.lastRunAt)}` : ' Â· awaiting first recorded poll'}${runner.lastOutcome?.status ? ` Â· ${runner.lastOutcome.status}` : ''}`
     : 'Outbound runner is not configured in this checkout.';
   $('coordination-list').innerHTML = coordination.assignments.length
     ? coordination.assignments.map(coordinationCard).join('')
@@ -186,21 +186,21 @@ function renderGithubAssurance() {
 
 function coordinationCard(assignment) {
   const status = assignment.status.toLowerCase();
-  const verification = assignment.verificationState ? ` · verification ${escapeHtml(assignment.verificationState)}` : '';
-  return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} · ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.assignmentId)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>Bounded repository assignment with a verified return branch.</p><div class="assignment-detail"><span>Authority</span><b>Primary validates and integrates the Secondary return</b><span>Updated</span><b>${formatTime(assignment.updatedAt)}</b></div><small>${escapeHtml(assignment.returnBranch)}${verification}</small><div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
+  const verification = assignment.verificationState ? ` Â· verification ${escapeHtml(assignment.verificationState)}` : '';
+  return `<article class="control-card coordination-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(assignment.source)} Â· ${escapeHtml(assignment.taskArea)}</p><h3>${escapeHtml(assignment.assignmentId)}</h3></div><span class="badge ${escapeHtml(status)}">${escapeHtml(assignment.status)}</span></div><p>Bounded repository assignment with a verified return branch.</p><div class="assignment-detail"><span>Authority</span><b>Primary validates and integrates the Secondary return</b><span>Updated</span><b>${formatTime(assignment.updatedAt)}</b></div><small>${escapeHtml(assignment.returnBranch)}${verification}</small><div class="card-actions"><button data-copy-branch="${escapeHtml(assignment.returnBranch)}">Copy return branch</button></div></article>`;
 }
 
-function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' · ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} · Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
+function renderWorkers() { $('worker-list').innerHTML = state.status.workers.map((worker) => `<article class="control-card"><div class="card-head"><div><p class="eyebrow">PID ${worker.pid}</p><h3>${escapeHtml(worker.label)}</h3></div><span class="badge ${escapeHtml(worker.status)}">${escapeHtml(worker.status)}</span></div><p>${worker.capabilities.map(escapeHtml).join(' Â· ')}</p><small>Heartbeat ${formatTime(worker.lastHeartbeatAt)} Â· Restarts ${worker.restartCount}</small><div class="card-actions"><button data-worker-action="probe" data-worker-id="${worker.workerId}">Run probe</button><button class="danger" data-worker-action="restart" data-worker-id="${worker.workerId}">Restart</button></div></article>`).join(''); }
 
 function renderCapabilityRegistry() {
   $('capability-list').innerHTML = state.status.capabilities.map((item) => {
     const runnable = item.enabled && !['crashed', 'hung', 'quarantined', 'stopped', 'disabled'].includes(item.availability);
     const fallbacks = item.fallbackWorkerIds.length ? item.fallbackWorkerIds.map(label).join(', ') : 'None';
-    return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.interfaceType)} · ${escapeHtml(item.costClass)}</p><h3>${escapeHtml(item.capability)}</h3></div><span class="badge ${escapeHtml(item.availability)}">${escapeHtml(item.availability)}</span></div><p>${escapeHtml(item.workerLabel)} · ${escapeHtml(item.permissionClass)}</p><small>Reliability ${item.reliability}% · ${item.requiresAttendedDesktop ? 'Attended desktop required' : 'Can run unattended'} · Fallback: ${escapeHtml(fallbacks)}</small><div class="card-actions"><button data-capability-action="${escapeHtml(item.capability)}" ${runnable ? '' : 'disabled'}>Run capability</button></div></article>`;
+    return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(item.interfaceType)} Â· ${escapeHtml(item.costClass)}</p><h3>${escapeHtml(item.capability)}</h3></div><span class="badge ${escapeHtml(item.availability)}">${escapeHtml(item.availability)}</span></div><p>${escapeHtml(item.workerLabel)} Â· ${escapeHtml(item.permissionClass)}</p><small>Reliability ${item.reliability}% Â· ${item.requiresAttendedDesktop ? 'Attended desktop required' : 'Can run unattended'} Â· Fallback: ${escapeHtml(fallbacks)}</small><div class="card-actions"><button data-capability-action="${escapeHtml(item.capability)}" ${runnable ? '' : 'disabled'}>Run capability</button></div></article>`;
   }).join('');
 }
 
-function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => { const probe = connection.capabilities.find((capability) => state.status.capabilities.some((item) => item.enabled && item.capability === capability)); return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${connection.error ? 'disabled' : 'ready'}">${escapeHtml(connection.state)}</span></div><p>${escapeHtml(connection.notes || '')}</p><small>Auth: ${escapeHtml(connection.authenticationState)}${connection.lastSuccessfulCheck ? ` · Checked ${formatTime(connection.lastSuccessfulCheck)}` : ''}</small>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe)}">Run ${escapeHtml(probe)}</button>` : '<button disabled>No local probe</button>'}</div></article>`; }).join(''); }
+function renderConnections() { $('connection-list').innerHTML = state.status.connections.map((connection) => { const probe = connection.capabilities.find((capability) => state.status.capabilities.some((item) => item.enabled && item.capability === capability)); return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${escapeHtml(connection.endpointClass)}</p><h3>${escapeHtml(label(connection.id))}</h3></div><span class="badge ${connection.error ? 'disabled' : 'ready'}">${escapeHtml(connection.state)}</span></div><p>${escapeHtml(connection.notes || '')}</p><small>Auth: ${escapeHtml(connection.authenticationState)}${connection.lastSuccessfulCheck ? ` Â· Checked ${formatTime(connection.lastSuccessfulCheck)}` : ''}</small>${connection.error ? `<p class="error-text">${escapeHtml(connection.error)}</p>` : ''}<div class="card-actions">${probe ? `<button data-capability-action="${escapeHtml(probe)}">Run ${escapeHtml(probe)}</button>` : '<button disabled>No local probe</button>'}</div></article>`; }).join(''); }
 
 function renderImprovements() { $('improvement-list').innerHTML = state.improvements.length ? state.improvements.map((item) => { const actions = item.status === 'proposed' ? `<div class="card-actions"><button data-improvement-decision="approved" data-improvement-id="${item.id}">Approve</button><button class="danger" data-improvement-decision="rejected" data-improvement-id="${item.id}">Reject</button></div>` : ''; return `<article class="control-card"><div class="card-head"><div><p class="eyebrow">${formatTime(item.createdAt)}</p><h3>${escapeHtml(item.title)}</h3></div><span class="badge ${escapeHtml(item.status)}">${escapeHtml(item.status)}</span></div><p>${escapeHtml(item.summary)}</p>${actions}</article>`; }).join('') : '<p class="muted">No improvement candidates.</p>'; }
 function renderDiagnostics() { $('event-list').innerHTML = state.diagnostics.events.map((event) => `<div class="event-row"><span>${event.sequence}</span><b>${escapeHtml(event.eventType)}</b><code>${escapeHtml(event.subjectId)}</code><small>${formatTime(event.timestamp)}</small></div>`).join(''); }
