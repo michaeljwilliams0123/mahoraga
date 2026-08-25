@@ -12,8 +12,9 @@ receipts. The full repository verification passed 198/198 tests, followed by
 live browser acceptance for a pasted image, a private local Visio attachment,
 provider-gap routing, expert-method rendering, and an empty console error log.
 
-Primary Cloud Codex review is dispatched through private GitHub issue `#36`
-using the validated, content-free task record in `coordination/cloud-tasks/`.
+Primary Cloud Codex review is dispatched through private GitHub PR `#37` using
+a validated, content-free task record in `coordination/cloud-tasks/`. The Codex
+connector acknowledged the owner-authored trigger; issue `#36` retains the trace.
 
 ## Previous wave
 
