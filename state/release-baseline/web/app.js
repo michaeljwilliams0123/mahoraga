@@ -8,8 +8,8 @@ const SECTION_REQUESTS = [
   ['improvements', '/api/improvements', (value) => value.improvements ?? []],
   ['diagnostics', '/api/diagnostics', (value) => value],
 ];
-const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-message, #task-form input, #task-form select, #task-form button, #improvement-form input, #improvement-form button, [data-capability-action], [data-task-action], [data-worker-action], [data-improvement-decision]';
-const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
+const RUNTIME_ACTIONS = '.suggestions button, #chat-input, #chat-tool, #send-message, #attach-files, #attachment-input, #task-form input, #task-form select, #task-form button, #improvement-form input, #improvement-form button, [data-capability-action], [data-task-action], [data-worker-action], [data-improvement-decision]';
+const state = { status: null, coordination: null, tasks: [], conversations: [], improvements: [], diagnostics: { workers: [], events: [] }, messages: [], pendingAttachments: [], uploading: false, sectionErrors: {}, compatible: false, activeConversation: readConversationHash(), activeView: readView(), sending: false, refreshing: false };
 
 async function api(url, options = {}) {
   const response = await fetch(url, options);
@@ -115,15 +115,17 @@ function renderChat() {
   $('welcome').classList.toggle('hidden', state.messages.length > 0 || Boolean(conversation));
   const pending = state.activeConversation && state.tasks.some((task) => task.conversationId === state.activeConversation && ['queued', 'claimed', 'running', 'verifying'].includes(task.status));
   $('chat-messages').innerHTML = state.messages.map(messageHtml).join('') + (pending ? '<div class="message-row assistant"><span class="avatar">M</span><div class="message-body"><div class="typing"><i></i><i></i><i></i></div></div></div>' : '');
-  $('composer-status').textContent = pending ? 'Mahoraga is working...' : 'Durable conversation';
-  $('send-message').disabled = state.sending;
+  renderPendingAttachments();
+  $('composer-status').textContent = state.uploading ? 'Securing files locally...' : pending ? 'Mahoraga is working...' : state.pendingAttachments.length ? `${state.pendingAttachments.length} file${state.pendingAttachments.length === 1 ? '' : 's'} ready` : 'Durable conversation';
+  $('send-message').disabled = state.sending || state.uploading;
   requestAnimationFrame(() => { const scroll = $('chat-scroll'); if (scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 500 || state.sending) scroll.scrollTop = scroll.scrollHeight; });
 }
 
 function messageHtml(message) {
   const role = message.role === 'user' ? 'user' : message.role === 'system' ? 'system' : 'assistant';
-  if (role === 'user') return `<div class="message-row user"><div class="message-body"><p>${escapeHtml(message.content)}</p><span class="message-meta">${formatTime(message.createdAt)}</span></div></div>`;
-  return `<div class="message-row ${role}"><span class="avatar">${role === 'system' ? '!' : 'M'}</span><div class="message-body"><p>${escapeHtml(message.content)}</p><span class="message-meta">${role === 'system' ? 'System' : 'Mahoraga'} · ${formatTime(message.createdAt)}</span></div></div>`;
+  const attachments = messageAttachmentsHtml(message.attachments ?? []);
+  if (role === 'user') return `<div class="message-row user"><div class="message-body"><p>${escapeHtml(message.content)}</p>${attachments}<span class="message-meta">${formatTime(message.createdAt)}</span></div></div>`;
+  return `<div class="message-row ${role}"><span class="avatar">${role === 'system' ? '!' : 'M'}</span><div class="message-body"><p>${escapeHtml(message.content)}</p>${attachments}<span class="message-meta">${role === 'system' ? 'System' : 'Mahoraga'} · ${formatTime(message.createdAt)}</span></div></div>`;
 }
 
 function renderCapabilities() {
@@ -205,16 +207,21 @@ function renderDiagnostics() { $('event-list').innerHTML = state.diagnostics.eve
 
 async function sendChat(content, forcedCapability = null) {
   if (!state.compatible) return notify('Runtime update required. Restart Mahoraga after activating the matching release.', 'error');
-  content = content.trim(); if (!content || state.sending) return;
+  content = content.trim();
+  const attachments = [...state.pendingAttachments];
+  if ((!content && attachments.length === 0) || state.sending || state.uploading) return;
+  if (!content) content = `Analyze ${attachments.map((item) => item.name).join(', ')}`;
   state.sending = true; $('chat-input').value = ''; resizeComposer(); renderChat();
   try {
+    const attachmentIds = attachments.map((item) => item.id);
     let conversationId = state.activeConversation;
     if (!conversationId) {
-      const created = await post('/api/conversations', { title: content.slice(0, 72), initialMessage: content });
+      const created = await post('/api/conversations', { title: content.slice(0, 72), initialMessage: content, attachmentIds });
       conversationId = created.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
-    } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user' });
+    } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
+    state.pendingAttachments = [];
     const selected = forcedCapability || $('chat-tool').value;
-    const capability = selected === 'auto' ? autoRoute(content) : selected;
+    const capability = selected === 'auto' ? autoRoute(content, attachments) : selected;
     const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability);
     if (!metadata) throw new Error(`${capability} has no enabled worker`);
     await post('/api/tasks', { capability, dataClass: metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
@@ -223,8 +230,9 @@ async function sendChat(content, forcedCapability = null) {
   finally { state.sending = false; renderChat(); $('chat-input').focus(); }
 }
 
-function autoRoute(content) {
+function autoRoute(content, attachments = []) {
   const text = content.toLowerCase();
+  if (attachments.length) return 'artifact.inspect';
   if (/browser|chrome|web page|website/.test(text)) return /test|verify|smoke|open/.test(text) ? 'browser.smoke' : 'browser.status';
   if (/repository|repo|github|\bgit\b|source code/.test(text)) return 'repository.inspect';
   if (/repair|recover|recovery|self-heal|baseline/.test(text)) return 'repair.scan';
@@ -232,6 +240,44 @@ function autoRoute(content) {
   if (/health|runtime|system status|working|online/.test(text)) return 'system.health';
   return 'assistant.respond';
 }
+
+async function uploadFiles(fileList, source) {
+  if (!state.compatible || state.uploading) return;
+  const files = [...fileList].slice(0, Math.max(0, 20 - state.pendingAttachments.length));
+  if (!files.length) return;
+  state.uploading = true; renderChat();
+  try {
+    for (const file of files) {
+      const response = await fetch('/api/artifacts', {
+        method: 'POST',
+        headers: { 'content-type': file.type || 'application/octet-stream', 'x-mahoraga-file-name': encodeURIComponent(file.name || `pasted-${Date.now()}.bin`), 'x-mahoraga-file-source': source },
+        body: file,
+      });
+      const data = await response.json().catch(() => ({ error: `HTTP ${response.status}` }));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      state.pendingAttachments.push(data.artifact);
+    }
+    notify(`${files.length} file${files.length === 1 ? '' : 's'} ready for Mahoraga`);
+  } catch (error) { notify(error.message, 'error'); }
+  finally { state.uploading = false; $('attachment-input').value = ''; renderChat(); }
+}
+
+async function removePendingAttachment(id) {
+  const index = state.pendingAttachments.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  try { await api(`/api/artifacts/${id}`, { method: 'DELETE' }); }
+  catch (error) { if (error.message !== 'artifact-in-use') return notify(error.message, 'error'); }
+  state.pendingAttachments.splice(index, 1); renderChat();
+}
+
+function renderPendingAttachments() {
+  $('attachment-preview').innerHTML = state.pendingAttachments.map((item) => `<span class="attachment-chip"><b>${escapeHtml(item.name)}</b><small>${formatBytes(item.sizeBytes)}</small><button type="button" data-remove-attachment="${escapeHtml(item.id)}" aria-label="Remove ${escapeHtml(item.name)}">×</button></span>`).join('');
+}
+function messageAttachmentsHtml(attachments) {
+  if (!attachments.length) return '';
+  return `<div class="message-attachments">${attachments.map((item) => { const preview = /^(?:image\/(?:png|jpeg|gif|webp|avif))$/.test(item.mimeType) ? `<img src="/api/artifacts/${escapeHtml(item.id)}/content" alt="${escapeHtml(item.name)}">` : ''; return `<a class="message-attachment" href="/api/artifacts/${escapeHtml(item.id)}/content" target="_blank" rel="noopener">${preview}<span><b>${escapeHtml(item.name)}</b><small>${escapeHtml(item.mimeType)} · ${formatBytes(item.sizeBytes)}</small></span></a>`; }).join('')}</div>`;
+}
+function formatBytes(bytes) { if (bytes < 1024) return `${bytes} B`; if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`; return `${(bytes / (1024 * 1024)).toFixed(1)} MB`; }
 
 function showView(name, persist = true) { state.activeView = name; document.querySelectorAll('[data-page]').forEach((page) => page.classList.toggle('active', page.dataset.page === name)); document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === name)); if (persist) writeView(name); }
 function selectConversation(id) { state.activeConversation = id; writeConversationHash(id); showView('chat'); refresh(); }
@@ -245,6 +291,13 @@ document.querySelector('.workspace-nav').addEventListener('click', (event) => { 
 $('chat-form').addEventListener('submit', (event) => { event.preventDefault(); sendChat($('chat-input').value); });
 $('chat-input').addEventListener('input', resizeComposer);
 $('chat-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); $('chat-form').requestSubmit(); } });
+$('chat-input').addEventListener('paste', (event) => { const files = [...(event.clipboardData?.files ?? [])]; if (files.length) { event.preventDefault(); uploadFiles(files, 'clipboard'); } });
+$('attach-files').addEventListener('click', () => $('attachment-input').click());
+$('attachment-input').addEventListener('change', (event) => uploadFiles(event.target.files, 'picker'));
+$('chat-form').addEventListener('dragover', (event) => { event.preventDefault(); event.currentTarget.classList.add('drag-active'); });
+$('chat-form').addEventListener('dragleave', (event) => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.classList.remove('drag-active'); });
+$('chat-form').addEventListener('drop', (event) => { event.preventDefault(); event.currentTarget.classList.remove('drag-active'); uploadFiles(event.dataTransfer?.files ?? [], 'drop'); });
+$('attachment-preview').addEventListener('click', (event) => { const button = event.target.closest('[data-remove-attachment]'); if (button) removePendingAttachment(button.dataset.removeAttachment); });
 document.querySelector('.suggestions').addEventListener('click', (event) => { const button = event.target.closest('[data-suggestion]'); if (button) sendChat(button.dataset.suggestion, button.dataset.capability); });
 $('task-capability').addEventListener('change', syncDataClass);
 $('task-form').addEventListener('submit', (event) => runForm(event, async () => { const capability = $('task-capability').value; const outcome = $('task-outcome').value.trim() || `Run ${capability}`; await dispatch(capability, outcome, $('task-priority').value, $('task-data-class').value); $('task-outcome').value = ''; }));

@@ -4,14 +4,18 @@ import { RuntimeDatabase } from "./database.mjs";
 import { Supervisor } from "./supervisor.mjs";
 import { createControlServer } from "./server.mjs";
 import { loadPrimaryCodexToken } from "./local-auth.mjs";
+import { LocalArtifactStore } from "./local-artifact-store.mjs";
 
-export async function startRuntime({ port, databaseFile, syncCoordinationMailbox = true, webRoot } = {}) {
+export async function startRuntime({ port, databaseFile, artifactRoot, syncCoordinationMailbox = true, webRoot } = {}) {
   const manifest = await loadManifest();
-  const database = new RuntimeDatabase(databaseFile ?? path.join(ROOT, manifest.runtime.database));
-  const supervisor = new Supervisor({ manifest, database, syncCoordinationMailbox });
+  const resolvedDatabaseFile = databaseFile ?? path.join(ROOT, manifest.runtime.database);
+  const database = new RuntimeDatabase(resolvedDatabaseFile);
+  const resolvedArtifactRoot = artifactRoot ?? path.join(path.dirname(resolvedDatabaseFile), "artifacts");
+  const artifactStore = new LocalArtifactStore(resolvedArtifactRoot);
+  const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, syncCoordinationMailbox });
   const primaryCodexToken = await loadPrimaryCodexToken();
   supervisor.start();
-  const server = createControlServer({ manifest, database, supervisor, primaryCodexToken, webRoot });
+  const server = createControlServer({ manifest, database, supervisor, primaryCodexToken, artifactStore, webRoot });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port ?? manifest.runtime.port, manifest.runtime.host, resolve);
@@ -22,5 +26,5 @@ export async function startRuntime({ port, databaseFile, syncCoordinationMailbox
     await new Promise((resolve) => server.close(resolve));
     database.close();
   };
-  return { manifest, database, supervisor, server, address, stop };
+  return { manifest, database, artifactStore, supervisor, server, address, stop };
 }

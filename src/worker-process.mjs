@@ -1,4 +1,5 @@
-import { loadManifest } from "./config.mjs";
+import path from "node:path";
+import { loadManifest, ROOT } from "./config.mjs";
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 import { executeBrowserCapability, shutdownBrowser } from "./browser-worker.mjs";
 import { executeRepositoryCapability } from "./repository-worker.mjs";
@@ -7,11 +8,13 @@ import { executeCopilotCapability } from "./copilot-worker.mjs";
 import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
 import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
+import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
 
 const manifest = await loadManifest();
+const artifactStore = new LocalArtifactStore(process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts"));
 const worker = manifest.workers.find((item) => item.id === workerId && item.enabled);
 if (!worker) process.exit(3);
 
@@ -44,6 +47,8 @@ async function execute(capability, task) {
         verified: true,
         summary: `I saved this assignment in our durable conversation: ${String(task?.requestedOutcome ?? "Continue the assignment").replace(/\s+/g, " ").trim().slice(0, 240)}. I will keep the context available while you are away.`,
       };
+    case "artifact.inspect":
+      return inspectTaskArtifacts(task, { store: artifactStore });
     case "system.health":
       return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };
     case "manifest.validate":

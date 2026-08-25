@@ -11,6 +11,7 @@ state/secondary-worktrees/
 state/cache/
 state/checkpoints/
 state/repairs/
+state/artifacts/
 node_modules/
 .env
 .env.*

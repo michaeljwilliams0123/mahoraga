@@ -125,11 +125,13 @@
       ],
       "capabilities": [
         "assistant.respond",
+        "artifact.inspect",
         "system.health",
         "manifest.validate"
       ],
       "acceptedTaskTypes": [
         "assistant",
+        "artifact",
         "health",
         "manifest"
       ],

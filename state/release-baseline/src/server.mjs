@@ -8,6 +8,7 @@ import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
 import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
 import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
+import { LocalArtifactStore } from "./local-artifact-store.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -25,7 +26,8 @@ export function snapshotStaticAssets(webRoot = WEB_ROOT) {
   }]));
 }
 
-export function createControlServer({ manifest, database, supervisor, primaryCodexToken, webRoot = WEB_ROOT }) {
+export function createControlServer({ manifest, database, supervisor, primaryCodexToken, artifactStore, webRoot = WEB_ROOT }) {
+  if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   return createServer(async (request, response) => {
     try {
@@ -34,6 +36,25 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/coordination") return json(response, 200, coordinationPayload(manifest, database));
+      if (request.method === "POST" && url.pathname === "/api/artifacts") {
+        const name = decodeURIComponent(headerValue(request, "x-mahoraga-file-name"));
+        const mimeType = headerValue(request, "content-type") || "application/octet-stream";
+        const source = headerValue(request, "x-mahoraga-file-source") || "api";
+        const bytes = await bodyBytes(request, artifactStore.maximumBytes);
+        return json(response, 201, { artifact: await artifactStore.put({ name, mimeType, source, bytes }) });
+      }
+      const artifactRoute = url.pathname.match(/^\/api\/artifacts\/(art-[a-f0-9-]+)$/);
+      const artifactContentRoute = url.pathname.match(/^\/api\/artifacts\/(art-[a-f0-9-]+)\/content$/);
+      if (request.method === "GET" && artifactRoute) return json(response, 200, { artifact: await artifactStore.get(artifactRoute[1]) });
+      if (request.method === "GET" && artifactContentRoute) {
+        const artifact = await artifactStore.read(artifactContentRoute[1]);
+        return artifactContent(response, artifact);
+      }
+      if (request.method === "DELETE" && artifactRoute) {
+        if (database.isArtifactReferenced(artifactRoute[1])) return json(response, 409, { error: "artifact-in-use" });
+        await artifactStore.remove(artifactRoute[1]);
+        return json(response, 200, { deleted: true, artifactId: artifactRoute[1] });
+      }
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
@@ -81,13 +102,15 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
-        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null }) });
+        const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments }) });
       }
       const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
       if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
       if (request.method === "POST" && conversationMessages) {
         const body = await bodyJson(request);
-        return json(response, 201, { message: database.addConversationMessage({ conversationId: conversationMessages[1], taskId: body.taskId ?? null, role: body.role ?? "user", content: body.content, requiresResponse: body.requiresResponse ?? false }) });
+        const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+        return json(response, 201, { message: database.addConversationMessage({ conversationId: conversationMessages[1], taskId: body.taskId ?? null, role: body.role ?? "user", content: body.content, attachments, requiresResponse: body.requiresResponse ?? false }) });
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
@@ -260,11 +283,30 @@ function setHeaders(response, manifest) {
 }
 function staticFile(response, asset) { response.writeHead(200, { "Content-Type": asset.contentType }); response.end(asset.body); }
 function json(response, status, value) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify(value)); }
+function artifactContent(response, { metadata, bytes }) {
+  const safeInline = /^(?:image\/(?:png|jpeg|gif|webp|avif)|application\/pdf)$/.test(metadata.mimeType);
+  const contentType = safeInline ? metadata.mimeType : "application/octet-stream";
+  const disposition = safeInline ? "inline" : "attachment";
+  response.writeHead(200, {
+    "Content-Type": contentType,
+    "Content-Length": bytes.length,
+    "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(metadata.name)}`,
+    "X-Mahoraga-Artifact-Sha256": metadata.sha256,
+  });
+  response.end(bytes);
+}
 async function bodyJson(request) {
   const chunks = []; let size = 0;
   for await (const chunk of request) { size += chunk.length; if (size > 16384) throw new Error("request-too-large"); chunks.push(chunk); }
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
 }
+async function bodyBytes(request, maximumBytes) {
+  const chunks = []; let size = 0;
+  for await (const chunk of request) { size += chunk.length; if (size > maximumBytes) throw new Error("artifact-too-large"); chunks.push(chunk); }
+  if (size < 1) throw new Error("artifact-empty");
+  return Buffer.concat(chunks);
+}
+function headerValue(request, name) { const value = request.headers[name]; return Array.isArray(value) ? value[0] ?? "" : String(value ?? ""); }
 function classify(error) {
   if (error instanceof SyntaxError) return "invalid-json";
   if (/invalid|required|missing|must|unknown|duplicate/i.test(error?.message ?? "")) return error.message;

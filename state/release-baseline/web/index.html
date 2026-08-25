@@ -46,9 +46,12 @@
         </div>
         <div class="composer-wrap">
           <form class="composer" id="chat-form">
-            <textarea id="chat-input" rows="1" maxlength="12000" placeholder="Message Mahoraga" aria-label="Message Mahoraga" required></textarea>
-            <div class="composer-bar"><select id="chat-tool" aria-label="Tool routing"><option value="auto">Auto</option></select><span id="composer-status">Durable conversation</span><button type="submit" id="send-message" aria-label="Send message">↑</button></div>
+            <div class="attachment-preview" id="attachment-preview" aria-live="polite"></div>
+            <input id="attachment-input" type="file" multiple hidden>
+            <textarea id="chat-input" rows="1" maxlength="12000" placeholder="Message Mahoraga or attach a file" aria-label="Message Mahoraga"></textarea>
+            <div class="composer-bar"><button type="button" id="attach-files" class="attach-button" aria-label="Attach files" title="Attach files">＋</button><select id="chat-tool" aria-label="Tool routing"><option value="auto">Auto</option></select><span id="composer-status">Durable conversation</span><button type="submit" id="send-message" aria-label="Send message">↑</button></div>
           </form>
+          <p class="attachment-note">Choose files, drag them here, or paste images. Originals stay private on this device unless you explicitly route them elsewhere.</p>
           <p class="composer-note">Mahoraga can recover and continue work autonomously. Core updates still require your approval.</p>
         </div>
       </section>

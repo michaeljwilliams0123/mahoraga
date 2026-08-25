@@ -8,8 +8,8 @@ import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database, syncCoordinationMailbox = true }) {
-    super(); this.manifest = manifest; this.database = database; this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
+  constructor({ manifest, database, artifactRoot, syncCoordinationMailbox = true }) {
+    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -82,7 +82,7 @@ export class Supervisor extends EventEmitter {
   }
 
   #spawn(definition, restartCount = 0) {
-    const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"] });
+    const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"], env: { ...process.env, MAHORAGA_ARTIFACT_ROOT: this.artifactRoot } });
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null };
     this.workers.set(definition.id, state);

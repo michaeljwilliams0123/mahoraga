@@ -77,6 +77,17 @@ export class RuntimeDatabase {
         created_at TEXT NOT NULL,
         FOREIGN KEY(conversation_id) REFERENCES conversations(id)
       );
+      CREATE TABLE IF NOT EXISTS conversation_message_attachments (
+        message_id TEXT NOT NULL,
+        artifact_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        mime_type TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        sha256 TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(message_id, artifact_id),
+        FOREIGN KEY(message_id) REFERENCES conversation_messages(id)
+      );
       CREATE TABLE IF NOT EXISTS execution_receipts (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
@@ -140,6 +151,7 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_tasks_status_created ON tasks(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_message_attachments_artifact ON conversation_message_attachments(artifact_id);
       CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_builder_sessions_correlation ON codex_builder_sessions(correlation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_secondary_assignments_status ON secondary_assignments(status, created_at);
@@ -212,14 +224,16 @@ export class RuntimeDatabase {
     });
   }
 
-  createConversation({ title, initialMessage = null }) {
+  createConversation({ title, initialMessage = null, attachments = [] }) {
     bounded(title, 200, "conversation title");
     if (initialMessage !== null) boundedMultiline(initialMessage, 12000, "initial message");
+    const normalizedAttachments = conversationAttachments(attachments);
+    if (!initialMessage && normalizedAttachments.length === 0) throw new TypeError("Initial message or attachment is required.");
     const id = `con-${randomUUID()}`; const now = new Date().toISOString();
     this.#transaction(() => {
       this.db.prepare("INSERT INTO conversations(id,title,status,created_at,updated_at) VALUES(?,?,'active',?,?)").run(id, title, now, now);
       this.#event("conversation.created", id, { title });
-      if (initialMessage) this.#addMessage({ conversationId: id, role: "user", content: initialMessage, createdAt: now });
+      if (initialMessage || normalizedAttachments.length) this.#addMessage({ conversationId: id, role: "user", content: initialMessage || "Attached file", attachments: normalizedAttachments, createdAt: now });
     });
     return this.getConversation(id);
   }
@@ -235,30 +249,40 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?").all(size).map(normalizeConversation);
   }
 
-  addConversationMessage({ conversationId, taskId = null, role = "user", content, requiresResponse = false }) {
+  addConversationMessage({ conversationId, taskId = null, role = "user", content, attachments = [], requiresResponse = false }) {
     bounded(conversationId, 80, "conversation id");
     if (taskId !== null) bounded(taskId, 80, "task id");
     if (!new Set(["user", "assistant", "system", "worker"]).has(role)) throw new TypeError("Conversation role is invalid.");
     boundedMultiline(content, 12000, "conversation message");
+    const normalizedAttachments = conversationAttachments(attachments);
     if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing.");
-    const message = this.#addMessage({ conversationId, taskId, role, content, requiresResponse });
-    this.#event("conversation.message", conversationId, { messageId: message.id, taskId, role, requiresResponse });
+    const message = this.#addMessage({ conversationId, taskId, role, content, attachments: normalizedAttachments, requiresResponse });
+    this.#event("conversation.message", conversationId, { messageId: message.id, taskId, role, requiresResponse, attachmentCount: normalizedAttachments.length });
     return message;
   }
 
-  #addMessage({ conversationId, taskId = null, role, content, requiresResponse = false, createdAt = new Date().toISOString() }) {
+  #addMessage({ conversationId, taskId = null, role, content, attachments = [], requiresResponse = false, createdAt = new Date().toISOString() }) {
     const id = `msg-${randomUUID()}`;
     this.db.prepare(`INSERT INTO conversation_messages(id,conversation_id,task_id,role,content,requires_response,created_at)
       VALUES(?,?,?,?,?,?,?)`).run(id, conversationId, taskId, role, content, requiresResponse ? 1 : 0, createdAt);
+    const insertAttachment = this.db.prepare(`INSERT INTO conversation_message_attachments
+      (message_id,artifact_id,name,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,?,?,?)`);
+    for (const attachment of attachments) insertAttachment.run(id, attachment.id, attachment.name, attachment.mimeType, attachment.sizeBytes, attachment.sha256, createdAt);
     this.db.prepare("UPDATE conversations SET updated_at=? WHERE id=?").run(createdAt, conversationId);
-    return { id, conversationId, taskId, role, content, requiresResponse: Boolean(requiresResponse), createdAt };
+    return { id, conversationId, taskId, role, content, attachments, requiresResponse: Boolean(requiresResponse), createdAt };
   }
 
   listConversationMessages(conversationId, limit = 500) {
     bounded(conversationId, 80, "conversation id");
     const size = Math.max(1, Math.min(Number(limit) || 500, 1000));
+    const attachmentQuery = this.db.prepare("SELECT artifact_id,name,mime_type,size_bytes,sha256 FROM conversation_message_attachments WHERE message_id=? ORDER BY created_at,artifact_id");
     return this.db.prepare("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY created_at, id LIMIT ?")
-      .all(conversationId, size).map(normalizeMessage);
+      .all(conversationId, size).map((row) => normalizeMessageWithAttachments(row, attachmentQuery.all(row.id)));
+  }
+
+  isArtifactReferenced(artifactId) {
+    artifactReferenceId(artifactId);
+    return this.db.prepare("SELECT 1 AS found FROM conversation_message_attachments WHERE artifact_id=? LIMIT 1").get(artifactId)?.found === 1;
   }
 
   waitTaskForUser(id, prompt) {
@@ -687,6 +711,9 @@ function normalizeObjective(row, tasks) { return { id: row.id, correlationId: ro
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
+function normalizeMessageWithAttachments(row, attachments) {
+  return { ...normalizeMessage(row), attachments: attachments.map((item) => ({ id: item.artifact_id, name: item.name, mimeType: item.mime_type, sizeBytes: item.size_bytes, sha256: item.sha256 })) };
+}
 function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"), source: row.source ?? "runtime-api", status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) throw new Error("Stored improvement status is invalid."); return {
@@ -715,6 +742,21 @@ function normalizeReceiptMetadata(value) {
   }
   return Object.freeze(metadata);
 }
+function conversationAttachments(value) {
+  if (!Array.isArray(value) || value.length > 20 || new Set(value.map((item) => item?.id)).size !== value.length) throw new TypeError("Conversation attachments are invalid.");
+  return value.map((item) => {
+    if (!isRecord(item)) throw new TypeError("Conversation attachment is invalid.");
+    const allowed = new Set(["id", "name", "mimeType", "sizeBytes", "sha256", "source", "createdAt", "storageClass"]);
+    for (const key of Object.keys(item)) if (!allowed.has(key)) throw new TypeError("Conversation attachment field is invalid.");
+    artifactReferenceId(item.id);
+    bounded(item.name, 200, "attachment name");
+    if (typeof item.mimeType !== "string" || !/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/i.test(item.mimeType)) throw new TypeError("Attachment MIME type is invalid.");
+    if (!Number.isSafeInteger(item.sizeBytes) || item.sizeBytes < 1 || item.sizeBytes > 100 * 1024 * 1024) throw new TypeError("Attachment size is invalid.");
+    if (!/^[a-f0-9]{64}$/.test(item.sha256)) throw new TypeError("Attachment digest is invalid.");
+    return Object.freeze({ id: item.id, name: item.name, mimeType: item.mimeType.toLowerCase(), sizeBytes: item.sizeBytes, sha256: item.sha256 });
+  });
+}
+function artifactReferenceId(value) { if (typeof value !== "string" || !/^art-[a-f0-9-]{36,}$/.test(value)) throw new TypeError("Artifact reference is invalid."); }
 function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 function validateCapability(value) { if (typeof value !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(value)) throw new TypeError("Capability is invalid."); }
 function validateDataClass(value) { if (!new Set(["synthetic", "personal", "enterprise", "local-only"]).has(value)) throw new TypeError("Data class is invalid."); }
