@@ -100,7 +100,7 @@ export class Supervisor extends EventEmitter {
   }
 
   #spawn(definition, restartCount = 0) {
-    const child = fork(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "ignore", "ipc"], env: {
+    const child = fork(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"], env: {
       ...process.env,
       MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
       MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
@@ -153,6 +153,23 @@ export class Supervisor extends EventEmitter {
           lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
         });
       }
+      state.status = "live";
+    } else if (message?.type === "capability.canary") {
+      if (!state.definition.capabilities.includes(message.capability)) throw new Error("capability-canary-unknown");
+      const observedAt = message.observedAt ?? new Date().toISOString();
+      const previous = this.database.listCapabilityReadiness(state.definition.id).find((item) => item.capability === message.capability);
+      let canaryStatus = "failed"; let canaryVerifiedAt = null;
+      try {
+        const receipt = validateCapabilityReceipt(message.capability, message.receipt);
+        if (receipt.outcome === "succeeded") { canaryStatus = "verified"; canaryVerifiedAt = observedAt; }
+      } catch {}
+      this.database.setCapabilityReadiness({
+        workerId: state.definition.id, capability: message.capability, processStatus: "live",
+        providerStatus: previous?.providerStatus ?? "unknown", canaryStatus,
+        processObservedAt: state.lastHeartbeatAt, providerObservedAt: previous?.providerObservedAt ?? observedAt,
+        canaryVerifiedAt, lastErrorCode: canaryStatus === "verified" ? null : message.errorCode ?? "capability-canary-failed",
+      });
+    } else if (message?.type === "readiness.complete") {
       state.ready = true; state.status = "live";
     } else if (message?.type === "heartbeat") {
       state.lastHeartbeatAt = message.timestamp;

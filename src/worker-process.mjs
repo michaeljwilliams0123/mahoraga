@@ -13,6 +13,9 @@ import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
 
+const SAFE_STARTUP_CANARIES = new Set([
+  "assistant.respond", "provider.gap", "artifact.inspect", "manifest.validate", "repository.inspect",
+]);
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
 
@@ -41,15 +44,41 @@ process.on("message", async (message) => {
 void probeProviderReadiness();
 
 async function probeProviderReadiness() {
+  let providerReady = false;
   const observedAt = new Date().toISOString();
   const startedAt = Date.now();
   try {
     const result = await execute(worker.healthProbe, { id: `startup-probe-${workerId}`, requestedOutcome: `Verify ${worker.label}` });
     const receipt = createCapabilityReceipt(worker.healthProbe, result, { observedAt, durationMs: Date.now() - startedAt });
     process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt, observedAt });
+    providerReady = receipt.outcome === "succeeded";
   } catch (error) {
     process.send?.({ type: "provider.readiness", workerId, capability: worker.healthProbe, receipt: null, observedAt, errorCode: classifyError(error) });
   }
+  if (providerReady) await probeCapabilityCanaries();
+  process.send?.({ type: "readiness.complete", workerId, observedAt: new Date().toISOString() });
+}
+
+async function probeCapabilityCanaries() {
+  for (const capability of worker.capabilities) {
+    if (!SAFE_STARTUP_CANARIES.has(capability) || capability === worker.healthProbe) continue;
+    const observedAt = new Date().toISOString();
+    const startedAt = Date.now();
+    try {
+      const result = capability === "artifact.inspect"
+        ? await artifactInspectionCanary()
+        : await execute(capability, { id: `startup-canary-${workerId}`, requestedOutcome: `Verify ${capability} without external content.` });
+      const receipt = createCapabilityReceipt(capability, result, { observedAt, durationMs: Date.now() - startedAt });
+      process.send?.({ type: "capability.canary", workerId, capability, receipt, observedAt });
+    } catch (error) {
+      process.send?.({ type: "capability.canary", workerId, capability, receipt: null, observedAt, errorCode: classifyError(error) });
+    }
+  }
+}
+
+async function artifactInspectionCanary() {
+  await artifactStoreForWorker();
+  return { verified: true, summary: "Artifact inspection dependencies are available.", providerHealth: { storage: "ready" } };
 }
 
 async function execute(capability, task) {

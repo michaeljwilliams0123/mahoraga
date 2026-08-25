@@ -14,7 +14,7 @@ test("Codex Builder invokes the provider only inside a candidate cell and return
   writeFileSync(path.join(root, ".gitignore"), "state/\n", "utf8");
   writeFileSync(path.join(root, "src", "provider.mjs"), "export const value = 1;\n", "utf8");
   git(root, "init", "--initial-branch=main");
-  git(root, "config", "user.email", "mahoraga@example.invalid");
+  git(root, "config", "user.email", "mahoraga@example.com");
   git(root, "config", "user.name", "Mahoraga Test");
   git(root, "add", ".");
   git(root, "commit", "-m", "base");

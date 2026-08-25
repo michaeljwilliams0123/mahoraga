@@ -9,6 +9,7 @@ const manifest = {
     { id: "repository", enabled: true, capabilities: ["repository.inspect"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
     { id: "desktop", enabled: true, capabilities: ["desktop.interact"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: true } },
     { id: "codex", enabled: true, capabilities: ["codex.execute"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
+    { id: "provider-gap", enabled: true, capabilities: ["provider.gap"], dataClasses: ["enterprise"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
   ],
 };
 
@@ -59,4 +60,12 @@ test("policy task input ignores caller execution assertions", () => {
   assert.equal(task.executionPlane, "local");
   assert.equal(task.requestedMode, "hybrid");
   assert.equal(task.priority, "high");
+});
+
+test("provider-gap policy preserves enterprise classification without caller authority", () => {
+  const policy = deriveTaskPolicy({ intent: "provider.gap", requestedOutcome: "Review an enterprise work link." }, { manifest });
+  assert.equal(policy.capability, "provider.gap");
+  assert.equal(policy.dataClass, "enterprise");
+  assert.equal(policy.executionPlane, "local");
+  assert.deepEqual(policy.allowedWorkerIds, ["provider-gap"]);
 });

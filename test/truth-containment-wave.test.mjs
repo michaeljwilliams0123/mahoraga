@@ -24,7 +24,7 @@ test("status API never marks a capability routable without fresh verified canary
   const status = statusPayload(manifest, database, supervisor);
   assert.ok(status.capabilities.length > 0);
   for (const capability of status.capabilities) if (capability.routable) {
-    assert.equal(capability.canary.status, "verified");
+    assert.equal(capability.canary, "verified");
     assert.equal(capability.evidenceLevel, "verified");
     assert.ok(capability.lastVerifiedAt);
     assert.ok(Date.parse(status.generatedAt) - Date.parse(capability.lastVerifiedAt) <= status.evidencePolicy.deterministicReadCanaryTtlMs);

@@ -14,7 +14,7 @@ test("Control Center routes Microsoft work links to an explicit provider gap", (
   const sharePoint = "https://vacoss.sharepoint.com/:u:/s/Cengage/example review this enterprise file";
   assert.equal(sandbox.autoRoute(sharePoint), "provider.gap");
   assert.equal(sandbox.autoRoute("Inspect the GitHub repository"), "repository.inspect");
-  sandbox.state.status.capabilities = [{ capability: "m365.reason", enabled: true }];
+  sandbox.state.status.capabilities = [{ capability: "m365.reason", routable: true }];
   assert.equal(sandbox.autoRoute(sharePoint), "m365.reason");
 });
 

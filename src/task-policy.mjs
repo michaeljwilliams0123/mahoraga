@@ -103,7 +103,7 @@ export function taskPolicyVersion() {
 }
 
 function deriveDataClass(intent, request) {
-  if (intent.startsWith("m365.")) return "enterprise";
+  if (intent.startsWith("m365.") || intent === "provider.gap") return "enterprise";
   if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.")) return "local-only";
   if (intent === "assistant.respond") return "personal";
   if (intent === "artifact.inspect") return request.contentReferences?.length ? "local-only" : "synthetic";

@@ -78,7 +78,9 @@ test("browser receipts retain only bounded verification metadata", (t) => {
   const sha256 = "a".repeat(64);
   database.finishTask(task.id, { status: "completed", resultSummary: "Browser observation completed.", receiptMetadata: { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 } });
   const receipt = database.listReceipts(task.id)[0];
-  assert.deepEqual(receipt.metadata, { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 });
+  const { summarySha256, ...metadata } = receipt.metadata;
+  assert.match(summarySha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(metadata, { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 });
   assert.throws(() => database.recordReceipt({ task, phase: "completed", verifier: "browser", summary: "bad receipt", metadata: { url: "http://127.0.0.1:4782/" } }), /metadata key/);
 });
 

@@ -12,7 +12,7 @@ function repository(t) {
   writeFileSync(path.join(root, ".gitignore"), "state/\n", "utf8");
   writeFileSync(path.join(root, "src", "allowed.txt"), "base\n", "utf8");
   git(root, "init", "--initial-branch=main");
-  git(root, "config", "user.email", "mahoraga@example.invalid");
+  git(root, "config", "user.email", "mahoraga@example.com");
   git(root, "config", "user.name", "Mahoraga Test");
   git(root, "add", ".");
   git(root, "commit", "-m", "base");

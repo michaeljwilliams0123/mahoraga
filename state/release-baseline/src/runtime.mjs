@@ -8,7 +8,7 @@ import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createControlSessionManager } from "./control-session.mjs";
 import { createContentVault } from "./content-vault.mjs";
 
-export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, syncCoordinationMailbox = true, webRoot } = {}) {
+export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot } = {}) {
   const manifest = await loadManifest();
   const resolvedDatabaseFile = databaseFile ?? path.join(ROOT, manifest.runtime.database);
   const stateRoot = path.dirname(resolvedDatabaseFile);
@@ -20,7 +20,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const resolvedArtifactRoot = artifactRoot ?? path.join(path.dirname(resolvedDatabaseFile), "artifacts");
   const artifactStore = new LocalArtifactStore(resolvedArtifactRoot, { contentVault });
   const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, contentVaultRoot: resolvedContentVaultRoot, contentVaultKeyFile: resolvedContentVaultKeyFile, syncCoordinationMailbox });
-  const primaryCodexToken = await loadPrimaryCodexToken();
+  const primaryCodexToken = suppliedPrimaryCodexToken ?? await loadPrimaryCodexToken();
   const controlSessions = createControlSessionManager({
     idleTtlMs: manifest.truthContracts.controlSession.idleTtlMs,
     nonceTtlMs: manifest.truthContracts.controlSession.bootstrapNonceTtlMs,
