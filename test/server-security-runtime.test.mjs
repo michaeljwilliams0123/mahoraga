@@ -34,7 +34,14 @@ test("runtime protects sensitive reads and mutations behind a prompt-free local 
   const cookie = exchange.headers.get("set-cookie").split(";", 1)[0];
   assert.equal((await fetch(`${base}/api/tasks`, { headers: { cookie } })).status, 200);
 
-  const body = JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", requestedOutcome: "Verify local health.", idempotencyKey: `session-${Date.now()}` });
+  const body = JSON.stringify({ intent: "system.health", requestedOutcome: "Verify local health.", idempotencyKey: `session-${Date.now()}` });
   assert.equal((await fetch(`${base}/api/tasks`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body })).status, 403);
   assert.equal((await fetch(`${base}/api/tasks`, { method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body })).status, 202);
+  const escalation = await fetch(`${base}/api/tasks`, {
+    method: "POST",
+    headers: { cookie, origin: base, "content-type": "application/json" },
+    body: JSON.stringify({ intent: "system.health", capability: "codex.execute", dataClass: "synthetic" }),
+  });
+  assert.equal(escalation.status, 422);
+  assert.equal((await escalation.json()).error, "caller-authority-field-forbidden");
 });

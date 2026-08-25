@@ -21,6 +21,7 @@ import {
   sessionCookie,
   CONTROL_SESSION_COOKIE,
 } from "./control-session.mjs";
+import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-policy.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -114,7 +115,7 @@ export function createControlServer({
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
         const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-${randomUUID()}`;
-        const task = submitTask(database, manifest, { ...body, correlationId, executionPlane: "primary-codex-local", taskType: body.taskType ?? "primary-codex" });
+        const task = submitTask(database, manifest, { ...body, intent: body.intent ?? body.capability, correlationId }, { source: "primary-codex", internal: true });
         return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
       }
       if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/objectives") {
@@ -127,7 +128,7 @@ export function createControlServer({
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
         const correlationId = body.correlationId ?? body.idempotencyKey ?? `pcx-builder-${randomUUID()}`;
-        const task = submitTask(database, manifest, builderIntakeBody(body, correlationId));
+        const task = submitTask(database, manifest, builderIntakeBody(body, correlationId), { source: "primary-codex-builder", internal: true });
         const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: body.authoritySessionId ?? null });
         return json(response, 202, { session, receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-builder-intake", summary: "Task-scoped Codex Builder assignment accepted for direct non-interactive execution." }), task });
       }
@@ -169,7 +170,7 @@ export function createControlServer({
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
-        const task = submitTask(database, manifest, body);
+        const task = submitTask(database, manifest, body, { source: "control-center", internal: false });
         return json(response, 202, { task });
       }
       const taskInput = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/input$/);
@@ -202,6 +203,9 @@ export function createControlServer({
       json(response, 404, { error: "not-found" });
     } catch (error) {
       if (error?.code === "idempotency-conflict") return json(response, 409, { error: "idempotency-conflict" });
+      if (/^(?:task-|caller-|attended-|integration-)/.test(error?.code ?? "")) {
+        return json(response, 422, { error: error.code });
+      }
       json(response, 400, { error: classify(error) });
     }
   });
@@ -298,34 +302,31 @@ export function coordinationPayload(manifest, database) {
   };
 }
 
-function submitTask(database, manifest, body) {
-  const existing = body.idempotencyKey ? database.getTaskByIdempotencyKey(body.idempotencyKey) : null;
+function submitTask(database, manifest, body, options = {}) {
+  const request = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);
+  const policy = deriveTaskPolicy(request, {
+    manifest, source: options.source ?? "control-center", internal: options.internal === true,
+    attendedSession: options.attendedSession ?? null, integrationLease: database.getIntegrationLease(),
+  });
+  const existing = request.idempotencyKey ? database.getTaskByIdempotencyKey(request.idempotencyKey) : null;
   let conversationId;
-  if (body.conversationId === false) conversationId = null;
-  else if (body.conversationId !== undefined) conversationId = body.conversationId;
+  if (request.conversationId === false) conversationId = null;
+  else if (request.conversationId !== undefined) conversationId = request.conversationId;
   else if (existing) conversationId = existing.conversationId;
   else conversationId = database.createConversation({
-      title: body.requestedOutcome ?? body.capability,
-      initialMessage: body.initialMessage ?? `Run ${body.capability}`,
+      title: request.requestedOutcome ?? policy.intent,
+      initialMessage: request.initialMessage ?? `Run ${policy.intent}`,
     }).id;
-  return database.submitTask({
-    capability: body.capability, dataClass: body.dataClass ?? "synthetic",
-    requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode, idempotencyKey: body.idempotencyKey,
-    correlationId: body.correlationId, taskType: body.taskType, requestedOutcome: body.requestedOutcome,
-    executionPlane: body.executionPlane ?? "local", priority: body.priority ?? "normal",
-    maximumAttempts: body.maximumAttempts ?? manifest.queue.maximumAttempts, conversationId,
-    taskArea: body.taskArea ?? "general", excludedWorkerIds: body.excludedWorkerIds ?? [],
-    completionCriteria: body.completionCriteria,
-  });
+  return database.submitPolicyTask({ ...policyTaskInput(request, policy, manifest), conversationId });
 }
 
 export function builderIntakeBody(body, correlationId) {
   return {
-    capability: "codex.execute", dataClass: "synthetic", requestedMode: body.requestedMode ?? "hybrid",
-    idempotencyKey: body.idempotencyKey, correlationId, taskType: "codex-builder",
-    requestedOutcome: body.requestedOutcome, executionPlane: "primary-codex-local",
-    priority: body.priority ?? "normal", maximumAttempts: 1, taskArea: body.taskArea ?? "codex-builder",
-    conversationId: false,
+    intent: "codex.execute", idempotencyKey: body.idempotencyKey, correlationId,
+    requestedOutcome: body.requestedOutcome, priority: body.priority ?? "normal", maximumAttempts: 1,
+    taskArea: body.taskArea ?? "codex-builder", conversationId: false,
+    authoritySessionId: body.authoritySessionId ?? null, integrationLeaseId: body.integrationLeaseId ?? null,
+    baseCommit: body.baseCommit, allowedPaths: body.allowedPaths,
   };
 }
 

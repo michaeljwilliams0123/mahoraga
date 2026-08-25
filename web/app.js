@@ -231,11 +231,9 @@ async function sendChat(content, forcedCapability = null) {
       conversationId = created.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
     } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
     const selected = forcedCapability || $('chat-tool').value;
-    const capability = selected === 'auto' ? autoRoute(content, attachments) : selected;
-    const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability);
-    if (!metadata) throw new Error(`${capability} has no enabled worker`);
-    const dataClass = inferDataClass(content, attachments, metadata.dataClasses);
-    await post('/api/tasks', { capability, dataClass, requestedMode: state.status.autonomyMode, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    const intent = selected === 'auto' ? autoRoute(content, attachments) : selected;
+    if (!state.status.capabilities.some((item) => item.enabled && item.capability === intent)) throw new Error(`${intent} has no enabled worker`);
+    await post('/api/tasks', { intent, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
     state.pendingAttachments = [];
     await refresh();
   } catch (error) { notify(error.message, 'error'); }
@@ -354,7 +352,7 @@ $('chat-form').addEventListener('drop', (event) => { event.preventDefault(); eve
 $('attachment-preview').addEventListener('click', (event) => { const button = event.target.closest('[data-remove-attachment]'); if (button) removePendingAttachment(button.dataset.removeAttachment); });
 document.querySelector('.suggestions').addEventListener('click', (event) => { const button = event.target.closest('[data-suggestion]'); if (button) sendChat(button.dataset.suggestion, button.dataset.capability); });
 $('task-capability').addEventListener('change', syncDataClass);
-$('task-form').addEventListener('submit', (event) => runForm(event, async () => { const capability = $('task-capability').value; const outcome = $('task-outcome').value.trim() || `Run ${capability}`; await dispatch(capability, outcome, $('task-priority').value, $('task-data-class').value); $('task-outcome').value = ''; }));
+$('task-form').addEventListener('submit', (event) => runForm(event, async () => { const capability = $('task-capability').value; const outcome = $('task-outcome').value.trim() || `Run ${capability}`; await dispatch(capability, outcome, $('task-priority').value); $('task-outcome').value = ''; }));
 $('improvement-form').addEventListener('submit', (event) => { const form = event.currentTarget; runForm(event, async () => { await post('/api/improvements', { title: $('improvement-title').value.trim(), summary: $('improvement-summary').value.trim() }); form.reset(); notify('Improvement candidate recorded'); await refresh(); }); });
 
 document.body.addEventListener('click', async (event) => {
@@ -366,7 +364,7 @@ document.body.addEventListener('click', async (event) => {
   const copyBranch = event.target.closest('[data-copy-branch]'); if (copyBranch) return runButton(copyBranch, async () => { await navigator.clipboard.writeText(copyBranch.dataset.copyBranch); notify('Return branch copied'); });
 });
 
-async function dispatch(capability, outcome, priority = 'high', dataClass = null) { requireCompatibleRuntime(); const metadata = state.status.capabilities.find((item) => item.enabled && item.capability === capability); if (!metadata) throw new Error(`${capability} has no enabled worker`); await post('/api/tasks', { capability, dataClass: dataClass || metadata.dataClasses[0], requestedMode: state.status.autonomyMode, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${capability}`); await refresh(); }
+async function dispatch(intent, outcome, priority = 'high') { requireCompatibleRuntime(); if (!state.status.capabilities.some((item) => item.enabled && item.capability === intent)) throw new Error(`${intent} has no enabled worker`); await post('/api/tasks', { intent, priority, requestedOutcome: outcome, initialMessage: outcome, idempotencyKey: `workspace-${Date.now()}-${Math.random().toString(16).slice(2)}` }); notify(`Dispatched ${intent}`); await refresh(); }
 async function runButton(button, action) { button.disabled = true; try { await action(); } catch (error) { notify(error.message, 'error'); } finally { button.disabled = false; } }
 async function runForm(event, action) { event.preventDefault(); return runButton(event.submitter, action); }
 function resizeComposer() { const input = $('chat-input'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 180)}px`; }

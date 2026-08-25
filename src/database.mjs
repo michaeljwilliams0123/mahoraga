@@ -204,6 +204,10 @@ export class RuntimeDatabase {
       ["conversation_id", "TEXT"],
       ["task_area", "TEXT"], ["excluded_worker_ids", "TEXT NOT NULL DEFAULT '[]'"],
       ["completion_criteria", "TEXT NOT NULL DEFAULT 'worker-verified'"],
+      ["intent", "TEXT"], ["attended_required", "INTEGER NOT NULL DEFAULT 0"],
+      ["allowed_worker_ids_json", "TEXT NOT NULL DEFAULT '[]'"], ["authority_session_id", "TEXT"],
+      ["integration_lease_id", "TEXT"], ["content_references_json", "TEXT NOT NULL DEFAULT '[]'"],
+      ["policy_version", "TEXT NOT NULL DEFAULT 'legacy-internal'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
   }
@@ -219,10 +223,19 @@ export class RuntimeDatabase {
     if (!current.has("source")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'runtime-api'");
   }
 
-  submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
+  submitPolicyTask(task) {
+    if (!task || task.policyVersion !== "7.0.0-alpha.1") throw new TypeError("Task policy version is invalid.");
+    if (!Array.isArray(task.allowedWorkerIds) || task.allowedWorkerIds.length < 1) throw new TypeError("Task policy has no allowed workers.");
+    return this.submitTask(task);
+  }
+
+  submitTask({ intent = capability, capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
-    completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified" }) {
+    completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
+    attendedRequired = false, allowedWorkerIds = [], authoritySessionId = null, integrationLeaseId = null,
+    contentReferences = [], policyVersion = "legacy-internal" }) {
+    bounded(intent, 80, "task intent");
     validateCapability(capability);
     validateDataClass(dataClass);
     bounded(requestedMode, 30, "requested mode");
@@ -235,6 +248,14 @@ export class RuntimeDatabase {
     slug(taskArea, "task area");
     if (!Array.isArray(excludedWorkerIds) || excludedWorkerIds.length > 16) throw new TypeError("Excluded worker IDs are invalid.");
     excludedWorkerIds.forEach((item) => slug(item, "excluded worker id"));
+    if (typeof attendedRequired !== "boolean") throw new TypeError("Attended requirement is invalid.");
+    if (!Array.isArray(allowedWorkerIds) || allowedWorkerIds.length > 32) throw new TypeError("Allowed worker IDs are invalid.");
+    allowedWorkerIds.forEach((item) => slug(item, "allowed worker id"));
+    if (authoritySessionId !== null) bounded(authoritySessionId, 128, "authority session id");
+    if (integrationLeaseId !== null) bounded(integrationLeaseId, 128, "integration lease id");
+    if (!Array.isArray(contentReferences) || contentReferences.length > 20) throw new TypeError("Content references are invalid.");
+    contentReferences.forEach((item) => bounded(item, 180, "content reference"));
+    bounded(policyVersion, 40, "policy version");
     if (conversationId !== null) { bounded(conversationId, 80, "conversation id"); if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing."); }
     const id = `mhg-${randomUUID()}`;
     const now = new Date().toISOString();
@@ -243,18 +264,23 @@ export class RuntimeDatabase {
       if (existing) {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
-          correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
+          correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
+          attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, policyVersion,
         });
         return task;
       }
       this.db.prepare(`INSERT INTO tasks
-        (id, idempotency_key, correlation_id, task_type, requested_outcome, capability, data_class, requested_mode,
-         execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, completion_criteria, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
-        .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
-          executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
-      this.#event("task.submitted", id, { correlationId, taskType, capability, dataClass, requestedMode, executionPlane, priority });
+        (id, idempotency_key, correlation_id, task_type, requested_outcome, intent, capability, data_class, requested_mode,
+         execution_plane, attended_required, allowed_worker_ids_json, authority_session_id, integration_lease_id,
+         content_references_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
+         excluded_worker_ids, completion_criteria, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+        .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, intent, capability, dataClass, requestedMode,
+          executionPlane, attendedRequired ? 1 : 0, JSON.stringify(allowedWorkerIds), authoritySessionId, integrationLeaseId,
+          JSON.stringify(contentReferences), policyVersion, priority, maximumAttempts, conversationId, taskArea,
+          JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
+      this.#event("task.submitted", id, { correlationId, taskType, intent, capability, dataClass, executionPlane, priority, policyVersion });
       return this.getTask(id);
     });
   }
@@ -857,7 +883,7 @@ function answerEvaluationIdentity(value) {
 
 function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
   id: row.id, idempotencyKey: row.idempotency_key, correlationId: row.correlation_id, taskType: row.task_type,
-  requestedOutcome: row.requested_outcome, capability: row.capability, dataClass: row.data_class,
+  requestedOutcome: row.requested_outcome, intent: row.intent ?? row.capability, capability: row.capability, dataClass: row.data_class,
   requestedMode: row.requested_mode, status: row.status, assignedWorker: row.assigned_worker,
   attemptCount: row.attempt_count, leaseExpiresAt: row.lease_expires_at, resultSummary: row.result_summary,
   errorCode: row.error_code, executionPlane: row.execution_plane, priority: row.priority,
@@ -865,17 +891,20 @@ function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error(
   conversationId: row.conversation_id,
   taskArea: row.task_area ?? "general", excludedWorkerIds: JSON.parse(row.excluded_worker_ids ?? "[]"),
   completionCriteria: row.completion_criteria ?? "worker-verified",
+  attendedRequired: Boolean(row.attended_required), allowedWorkerIds: JSON.parse(row.allowed_worker_ids_json ?? "[]"),
+  authoritySessionId: row.authority_session_id, integrationLeaseId: row.integration_lease_id,
+  contentReferences: JSON.parse(row.content_references_json ?? "[]"), policyVersion: row.policy_version ?? "legacy-internal",
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcome", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria"];
+  const fields = ["correlationId", "taskType", "requestedOutcome", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }
-  const storedExcluded = [...task.excludedWorkerIds].sort();
-  const requestedExcluded = [...request.excludedWorkerIds].sort();
-  if (JSON.stringify(storedExcluded) !== JSON.stringify(requestedExcluded)) {
-    throw idempotencyConflict("excludedWorkerIds");
+  for (const field of ["excludedWorkerIds", "allowedWorkerIds", "contentReferences"]) {
+    const stored = [...task[field]].sort();
+    const requested = [...request[field]].sort();
+    if (JSON.stringify(stored) !== JSON.stringify(requested)) throw idempotencyConflict(field);
   }
 }
 function idempotencyConflict(field) {
