@@ -67,7 +67,8 @@ export function createControlServer({
       const routeClass = classifyApiRoute(request.method, url.pathname);
       const authentication = authenticateLocalRequest(request, { primaryToken: primaryCodexToken, sessions: controlSessions });
       if (routeClass !== "static" && !authentication.authenticated) return json(response, 401, { error: "local-session-required" });
-      if (routeClass === "mutation" && authentication.mechanism === "cookie" && !cookieMutationOriginAllowed(request, controlOrigin)) {
+      const expectedControlOrigin = controlOrigin ?? `http://${manifest.runtime.host}:${request.socket.localPort}`;
+      if (routeClass === "mutation" && authentication.mechanism === "cookie" && !cookieMutationOriginAllowed(request, expectedControlOrigin)) {
         return json(response, 403, { error: "same-origin-required" });
       }
       if (request.method === "POST" && url.pathname === "/api/session/logout") {

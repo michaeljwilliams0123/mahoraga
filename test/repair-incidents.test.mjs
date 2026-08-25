@@ -44,9 +44,8 @@ test("recovery transitions preserve failure and rollback evidence", () => {
 
 test("database persists only incident transitions and no file content", (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-repair-incidents-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true });
-  t.after(() => database.close());
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   const first = database.reconcileRepairIncidents([ISSUE], BASELINE, new Date("2030-01-01T00:00:00Z"));
   const eventCount = database.listEvents().length;
   const unchanged = database.reconcileRepairIncidents([ISSUE], BASELINE, new Date("2030-01-01T00:01:00Z"));

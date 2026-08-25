@@ -29,7 +29,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   supervisor.start();
   const server = createControlServer({
     manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault, controlSessions,
-    controlOrigin: `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
+    controlOrigin: resolvedPort === 0 ? null : `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);

@@ -290,7 +290,7 @@ export class RuntimeDatabase {
     return this.submitTask(task);
   }
 
-  submitTask({ intent = capability, capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
+  submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",

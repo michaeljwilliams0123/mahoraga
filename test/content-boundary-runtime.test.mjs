@@ -9,10 +9,9 @@ import { startRuntime } from "../src/runtime.mjs";
 
 test("new task and conversation content stays outside operational SQLite projections", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-boundary-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const vault = await createContentVault({ root: path.join(root, "vault"), masterKey: Buffer.alloc(32, 11) });
   const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { contentVault: vault });
-  t.after(() => database.close());
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
 
   const conversation = database.createConversation({ title: "Private title", initialMessage: "Private conversation payload", classification: "local-only" });
   const task = database.submitTask({
@@ -33,10 +32,9 @@ test("new task and conversation content stays outside operational SQLite project
 
 test("content access evidence stores identity and classification but never returned bytes", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-evidence-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const vault = await createContentVault({ root: path.join(root, "vault"), masterKey: Buffer.alloc(32, 12) });
   const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { contentVault: vault });
-  t.after(() => database.close());
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   const task = database.submitTask({ capability: "system.health", dataClass: "local-only", requestedOutcome: "Never persist this phrase", idempotencyKey: "content-evidence-task" });
   database.recordContentAccess({ reference: task.requestedOutcomeReference, ownerType: "task", ownerId: task.id, classification: "local-only", mechanism: "cookie", sessionId: "session-identity-redacted" });
   const event = database.listEvents().find((item) => item.eventType === "content.accessed");
