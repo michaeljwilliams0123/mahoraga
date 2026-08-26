@@ -3,13 +3,13 @@
   "product": "Mahoraga",
   "version": "7.0.0-alpha.1",
   "gate": "release-candidate-and-inactive-runtime",
-  "status": "passed-review-pending",
+  "status": "passed-rereview-and-ci-pending",
   "branch": "agent/mahoraga-7-truth-containment",
-  "verifiedImplementationCommit": "06820ba3597e23c69adcfe3535a10673e2128191",
-  "verifiedImplementationTree": "5b6be9c733dbe0a01e7f924825598e7f1f15f92e",
+  "verifiedImplementationCommit": "cfdeabe763b84ce0aea58e7d5dc381cf791942d3",
+  "verifiedImplementationTree": "eb7f6ae4ca5a227edf39bce887adcdd958d278f0",
   "focusedGateCommit": "cb7e1255e6391053c619df953df9560511dd3adc",
   "rollbackCommit": "397acebf16766f44e3b4317f9d8b68b10de5f821",
-  "recordedAt": "2026-08-25T09:51:56.4607742Z",
+  "recordedAt": "2026-08-26T04:42:30.3723964Z",
   "environment": {
     "machine": "SD009WC7",
     "os": "Microsoft Windows NT 10.0.26200.0",
@@ -39,12 +39,12 @@
       "onlyFailure": "release baseline correctly detected six changed essential files"
     },
     "finalFullSuite": {
-      "tests": 247,
-      "passed": 247,
+      "tests": 250,
+      "passed": 250,
       "failed": 0,
       "cancelled": 0,
       "skipped": 0,
-      "durationMs": 41783.4976
+      "durationMs": 32760.2012
     },
     "finalStructuralConfirmation": {
       "file": "test/executable-boundary.test.mjs",
@@ -59,6 +59,29 @@
     "essentialFiles": 84,
     "finalScanHealthy": true,
     "issues": 0
+  },
+  "adversarialReview": {
+    "reviewedCommit": "6b8d2d08ba89c03e62c84f1e10a4043131a39e8d",
+    "reviewer": "github-codex",
+    "priorityOneFindings": 6,
+    "resolvedFindings": 6,
+    "portabilityCommit": "bc16906dc29bb5d33ad3c9659d06e975bbcabc9e",
+    "remediationCommit": "cfdeabe763b84ce0aea58e7d5dc381cf791942d3",
+    "focusedRegressionGate": {
+      "tests": 33,
+      "passed": 33,
+      "failed": 0,
+      "durationMs": 18719.9636
+    },
+    "fullReleaseGate": {
+      "manifestValidation": "passed",
+      "coordinationValidation": "passed",
+      "githubAuditChecks": 10,
+      "githubAuditBlockingFailures": 0,
+      "tests": 250,
+      "passed": 250,
+      "failed": 0
+    }
   },
   "inactiveCandidateSmoke": {
     "port": 4783,
@@ -102,7 +125,7 @@
   "promotionRecommendation": {
     "eligibleForReviewOnlyPullRequest": true,
     "eligibleForProductionCutover": false,
-    "remainingGate": "GitHub Codex adversarial review against the exact verified implementation commit",
+    "remainingGate": "GitHub Codex rereview and cross-platform CI against the exact remediated implementation commit",
     "mergeAuthorized": false
   }
 }
