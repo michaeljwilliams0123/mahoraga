@@ -12,6 +12,7 @@ const GOVERNANCE_FILES = Object.freeze([
   "SECURITY.md",
   "docs/GITHUB-OPERATIONS.md",
   "docs/GITHUB-SECURITY-BASELINE.md",
+  "docs/DESTINY-CODEX-RELAY.md",
 ]);
 const SAFE_EMAIL_DOMAINS = new Set(["example.com", "odata.bind", "users.noreply.github.com"]);
 const TEXT_FILE = /(?:^|\/)(?:[^/]+\.(?:cjs|css|html|js|json|md|mjs|ps1|py|sh|txt|yaml|yml)|AGENTS\.md|CODEOWNERS)$/i;
@@ -78,6 +79,28 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     "blocking",
     unsafeTriggers.length ? "A workflow uses pull_request_target." : "No workflow uses pull_request_target.",
     unsafeTriggers.length ? { files: unsafeTriggers } : undefined,
+  );
+
+  const destinyWorkflow = workflowSources.find(([file]) => file === ".github/workflows/destiny-codex-relay.yml")?.[1] ?? "";
+  const destinyFiles = [
+    ".github/workflows/destiny-codex-relay.yml",
+    "scripts/destiny-codex-dispatch.mjs",
+    "src/destiny-codex-dispatch.mjs",
+    "docs/DESTINY-CODEX-RELAY.md",
+  ];
+  const destinyMissing = destinyFiles.filter((file) => !fileSet.has(file));
+  const destinyTrusted = destinyMissing.length === 0
+    && /path:\s*trusted/.test(destinyWorkflow)
+    && /path:\s*candidate/.test(destinyWorkflow)
+    && /node trusted\/scripts\/destiny-codex-dispatch\.mjs validate-pr --root candidate/.test(destinyWorkflow)
+    && !/contents:\s*write/.test(destinyWorkflow)
+    && !/pull-requests:\s*write/.test(destinyWorkflow);
+  add(
+    "destiny-codex-relay",
+    destinyTrusted,
+    "blocking",
+    destinyTrusted ? "Destiny Codex dispatches use an owner-bound, trusted-base, read-only validation gate." : "The Destiny Codex trusted relay contract is incomplete or writable.",
+    destinyMissing.length ? { files: destinyMissing } : undefined,
   );
 
   const actions = [];

@@ -26,6 +26,9 @@ test("coordination docs define equal primaries and guarded integration", async (
   assert.match(coordination, /Secondary Codex implements scoped repository work only/);
   assert.match(coordination, /it never pushes or merges `main`/);
   assert.match(coordination, /paths may overlap/);
+  assert.match(coordination, /Destiny Codex event lane/);
+  assert.match(coordination, /matching `\[DESTINY-CODEX:ACK\]` comment is the delivery receipt/);
+  assert.match(coordination, /does not transfer authentication, subscription credits, conversations, or\s+personal context/);
 });
 
 test("pull requests require deterministic evidence and public-repository privacy checks", async () => {

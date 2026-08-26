@@ -61,6 +61,11 @@ suites are source material for later worker migration.
 - Authenticated loopback-only Primary Codex intake with server-generated
   correlation IDs and immutable execution receipts. The local token is runtime
   state and is never kept in Git or SQLite.
+- Owner-gated, event-driven Destiny Codex dispatch through a hash-bound GitHub
+  pull-request envelope. Trusted `main` validates the immutable base commit,
+  allowed paths, fixed verification profiles, and privacy declaration before
+  work proceeds; `[DESTINY-CODEX:ACK]` is the delivery receipt. See
+  [`docs/DESTINY-CODEX-RELAY.md`](docs/DESTINY-CODEX-RELAY.md).
 - Operational and core repair remain automatic; missing core files are restored
   from the verified release baseline with receipts and rollback checkpoints.
 - VS Code prompt files for health review, repository drift review, and tested
@@ -82,6 +87,11 @@ suites are source material for later worker migration.
   private mode, use GitHub's signed-in Agents, Issues, Pull requests, Actions,
   and Deployments views instead; the private repository is not a secure
   private-hosting mechanism for a personal-account Pages site.
+- **Call the Destiny-authenticated Codex:** open an owner-authored pull request
+  to `main` with the exact title `[DESTINY-CODEX] <envelope title>` and one
+  generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
+  the event without an inbound tunnel. Wait for both the read-only validation
+  check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
 
 
 ## Production lifecycle
