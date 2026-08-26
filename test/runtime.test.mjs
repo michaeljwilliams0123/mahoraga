@@ -45,11 +45,16 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const base = `http://127.0.0.1:${runtime.address.port}`;
   await waitFor(async () => {
     const status = await (await fetch(`${base}/api/status`)).json();
-    return ["system.health", "repository.inspect"].every((capability) =>
+    const requiredRoutesReady = ["system.health", "repository.inspect"].every((capability) =>
       status.capabilities.some((item) => item.capability === capability && item.routable === true),
     );
+    const providerReadinessSettled = status.capabilities.filter((item) => item.provider === "ready").every((item) => item.canary !== "never");
+    return requiredRoutesReady && providerReadinessSettled;
   });
   const status = await (await fetch(`${base}/api/status`)).json();
+  const readyCapabilities = status.capabilities.filter((item) => item.provider === "ready");
+  assert.ok(readyCapabilities.length > 0);
+  assert.deepEqual(readyCapabilities.filter((item) => item.canary === "never").map((item) => item.capability), []);
   assert.equal(status.controlCenterApi.protocolVersion, 1);
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);

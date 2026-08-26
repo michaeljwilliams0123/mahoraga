@@ -54,6 +54,13 @@ test("capability and family mismatches are rejected", () => {
   assert.throws(() => validateCapabilityReceipt("desktop.inspect", { ...receipt, details: { ...receipt.details, family: "browser" } }), /desktop-receipt-details-invalid/);
 });
 
+test("receipts require an explicit positive worker verification claim", () => {
+  assert.throws(
+    () => createCapabilityReceipt("repair.scan", { healthy: false, summary: "Repair scan found corruption." }, { observedAt: NOW }),
+    /worker-verification-required/,
+  );
+  assert.equal(createCapabilityReceipt("repair.scan", { verified: false, healthy: false, summary: "Repair scan found corruption." }, { observedAt: NOW }).outcome, "failed");
+});
 test("receipt failures produce stable bounded error contracts", () => {
   assert.deepEqual(receiptFailure(Object.assign(new Error("bad"), { code: "receipt-summary-invalid" })), {
     errorCode: "receipt-summary-invalid",

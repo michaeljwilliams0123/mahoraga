@@ -16,6 +16,7 @@ const manifest = {
 test("generic intake cannot assert authority fields", () => {
   assert.throws(() => sanitizeTaskIntake({ intent: "repository.inspect", capability: "codex.execute" }), /caller-authority-field-forbidden/);
   assert.throws(() => sanitizeTaskIntake({ intent: "repository.inspect", dataClass: "synthetic" }), /caller-authority-field-forbidden/);
+  assert.throws(() => sanitizeTaskIntake({ intent: "repository.inspect", authoritySessionId: "caller-asserted" }), /caller-authority-field-forbidden/);
 });
 
 test("repository policy derives capability, data boundary, plane, and worker", () => {
@@ -40,6 +41,11 @@ test("repository policy derives capability, data boundary, plane, and worker", (
 test("attended and integration authority fail closed", () => {
   assert.throws(() => deriveTaskPolicy({ intent: "desktop.interact" }, { manifest }), /attended-session-required/);
   assert.throws(() => deriveTaskPolicy({ intent: "codex.execute" }, { manifest, internal: true }), /integration-lease-required/);
+  const attended = deriveTaskPolicy({ intent: "desktop.interact" }, {
+    manifest, attendedSession: { active: true, sessionId: "browser-session" },
+  });
+  assert.equal(attended.attendedRequired, true);
+  assert.equal(attended.authoritySessionId, "browser-session");
 });
 
 test("Codex policy binds an immutable base and allowlist to the active lease", () => {

@@ -13,9 +13,6 @@ import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
 
-const SAFE_STARTUP_CANARIES = new Set([
-  "assistant.respond", "provider.gap", "artifact.inspect", "manifest.validate", "repository.inspect",
-]);
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
 
@@ -61,13 +58,23 @@ async function probeProviderReadiness() {
 
 async function probeCapabilityCanaries() {
   for (const capability of worker.capabilities) {
-    if (!SAFE_STARTUP_CANARIES.has(capability) || capability === worker.healthProbe) continue;
+    const canaryMode = worker.capabilityCanaries[capability];
+    if (canaryMode === "health" || capability === worker.healthProbe) continue;
     const observedAt = new Date().toISOString();
     const startedAt = Date.now();
     try {
-      const result = capability === "artifact.inspect"
-        ? await artifactInspectionCanary()
-        : await execute(capability, { id: `startup-canary-${workerId}`, requestedOutcome: `Verify ${capability} without external content.` });
+      let result;
+      if (canaryMode === "provider-derived") {
+        result = {
+          verified: true,
+          summary: `${capability} inherits verified readiness from ${worker.healthProbe} without exercising a side effect.`,
+          providerHealth: { canaryMode, sourceCapability: worker.healthProbe },
+        };
+      } else {
+        result = capability === "artifact.inspect"
+          ? await artifactInspectionCanary()
+          : await execute(capability, { id: `startup-canary-${workerId}`, requestedOutcome: `Verify ${capability} without external content.` });
+      }
       const receipt = createCapabilityReceipt(capability, result, { observedAt, durationMs: Date.now() - startedAt });
       process.send?.({ type: "capability.canary", workerId, capability, receipt, observedAt });
     } catch (error) {
@@ -113,7 +120,7 @@ async function execute(capability, task) {
       return { verified: true, summary: "Canonical manifest passed validation.", workers: manifest.workers.length };
     case "repair.scan": {
       const scan = await scanRepairState(manifest);
-      return { summary: scan.healthy ? `Offline repair baseline is healthy across ${scan.checked} essential files.` : `Offline repair scan found ${scan.issues.length} issue(s).`, ...scan };
+      return { verified: scan.healthy, summary: scan.healthy ? `Offline repair baseline is healthy across ${scan.checked} essential files.` : `Offline repair scan found ${scan.issues.length} issue(s).`, ...scan };
     }
     case "repair.apply":
       return applyAutomaticRepairs(manifest);

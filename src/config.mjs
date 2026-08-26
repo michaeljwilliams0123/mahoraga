@@ -140,6 +140,16 @@ export function validateManifest(value) {
     integer(worker.timeoutMs, 1000, 3600000, "worker timeoutMs");
     integer(worker.concurrency, 1, 16, "worker concurrency");
     capability(worker.healthProbe);
+    if (worker.enabled) {
+      if (!isRecord(worker.capabilityCanaries)) throw new TypeError(`Worker ${worker.id} capability canaries are invalid.`);
+      const canaryCapabilities = Object.keys(worker.capabilityCanaries).sort();
+      const declaredCapabilities = [...worker.capabilities].sort();
+      if (canaryCapabilities.length !== declaredCapabilities.length || canaryCapabilities.some((item, index) => item !== declaredCapabilities[index])) throw new TypeError(`Worker ${worker.id} capability canaries must cover every capability exactly.`);
+      if (worker.capabilityCanaries[worker.healthProbe] !== "health") throw new TypeError(`Worker ${worker.id} health probe canary is invalid.`);
+      for (const [canaryCapability, mode] of Object.entries(worker.capabilityCanaries)) {
+        if (!new Set(["health", "direct", "provider-derived"]).has(mode) || (mode === "health") !== (canaryCapability === worker.healthProbe)) throw new TypeError(`Worker ${worker.id} capability canary mode is invalid.`);
+      }
+    }
     bounded(worker.executionPlane, 40, "worker execution plane");
     if (!isRecord(worker.routing) || !validRoutingValue(worker.routing.interfaceType)) throw new TypeError(`Worker ${worker.id} interface type is invalid.`);
     slug(worker.routing.permissionClass, "worker permission class");

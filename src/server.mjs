@@ -184,7 +184,11 @@ export function createControlServer({
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
-        const task = submitTask(database, manifest, body, { source: "control-center", internal: false });
+        const task = submitTask(database, manifest, body, {
+          source: "control-center",
+          internal: false,
+          attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
+        });
         return json(response, 202, { task });
       }
       const taskInput = url.pathname.match(/^\/api\/tasks\/(mhg-[a-f0-9-]+)\/input$/);

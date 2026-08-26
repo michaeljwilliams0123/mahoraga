@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { createContentVault } from "../src/content-vault.mjs";
 import { RuntimeDatabase } from "../src/database.mjs";
 import { startRuntime } from "../src/runtime.mjs";
@@ -42,6 +43,45 @@ test("content access evidence stores identity and classification but never retur
   assert.equal(event.metadata.sessionBound, true);
   assert.doesNotMatch(JSON.stringify(event), /Never persist this phrase|session-identity-redacted/);
 });
+test("startup migrates legacy conversation plaintext into the content vault", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-legacy-content-"));
+  const file = path.join(root, "runtime.sqlite");
+  const legacy = new DatabaseSync(file);
+  legacy.exec(`
+    CREATE TABLE conversations (
+      id TEXT PRIMARY KEY, title TEXT NOT NULL, status TEXT NOT NULL,
+      current_task_id TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+    );
+    CREATE TABLE conversation_messages (
+      id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, task_id TEXT,
+      role TEXT NOT NULL, content TEXT NOT NULL, requires_response INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL, FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+    );
+  `);
+  const timestamp = "2026-08-25T12:00:00.000Z";
+  legacy.prepare("INSERT INTO conversations(id,title,status,created_at,updated_at) VALUES(?,?,'active',?,?)")
+    .run("con-legacy", "Legacy private title", timestamp, timestamp);
+  legacy.prepare("INSERT INTO conversation_messages(id,conversation_id,role,content,created_at) VALUES(?,?,'user',?,?)")
+    .run("msg-legacy", "con-legacy", "Legacy private message", timestamp);
+  legacy.close();
+
+  const vault = await createContentVault({ root: path.join(root, "vault"), masterKey: Buffer.alloc(32, 14) });
+  const database = new RuntimeDatabase(file, { contentVault: vault });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+
+  const conversationRow = database.db.prepare("SELECT * FROM conversations WHERE id='con-legacy'").get();
+  const messageRow = database.db.prepare("SELECT * FROM conversation_messages WHERE id='msg-legacy'").get();
+  assert.equal(conversationRow.title, "[vault-content]");
+  assert.match(conversationRow.title_ref, /^vault:/);
+  assert.equal(messageRow.content, "[vault-content]");
+  assert.match(messageRow.content_ref, /^vault:/);
+  assert.doesNotMatch(JSON.stringify({ conversationRow, messageRow }), /Legacy private/);
+  assert.equal(vault.get(conversationRow.title_ref, {
+    ownerType: "conversation", ownerId: "con-legacy", classification: "local-only",
+  }).toString("utf8"), "Legacy private title");
+  assert.equal(database.listConversationMessagesForExecution("con-legacy")[0].content, "Legacy private message");
+});
+
 
 test("authenticated content endpoint validates owner and classification before returning bytes", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-api-"));

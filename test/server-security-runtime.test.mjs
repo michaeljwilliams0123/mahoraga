@@ -41,6 +41,24 @@ test("runtime protects sensitive reads and mutations behind a prompt-free local 
   assert.equal(exchange.headers.get("location"), "/");
   const cookie = exchange.headers.get("set-cookie").split(";", 1)[0];
   assert.equal((await fetch(`${base}/api/tasks`, { headers: { cookie } })).status, 200);
+  const attendedBody = JSON.stringify({
+    intent: "desktop.interact",
+    requestedOutcome: "focus-window",
+    taskArea: "excel",
+    idempotencyKey: `attended-${Date.now()}`,
+  });
+  const attended = await fetch(`${base}/api/tasks`, {
+    method: "POST", headers: { cookie, origin: base, "content-type": "application/json" }, body: attendedBody,
+  });
+  assert.equal(attended.status, 202);
+  assert.equal(typeof (await attended.json()).task.authoritySessionId, "string");
+  const bearerOnly = await fetch(`${base}/api/tasks`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({ ...JSON.parse(attendedBody), idempotencyKey: `bearer-${Date.now()}` }),
+  });
+  assert.equal(bearerOnly.status, 422);
+  assert.equal((await bearerOnly.json()).error, "attended-session-required");
 
   const body = JSON.stringify({ intent: "system.health", requestedOutcome: "Verify local health.", idempotencyKey: `session-${Date.now()}` });
   assert.equal((await fetch(`${base}/api/tasks`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body })).status, 403);

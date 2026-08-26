@@ -3,7 +3,7 @@ const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
 const FORBIDDEN_CALLER_FIELDS = new Set([
   "capability", "dataClass", "executionPlane", "workerId", "allowedWorkerIds",
-  "attendedRequired", "requestedMode", "excludedWorkerIds", "policyVersion",
+  "attendedRequired", "requestedMode", "excludedWorkerIds", "policyVersion", "authoritySessionId",
 ]);
 const GENERIC_INTENTS = new Set([
   "assistant.respond", "artifact.inspect", "system.health", "manifest.validate", "provider.gap",
@@ -18,7 +18,7 @@ export function sanitizeTaskIntake(body) {
   const allowed = new Set([
     "intent", "requestedOutcome", "idempotencyKey", "correlationId", "priority", "conversationId",
     "initialMessage", "attachmentIds", "contentReferences", "taskArea", "completionCriteria",
-    "maximumAttempts", "baseCommit", "allowedPaths", "authoritySessionId", "integrationLeaseId",
+    "maximumAttempts", "baseCommit", "allowedPaths", "integrationLeaseId",
   ]);
   for (const field of Object.keys(body)) if (!allowed.has(field)) throw policyError("task-intake-field-unknown");
   return Object.freeze({ ...body });
@@ -63,7 +63,7 @@ export function deriveTaskPolicy(input, {
     executionPlane: executionPlanes[0],
     attendedRequired,
     allowedWorkerIds: eligible.map((worker) => worker.id).sort(),
-    authoritySessionId: request.authoritySessionId ?? attendedSession?.sessionId ?? null,
+    authoritySessionId: internal ? request.authoritySessionId ?? attendedSession?.sessionId ?? null : attendedSession?.sessionId ?? null,
     integrationLeaseId,
     contentReferences,
     baseCommit,

@@ -81,7 +81,7 @@ export async function inspectExecutionCell(cell, dependencies = {}) {
   assertWithin(value.cellsRoot, resolvedCell, "execution-cell-realpath-escape");
   const status = await runGit(deps, ["status", "--porcelain=v1", "-z", "--untracked-files=all"], resolvedCell);
   const workingPaths = parsePorcelain(status.stdout);
-  const committedPaths = parseZeroList((await runGit(deps, ["diff", "--name-only", "-z", value.baseCommit, "HEAD"], resolvedCell)).stdout);
+  const committedPaths = parseZeroList((await runGit(deps, ["diff", "--name-only", "--no-renames", "-z", value.baseCommit, "HEAD"], resolvedCell)).stdout);
   const changedPaths = [...new Set([...workingPaths, ...committedPaths])].sort();
   const conflicts = parseZeroList((await runGit(deps, ["diff", "--name-only", "--diff-filter=U", "-z", "HEAD"], resolvedCell)).stdout);
   const headCommit = await resolveCommit(deps, resolvedCell, "HEAD");
@@ -212,7 +212,11 @@ function parsePorcelain(source) {
     if (record.length < 4) throw cellError("execution-cell-status-invalid");
     const code = record.slice(0, 2);
     changed.push(normalizeRepoPath(record.slice(3)));
-    if (/[RC]/.test(code) && records[index + 1]) index += 1;
+    if (/[RC]/.test(code)) {
+      if (!records[index + 1]) throw cellError("execution-cell-status-invalid");
+      changed.push(normalizeRepoPath(records[index + 1]));
+      index += 1;
+    }
   }
   return [...new Set(changed)].sort();
 }

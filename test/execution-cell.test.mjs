@@ -75,6 +75,23 @@ test("out-of-scope candidate changes are quarantined with metadata-only evidence
   assert.equal(existsSync(quarantined.quarantineMarker), true);
   await removeExecutionCell(cell);
 });
+test("execution-cell inspection validates both sides of a committed rename", async (t) => {
+  const repo = repository(t);
+  mkdirSync(path.join(repo.root, "outside"), { recursive: true });
+  writeFileSync(path.join(repo.root, "outside", "secret.txt"), "private\n", "utf8");
+  git(repo.root, "add", "outside/secret.txt");
+  git(repo.root, "commit", "-m", "add outside file");
+  repo.baseCommit = git(repo.root, "rev-parse", "HEAD").trim();
+  const cell = await createExecutionCell(contract(repo, { allowedPaths: ["src"] }));
+  mkdirSync(path.join(cell.path, "src"), { recursive: true });
+  git(cell.path, "mv", "outside/secret.txt", "src/secret.txt");
+  git(cell.path, "commit", "-m", "move into allowed path");
+  const inspection = await inspectExecutionCell(cell);
+  assert.deepEqual(inspection.changedPaths, ["outside/secret.txt", "src/secret.txt"]);
+  assert.ok(inspection.violations.includes("changed-path-outside-allowlist:outside/secret.txt"));
+  await removeExecutionCell(cell);
+});
+
 
 function git(cwd, ...args) {
   return execFileSync("git", args, { cwd, encoding: "utf8", windowsHide: true });

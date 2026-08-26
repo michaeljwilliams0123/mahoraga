@@ -236,6 +236,7 @@ export class RuntimeDatabase {
     this.#ensureSecondaryAssignmentColumns();
     this.#ensureContentColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
+    this.#migrateLegacyContent();
   }
 
   #ensureTaskColumns() {
@@ -282,6 +283,50 @@ export class RuntimeDatabase {
     for (const [name, definition] of [
       ["content_ref", "TEXT"], ["content_sha256", "TEXT"], ["content_size_bytes", "INTEGER"], ["content_classification", "TEXT"], ["content_expires_at", "TEXT"],
     ]) if (!messages.has(name)) this.db.exec(`ALTER TABLE conversation_messages ADD COLUMN ${name} ${definition}`);
+  }
+
+  #migrateLegacyContent() {
+    const sentinel = "[vault-content]";
+    const conversations = this.db.prepare(`SELECT id,title,title_ref,title_classification
+      FROM conversations WHERE title_ref IS NULL OR title<>?`).all(sentinel);
+    const messages = this.db.prepare(`SELECT m.id,m.content,m.content_ref,
+      COALESCE(m.content_classification,c.title_classification,'local-only') AS classification
+      FROM conversation_messages m LEFT JOIN conversations c ON c.id=m.conversation_id
+      WHERE m.content_ref IS NULL OR m.content<>?`).all(sentinel);
+    const missingConversationReference = conversations.some((row) => row.title_ref === null && row.title === sentinel);
+    const missingMessageReference = messages.some((row) => row.content_ref === null && row.content === sentinel);
+    if (missingConversationReference || missingMessageReference) throw new Error("vault-content-reference-missing");
+    const plaintextExists = conversations.some((row) => row.title_ref === null && row.title !== sentinel)
+      || messages.some((row) => row.content_ref === null && row.content !== sentinel);
+    if (plaintextExists && !this.contentVault) {
+      if (this.allowLegacyPlaintextWrites) return;
+      throw new Error("content-vault-required-for-legacy-migration");
+    }
+    if (conversations.length === 0 && messages.length === 0) return;
+    this.#transaction(() => {
+      const updateConversation = this.db.prepare(`UPDATE conversations SET
+        title=?,title_ref=?,title_sha256=?,title_size_bytes=?,title_classification=?,title_expires_at=? WHERE id=?`);
+      for (const row of conversations) {
+        if (row.title_ref !== null) {
+          this.db.prepare("UPDATE conversations SET title=? WHERE id=?").run(sentinel, row.id);
+          continue;
+        }
+        const classification = row.title_classification ?? "local-only";
+        const stored = this.#storeContent(row.title, { classification, ownerType: "conversation", ownerId: row.id });
+        updateConversation.run(sentinel, stored.reference, stored.sha256, stored.sizeBytes, classification, stored.expiresAt, row.id);
+      }
+      const updateMessage = this.db.prepare(`UPDATE conversation_messages SET
+        content=?,content_ref=?,content_sha256=?,content_size_bytes=?,content_classification=?,content_expires_at=? WHERE id=?`);
+      for (const row of messages) {
+        if (row.content_ref !== null) {
+          this.db.prepare("UPDATE conversation_messages SET content=? WHERE id=?").run(sentinel, row.id);
+          continue;
+        }
+        const classification = row.classification ?? "local-only";
+        const stored = this.#storeContent(row.content, { classification, ownerType: "message", ownerId: row.id });
+        updateMessage.run(sentinel, stored.reference, stored.sha256, stored.sizeBytes, classification, stored.expiresAt, row.id);
+      }
+    });
   }
 
   submitPolicyTask(task) {

@@ -17,7 +17,8 @@ export function createCapabilityReceipt(capability, result, {
   validateCapability(capability);
   if (!isRecord(result)) throw receiptError("worker-result-invalid");
   const family = capabilityFamily(capability);
-  const verified = result.verified !== false;
+  if (typeof result.verified !== "boolean") throw receiptError("worker-verification-required");
+  const verified = result.verified === true;
   const outcome = result.waitingForUser === true ? "waiting" : verified ? "succeeded" : "failed";
   const providerEvidence = sanitizeRecord(result.providerReceipt ?? result.receiptMetadata ?? result.providerHealth ?? {});
   const outputEvidence = sanitizeRecord(Object.fromEntries(Object.entries(result).filter(([key]) => ![

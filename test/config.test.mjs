@@ -28,6 +28,11 @@ test("canonical manifest defines verified automatic update authority and localho
     executionCells: { root: "state/execution-cells/codex" },
     receipts: { schemaVersion: 1 },
   });
+  for (const worker of manifest.workers.filter((item) => item.enabled)) {
+    assert.deepEqual(Object.keys(worker.capabilityCanaries).sort(), [...worker.capabilities].sort());
+    assert.equal(worker.capabilityCanaries[worker.healthProbe], "health");
+    assert.ok(Object.values(worker.capabilityCanaries).every((mode) => ["health", "direct", "provider-derived"].includes(mode)));
+  }
 });
 
 test("manifest rejects external browser targets and premature signed browser access", async () => {
