@@ -5,12 +5,20 @@ import os from "node:os";
 import path from "node:path";
 import { startRuntime } from "../src/runtime.mjs";
 
+const TEST_VAULT_KEY = Buffer.alloc(32, 25);
+
 test("runtime protects sensitive reads and mutations behind a prompt-free local session", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-session-runtime-"));
   const previousToken = process.env.MAHORAGA_PRIMARY_CODEX_TOKEN;
   const token = "session-test-token-".padEnd(48, "x");
   process.env.MAHORAGA_PRIMARY_CODEX_TOKEN = token;
-  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), artifactRoot: path.join(root, "artifacts"), syncCoordinationMailbox: false });
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    artifactRoot: path.join(root, "artifacts"),
+    contentVaultMasterKey: TEST_VAULT_KEY,
+    syncCoordinationMailbox: false,
+  });
   t.after(async () => {
     await runtime.stop();
     rmSync(root, { recursive: true, force: true });

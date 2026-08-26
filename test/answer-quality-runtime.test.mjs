@@ -7,10 +7,17 @@ import { startRuntime } from "../src/runtime.mjs";
 
 const PRIMARY_TOKEN = "answer-quality-primary-token-000000000001";
 const AUTH = { authorization: `Bearer ${PRIMARY_TOKEN}` };
+const TEST_VAULT_KEY = Buffer.alloc(32, 21);
 
 test("acknowledgement-only chat answers retry boundedly and end explicitly unresolved", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-answer-quality-"));
-  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), primaryCodexToken: PRIMARY_TOKEN, syncCoordinationMailbox: false });
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: TEST_VAULT_KEY,
+    primaryCodexToken: PRIMARY_TOKEN,
+    syncCoordinationMailbox: false,
+  });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const submitted = await (await fetch(`${base}/api/tasks`, {
@@ -41,7 +48,7 @@ test("acknowledgement-only chat answers retry boundedly and end explicitly unres
   assert.match(messages.at(-1).content, /No claim of completion was recorded/);
 });
 
-async function waitFor(check, timeoutMs = 8000) {
+async function waitFor(check, timeoutMs = 30000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await check();

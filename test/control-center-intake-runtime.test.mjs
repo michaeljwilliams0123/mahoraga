@@ -7,10 +7,17 @@ import { startRuntime } from "../src/runtime.mjs";
 
 const PRIMARY_TOKEN = "control-intake-primary-token-00000000000001";
 const AUTH = { authorization: `Bearer ${PRIMARY_TOKEN}` };
+const TEST_VAULT_KEY = Buffer.alloc(32, 22);
 
 test("private browser artifact intake and provider gaps produce explicit receipts", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-control-intake-"));
-  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), primaryCodexToken: PRIMARY_TOKEN, syncCoordinationMailbox: false });
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: TEST_VAULT_KEY,
+    primaryCodexToken: PRIMARY_TOKEN,
+    syncCoordinationMailbox: false,
+  });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
   await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).capabilities.some((item) => item.capability === "provider.gap" && item.routable === true));
