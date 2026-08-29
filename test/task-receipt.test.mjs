@@ -61,3 +61,20 @@ test("enforces intent and capability consistency and unsupported-state restricti
   assert.throws(() => validateTaskReceipt({ ...base, requiredEvidenceIds: ["made-up-evidence"] }));
   assert.throws(() => validateTaskReceipt({ ...base, limitations: ["made-up-limitation"] }));
 });
+test("permits only the four unsupported states and rejects all unsupported capabilities", () => {
+  const base = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: null, reason: "x" }, state: "accepted", providerDecision: { providerId: null }, nextAction: "wait" });
+  for (const state of ["unsupported", "waiting", "blocked", "failed"]) assert.doesNotThrow(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
+  for (const state of ["accepted", "running", "verifying", "partial", "succeeded"]) assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
+  assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: "provider.gap", state: "unsupported" }));
+});
+
+test("freezes receipt root, arrays, and nested contract-derived values", () => {
+  const receipt = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: "worker.repository", reason: "registered-capability" }, state: "succeeded", providerDecision: { providerId: "provider.local", metadata: { ignored: true } }, nextAction: "return-summary" });
+  assert.equal(Object.isFrozen(receipt), true);
+  assert.equal(Object.isFrozen(receipt.requiredEvidenceIds), true);
+  assert.equal(Object.isFrozen(receipt.limitations), true);
+  assert.equal(Object.isFrozen(receipt.normalCreditBudget), true);
+  assert.throws(() => { receipt.requiredEvidenceIds[0] = "mutated"; });
+  assert.throws(() => { receipt.limitations.push("mutated"); });
+  assert.throws(() => { receipt.normalCreditBudget = 4; });
+});
