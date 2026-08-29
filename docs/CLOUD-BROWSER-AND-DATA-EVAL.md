@@ -4,7 +4,7 @@ This evaluation lane adds two synthetic, repository-only contracts without chang
 
 ## Complex datasets
 
-`node mahoraga-eval/complex-dataset-scenarios.mjs` generates and analyzes more than 60,000 synthetic rows across:
+`node evaluation/complex-dataset-scenarios.mjs` generates and analyzes more than 60,000 synthetic rows across:
 
 - revenue reconciliation with duplicate keys, unmatched records, amount mismatches, and material outliers;
 - access certification with terminated enabled users, unapproved privileged access, duplicates, and missing ownership;
@@ -20,6 +20,7 @@ Required boundary:
 
 - provider: `openai-computer-use`;
 - execution plane: `cloud`;
+- explicit data classification; only `synthetic` and `personal` data may use this cloud contract, while `enterprise` and `local-only` fail closed;
 - explicit domain allowlist;
 - extensions and local-file access disabled;
 - page content treated as untrusted;
@@ -28,4 +29,4 @@ Required boundary:
 
 The existing loopback CDP worker remains unchanged. An authenticated provider credential and transient screenshot/action channel are still required before production execution can be enabled.
 
-Run `node --test mahoraga-eval/*.test.mjs` to verify both contracts.
+Run `node --test evaluation/*.test.mjs` to verify both contracts.
