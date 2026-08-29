@@ -69,12 +69,18 @@ test("permits only the four unsupported states and rejects all unsupported capab
 });
 
 test("freezes receipt root, arrays, and nested contract-derived values", () => {
-  const receipt = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: "worker.repository", reason: "registered-capability" }, state: "succeeded", providerDecision: { providerId: "provider.local", metadata: { ignored: true } }, nextAction: "return-summary" });
+  const evidence = [...intent.requiredEvidenceIds];
+  const limitations = [...intent.limitations];
+  const receipt = createTaskReceipt({ intent: { ...intent, requiredEvidenceIds: evidence, limitations }, route: { capability: "repository.inspect", workerId: "worker.repository", reason: "registered-capability" }, state: "succeeded", providerDecision: { providerId: "provider.local", metadata: { ignored: true } }, nextAction: "return-summary" });
+  evidence.push("request.repository");
+  limitations.push("no-registered-capability");
+  assert.deepEqual(receipt.requiredEvidenceIds, ["request.repository"]);
+  assert.deepEqual(receipt.limitations, []);
   assert.equal(Object.isFrozen(receipt), true);
   assert.equal(Object.isFrozen(receipt.requiredEvidenceIds), true);
   assert.equal(Object.isFrozen(receipt.limitations), true);
-  assert.equal(Object.isFrozen(receipt.normalCreditBudget), true);
+  assert.equal(receipt.normalCreditBudget, 0);
+  assert.equal(receipt.hostedComputeSpendCeilingUsd, 0);
   assert.throws(() => { receipt.requiredEvidenceIds[0] = "mutated"; });
-  assert.throws(() => { receipt.limitations.push("mutated"); });
   assert.throws(() => { receipt.normalCreditBudget = 4; });
 });

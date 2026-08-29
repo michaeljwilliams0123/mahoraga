@@ -42,8 +42,9 @@ function route(intentKind, capability, reasonCode, evidence, targetId = null) {
   return { schemaVersion: 1, intentKind, capability, confidence: 1, requiredEvidenceIds: [evidence], targetId, limitations: capability ? [] : ["no-registered-capability"], reasonCode };
 }
 function choose(available, ...ids) { return ids.find((id) => available.has(id)) ?? null; }
-function isMicrosoftWork(text) { return extractUrls(text).some((raw) => { try { const url = new URL(raw); const host = url.hostname.toLowerCase(); return url.protocol === "https:" && (host === "teams.microsoft.com" || host === "onedrive.live.com" || host.endsWith(".sharepoint.com") || host.endsWith(".sharepoint.us") || (host.endsWith(".dynamics.com") && host.split(".").length > 2)); } catch { return false; } }); }
+function isMicrosoftWork(text) { return extractUrls(text).some((raw) => { try { const url = new URL(raw); const host = url.hostname.toLowerCase(); return url.protocol === "https:" && (host === "teams.microsoft.com" || host === "onedrive.live.com" || host.endsWith(".sharepoint.com") || host.endsWith(".sharepoint.us") || isDynamicsTenant(host)); } catch { return false; } }); }
 function extractUrls(text) { return text.match(/https?:\/\/[^\s<>]+/g) ?? []; }
+function isDynamicsTenant(host) { return /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)\.crm(?:[0-9]+)?\.dynamics\.com$/.test(host); }
 function isYouTube(text) { return /\b(youtube(?:\.com)?|youtu\.be)\b/.test(text) && /\b(open|go|navigate|visit|browse|watch)\b/.test(text); }
 function isExternalNavigation(text) { return /https?:\/\/\S+/.test(text) && /\b(open|go|navigate|visit|browse)\b/.test(text); }
 function matches(text, expression) { return expression.test(text); }

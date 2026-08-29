@@ -76,9 +76,9 @@ test("rejects grammar-valid but unregistered evidence and limitation identifiers
   assert.throws(() => validateIntentDecision({ ...valid, limitations: ["made-up-limitation"] }));
 });
 test("recognizes only parsed HTTPS Microsoft-work hosts", () => {
-  const valid = ["https://tenant.sharepoint.com/sites/a", "https://teams.microsoft.com/l/team", "https://onedrive.live.com/?id=1", "https://tenant.dynamics.com/main.aspx"];
+  const valid = ["https://tenant.sharepoint.com/sites/a", "https://teams.microsoft.com/l/team", "https://onedrive.live.com/?id=1", "https://tenant.crm.dynamics.com/main.aspx", "https://tenant.crm3.dynamics.com/main.aspx"];
   for (const content of valid) assert.equal(classifyTaskIntent({ content, attachmentCount: 0, availableCapabilities: caps }).intentKind, "microsoft-work", content);
-  const hostile = ["https://tenant.sharepoint.com.evil.example/x", "https://tenant.sharepoint.com@evil.example/x", "https://evil.example/?next=tenant.sharepoint.com"];
+  const hostile = ["https://tenant.sharepoint.com.evil.example/x", "https://tenant.sharepoint.com@evil.example/x", "https://evil.example/?next=tenant.sharepoint.com", "https://evil.example/tenant.sharepoint.com", "http://tenant.sharepoint.com/sites/a", "https://www.dynamics.com/x", "https://foo.dynamics.com/x"];
   for (const content of hostile) assert.notEqual(classifyTaskIntent({ content: `open ${content}`, attachmentCount: 0, availableCapabilities: caps }).intentKind, "microsoft-work", content);
   assert.equal(classifyTaskIntent({ content: "verify browser test", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.smoke");
 });
