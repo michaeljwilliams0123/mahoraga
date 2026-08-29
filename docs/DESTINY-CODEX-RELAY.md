@@ -20,10 +20,11 @@ A valid dispatch pull request has all of these properties:
 - The author and repository owner are exactly `michaeljwilliams0123`.
 - The base branch is `main`.
 - The title is exactly `[DESTINY-CODEX] <envelope title>`.
-- The diff contains exactly one immutable JSON envelope at
-  `coordination/destiny-dispatches/<dispatch-id>.json`.
+- The diff contains exactly one newly added immutable JSON envelope at
+  `coordination/destiny-dispatches/<dispatch-id>.json`; existing envelopes are
+  append-only and cannot be edited, renamed, or deleted.
 - The envelope binds its deterministic dispatch ID, idempotency key, repository,
-  merge-base commit, target controllers, task, allowed paths, fixed verification
+  current `main` base tip and merge base, target controllers, task, allowed paths, fixed verification
   profile, retry ceiling, privacy declaration, and SHA-256 request hash.
 - Implementation changes, if present, are confined to `allowedPaths`. The
   validator, relay workflow, and dispatch registry are protected paths.
