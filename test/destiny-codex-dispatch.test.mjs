@@ -56,7 +56,7 @@ test("Destiny registry enforces idempotent retries and detects conflicting reuse
   assert.throws(() => validateDestinyDispatchRegistry([dispatch, conflicting]), /destiny-idempotency-conflict/);
 });
 
-test("Destiny pull requests bind owner, title, main, merge base, envelope, and changed paths", () => {
+test("Destiny pull requests bind owner, title, current main tip, append-only envelope, and changed paths", () => {
   const dispatch = create();
   const dispatchPath = envelopePath(dispatch);
   const input = {
@@ -64,9 +64,11 @@ test("Destiny pull requests bind owner, title, main, merge base, envelope, and c
     author: "michaeljwilliams0123",
     owner: "michaeljwilliams0123",
     baseBranch: "main",
+    baseSha: BASE,
     mergeBase: BASE,
     changedFiles: [dispatchPath, "docs/relay-probes/connection.md"],
     dispatchPath,
+    dispatchStatus: "A",
     dispatch,
   };
   assert.deepEqual(validateDestinyDispatchPullRequest(input), {
@@ -78,7 +80,10 @@ test("Destiny pull requests bind owner, title, main, merge base, envelope, and c
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, author: "someone-else" }), /destiny-owner-required/);
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, title: "[DESTINY-CODEX] Different" }), /destiny-title-mismatch/);
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, baseBranch: "feature" }), /destiny-main-base-required/);
+  assert.throws(() => validateDestinyDispatchPullRequest({ ...input, baseSha: "b".repeat(40) }), /destiny-stale-base/);
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, mergeBase: "b".repeat(40) }), /destiny-stale-base/);
+  assert.throws(() => validateDestinyDispatchPullRequest({ ...input, dispatchStatus: "M" }), /destiny-envelope-must-be-added/);
+  assert.throws(() => validateDestinyDispatchPullRequest({ ...input, dispatchStatus: "D" }), /destiny-envelope-must-be-added/);
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, changedFiles: [...input.changedFiles, "README.md"] }), /destiny-changed-path-outside-scope/);
   assert.throws(() => validateDestinyDispatchPullRequest({ ...input, changedFiles: [...input.changedFiles, `${DESTINY_DISPATCH_DIRECTORY}/second.json`] }), /destiny-single-envelope-required/);
 });
@@ -97,9 +102,11 @@ test("Destiny pull requests cannot modify their own validator or workflow", () =
     author: "michaeljwilliams0123",
     owner: "michaeljwilliams0123",
     baseBranch: "main",
+    baseSha: BASE,
     mergeBase: BASE,
     changedFiles: [dispatchPath, "src/destiny-codex-dispatch.mjs"],
     dispatchPath,
+    dispatchStatus: "A",
     dispatch: broad,
   }), /destiny-protocol-path-protected/);
 });
