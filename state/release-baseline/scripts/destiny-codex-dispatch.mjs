@@ -67,13 +67,15 @@ async function validatePullRequest() {
   const baseSha = gitCommit(environment("PR_BASE_SHA"));
   const headSha = gitCommit(environment("PR_HEAD_SHA"));
   const mergeBase = execFileSync("git", ["-C", candidateRoot, "merge-base", baseSha, headSha], { encoding: "utf8", windowsHide: true }).trim().toLowerCase();
-  const changedFiles = execFileSync("git", ["-C", candidateRoot, "diff", "--name-only", "--diff-filter=ACMR", `${mergeBase}...${headSha}`], { encoding: "utf8", windowsHide: true })
-    .split(/\r?\n/).filter(Boolean).map((file) => file.replaceAll("\\", "/"));
-  const dispatchPaths = changedFiles.filter((file) => file.startsWith(`${DESTINY_DISPATCH_DIRECTORY}/`) && file.endsWith(".json"));
-  if (dispatchPaths.length !== 1) throw new Error("destiny-single-envelope-required");
-  const dispatchPath = dispatchPaths[0];
+  const changedEntries = gitChangedEntries(candidateRoot, mergeBase, headSha);
+  const changedFiles = changedEntries.map((entry) => entry.path);
+  const dispatchEntries = changedEntries.filter((entry) => entry.path.startsWith(`${DESTINY_DISPATCH_DIRECTORY}/`) && entry.path.endsWith(".json"));
+  if (dispatchEntries.length !== 1) throw new Error("destiny-single-envelope-required");
+  const dispatchEntry = dispatchEntries[0];
+  if (dispatchEntry.status !== "A") throw new Error("destiny-envelope-must-be-added");
+  const dispatchPath = dispatchEntry.path;
   const dispatch = JSON.parse(await readFile(path.join(candidateRoot, dispatchPath), "utf8"));
-  const receipt = validateDestinyDispatchPullRequest({ title, author, owner, baseBranch, mergeBase, changedFiles, dispatchPath, dispatch });
+  const receipt = validateDestinyDispatchPullRequest({ title, author, owner, baseBranch, baseSha, mergeBase, changedFiles, dispatchPath, dispatchStatus: dispatchEntry.status, dispatch });
   print({ healthy: true, ...receipt, shortRequestHash: receipt.requestHash.slice(0, 12) });
   if (process.env.GITHUB_OUTPUT) {
     await appendFile(process.env.GITHUB_OUTPUT, [
@@ -84,6 +86,24 @@ async function validatePullRequest() {
       "",
     ].join("\n"), "utf8");
   }
+}
+
+function gitChangedEntries(root, mergeBase, headSha) {
+  const fields = execFileSync(
+    "git",
+    ["-C", root, "diff", "--name-status", "--no-renames", "-z", `${mergeBase}...${headSha}`],
+    { encoding: "utf8", windowsHide: true },
+  ).split("\0");
+  if (fields.at(-1) === "") fields.pop();
+  if (fields.length % 2 !== 0) throw new Error("destiny-git-diff-invalid");
+  const entries = [];
+  for (let index = 0; index < fields.length; index += 2) {
+    const status = fields[index];
+    const file = fields[index + 1]?.replaceAll("\\", "/");
+    if (!/^[ACDMRTUXB]$/.test(status) || !file) throw new Error("destiny-git-diff-invalid");
+    entries.push({ status, path: file });
+  }
+  return entries;
 }
 
 function parseOptions(tokens) {
