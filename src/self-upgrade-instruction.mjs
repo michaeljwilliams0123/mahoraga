@@ -17,7 +17,7 @@ const PROVIDER_ORDER = Object.freeze([
   "waiting-zero-credit-provider",
 ]);
 
-export function createSelfUpgradeInstruction({ instructionId, baseCommit }) {
+export function createStaticSelfUpgradePolicyProfile({ instructionId, baseCommit }) {
   return validateSelfUpgradeInstruction({
     schemaVersion: 1,
     instructionId,
@@ -37,6 +37,8 @@ export function createSelfUpgradeInstruction({ instructionId, baseCommit }) {
     rollbackRequired: true,
   });
 }
+
+export const createSelfUpgradeInstruction = createStaticSelfUpgradePolicyProfile;
 
 export function validateSelfUpgradeInstruction(value, { registry = SELF_UPGRADE_REGISTRY } = {}) {
   exact(value);
