@@ -13,7 +13,7 @@ test("classifies supported task language into bounded registered routes", () => 
   const cases = [
     ["list browser targets", "browser-targets", "browser.targets"],
     ["navigate to YouTube", "browser-navigation", "browser.navigate"],
-    ["run browser health smoke check", "browser-health", "browser.status"],
+    ["run browser health smoke check", "browser-health", "browser.smoke"],
     ["scan for updates", "update-scan", "update.scan"],
     ["describe capabilities", "capability-describe", "system.capabilities.describe"],
     ["describe configuration", "configuration-describe", "manifest.describe"],
@@ -56,4 +56,22 @@ test("fails closed for arbitrary capabilities and raw-content mutation", () => {
   assert.throws(() => validateIntentDecision({ ...decision, content: "tell me a joke" }));
   assert.throws(() => validateIntentDecision({ ...decision, requiredEvidenceIds: ["C:\\secret\\prompt.txt"] }));
   assert.throws(() => decision.requiredEvidenceIds.push("mutated"));
+});
+
+test("target listing wins over navigation and plain Microsoft mentions do not route", () => {
+  const mixed = classifyTaskIntent({ content: "list browser targets and navigate to YouTube", attachmentCount: 0, availableCapabilities: caps });
+  assert.equal(mixed.intentKind, "browser-targets");
+  const plain = classifyTaskIntent({ content: "tell me about Microsoft 365", attachmentCount: 0, availableCapabilities: caps });
+  assert.equal(plain.intentKind, "unsupported");
+});
+
+test("selects browser smoke for explicit smoke wording and status for generic wording", () => {
+  assert.equal(classifyTaskIntent({ content: "verify browser smoke", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.smoke");
+  assert.equal(classifyTaskIntent({ content: "check the browser", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.status");
+});
+
+test("rejects grammar-valid but unregistered evidence and limitation identifiers", () => {
+  const valid = classifyTaskIntent({ content: "list browser targets", attachmentCount: 0, availableCapabilities: caps });
+  assert.throws(() => validateIntentDecision({ ...valid, requiredEvidenceIds: ["made-up-evidence"] }));
+  assert.throws(() => validateIntentDecision({ ...valid, limitations: ["made-up-limitation"] }));
 });

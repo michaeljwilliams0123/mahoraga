@@ -50,3 +50,14 @@ test("rejects raw URL, arbitrary path, unknown state, capability, and nonzero bu
     { ...base, normalCreditBudget: 1 }, { ...base, hostedComputeSpendCeilingUsd: 2 }, { ...base, rawUrl: "https://example.com" },
   ]) assert.throws(() => validateTaskReceipt(mutation));
 });
+
+test("enforces intent and capability consistency and unsupported-state restrictions", () => {
+  const base = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: null, reason: "x" }, state: "accepted", providerDecision: { providerId: null }, nextAction: "wait" });
+  assert.throws(() => validateTaskReceipt({ ...base, intentKind: "browser-targets", capability: "repository.inspect" }));
+  for (const state of ["accepted", "running", "verifying", "partial", "succeeded"]) {
+    assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
+  }
+  assert.doesNotThrow(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state: "waiting" }));
+  assert.throws(() => validateTaskReceipt({ ...base, requiredEvidenceIds: ["made-up-evidence"] }));
+  assert.throws(() => validateTaskReceipt({ ...base, limitations: ["made-up-limitation"] }));
+});
