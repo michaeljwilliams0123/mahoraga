@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "1.0.0",
+  "dispatchId": "dcx-c5da0e106932e2a92d81b427",
+  "idempotencyKey": "owner-20260829-destiny-live-connection-probe-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "abe551065ed0df5e4b6fe8eaec8f29a7c2c9f62a",
+  "target": "destiny-codex",
+  "sourceController": "primary-local-codex",
+  "targetController": "primary-cloud-codex",
+  "title": "Verify live Destiny relay",
+  "task": "Acknowledge this bounded GitHub dispatch and return a content-free connection result. Do not modify implementation files.",
+  "allowedPaths": [
+    "docs/relay-probes"
+  ],
+  "verification": [
+    "coordination",
+    "github-audit",
+    "manifest",
+    "tests"
+  ],
+  "maximumAttempts": 1,
+  "createdAt": "2026-08-29T17:48:28.657Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "personalContextIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  },
+  "requestHash": "804982da5c86dc6206883fcc29736802c78dae4c4492d0488a163046d70e8a31"
+}
