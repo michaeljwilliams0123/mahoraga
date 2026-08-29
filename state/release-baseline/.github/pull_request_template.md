@@ -1,9 +1,10 @@
 ## Scope
 
 - Task or assignment ID:
-- Executor lane: Primary / Secondary / Copilot / Codex cloud
+- Executor lane: Primary / Secondary / Copilot / Codex cloud / Destiny Codex
 - Primary integration review:
 - Intended paths:
+- Destiny dispatch ID / request hash (only when applicable):
 
 ## Verification
 
@@ -14,7 +15,7 @@
 - [ ] Actual changed paths match the declared scope.
 - [ ] GitHub verification is successful, or the exact blocker is documented.
 
-## Public-repository privacy boundary
+## Repository privacy boundary
 
 - [ ] No credentials, tokens, prompts, model responses, browser data, personal
       files or email addresses, raw plugin responses, or ChatGPT conversation
