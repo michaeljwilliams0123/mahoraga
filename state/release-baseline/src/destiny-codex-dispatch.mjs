@@ -118,14 +118,16 @@ export function validateDestinyDispatchRegistry(records) {
 }
 
 export function validateDestinyDispatchPullRequest(input) {
-  const required = new Set(["title", "author", "owner", "baseBranch", "mergeBase", "changedFiles", "dispatchPath", "dispatch"]);
+  const required = new Set(["title", "author", "owner", "baseBranch", "baseSha", "mergeBase", "changedFiles", "dispatchPath", "dispatchStatus", "dispatch"]);
   exact(input, required, "destiny-pull-request-invalid");
   const dispatch = validateDestinyCodexDispatch(input.dispatch);
   if (input.author !== input.owner || input.owner !== "michaeljwilliams0123") fail("destiny-owner-required");
   if (input.baseBranch !== "main") fail("destiny-main-base-required");
   if (input.title !== `${DESTINY_DISPATCH_TITLE_PREFIX} ${dispatch.title}`) fail("destiny-title-mismatch");
+  commit(input.baseSha, "destiny-base-sha-invalid");
   commit(input.mergeBase, "destiny-merge-base-invalid");
-  if (input.mergeBase.toLowerCase() !== dispatch.baseCommit) fail("destiny-stale-base");
+  if (input.mergeBase.toLowerCase() !== input.baseSha.toLowerCase() || input.mergeBase.toLowerCase() !== dispatch.baseCommit) fail("destiny-stale-base");
+  if (input.dispatchStatus !== "A") fail("destiny-envelope-must-be-added");
   const changedFiles = normalizePaths(input.changedFiles, "destiny-changed-paths-invalid", 256);
   const dispatchFiles = changedFiles.filter((file) => file.startsWith(`${DESTINY_DISPATCH_DIRECTORY}/`));
   if (dispatchFiles.length !== 1 || dispatchFiles[0] !== input.dispatchPath) fail("destiny-single-envelope-required");
