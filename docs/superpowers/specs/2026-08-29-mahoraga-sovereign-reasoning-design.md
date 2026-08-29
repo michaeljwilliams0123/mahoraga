@@ -1,6 +1,6 @@
 # Mahoraga Sovereign Reasoning and Break-Glass Administration Design
 
-**Status:** Approved in principle by the owner on 2026-08-29; written specification pending owner review
+**Status:** Approved by the owner on 2026-08-29, including the zero-credit autonomy addendum
 **Repository baseline:** `ec81509e9fc14858745af0caed1ffe1753d557bc`
 **Release posture:** Staged candidate only until every acceptance gate passes
 **Normal operator:** Mahoraga
