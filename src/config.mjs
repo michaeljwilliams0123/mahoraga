@@ -95,6 +95,7 @@ export function validateManifest(value) {
   if (!/^state\/[a-z0-9._/-]+$/i.test(value.repair.baselineDirectory) || value.repair.baselineDirectory.includes("..")) {
     throw new TypeError("Repair baseline must stay inside state/.");
   }
+  validateTruthContracts(value.truthContracts);
   validateBrowserPolicy(value.browser);
   if (!isRecord(value.routingPolicy)) throw new TypeError("Routing policy is missing.");
   if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length < 1 ||
@@ -141,6 +142,16 @@ export function validateManifest(value) {
     integer(worker.timeoutMs, 1000, 3600000, "worker timeoutMs");
     integer(worker.concurrency, 1, 16, "worker concurrency");
     capability(worker.healthProbe);
+    if (worker.enabled) {
+      if (!isRecord(worker.capabilityCanaries)) throw new TypeError(`Worker ${worker.id} capability canaries are invalid.`);
+      const canaryCapabilities = Object.keys(worker.capabilityCanaries).sort();
+      const declaredCapabilities = [...worker.capabilities].sort();
+      if (canaryCapabilities.length !== declaredCapabilities.length || canaryCapabilities.some((item, index) => item !== declaredCapabilities[index])) throw new TypeError(`Worker ${worker.id} capability canaries must cover every capability exactly.`);
+      if (worker.capabilityCanaries[worker.healthProbe] !== "health") throw new TypeError(`Worker ${worker.id} health probe canary is invalid.`);
+      for (const [canaryCapability, mode] of Object.entries(worker.capabilityCanaries)) {
+        if (!new Set(["health", "direct", "provider-derived"]).has(mode) || (mode === "health") !== (canaryCapability === worker.healthProbe)) throw new TypeError(`Worker ${worker.id} capability canary mode is invalid.`);
+      }
+    }
     bounded(worker.executionPlane, 40, "worker execution plane");
     if (!isRecord(worker.routing) || !validRoutingValue(worker.routing.interfaceType)) throw new TypeError(`Worker ${worker.id} interface type is invalid.`);
     slug(worker.routing.permissionClass, "worker permission class");
@@ -205,7 +216,7 @@ function validateAdapter(adapter, workerId) {
   integer(adapter.maxOutputBytes, 1024, 131072, "Copilot adapter output limit");
 }
 function validateCodexBuilderAdapter(adapter) {
-  if (adapter.kind !== "codex-cli-builder" || adapter.executable !== "user-codex-cli" || adapter.workingDirectory !== "." || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== true || adapter.apiKeyRequired !== false || adapter.sandbox !== "workspace-write" || adapter.ephemeral !== true || adapter.ignoreUserConfig !== true) {
+  if (adapter.kind !== "codex-cli-builder" || adapter.executable !== "user-codex-cli" || adapter.workingDirectory !== "candidate-worktree" || adapter.taskScoped !== true || adapter.interactiveAuthority !== false || adapter.directExecutionEnabled !== true || adapter.apiKeyRequired !== false || adapter.sandbox !== "workspace-write" || adapter.approvalPolicy !== "never" || adapter.networkAccess !== false || adapter.ephemeral !== true || adapter.ignoreUserConfig !== true) {
     throw new TypeError("Codex Builder adapter boundary is invalid.");
   }
   integer(adapter.maximumPromptBytes, 1024, 32768, "Codex Builder prompt limit");
@@ -228,6 +239,18 @@ function validateWorkspaceAgentAdapter(adapter) {
   integer(adapter.maximumInputBytes, 1024, 16384, "Workspace Agent input limit");
   integer(adapter.requestTimeoutMs, 1000, 120000, "Workspace Agent request timeout");
 }
+function validateTruthContracts(contracts) {
+  if (!isRecord(contracts) || !isRecord(contracts.controlSession) || !isRecord(contracts.capabilityReadiness) || !isRecord(contracts.contentVault) || !isRecord(contracts.executionCells) || !isRecord(contracts.receipts)) throw new TypeError("Truth contracts are missing.");
+  if (contracts.controlSession.idleTtlMs !== 28_800_000 || contracts.controlSession.bootstrapNonceTtlMs !== 30_000) throw new TypeError("Control session contract is invalid.");
+  if (contracts.capabilityReadiness.deterministicReadCanaryTtlMs !== 86_400_000 || contracts.capabilityReadiness.writeCanaryTtlMs !== 900_000) throw new TypeError("Capability readiness contract is invalid.");
+  if (contracts.contentVault.root !== "state/content-vault") throw new TypeError("Content vault root is invalid.");
+  if (contracts.executionCells.root !== "state/execution-cells/codex") throw new TypeError("Execution cell root is invalid.");
+  if (contracts.receipts.schemaVersion !== 1) throw new TypeError("Receipt schema contract is invalid.");
+  for (const root of [contracts.contentVault.root, contracts.executionCells.root]) {
+    if (!/^state\/[a-z0-9._/-]+$/i.test(root) || root.includes("..")) throw new TypeError("Truth contract root must stay inside state/.");
+  }
+}
+
 function validateBrowserPolicy(browser) {
   if (!isRecord(browser)) throw new TypeError("Browser policy is missing.");
   if (browser.controlCenterUrl !== "http://127.0.0.1:4782/") throw new TypeError("Browser policy must remain loopback-only.");

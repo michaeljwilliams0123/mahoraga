@@ -1,14 +1,30 @@
-# Mahoraga 3.5 — Production runtime
+# Mahoraga 7.0 — Truth and Containment alpha
 
-Mahoraga v2 is the production local runtime for Project Mahoraga. It replaces
-the PowerShell/WPF application host with a Node.js supervisor, process-isolated
-workers, a durable SQLite task store, lease-based recovery, heartbeats, a local
-control API, and a browser-based cockpit.
+This branch stages Mahoraga `7.0.0-alpha.1`. It is an isolated candidate, not the
+active Windows production runtime. The last verified production and rollback
+target remains `3.6.0` at commit
+`397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite,
+inactive-runtime smoke, and rollback drill are recorded.
 
-The supplied v1 projects remain untouched. Their deterministic adapters and test
-suites are source material for later worker migration.
+The alpha preserves the Node.js supervisor, process-isolated workers, SQLite WAL
+ledger, loopback API, and browser Control Center while adding authenticated
+sensitive surfaces, server-derived authority, typed receipts, evidence-backed
+routing, isolated Codex worktrees, an encrypted local content vault, and
+incident-only repair records.
 
-## Production capabilities
+## Release truth
+
+- Installed candidate metadata: `7.0.0-alpha.1` / Control Center
+  `7.0.0-alpha.1` / API `7.0.0-alpha.1`.
+- Active production baseline: `3.6.0`; this document does not claim it has been
+  replaced or restarted.
+- Verification state: implementation complete through the release-metadata
+  slice; focused and release gates are pending.
+- Provider state: declarations do not imply readiness. A route requires a live
+  process, ready provider, and fresh verified capability canary.
+- Rollback target: `3.6.0` until the alpha canary and rollback drill pass.
+
+## Candidate capabilities
 
 - Canonical `mahoraga.manifest.json` for workers, connections, cost routing, and
   update authority.
@@ -33,7 +49,7 @@ suites are source material for later worker migration.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- Control Center 5.3 uses a ChatGPT-style chat-first workspace with conversation
+- Control Center 7.0 uses a ChatGPT-style chat-first workspace with conversation
   history, automatic worker routing, durable message threads, worker receipts in
   the conversation, and a bottom composer. Task, worker, connection, improvement,
   and diagnostic controls remain available as compact workspace views. A
@@ -95,19 +111,15 @@ suites are source material for later worker migration.
   check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
 
 
-## Production lifecycle
+## Candidate lifecycle
 
-Start the runtime in the background:
+Do not use `scripts/start-production.ps1` for this branch before release
+verification. Task 11 starts the candidate against a temporary state copy on
+alternate loopback port `4783`, leaving the `3.6.0` process and state untouched.
 
-```powershell
-& '.\scripts\start-production.ps1'
-```
-
-Then open `http://127.0.0.1:4782`.
-
-Stop it with `scripts/stop-production.ps1`. The launcher prevents duplicate
-instances, writes only bounded process logs under `state/`, and waits for the
-localhost health endpoint before returning.
+After promotion, the production launcher remains the supported start path and
+verifies the declared runtime and Control Center versions before reporting
+readiness.
 
 ## Verify
 
@@ -122,29 +134,27 @@ polling are deterministic automation and do not invoke Codex or consume model
 credits. See [`docs/ZERO-CREDIT-AUTOMATION.md`](docs/ZERO-CREDIT-AUTOMATION.md)
 for the exact trigger boundary.
 
-## Current connection state
+## Current candidate state
 
-The 3.5.1 repository contract and Control Center 5.3.1 were verified and activated on
-2026-08-25. The per-user `Mahoraga Production Runtime` launcher is registered,
-and all four enabled isolated workers are supervised on loopback.
+The repository declares enabled workers, but routability is derived from current
+runtime evidence. An enabled flag or historical connection check is never
+presented as a verified route.
 
-- LM Studio: declared but disabled until a fresh local runtime probe passes.
-- Copilot Studio: General Mahoraga, Mahorago Tenant Health Reader, and Mahorago
-  Enterprise Core are published. The two requested Mahorago agents use the
-  audited production read-only MCP surface. Researcher and App Builder remain
-  isolated Microsoft connected-agent 404 failures.
-- Lenovo AI Now: the supplied project has a bounded legacy adapter; the linked
-  Lenovo page is a device user guide and provides no supported AI automation API.
-- Browser Worker: enabled for isolated Control Center status, smoke, and observe
-  checks only. Browser screenshots stay in local runtime state for at most 24
-  hours; signed-in browsing remains disabled pending explicit user approval.
-  Desktop Worker remains off pending its process contract and application-specific receipts.
-- Microsoft 365 queue: Vaco (default) (Upgrade), MahoragaPlatform, and the
-  permanent `mhg_` publisher are confirmed. Activation awaits completion of the
-  reusable Dataverse CLI authentication now in progress.
+- Deterministic local, repository, repair, browser, Desktop, Microsoft 365, and
+  Primary Codex Builder contracts are present; each remains unroutable when its
+  process, provider, canary, attended-session, or integration-lease evidence is
+  absent or stale.
+- LM Studio, GitHub Copilot, Workspace Agent cloud, Microsoft queue, Copilot
+  Studio delegation, Lenovo AI, and metered OpenAI API routes remain disabled or
+  blocked by their declared prerequisites.
+- New content-bearing writes use the encrypted local vault; SQLite retains
+  bounded references and operational evidence only.
+- Healthy repair scans do not create durable polling tasks or events. Incident
+  transitions are recorded only when the observed condition changes.
 
 ## Update model
 
 Mahoraga may observe incidents, propose a candidate, write a regression test,
-and report verification evidence. Only the user may approve and separately
-activate an update. The v2 runtime contains no autonomous activation method.
+and report verification evidence. Its declared policy permits verified automatic
+activation with rollback after the required gates; this alpha branch itself is
+not activated and cannot use documentation as promotion evidence.

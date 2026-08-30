@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "product": "Mahoraga",
+  "version": "7.0.0-alpha.1",
+  "gate": "truth-and-containment-focused-integration",
+  "status": "passed-after-targeted-corrections",
+  "branch": "agent/mahoraga-7-truth-containment",
+  "baseCommit": "ab28cddd3f45473624cafd15bada567e6bb0f75e",
+  "verifiedImplementationTree": "0e2c600a99c1f133a6741ad32822960daf69a561",
+  "recordedAt": "2026-08-25T09:14:40.0947161Z",
+  "finalConfirmationWindow": {
+    "startedAt": "2026-08-25T09:12:49.1859567Z",
+    "completedAt": "2026-08-25T09:13:02.5171590Z",
+    "timestampQuality": "reconstructed-from-test-duration-at-receipt-capture",
+    "durationMs": 13331.2023
+  },
+  "environment": {
+    "machine": "SD009WC7",
+    "os": "Microsoft Windows NT 10.0.26200.0",
+    "architecture": "X64",
+    "node": "v24.19.0",
+    "workspace": "isolated-git-worktree",
+    "productionPortTouched": false,
+    "productionStateTouched": false
+  },
+  "command": [
+    "node",
+    "--test",
+    "test/control-session.test.mjs",
+    "test/server-security-runtime.test.mjs",
+    "test/task-policy.test.mjs",
+    "test/receipt-registry.test.mjs",
+    "test/receipt-runtime.test.mjs",
+    "test/capability-readiness.test.mjs",
+    "test/readiness-runtime.test.mjs",
+    "test/execution-cell.test.mjs",
+    "test/codex-execution-cell-runtime.test.mjs",
+    "test/content-vault.test.mjs",
+    "test/content-boundary-runtime.test.mjs",
+    "test/repair-incidents.test.mjs",
+    "test/truth-containment-wave.test.mjs"
+  ],
+  "attempts": [
+    {
+      "kind": "focused-gate-initial",
+      "tests": 37,
+      "passed": 31,
+      "failed": 6,
+      "durationMs": 13880.2506,
+      "failedFiles": [
+        "test/content-boundary-runtime.test.mjs",
+        "test/receipt-runtime.test.mjs",
+        "test/repair-incidents.test.mjs",
+        "test/server-security-runtime.test.mjs"
+      ]
+    },
+    {
+      "kind": "affected-files-after-primary-corrections",
+      "tests": 11,
+      "passed": 9,
+      "failed": 2,
+      "durationMs": 2113.7028,
+      "failedFiles": [
+        "test/receipt-runtime.test.mjs"
+      ]
+    },
+    {
+      "kind": "receipt-fixture-targeted",
+      "tests": 2,
+      "passed": 2,
+      "failed": 0,
+      "durationMs": 497.9823
+    },
+    {
+      "kind": "focused-gate-final-confirmation",
+      "tests": 37,
+      "passed": 37,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "durationMs": 13331.2023
+    }
+  ],
+  "corrections": [
+    {
+      "rootCause": "Task parameter defaults referenced capability before its destructured binding was initialized.",
+      "correction": "Initialize capability before intent and capability-derived defaults."
+    },
+    {
+      "rootCause": "An ephemeral listener bound to a random port while the cookie origin contract retained port zero.",
+      "correction": "Derive the exact loopback origin from the bound socket only for ephemeral-port runtimes."
+    },
+    {
+      "rootCause": "Separate test cleanup hooks attempted recursive deletion before SQLite closed on Windows.",
+      "correction": "Close the database and then delete its temp root in one ordered cleanup hook."
+    },
+    {
+      "rootCause": "The receipt fixture called a nonexistent claimTask helper instead of the canonical scheduler lease API.",
+      "correction": "Use RuntimeDatabase.claimNext with the production argument contract."
+    }
+  ],
+  "containment": {
+    "orphanExecutionCellWorktrees": 0,
+    "orphanTestListeners": 0,
+    "failedTestTempDirectoriesRemoved": 3,
+    "existingProductionListenerPreserved": "127.0.0.1:4782",
+    "preExistingWorktreesPreserved": true
+  },
+  "result": {
+    "focusedGatePassed": true,
+    "releaseCandidateGatePending": true,
+    "productionActivated": false,
+    "rollbackTarget": "3.6.0"
+  }
+}

@@ -1,27 +1,40 @@
 const REPOSITORY = 'michaeljwilliams0123/mahoraga';
 const GITHUB = `https://github.com/${REPOSITORY}`;
 const API = `https://api.github.com/repos/${REPOSITORY}`;
-const ISSUE_TEMPLATE = `${GITHUB}/issues/new?template=codex-cloud-task.yml`;
-const CONTROL_ACTION = `${GITHUB}/actions/workflows/chromebook-control-plane.yml`;
-const RELEASE_ACTION = `${GITHUB}/actions/workflows/release.yml`;
 const $ = (id) => document.getElementById(id);
 
-const state = { repository: null, commit: null, issues: [], pulls: [], runs: [], releases: [], draft: '' };
+const state = {
+  repository: null, commit: null, issues: [], pulls: [], runs: [], releases: [], messages: [],
+  connection: 'staged',
+};
 
-document.querySelectorAll('[data-view-target]').forEach((button) => button.addEventListener('click', () => showView(button.dataset.viewTarget)));
-document.querySelectorAll('[data-quick]').forEach((button) => button.addEventListener('click', () => {
-  $('task-text').value = button.dataset.quick;
-  $('tool-profile').value = button.dataset.tool || 'auto';
-  $('execution-lane').value = button.dataset.lane || 'codex';
-  resizeComposer();
-  $('task-text').focus();
+const skillPrompts = {
+  repository: 'Review the repository and implement the highest-value improvement.',
+  ui: 'Improve the Mahoraga conversation interface and verify it in the browser.',
+  testing: 'Run complete verification, diagnose failures, and fix the root cause.',
+  security: 'Review security and privacy boundaries, then fix verified weaknesses.',
+  release: 'Prepare the next verified release with rollback evidence.',
+  auto: 'Choose the fastest healthy execution path for this request.',
+};
+
+document.querySelectorAll('[data-view-target]').forEach((button) => button.addEventListener('click', () => {
+  if (button.classList.contains('new-task')) startNewConversation();
+  showView(button.dataset.viewTarget);
 }));
-document.querySelectorAll('[data-new-cloud-task]').forEach((button) => button.addEventListener('click', () => showView('workspace')));
-document.querySelectorAll('[data-skill-preset]').forEach((button) => button.addEventListener('click', () => selectSkill(button.dataset.skillPreset, button.dataset.lane)));
-$('task-text').addEventListener('input', resizeComposer);
-$('task-draft').addEventListener('submit', (event) => { event.preventDefault(); prepareHandoff(); });
-$('attachment-help').addEventListener('click', () => prepareHandoff(true));
-$('continue-github').addEventListener('click', () => openGithubTask());
+document.querySelectorAll('[data-prompt]').forEach((button) => button.addEventListener('click', () => setPrompt(button.dataset.prompt)));
+document.querySelectorAll('[data-new-cloud-task]').forEach((button) => button.addEventListener('click', () => {
+  startNewConversation();
+  showView('workspace');
+}));
+document.querySelectorAll('[data-skill-preset]').forEach((button) => button.addEventListener('click', () => {
+  setPrompt(skillPrompts[button.dataset.skillPreset] || skillPrompts.auto);
+  showView('workspace');
+}));
+$('task-text').addEventListener('input', () => {
+  resizeComposer();
+  renderClassificationPreview();
+});
+$('conversation-composer').addEventListener('submit', submitConversation);
 $('refresh').addEventListener('click', () => refreshCloudState(true));
 document.querySelector('.mobile-nav').addEventListener('click', () => document.querySelector('.sidebar').classList.toggle('open'));
 
@@ -33,6 +46,84 @@ function showView(name) {
   $('page-title').textContent = name[0].toUpperCase() + name.slice(1);
   document.querySelector('.sidebar').classList.remove('open');
   location.hash = name;
+}
+
+function classifyTask(value) {
+  const text = String(value || '').toLowerCase();
+  if (/security|privacy|credential|threat|vulnerab|audit/.test(text)) return { id: 'assurance', label: 'Security and assurance', lane: 'evidence-first' };
+  if (/test|verify|validation|check|failure|broken/.test(text)) return { id: 'verification', label: 'Testing and verification', lane: 'deterministic-fast' };
+  if (/release|deploy|publish|version|rollback/.test(text)) return { id: 'release', label: 'Release engineering', lane: 'verified-release' };
+  if (/interface|frontend|workspace|page|layout|design|accessib/.test(text)) return { id: 'experience', label: 'Interface and experience', lane: 'implementation' };
+  if (/mailbox|dataverse|copilot|microsoft|workspace agent/.test(text)) return { id: 'connector', label: 'Connector readiness', lane: 'provider-probe' };
+  return { id: 'repository', label: 'Repository engineering', lane: 'implementation' };
+}
+
+function submitConversation(event) {
+  event.preventDefault();
+  const input = $('task-text');
+  const content = input.value.trim();
+  if (!content) {
+    input.focus();
+    return;
+  }
+  const classification = classifyTask(content);
+  appendMessage('user', content);
+  state.messages.push({ role: 'user', classification: classification.id });
+  input.value = '';
+  resizeComposer();
+  renderClassificationPreview();
+  appendMessage(
+    'assistant',
+    `Classified as ${classification.label}. Authenticated execution bridge is not connected, so this message remains only in this tab and has not been dispatched.`,
+    { label: classification.lane, state: 'staged' },
+  );
+  state.messages.push({ role: 'assistant', classification: classification.id, dispatched: false });
+  toast('Message classified instantly · execution bridge staged');
+}
+
+function appendMessage(role, content, metadata = {}) {
+  const article = document.createElement('article');
+  article.className = `message ${role}`;
+  if (role === 'assistant') {
+    const icon = document.createElement('img');
+    icon.src = './mark.svg'; icon.alt = ''; icon.width = 28; icon.height = 28;
+    article.append(icon);
+  }
+  const body = document.createElement('div');
+  const author = document.createElement('strong');
+  author.textContent = role === 'user' ? 'You' : 'Mahoraga';
+  const paragraph = document.createElement('p');
+  paragraph.textContent = content;
+  body.append(author, paragraph);
+  if (metadata.label) {
+    const status = document.createElement('span');
+    status.className = `message-state ${metadata.state || ''}`;
+    status.textContent = metadata.label;
+    body.append(status);
+  }
+  article.append(body);
+  $('conversation-thread').append(article);
+  article.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return article;
+}
+
+function setPrompt(value) {
+  $('task-text').value = value || '';
+  resizeComposer();
+  renderClassificationPreview();
+  $('task-text').focus();
+}
+
+function startNewConversation() {
+  const thread = $('conversation-thread');
+  while (thread.children.length > 1) thread.lastElementChild.remove();
+  state.messages = [];
+  setPrompt('');
+}
+
+function renderClassificationPreview() {
+  const value = $('task-text').value.trim();
+  $('classification-preview').textContent = value ? classifyTask(value).label : 'Auto';
 }
 
 async function refreshCloudState(manual = false) {
@@ -63,6 +154,9 @@ function renderCloudState(complete) {
   $('repo-state').textContent = available ? 'GitHub connected' : 'Open GitHub to continue';
   $('repo-detail').textContent = available ? `${state.repository.visibility} repository · live read-only API` : 'GitHub status is temporarily unavailable';
   $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · authenticated mutations stay on github.com` : 'The public repository remains available on github.com while this status request is retried.';
+  $('repo-state').textContent = available ? 'Repository telemetry live' : 'Repository telemetry unavailable';
+  $('repo-detail').textContent = available ? `${state.repository.visibility} repository · conversation bridge staged` : 'Open GitHub for authenticated repository state';
+  $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · read-only telemetry connected` : 'Status is unavailable; open GitHub to authenticate.';
   $('metric-tasks').textContent = String(state.issues.filter((item) => item.state === 'open').length);
   $('metric-prs').textContent = String(state.pulls.length);
   $('metric-sha').textContent = state.commit?.sha?.slice(0, 7) || 'Private';
@@ -71,11 +165,10 @@ function renderCloudState(complete) {
   $('metric-run').textContent = latestRun ? (latestRun.conclusion || latestRun.status) : 'Private';
   $('metric-run-time').textContent = latestRun ? `${latestRun.name} · ${relativeTime(latestRun.updated_at)}` : 'Open GitHub Actions for status';
   $('activity-count').textContent = String(state.issues.filter((item) => item.state === 'open').length + state.pulls.length);
-  const pending = state.issues.filter((item) => item.state === 'open' && !item.labels.some((label) => labelName(label) === 'mahoraga:dispatched'));
-  $('approval-count').textContent = String(pending.length);
+  $('approval-count').textContent = String(state.pulls.length);
   renderRows('task-list', state.issues.slice(0, 10).map((item) => ({ href: item.html_url, title: item.title, detail: `#${item.number} · updated ${relativeTime(item.updated_at)}`, state: issueState(item) })));
   renderRows('run-list', state.runs.slice(0, 10).map((run) => ({ href: run.html_url, title: run.name, detail: `${run.event} · ${relativeTime(run.updated_at)}`, state: run.conclusion || run.status })));
-  renderRows('approval-list', pending.slice(0, 10).map((item) => ({ href: item.html_url, title: item.title, detail: `#${item.number} · submitted ${relativeTime(item.created_at)}`, state: 'approval' })));
+  renderRows('approval-list', state.pulls.slice(0, 10).map((item) => ({ href: item.html_url, title: item.title, detail: `#${item.number} · updated ${relativeTime(item.updated_at)}`, state: item.draft ? 'draft' : 'review' })));
   const latestRelease = state.releases[0];
   $('release-latest').textContent = latestRelease?.tag_name || 'None';
   $('release-latest-time').textContent = latestRelease ? `${latestRelease.prerelease ? 'Beta' : 'Stable'} · ${relativeTime(latestRelease.published_at)}` : 'Owner-started only';
@@ -83,7 +176,9 @@ function renderCloudState(complete) {
 }
 
 function renderRows(id, rows) {
-  $(id).replaceChildren(...(rows.length ? rows.map((row) => {
+  const container = $(id);
+  if (!container) return;
+  container.replaceChildren(...(rows.length ? rows.map((row) => {
     const link = document.createElement('a'); link.className = 'activity-row'; link.href = row.href;
     const title = document.createElement('strong'); title.textContent = row.title;
     const detail = document.createElement('span'); detail.textContent = row.detail;
@@ -102,38 +197,41 @@ function prepareHandoff(attachmentsOnly = false) {
   $('copy-state').textContent = state.draft ? 'Your task text will be copied to the clipboard.' : 'The authenticated GitHub task form will open.';
   $('continue-github').textContent = lane === 'actions' ? 'Open deterministic Action ↗' : 'Open authenticated task form ↗';
   $('handoff-dialog').showModal();
+function emptyRow() {
+  const item = document.createElement('p');
+  item.className = 'empty';
+  item.textContent = 'No public activity is available.';
+  return item;
 }
 
-async function openGithubTask() {
-  const lane = $('execution-lane').value;
-  const draft = state.draft;
-  if (draft) {
-    try { await navigator.clipboard.writeText(draft); toast('Task copied — paste it into the Bounded task field'); }
-    catch { toast('Clipboard permission was blocked; copy the task before continuing'); return; }
-  }
-  if (lane === 'actions') {
-    const action = $('tool-profile').value === 'release' ? RELEASE_ACTION : CONTROL_ACTION;
-    location.assign(action);
-    return;
-  }
-  const title = state.draft ? `[MAHORAGA] ${state.draft.split(/\s+/).slice(0, 9).join(' ').slice(0, 72)}` : '[MAHORAGA] ';
-  location.assign(`${ISSUE_TEMPLATE}&title=${encodeURIComponent(title)}`);
+function resizeComposer() {
+  const input = $('task-text');
+  input.style.height = 'auto';
+  input.style.height = `${Math.min(input.scrollHeight, 190)}px`;
 }
 
-function selectSkill(skill, lane) {
-  $('tool-profile').value = skill || 'auto';
-  $('execution-lane').value = lane || 'codex';
-  showView('workspace');
-  $('task-text').focus();
-  toast(`${$('tool-profile').selectedOptions[0].textContent} skill selected`);
+function relativeTime(value) {
+  const seconds = Math.round((Date.now() - Date.parse(value)) / 1000);
+  if (!Number.isFinite(seconds)) return 'unknown';
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-function resizeComposer() { const input = $('task-text'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 170)}px`; }
-function relativeTime(value) { const seconds = Math.round((Date.now() - Date.parse(value)) / 1000); if (!Number.isFinite(seconds)) return 'unknown'; if (seconds < 60) return 'just now'; if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`; if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`; return `${Math.floor(seconds / 86400)}d ago`; }
 function capitalize(value) { return value ? value[0].toUpperCase() + value.slice(1) : 'Unknown'; }
-function issueState(issue) { const lane = issue.labels.find((label) => labelName(label).startsWith('lane:')); return lane ? labelName(lane).replace('lane:', '') : issue.state === 'open' ? 'approval' : issue.state; }
+function issueState(issue) {
+  const lane = issue.labels.find((label) => labelName(label).startsWith('lane:'));
+  return lane ? labelName(lane).replace('lane:', '') : issue.state;
+}
 function labelName(label) { return typeof label === 'string' ? label : label?.name || ''; }
-function toast(message) { const element = $('toast'); element.textContent = message; element.classList.add('show'); clearTimeout(toast.timer); toast.timer = setTimeout(() => element.classList.remove('show'), 3600); }
+function toast(message) {
+  const element = $('toast');
+  element.textContent = message;
+  element.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => element.classList.remove('show'), 2600);
+}
 
 const initialView = location.hash.slice(1);
 showView(document.querySelector(`[data-view="${initialView}"]`) ? initialView : 'workspace');

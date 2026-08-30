@@ -1,61 +1,83 @@
-# Production status — verified live baseline 2026-08-25
+# Production status and Mahoraga 7 candidate — 2026-08-25
 
-This record describes the authoritative GitHub production baseline. It does not
-claim that a particular Windows process has already fetched, restarted, or
-activated the latest commit. Live-machine activation must be supported by local
-runtime evidence.
+This record separates repository candidate state from live production state.
+Neither a manifest declaration nor this document proves that a Windows process
+is running, healthy, or activated. Those claims require current process,
+listener, status, canary, and verification evidence.
 
-## Repository production baseline
+## Installed repository candidate
 
-- Product version: `3.6.0`
-- Runtime version declared by the manifest: `3.6.0`
-- Control Center: `5.4.0`
-- Cloud control plane declaration: `3.2.0`
-- Cloud Workspace: `2.0.0`
-- Capability registry: `1.0.0`
-- Node runtime contract: `>=24`
-- Phase/environment: `production`
-- Local control address: `http://127.0.0.1:4782`
-- Update authority: verified automatic local activation with rollback
-- Default autonomy mode: hybrid
+- Candidate version: `7.0.0-alpha.1`
+- Runtime, API, and Control Center declaration: `7.0.0-alpha.1`
+- Phase/environment: `alpha-candidate` / `candidate`
+- Candidate branch: `agent/mahoraga-7-truth-containment`
+- Loopback contract: `127.0.0.1:4782`; Task 11 uses inactive port `4783`
+- Verified implementation commit:
+  `06820ba3597e23c69adcfe3535a10673e2128191`
+- Update authority: verified automatic activation with rollback
 - OpenAI Platform API provider: disabled by default
+- Production activation: **not performed**
 
-## Durable local architecture
+The candidate implements authenticated sensitive surfaces, server-derived task
+authority, typed capability receipts, evidence-backed routing, candidate-only
+Codex execution cells, encrypted content references, repair incident
+deduplication, and evidence-derived Control Center labels.
 
-The production repository retains the Node supervisor, isolated worker
-processes, SQLite WAL task/event state, leases, heartbeats, crash recovery,
-bounded restarts, durable conversations, execution receipts, improvement state,
-secondary assignments, and durable objective/task graphs.
+## Active production and rollback target
 
-Enabled production workers declared by the manifest are:
+- Production predecessor: `3.6.0`
+- Immutable baseline commit:
+  `397acebf16766f44e3b4317f9d8b68b10de5f821`
+- Rollback target: `3.6.0`; its inactive rollback drill passed on port `4783`
+  without touching production
+- Current live-process state: not asserted by this repository document
 
-- `local-core`
-- `repository`
-- `browser`
-## 3.6.0 live acceptance
+Historical acceptance evidence for the predecessor reported a loopback runtime,
+current worker heartbeats, private attachment intake, bounded answer-quality
+correction, and a passing suite. That evidence remains historical and is not
+reused as Mahoraga 7 verification.
 
-Commit `5a6f474` is active on the authoritative Windows checkout. The loopback
-status endpoint reported runtime `3.6.0`, Control Center `5.4.0`, all seven
-enabled workers healthy with current heartbeats, and nine evidence-led expert
-method profiles.
+## Candidate capability truth
 
-The production acceptance run verified private pasted-image intake, a private
-local Visio attachment, expert-method rendering, SharePoint/OneDrive routing,
-bounded answer-quality correction, and an empty browser error/warning log. A
-Microsoft work URL now returns an explicit enterprise provider-gap receipt
-instead of being misclassified as repository work. An acknowledgement-only
-answer is retried at most three times and then records an explicit unresolved
-receipt without claiming completion.
+Configured or enabled is not synonymous with routable. Every route now exposes
+five separate fields: process, provider, canary, routing decision, and evidence
+level. A write-capable route requires a canary no older than 15 minutes;
+deterministic read routes may use a 24-hour canary. Unknown or stale evidence
+fails closed.
 
-The full verification suite completed with 204 passing tests. Semantic analysis of a
-SharePoint or Visio document still requires an enabled eligible Microsoft 365,
-signed-in application, Workspace Agent, or task-scoped Codex provider.
+The manifest currently keeps optional or unproven providers disabled, including
+LM Studio execution, GitHub Copilot execution, Workspace Agent cloud, Microsoft
+queue polling, Copilot Studio delegation, Lenovo AI execution, and the metered
+OpenAI API. Enabled declarations still require current provider and canary
+evidence before dispatch.
 
-- `self-healer`
+## Release-gate status
 
-The supervisor reconciles objective graphs on every scheduler tick, performs
-bounded automatic operational repair, and monitors the outbound Secondary Codex
-mailbox when enabled.
+1. Focused Truth and Containment integration gate: **passed**.
+2. Complete repository suite: **247/247 passed**.
+3. Release-baseline refresh and digest verification: **84/84 healthy**.
+4. Inactive candidate smoke on loopback port `4783`: **passed** with temporary
+   encrypted state.
+5. Malformed-receipt resilience and three quiet repair scans: **passed**; the
+   malformed receipt failed closed, its worker stayed alive, and no incident
+   was created.
+6. Inactive rollback drill to immutable `3.6.0`: **passed**; the temporary slot
+   was removed afterward.
+7. Review-only GitHub Codex adversarial review against the exact verified SHA:
+   **pending**.
+
+The candidate is eligible for a review-only pull request, not production
+cutover or merge. The machine-readable receipt is
+[`verification/7.0.0-alpha.1-release.json`](verification/7.0.0-alpha.1-release.json).
+
+## Durable architecture retained
+
+The candidate retains the Node supervisor, isolated worker processes, SQLite WAL
+operational ledger, leases, heartbeats, crash recovery, bounded restarts,
+durable objectives, and outbound-only repository coordination. Content-bearing
+writes are stored in the encrypted local vault; SQLite stores bounded metadata,
+hashes, classifications, expiry, and references. Healthy repair polling creates
+no durable task or event noise.
 
 ## Portable and cloud coordination
 
@@ -100,9 +122,9 @@ interactive-session state and allowlisted window counts. The initial interaction
 primitive is `focus-window`, which requires exactly one allowlisted top-level
 window and verifies the foreground handle after the action.
 
-The manifest flag remains disabled until the real Windows host validates the
-attended-session contract. This is an activation blocker, not a missing worker
-implementation. Arbitrary executables, arbitrary PowerShell, click/type
+The candidate manifest enables the Desktop contract, but routing remains blocked
+without a current attended-session canary. Arbitrary executables, arbitrary
+PowerShell, click/type
 sequences, window titles, document content, and screenshots are not part of this
 initial production contract.
 
@@ -151,26 +173,25 @@ model responses in the runtime database.
 The following declarations remain intentionally inactive until their provider or
 machine prerequisites are proven:
 
-- Desktop Worker: code/allowlist/receipt contract is prepared; run the provider
-  probe on the attended Windows host, then explicitly activate only after the
-  result verifies the session.
+- Desktop Worker: enabled as a candidate contract; a current attended-session
+  provider observation and canary remain required before any route is eligible.
 - Signed-in browser control: disabled pending an owned signed-session provider
   and deterministic verification receipts.
 - Microsoft durable queue worker: code and unattended-auth diagnostics are
   prepared; a live Windows silent credential and successful outbound poll remain.
 - LM Studio/local reasoner: loopback health diagnostics are prepared; a live
   model probe plus a non-persistent result channel remain before execution.
-- Direct Primary Codex Builder execution: disabled; subscription-backed
-  Secondary Codex and Codex Cloud remain available repository execution lanes.
+- Direct Primary Codex Builder: enabled only inside a candidate worktree and
+  still requires a verified environment canary plus an integration lease.
 - GitHub Copilot worker and Workspace Agent cloud trigger: optional declared
   providers that remain disabled until their live authentication/health
   prerequisites are satisfied.
 
-Run `npm run gap:audit` for the machine-readable repository-declared gap report.
+Run `npm run gap:audit` for the machine-readable evidence-backed gap report.
 
 ## Historical note
 
-The previous version of this document described a `3.2.0`/Control Center `4.1.0`
-baseline dated 2026-08-13. That record is superseded for repository state by the
-3.5 production line. It should not be used as evidence that the current Windows
-process has already been restarted onto this commit.
+Earlier versions of this document described the `3.2.0` and `3.5.x` production
+lines. The rollback baseline for this alpha is `3.6.0`; none of those historical
+records proves the current Windows process state or verifies the Mahoraga 7
+candidate.
