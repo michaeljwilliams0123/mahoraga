@@ -213,3 +213,31 @@ test("scheduler admission uses the exact router data boundary for every schedule
     cleanup();
   }
 });
+
+test("a post-spawn child error terminates the tracked process before any restart", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const children = [];
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({
+      runtime: { heartbeatTimeoutMs: 5000, taskLeaseMs: 5000, maximumWorkerRestarts: 1 },
+    }),
+    database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false, tickIntervalMs: 1000,
+    forkWorker: () => {
+      const child = fakeChild(5000 + children.length);
+      children.push(child);
+      return child;
+    },
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+
+  supervisor.start();
+  children[0].emit("spawn");
+  children[0].emit("message", { type: "ready" });
+  children[0].emit("error", Object.assign(new Error("IPC channel closed"), { code: "EPIPE" }));
+  await delay(30);
+
+  assert.equal(children.length, 1);
+  assert.equal(children[0].killed, true);
+  assert.equal(supervisor.status()[0].status, "crashed");
+  assert.equal(supervisor.status()[0].lastErrorCode, "process-EPIPE");
+});
