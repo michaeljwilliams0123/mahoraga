@@ -157,3 +157,59 @@ test("active scheduler deduplication is not limited to the newest 500 tasks", (t
   }
   assert.equal(database.hasActiveTask("repair.apply"), true);
 });
+
+test("scheduler admission uses the exact router data boundary for every scheduler", async (t) => {
+  const scenarios = [
+    {
+      capability: "repair.apply",
+      manifest: () => manifestFixture({ workers: [workerDefinition({ dataClasses: ["synthetic"] })] }),
+    },
+    {
+      capability: "queue.poll",
+      manifest: () => manifestFixture({
+        repair: { enabled: false, scanIntervalMs: 10 },
+        featureFlags: { microsoftQueueWorker: true, secondaryCodexMailbox: false },
+        workers: [workerDefinition({
+          id: "microsoft-queue", capabilities: ["queue.poll"], dataClasses: ["synthetic"],
+          healthProbe: "queue.poll",
+        })],
+      }),
+    },
+    {
+      capability: "repository.secondary-monitor",
+      prepare: (database) => database.createSecondaryAssignment({
+        title: "Observe secondary return", taskArea: "provider-adapter",
+        expectedTask: "Observe one bounded return.", expectedBaseCommit: "abcdef0123456789",
+        correlationId: "scheduler-router-test", allowedPaths: ["src", "test"],
+      }),
+      manifest: () => manifestFixture({
+        repair: { enabled: false, scanIntervalMs: 10 },
+        featureFlags: { microsoftQueueWorker: false, secondaryCodexMailbox: true },
+        workers: [workerDefinition({
+          id: "repository", capabilities: ["repository.secondary-monitor"], dataClasses: ["personal"],
+          healthProbe: "repository.secondary-monitor",
+        })],
+      }),
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const { database, cleanup } = databaseFixture();
+    scenario.prepare?.(database);
+    const child = fakeChild();
+    const supervisor = new Supervisor({
+      manifest: scenario.manifest(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+      forkWorker: () => child, tickIntervalMs: 5,
+    });
+    supervisor.start();
+    child.emit("message", { type: "ready" });
+    await delay(30);
+    assert.equal(
+      database.listTasks(500).some((task) => task.capability === scenario.capability),
+      false,
+      `${scenario.capability} crossed its router data boundary`,
+    );
+    supervisor.stop();
+    cleanup();
+  }
+});
