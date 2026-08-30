@@ -141,3 +141,19 @@ test("worker diagnostics classify failures without retaining arbitrary stderr", 
   assert.match(detail, /diagnostic [a-f0-9]{16}/i);
   assert.doesNotMatch(detail, /aws-secret|private-user-request|operator|password|example\.test|worker\.mjs/i);
 });
+
+test("active scheduler deduplication is not limited to the newest 500 tasks", (t) => {
+  const { database, cleanup } = databaseFixture();
+  t.after(cleanup);
+  database.submitTask({
+    capability: "repair.apply", dataClass: "local-only", requestedMode: "local",
+    idempotencyKey: "older-active-repair",
+  });
+  for (let index = 0; index < 501; index += 1) {
+    database.submitTask({
+      capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+      idempotencyKey: `newer-task-${index}`,
+    });
+  }
+  assert.equal(database.hasActiveTask("repair.apply"), true);
+});
