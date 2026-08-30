@@ -21,6 +21,7 @@ export function evaluateAutonomousIntegration(input, policy) {
   if (pullRequest.baseRef !== "main") return reject("base-not-eligible");
   if (workflow.headSha !== pullRequest.headSha) return reject("verified-head-mismatch");
   if (pullRequest.baseSha !== pullRequest.currentMainSha) return reject("base-advanced");
+  if (pullRequest.headContainsMain !== true) return reject("head-behind-main");
   if (pullRequest.mergeable !== true) return reject("merge-conflict");
   if (!Array.isArray(policy.eligibleBranchPrefixes) || !policy.eligibleBranchPrefixes.some((prefix) => pullRequest.headRef?.startsWith(prefix))) return reject("branch-not-eligible");
   if (!Array.isArray(pullRequest.changedFiles) || pullRequest.changedFiles.length < 1 || pullRequest.changedFiles.length > 256) return reject("changed-files-invalid");

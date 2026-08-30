@@ -23,6 +23,7 @@ function candidate(overrides = {}) {
       headRepository: "michaeljwilliams0123/mahoraga",
       baseRepository: "michaeljwilliams0123/mahoraga",
       mergeable: true,
+      headContainsMain: true,
       changedFiles: ["web/app.js", "web/styles.css"],
       ...overrides,
     },
@@ -46,6 +47,7 @@ test("integration rejects stale, failed, forked, draft, conflicted, and changed-
     [candidate({ draft: true }), "draft-not-eligible"],
     [candidate({ mergeable: false }), "merge-conflict"],
     [candidate({ currentMainSha: "advanced" }), "base-advanced"],
+    [candidate({ headContainsMain: false }), "head-behind-main"],
   ];
   for (const [input, reason] of cases) assert.equal(evaluateAutonomousIntegration(input, policy).reason, reason);
 });

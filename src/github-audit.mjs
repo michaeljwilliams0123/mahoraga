@@ -198,6 +198,7 @@ export function isTrustedAutonomousIntegrationWorkflow(source) {
     && /node scripts\/autonomous-integration\.mjs --input state\/autonomous-integration-input\.json/.test(source)
     && /pr\.head\.sha !== expectedHead/.test(source)
     && /pr\.base\.sha !== main\.commit\.sha/.test(source)
+    && /ancestry\.data\.behind_by !== 0/.test(source)
     && /pulls\.merge\(\{[\s\S]*sha:\s*expectedHead[\s\S]*merge_method:\s*"squash"/.test(source);
 }
 

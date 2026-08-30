@@ -44,6 +44,7 @@ jobs:
             if (candidates.length !== 1) throw new Error(`expected-one-open-main-pr:${candidates.length}`);
             const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
+            const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: detail.head.sha });
             const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: detail.number, per_page: 100 });
             fs.mkdirSync("state", { recursive: true });
             fs.writeFileSync("state/autonomous-integration-input.json", JSON.stringify({
@@ -54,6 +55,7 @@ jobs:
                 headRef: detail.head.ref, headSha: detail.head.sha,
                 headRepository: detail.head.repo?.full_name, baseRepository: detail.base.repo.full_name,
                 mergeable: detail.mergeable === true,
+                headContainsMain: ancestry.data.behind_by === 0,
                 changedFiles: files.slice(0, 257).map((item) => item.filename),
               },
             }));
@@ -74,7 +76,9 @@ jobs:
             const expectedHead = process.env.VERIFIED_HEAD;
             const pr = (await github.rest.pulls.get({ owner, repo, pull_number })).data;
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
+            const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: pr.head.sha });
             if (pr.head.sha !== expectedHead) throw new Error("verified-head-advanced");
             if (pr.base.sha !== main.commit.sha) throw new Error("base-advanced-before-merge");
+            if (ancestry.data.behind_by !== 0) throw new Error("head-behind-main");
             const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
             if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);
