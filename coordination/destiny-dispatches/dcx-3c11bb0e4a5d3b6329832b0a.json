@@ -9,12 +9,13 @@
   "sourceController": "primary-local-codex",
   "targetController": "primary-cloud-codex",
   "title": "Build Ultron autonomy workspace UI",
-  "task": "Build Mahoraga user interface as a conversation-first autonomous workspace inspired by ChatGPT Pro. Add streaming conversation layout, objective and task graph nodes with links, active agent and tool activity, admin plugin and connector health surfaces, self-update timeline, rollback visibility, and clear automatic-merge state. Keep UI truthful: derive states from existing APIs or explicit unavailable values; do not claim unimplemented connectors. Show exact browser target, instruction, and data class before any cloud-browser approval. Work only in UI and cloud application paths. Add focused UI contract tests and keep the interface usable on desktop and mobile.",
+  "task": "Build and test Mahoraga as a conversation-first autonomous workspace inspired by ChatGPT Pro. Add streaming conversation layout, objective and task graph nodes with links, active agent and tool activity, admin plugin and connector health surfaces, self-update timeline, rollback visibility, and clear automatic-merge state. Keep UI truthful: derive states from existing APIs or explicit unavailable values; do not claim unimplemented connectors. Show exact browser target, instruction, and data class before any cloud-browser approval. Work only in deployed UI paths. Add focused behavioral UI tests for multi-turn conversation continuity, pending and failed tool states, graph updates, mobile and desktop layouts, keyboard navigation, accessible status announcements, and rollback visibility. Exercise the real rendered interface where practical and return a concise browser-test evidence summary.",
   "allowedPaths": [
-    "cloud-app",
+    "cloud",
     "web"
   ],
   "verification": [
+    "coordination",
     "github-audit",
     "manifest",
     "tests"
@@ -28,5 +29,5 @@
     "personalContextIncluded": false,
     "contentBoundary": "task-metadata-and-repository-context-only"
   },
-  "requestHash": "8a12dce8a83f10caae6dee0bc8b88ffc24c1ae56942e377392e9bc7dd2e0e2ed"
+  "requestHash": "92abe0910a332949c8417ec0ac6fdc600d0bbbcc24ccbad76d17342eac53da8b"
 }
