@@ -9,11 +9,13 @@ import { Supervisor } from "../src/supervisor.mjs";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-function databaseFixture(t) {
+function databaseFixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-supervisor-"));
   const database = new RuntimeDatabase(path.join(root, "state.sqlite"));
-  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
-  return database;
+  return {
+    database,
+    cleanup: () => { database.close(); rmSync(root, { recursive: true, force: true }); },
+  };
 }
 
 function workerDefinition(overrides = {}) {
@@ -58,13 +60,13 @@ function fakeChild(pid = 4242) {
 }
 
 test("scheduled work waits for a healthy compatible worker and remains deduplicated", async (t) => {
-  const database = databaseFixture(t);
+  const { database, cleanup } = databaseFixture();
   const child = fakeChild();
   const supervisor = new Supervisor({
     manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
     forkWorker: () => child, tickIntervalMs: 5,
   });
-  t.after(() => supervisor.stop());
+  t.after(() => { supervisor.stop(); cleanup(); });
 
   supervisor.start();
   await delay(30);
@@ -78,13 +80,13 @@ test("scheduled work waits for a healthy compatible worker and remains deduplica
 });
 
 test("startup reconciles persisted workers that have no live process", (t) => {
-  const database = databaseFixture(t);
+  const { database, cleanup } = databaseFixture();
   database.setWorkerState({ workerId: "removed-worker", status: "healthy", pid: 9999, restartCount: 2, lastHeartbeatAt: new Date().toISOString() });
   const supervisor = new Supervisor({
     manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
     forkWorker: () => fakeChild(), tickIntervalMs: 1000,
   });
-  t.after(() => supervisor.stop());
+  t.after(() => { supervisor.stop(); cleanup(); });
 
   supervisor.start();
   const stale = database.listWorkerState().find((worker) => worker.workerId === "removed-worker");
@@ -94,13 +96,13 @@ test("startup reconciles persisted workers that have no live process", (t) => {
 });
 
 test("worker stderr and exit failures are surfaced with secrets redacted", (t) => {
-  const database = databaseFixture(t);
+  const { database, cleanup } = databaseFixture();
   const child = fakeChild();
   const supervisor = new Supervisor({
     manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
     forkWorker: () => child, tickIntervalMs: 1000,
   });
-  t.after(() => supervisor.stop());
+  t.after(() => { supervisor.stop(); cleanup(); });
 
   supervisor.start();
   child.stderr.emit("data", Buffer.from("OPENAI_API_KEY=super-secret-value module import failed\n"));
@@ -115,13 +117,13 @@ test("worker stderr and exit failures are surfaced with secrets redacted", (t) =
 });
 
 test("synchronous worker spawn failures remain visible after quarantine", (t) => {
-  const database = databaseFixture(t);
+  const { database, cleanup } = databaseFixture();
   const spawnError = Object.assign(new Error("worker entrypoint was not found"), { code: "ENOENT" });
   const supervisor = new Supervisor({
     manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
     forkWorker: () => { throw spawnError; }, tickIntervalMs: 1000,
   });
-  t.after(() => supervisor.stop());
+  t.after(() => { supervisor.stop(); cleanup(); });
 
   supervisor.start();
   const persisted = database.listWorkerState().find((worker) => worker.workerId === "repair-worker");
