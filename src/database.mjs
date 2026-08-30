@@ -59,7 +59,8 @@ export class RuntimeDatabase {
         pid INTEGER,
         restart_count INTEGER NOT NULL DEFAULT 0,
         last_heartbeat_at TEXT,
-        last_error_code TEXT
+        last_error_code TEXT,
+        last_error_detail TEXT
       );
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -192,6 +193,7 @@ export class RuntimeDatabase {
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
     this.#ensureSecondaryAssignmentColumns();
+    this.#ensureWorkerStateColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
   }
 
@@ -217,6 +219,11 @@ export class RuntimeDatabase {
     const current = new Set(this.db.prepare("PRAGMA table_info(secondary_assignments)").all().map((column) => column.name));
     if (!current.has("allowed_paths_json")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN allowed_paths_json TEXT NOT NULL DEFAULT '[]'");
     if (!current.has("source")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'runtime-api'");
+  }
+
+  #ensureWorkerStateColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
+    if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
   }
 
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
@@ -360,6 +367,13 @@ export class RuntimeDatabase {
   listTasks(limit = 100) {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
+  }
+
+  hasActiveTask(capability) {
+    validateCapability(capability);
+    return Boolean(this.db.prepare(
+      "SELECT 1 FROM tasks WHERE capability=? AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user') LIMIT 1",
+    ).get(capability));
   }
 
   createObjective({ title, correlationId = `obj-${randomUUID()}`, maximumReplans = 2, tasks }) {
@@ -754,17 +768,20 @@ export class RuntimeDatabase {
     return rows.length;
   }
 
-  setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null }) {
+  setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null, lastErrorDetail = null }) {
     bounded(workerId, 64, "worker id"); bounded(status, 30, "worker status");
-    this.db.prepare(`INSERT INTO worker_state(worker_id,status,pid,restart_count,last_heartbeat_at,last_error_code)
-      VALUES(?,?,?,?,?,?) ON CONFLICT(worker_id) DO UPDATE SET status=excluded.status,pid=excluded.pid,
-      restart_count=excluded.restart_count,last_heartbeat_at=excluded.last_heartbeat_at,last_error_code=excluded.last_error_code`)
-      .run(workerId, status, pid, restartCount, lastHeartbeatAt, lastErrorCode);
+    if (lastErrorCode !== null) bounded(lastErrorCode, 80, "worker error code");
+    if (lastErrorDetail !== null) bounded(lastErrorDetail, 1000, "worker error detail");
+    this.db.prepare(`INSERT INTO worker_state(worker_id,status,pid,restart_count,last_heartbeat_at,last_error_code,last_error_detail)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT(worker_id) DO UPDATE SET status=excluded.status,pid=excluded.pid,
+      restart_count=excluded.restart_count,last_heartbeat_at=excluded.last_heartbeat_at,last_error_code=excluded.last_error_code,
+      last_error_detail=excluded.last_error_detail`)
+      .run(workerId, status, pid, restartCount, lastHeartbeatAt, lastErrorCode, lastErrorDetail);
   }
 
   listWorkerState() { return this.db.prepare("SELECT * FROM worker_state ORDER BY worker_id").all().map((row) => ({
     workerId: row.worker_id, status: row.status, pid: row.pid, restartCount: row.restart_count,
-    lastHeartbeatAt: row.last_heartbeat_at, lastErrorCode: row.last_error_code,
+    lastHeartbeatAt: row.last_heartbeat_at, lastErrorCode: row.last_error_code, lastErrorDetail: row.last_error_detail,
   })); }
 
   proposeImprovement({ title, summary, testSummary = null }) {
