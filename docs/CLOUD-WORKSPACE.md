@@ -42,15 +42,14 @@ Opening a workspace issue does not automatically invoke Codex. The exact owner
 gateway command is the explicit model-spend boundary, preventing a public issue
 author from consuming subscription-backed execution.
 
-## Private repository behavior
+## Public repository behavior
 
-The static shell contains no private task data. Mahoraga intentionally skips the
-Pages deployment while the repository is private: a personal-account Pages site
-is not the authenticated private UI for this control plane, and availability
-depends on the GitHub plan. Use the signed-in repository **Agents**, **Issues**,
-**Pull requests**, **Actions**, and **Deployments** views for cloud work. Use
-`http://127.0.0.1:4782` on the Windows host for the live Mahoraga Control Center.
-No route makes Windows localhost reachable from GitHub.
+The static shell contains no private task data. The repository and Pages site are
+public, so the dashboard reads current repository, pull-request, workflow, and
+release metadata directly from GitHub's unauthenticated REST API. Authenticated
+writes still happen only on `github.com` under the user's signed-in session. Use
+`http://127.0.0.1:4782` on the Windows host for the live Mahoraga Control Center;
+no route makes Windows localhost reachable from GitHub.
 
 ## Deployment
 

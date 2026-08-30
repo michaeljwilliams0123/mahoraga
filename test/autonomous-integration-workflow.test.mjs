@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { isTrustedAutonomousIntegrationWorkflow } from "../src/github-audit.mjs";
 
 test("write-capable autonomous integration stays bound to trusted metadata and exact-head merge", () => {
@@ -20,4 +21,12 @@ steps:
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted.replace("sha: expectedHead", "sha: pr.head.sha")), false);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted.replace("pull-requests: write", "pull-requests: read")), false);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted.replace('if (ancestry.data.behind_by !== 0) throw new Error("head-behind-main");', "")), false);
+});
+
+test("successful verification without an open pull request is a clean no-op", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/autonomous-integration.yml", import.meta.url), "utf8");
+  assert.match(workflow, /candidates\.length === 0/);
+  assert.match(workflow, /core\.setOutput\("found", "false"\)/);
+  assert.match(workflow, /steps\.candidate\.outputs\.found == 'true'/);
+  assert.doesNotMatch(workflow, /expected-one-open-main-pr/);
 });

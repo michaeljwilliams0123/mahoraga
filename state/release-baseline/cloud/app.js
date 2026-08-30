@@ -61,8 +61,8 @@ function renderCloudState(complete) {
   const available = Boolean(state.repository);
   $('repo-dot').className = available ? 'ready' : complete ? 'error' : '';
   $('repo-state').textContent = available ? 'GitHub connected' : 'Open GitHub to continue';
-  $('repo-detail').textContent = available ? `${state.repository.visibility} repository · read-only page` : 'Private repositories require GitHub sign-in';
-  $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · authenticated mutations stay on github.com` : 'Status is hidden when the repository is private; open GitHub to authenticate.';
+  $('repo-detail').textContent = available ? `${state.repository.visibility} repository · live read-only API` : 'GitHub status is temporarily unavailable';
+  $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · authenticated mutations stay on github.com` : 'The public repository remains available on github.com while this status request is retried.';
   $('metric-tasks').textContent = String(state.issues.filter((item) => item.state === 'open').length);
   $('metric-prs').textContent = String(state.pulls.length);
   $('metric-sha').textContent = state.commit?.sha?.slice(0, 7) || 'Private';
@@ -92,7 +92,7 @@ function renderRows(id, rows) {
   }) : [emptyRow()]));
 }
 
-function emptyRow() { const item = document.createElement('p'); item.className = 'empty'; item.textContent = 'No public activity is available. Open GitHub to view authenticated repository state.'; return item; }
+function emptyRow() { const item = document.createElement('p'); item.className = 'empty'; item.textContent = 'No matching public activity is currently available.'; return item; }
 
 function prepareHandoff(attachmentsOnly = false) {
   state.draft = $('task-text').value.trim();

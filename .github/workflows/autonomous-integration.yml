@@ -31,6 +31,7 @@ jobs:
         with:
           node-version: 24
       - name: Collect bounded candidate metadata
+        id: candidate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
@@ -41,7 +42,13 @@ jobs:
               owner, repo, commit_sha: run.head_sha, per_page: 100,
             });
             const candidates = associated.filter((item) => item.state === "open" && item.base.ref === "main");
-            if (candidates.length !== 1) throw new Error(`expected-one-open-main-pr:${candidates.length}`);
+            if (candidates.length === 0) {
+              core.notice("No open main pull request is associated with this verified commit; integration is not applicable.");
+              core.setOutput("found", "false");
+              return;
+            }
+            if (candidates.length > 1) throw new Error(`ambiguous-open-main-prs:${candidates.length}`);
+            core.setOutput("found", "true");
             const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
             const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: detail.head.sha });
@@ -61,9 +68,10 @@ jobs:
             }));
       - name: Evaluate trusted integration policy
         id: policy
+        if: steps.candidate.outputs.found == 'true'
         run: node scripts/autonomous-integration.mjs --input state/autonomous-integration-input.json
       - name: Merge exact verified head
-        if: steps.policy.outputs.eligible == 'true'
+        if: steps.candidate.outputs.found == 'true' && steps.policy.outputs.eligible == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           PULL_REQUEST: ${{ steps.policy.outputs.pull_request }}
