@@ -1,0 +1,59 @@
+name: mahoraga-secondary-operations
+
+# SECONDARY MACHINE ONLY.
+# Never run this stack on the protected primary device.
+# Every image must be supplied as an immutable digest, for example
+# registry.example/image@sha256:<64 lowercase hex characters>.
+
+services:
+  n8n:
+    image: ${N8N_IMAGE:?set N8N_IMAGE to an immutable image digest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      N8N_HOST: "127.0.0.1"
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: "http"
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?inject outside Git}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+      N8N_METRICS: "true"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks: [operations]
+    security_opt: ["no-new-privileges:true"]
+
+  qdrant:
+    image: ${QDRANT_IMAGE:?set QDRANT_IMAGE to an immutable image digest}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6333:6333"
+      - "127.0.0.1:6334:6334"
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:?inject outside Git}
+      QDRANT__TELEMETRY_DISABLED: "true"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks: [operations]
+    security_opt: ["no-new-privileges:true"]
+
+  mcp-gateway:
+    image: ${MCP_GATEWAY_IMAGE:?set MCP_GATEWAY_IMAGE to a reviewed immutable image digest}
+    restart: unless-stopped
+    environment:
+      GATEWAY_BIND: "0.0.0.0:8080"
+      ALLOWED_SERVERS: ${MCP_ALLOWED_SERVERS:?set a bounded server allowlist}
+    expose: ["8080"]
+    networks: [operations]
+    read_only: true
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m"]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  operations:
+    internal: true
+
+volumes:
+  n8n_data:
+  qdrant_data:
