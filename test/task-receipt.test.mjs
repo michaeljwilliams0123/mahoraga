@@ -30,7 +30,7 @@ test("creates a frozen content-free receipt with bounded route and zero budgets"
 
 test("unsupported conversational work is represented as unsupported, never successful", () => {
   const receipt = createTaskReceipt({
-    intent: { ...intent, intentKind: "unsupported", capability: null, reasonCode: "answer-provider-unavailable" },
+    intent: { ...intent, intentKind: "unsupported", capability: null, requiredEvidenceIds: ["evidence.unsupported"], limitations: ["no-registered-capability"], reasonCode: "answer-provider-unavailable" },
     route: { capability: null, workerId: null, reason: "no-registered-capability" },
     state: "unsupported",
     providerDecision: { providerId: null },
@@ -38,7 +38,7 @@ test("unsupported conversational work is represented as unsupported, never succe
   });
   assert.equal(receipt.state, "unsupported");
   assert.throws(() => createTaskReceipt({
-    intent: { ...intent, intentKind: "unsupported", capability: null }, route: { capability: null, workerId: null, reason: "x" },
+    intent: { ...intent, intentKind: "unsupported", capability: null, requiredEvidenceIds: ["evidence.unsupported"], limitations: ["no-registered-capability"] }, route: { capability: null, workerId: null, reason: "x" },
     state: "succeeded", providerDecision: { providerId: null }, nextAction: "x",
   }));
 });
@@ -55,17 +55,18 @@ test("enforces intent and capability consistency and unsupported-state restricti
   const base = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: null, reason: "x" }, state: "accepted", providerDecision: { providerId: null }, nextAction: "wait" });
   assert.throws(() => validateTaskReceipt({ ...base, intentKind: "browser-targets", capability: "repository.inspect" }));
   for (const state of ["accepted", "running", "verifying", "partial", "succeeded"]) {
-    assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
+    assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, requiredEvidenceIds: ["evidence.unsupported"], limitations: ["no-registered-capability"], state, nextAction: state === "partial" ? "return-summary" : state === "succeeded" ? "return-summary" : state === "verifying" ? "verify" : "wait" }));
   }
-  assert.doesNotThrow(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state: "waiting" }));
+  const unsupported = createTaskReceipt({ intent: { ...intent, intentKind: "unsupported", capability: null, requiredEvidenceIds: ["evidence.unsupported"], limitations: ["no-registered-capability"] }, route: { capability: null, workerId: null, reason: "no-registered-capability" }, state: "waiting", providerDecision: { providerId: null }, nextAction: "wait" });
+  assert.doesNotThrow(() => validateTaskReceipt(unsupported));
   assert.throws(() => validateTaskReceipt({ ...base, requiredEvidenceIds: ["made-up-evidence"] }));
   assert.throws(() => validateTaskReceipt({ ...base, limitations: ["made-up-limitation"] }));
 });
 test("permits only the four unsupported states and rejects all unsupported capabilities", () => {
-  const base = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: null, reason: "x" }, state: "accepted", providerDecision: { providerId: null }, nextAction: "wait" });
-  for (const state of ["unsupported", "waiting", "blocked", "failed"]) assert.doesNotThrow(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
-  for (const state of ["accepted", "running", "verifying", "partial", "succeeded"]) assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: null, state }));
-  assert.throws(() => validateTaskReceipt({ ...base, intentKind: "unsupported", capability: "provider.gap", state: "unsupported" }));
+  const base = { schemaVersion: 1, intentKind: "unsupported", capability: null, requiredEvidenceIds: ["evidence.unsupported"], workerId: null, routeReason: "x", providerId: null, normalCreditBudget: 0, hostedComputeSpendCeilingUsd: 0, limitations: ["no-registered-capability"], nextAction: "explain-limitation" };
+  for (const state of ["unsupported", "waiting", "blocked", "failed"]) assert.doesNotThrow(() => validateTaskReceipt({ ...base, state, nextAction: state === "unsupported" ? "explain-limitation" : state === "waiting" ? "wait" : state === "blocked" ? "explain-limitation" : "retry" }));
+  for (const state of ["accepted", "running", "verifying", "partial", "succeeded"]) assert.throws(() => validateTaskReceipt({ ...base, state, nextAction: state === "partial" || state === "succeeded" ? "return-summary" : state === "verifying" ? "verify" : "wait" }));
+  assert.throws(() => validateTaskReceipt({ ...base, capability: "provider.gap", state: "unsupported" }));
 });
 
 test("freezes receipt root, arrays, and nested contract-derived values", () => {
@@ -83,4 +84,31 @@ test("freezes receipt root, arrays, and nested contract-derived values", () => {
   assert.equal(receipt.hostedComputeSpendCeilingUsd, 0);
   assert.throws(() => { receipt.requiredEvidenceIds[0] = "mutated"; });
   assert.throws(() => { receipt.normalCreditBudget = 4; });
+});
+
+test("requires a real worker for success and rejects provider-gap success", () => {
+  assert.throws(() => createTaskReceipt({
+    intent: { ...intent, capability: null, limitations: ["no-registered-capability"] },
+    route: { capability: null, workerId: null, reason: "no-registered-capability" },
+    state: "succeeded",
+    providerDecision: { providerId: null },
+    nextAction: "return-summary",
+  }));
+
+  assert.throws(() => createTaskReceipt({
+    intent: { ...intent, intentKind: "microsoft-work", capability: "provider.gap", requiredEvidenceIds: ["evidence.microsoft-work"], limitations: ["no-registered-capability"] },
+    route: { capability: "provider.gap", workerId: "worker.provider-gap", reason: "provider-unavailable" },
+    state: "succeeded",
+    providerDecision: { providerId: null },
+    nextAction: "return-summary",
+  }));
+});
+
+test("binds receipt evidence, limitations, states, and next actions to the route contract", () => {
+  const base = createTaskReceipt({ intent, route: { capability: "repository.inspect", workerId: "worker.repository", reason: "registered-capability" }, state: "accepted", providerDecision: { providerId: null }, nextAction: "wait" });
+  assert.throws(() => validateTaskReceipt({ ...base, requiredEvidenceIds: ["evidence.browser-health"] }));
+  assert.throws(() => validateTaskReceipt({ ...base, limitations: ["no-registered-capability"] }));
+  assert.throws(() => validateTaskReceipt({ ...base, state: "succeeded", nextAction: "wait", workerId: "worker.repository" }));
+  assert.throws(() => validateTaskReceipt({ ...base, state: "waiting", nextAction: "return-summary" }));
+  assert.throws(() => validateTaskReceipt({ ...base, state: "unsupported", nextAction: "explain-limitation" }));
 });

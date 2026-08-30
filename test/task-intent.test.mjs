@@ -65,9 +65,9 @@ test("target listing wins over navigation and plain Microsoft mentions do not ro
   assert.equal(plain.intentKind, "unsupported");
 });
 
-test("selects browser smoke for explicit smoke wording and status for generic wording", () => {
+test("selects browser smoke for explicit smoke wording and status for explicit status wording", () => {
   assert.equal(classifyTaskIntent({ content: "verify browser smoke", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.smoke");
-  assert.equal(classifyTaskIntent({ content: "check the browser", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.status");
+  assert.equal(classifyTaskIntent({ content: "check the browser status", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.status");
 });
 
 test("rejects grammar-valid but unregistered evidence and limitation identifiers", () => {
@@ -81,4 +81,46 @@ test("recognizes only parsed HTTPS Microsoft-work hosts", () => {
   const hostile = ["https://tenant.sharepoint.com.evil.example/x", "https://tenant.sharepoint.com@evil.example/x", "https://evil.example/?next=tenant.sharepoint.com", "https://evil.example/tenant.sharepoint.com", "http://tenant.sharepoint.com/sites/a", "https://www.dynamics.com/x", "https://foo.dynamics.com/x"];
   for (const content of hostile) assert.notEqual(classifyTaskIntent({ content: `open ${content}`, attachmentCount: 0, availableCapabilities: caps }).intentKind, "microsoft-work", content);
   assert.equal(classifyTaskIntent({ content: "verify browser test", attachmentCount: 0, availableCapabilities: caps }).capability, "browser.smoke");
+});
+
+test("binds approved navigation to the parsed HTTPS hostname and preserves the bare alias", () => {
+  for (const content of [
+    "open https://youtube.com/watch?v=abc",
+    "open https://www.youtube.com/watch?v=abc",
+    "open https://youtu.be/abc",
+    "watch YouTube",
+  ]) {
+    const decision = classifyTaskIntent({ content, attachmentCount: 0, availableCapabilities: caps });
+    assert.equal(decision.intentKind, "browser-navigation", content);
+    assert.equal(decision.targetId, "public.youtube", content);
+  }
+
+  for (const content of [
+    "open https://evil.example/?next=youtube.com",
+    "open https://youtube.com.evil.example/watch?v=abc",
+    "open https://youtube.com@evil.example/watch?v=abc",
+    "open http://youtube.com/watch?v=abc",
+  ]) {
+    const decision = classifyTaskIntent({ content, attachmentCount: 0, availableCapabilities: caps });
+    assert.equal(decision.intentKind, "unsupported", content);
+    assert.equal(decision.targetId, null, content);
+  }
+});
+
+test("requires explicit browser target or browser status wording", () => {
+  assert.equal(classifyTaskIntent({ content: "show project targets", attachmentCount: 0, availableCapabilities: caps }).intentKind, "unsupported");
+  assert.equal(classifyTaskIntent({ content: "describe browser capabilities", attachmentCount: 0, availableCapabilities: caps }).intentKind, "capability-describe");
+  assert.equal(classifyTaskIntent({ content: "show browser targets", attachmentCount: 0, availableCapabilities: caps }).intentKind, "browser-targets");
+  assert.equal(classifyTaskIntent({ content: "show browser status", attachmentCount: 0, availableCapabilities: caps }).intentKind, "browser-health");
+});
+
+test("binds intent evidence, targets, and limitations to the selected intent contract", () => {
+  const decision = classifyTaskIntent({ content: "list browser targets", attachmentCount: 0, availableCapabilities: caps });
+  assert.throws(() => validateIntentDecision({ ...decision, requiredEvidenceIds: ["evidence.browser-health"] }));
+  assert.throws(() => validateIntentDecision({ ...decision, targetId: "public.youtube" }));
+  assert.throws(() => validateIntentDecision({ ...decision, limitations: ["no-registered-capability"] }));
+
+  const unavailable = classifyTaskIntent({ content: "list browser targets", attachmentCount: 0, availableCapabilities: [] });
+  assert.equal(unavailable.capability, null);
+  assert.deepEqual(unavailable.limitations, ["no-registered-capability"]);
 });
