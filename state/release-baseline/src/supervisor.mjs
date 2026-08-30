@@ -8,7 +8,6 @@ import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummar
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
-const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
@@ -310,7 +309,7 @@ export class Supervisor extends EventEmitter {
       state.ready && ["healthy", "busy"].includes(state.status) && state.definition.capabilities.includes(capability)
       && state.lastHeartbeatAt && now - Date.parse(state.lastHeartbeatAt) <= this.manifest.runtime.heartbeatTimeoutMs);
     if (!compatibleHealthyWorker) return false;
-    return !this.database.listTasks(500).some((task) => task.capability === capability && ACTIVE_TASK_STATES.has(task.status));
+    return !this.database.hasActiveTask(capability);
   }
 
   #applySecondaryResult(taskId, result) {
