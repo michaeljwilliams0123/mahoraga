@@ -16,7 +16,7 @@ test("repository GitHub audit enforces all blocking controls", async () => {
 test("GitHub audit renders a bounded zero-credit Actions dashboard", async () => {
   const markdown = renderGithubAuditMarkdown(await buildGithubAudit());
   assert.match(markdown, /^## Mahoraga GitHub assurance/m);
-  assert.match(markdown, /\*\*Ready\*\* · 11 controls · 0 blocking failures · 0 advisories/);
+  assert.match(markdown, /\*\*Ready\*\* · 12 controls · 0 blocking failures · 0 advisories/);
   assert.match(markdown, /\| github-action-sha-pinning \| Pass \| advisory \|/);
   assert.match(markdown, /does not invoke Codex, consume model credits, expose localhost/);
   assert.doesNotMatch(markdown, /[A-Z]:\\Users\\|gh[pousr]_|github_pat_/i);

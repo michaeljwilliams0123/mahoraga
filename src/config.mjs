@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateAutonomyPolicy } from "./autonomy-policy.mjs";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MANIFEST_PATH = path.join(ROOT, "mahoraga.manifest.json");
@@ -59,6 +60,7 @@ export function validateManifest(value) {
     bounded(version, 40, `${component} version`);
   }
   if (value.updateAuthority !== "mahoraga-verified-automatic") throw new TypeError("Update authority must use verified automatic activation.");
+  validateAutonomyPolicy(value.autonomy);
   if (!isRecord(value.runtime)) throw new TypeError("Runtime configuration is missing.");
   if (value.runtime.host !== "127.0.0.1") throw new TypeError("Runtime must remain localhost-only.");
   integer(value.runtime.port, 1024, 65535, "port");

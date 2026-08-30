@@ -15,6 +15,33 @@
   },
   "updateAuthority": "mahoraga-verified-automatic",
   "defaultAutonomyMode": "hybrid",
+  "autonomy": {
+    "baseline": "ultron",
+    "conversationActivation": true,
+    "structuredDebate": true,
+    "automaticIntegration": true,
+    "maximumImplementationLanes": 2,
+    "eligibleBranchPrefixes": [
+      "codex/",
+      "destiny/",
+      "feature/",
+      "upgrade/"
+    ],
+    "protectedPaths": [
+      ".github/workflows",
+      "AGENTS.md",
+      "scripts/autonomous-integration.mjs",
+      "src/autonomy-policy.mjs",
+      "src/autonomous-integration.mjs",
+      "src/config.mjs",
+      "src/github-audit.mjs",
+      "src/update-contract.mjs"
+    ],
+    "requiredVerification": "npm run verify",
+    "automaticRelease": true,
+    "canaryRequired": true,
+    "rollbackRequired": true
+  },
   "runtime": {
     "host": "127.0.0.1",
     "port": 4782,
