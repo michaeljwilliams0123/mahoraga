@@ -258,36 +258,36 @@ export class Supervisor extends EventEmitter {
 
   #scheduleAutomaticRepair() {
     if (!this.manifest.repair?.enabled) return;
-    if (!this.#canSchedule("repair.apply")) return;
+    const task = { capability: "repair.apply", dataClass: "local-only", requestedMode: "local", executionPlane: "local" };
+    if (!this.#canSchedule(task)) return;
     const bucket = Math.floor(Date.now() / this.manifest.repair.scanIntervalMs);
     if (bucket === this.lastRepairBucket) return;
     this.lastRepairBucket = bucket;
-    this.database.submitTask({
-      capability: "repair.apply",
-      dataClass: "local-only",
-      requestedMode: "local",
-      idempotencyKey: `automatic-operational-repair:${bucket}`,
-    });
+    this.database.submitTask({ ...task, idempotencyKey: `automatic-operational-repair:${bucket}` });
   }
 
   #scheduleMicrosoftQueuePoll() {
     if (!this.manifest.featureFlags?.microsoftQueueWorker) return;
     const worker = this.manifest.workers.find((item) => item.id === "microsoft-queue" && item.enabled);
     if (!worker) return;
-    if (!this.#canSchedule("queue.poll")) return;
+    const task = {
+      capability: "queue.poll", dataClass: "enterprise", requestedMode: "hybrid",
+      executionPlane: "licensed-cloud", priority: "critical",
+    };
+    if (!this.#canSchedule(task)) return;
     const bucket = Math.floor(Date.now() / this.manifest.queue.pollIntervalMs);
     if (bucket === this.lastQueueBucket) return;
     this.lastQueueBucket = bucket;
-    this.database.submitTask({
-      capability: "queue.poll", dataClass: "enterprise", requestedMode: "hybrid",
-      executionPlane: "licensed-cloud", priority: "critical",
-      idempotencyKey: `microsoft-queue-poll:${bucket}`,
-    });
+    this.database.submitTask({ ...task, idempotencyKey: `microsoft-queue-poll:${bucket}` });
   }
 
   #scheduleSecondaryMailboxMonitor() {
     if (!this.manifest.featureFlags?.secondaryCodexMailbox) return;
-    if (!this.#canSchedule("repository.secondary-monitor")) return;
+    const task = {
+      capability: "repository.secondary-monitor", dataClass: "synthetic", requestedMode: "local",
+      executionPlane: "local", taskType: "secondary-codex", priority: "background", maximumAttempts: 1,
+    };
+    if (!this.#canSchedule(task)) return;
     try { if (this.syncCoordinationMailbox) syncCoordinationAssignments(this.database); }
     catch { return; }
     const bucket = Math.floor(Date.now() / 60000);
@@ -295,21 +295,19 @@ export class Supervisor extends EventEmitter {
     this.lastSecondaryMailboxBucket = bucket;
     for (const assignment of this.database.readySecondaryAssignments()) {
       this.database.submitTask({
-        capability: "repository.secondary-monitor", dataClass: "synthetic", requestedMode: "local",
-        executionPlane: "local", taskType: "secondary-codex", priority: "background", maximumAttempts: 1,
-        taskArea: assignment.taskArea, requestedOutcome: `Monitor Secondary Codex mailbox ${assignment.id}.`,
+        ...task, taskArea: assignment.taskArea, requestedOutcome: `Monitor Secondary Codex mailbox ${assignment.id}.`,
         correlationId: assignment.correlationId, idempotencyKey: `secondary-monitor:${assignment.id}:${bucket}`,
       });
     }
   }
 
-  #canSchedule(capability) {
-    const now = Date.now();
-    const compatibleHealthyWorker = [...this.workers.values()].some((state) =>
-      state.ready && ["healthy", "busy"].includes(state.status) && state.definition.capabilities.includes(capability)
-      && state.lastHeartbeatAt && now - Date.parse(state.lastHeartbeatAt) <= this.manifest.runtime.heartbeatTimeoutMs);
-    if (!compatibleHealthyWorker) return false;
-    return !this.database.hasActiveTask(capability);
+  #canSchedule(task) {
+    const route = routeTask(this.manifest, { ...task, excludedWorkerIds: [] }, { workerStates: this.status() });
+    if (route.status !== "routable") return false;
+    const state = this.workers.get(route.worker.id);
+    const heartbeatAge = state?.lastHeartbeatAt ? Date.now() - Date.parse(state.lastHeartbeatAt) : Number.POSITIVE_INFINITY;
+    if (!state?.ready || !["healthy", "busy"].includes(state.status) || heartbeatAge > this.manifest.runtime.heartbeatTimeoutMs) return false;
+    return !this.database.hasActiveTask(task.capability);
   }
 
   #applySecondaryResult(taskId, result) {
