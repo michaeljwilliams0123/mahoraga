@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "instructionId": "self-upgrade-zero-credit-v1",
+  "projectId": "mahoraga",
+  "baseCommit": "ec81509e9fc14858745af0caed1ffe1753d557bc",
+  "mode": "candidate-only",
+  "providerOrder": [
+    "codespaces-open-weight",
+    "local-open-weight",
+    "deterministic-only",
+    "waiting-zero-credit-provider"
+  ],
+  "normalCreditBudget": 0,
+  "hostedComputeSpendCeilingUsd": 0,
+  "allowedActions": [
+    "project.inspect",
+    "project.patch",
+    "project.verify",
+    "workflow.run"
+  ],
+  "verificationCommandIds": [
+    "verify"
+  ],
+  "integration": "pull-request-only",
+  "maximumFiles": 16,
+  "maximumDurationMs": 7200000,
+  "maximumRepairAttempts": 2,
+  "checkpointRequired": true,
+  "rollbackRequired": true
+}
+
