@@ -42,9 +42,10 @@ incident-only repair records.
   debugging endpoint is exposed; an unowned loopback CDP endpoint is rejected.
 - A bounded Repository Worker for status, inspection, recent history, and the
   repository's fixed verification command.
-- Durable assignment conversations, worker questions, and user replies. A task
-  can enter `waiting_for_user`, survive restart, and resume without losing its
-  correlation ID or conversation history.
+- Ordinary response-requesting conversation turns create a durable autonomous
+  objective with propose, challenge, synthesis, implementation, verification,
+  and integration nodes. Journal-style messages can explicitly remain notes,
+  while worker questions still survive restart and resume in the same thread.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
@@ -66,10 +67,10 @@ incident-only repair records.
   idempotently routes an approved issue to Codex cloud or the outbound desktop
   poller. Deterministic Actions remain visibly separated from explicit model
   work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
-- The staged update channel packages immutable source, verifies it, publishes a
-  strict SHA-256 manifest, and attaches GitHub provenance. Beta and stable
-  releases never install themselves; the local runtime may activate them after
-  verification and a rollback checkpoint. See
+- A successful exact-`main` verification automatically packages an immutable beta
+  release with a strict SHA-256 manifest and GitHub provenance, without repeating
+  the same full gate. Releases never install themselves; the local runtime may
+  activate one only after verification and a rollback checkpoint. See
   [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
 - Candidate improvements pass candidate-specific verification before the local
   runtime activates them. Activation records a receipt and restores the prior
@@ -77,6 +78,11 @@ incident-only repair records.
 - Authenticated loopback-only Primary Codex intake with server-generated
   correlation IDs and immutable execution receipts. The local token is runtime
   state and is never kept in Git or SQLite.
+- Owner-gated, event-driven Destiny Codex dispatch through a hash-bound GitHub
+  pull-request envelope. Trusted `main` validates the immutable base commit,
+  allowed paths, fixed verification profiles, and privacy declaration before
+  work proceeds; `[DESTINY-CODEX:ACK]` is the delivery receipt. See
+  [`docs/DESTINY-CODEX-RELAY.md`](docs/DESTINY-CODEX-RELAY.md).
 - Operational and core repair remain automatic; missing core files are restored
   from the verified release baseline with receipts and rollback checkpoints.
 - VS Code prompt files for health review, repository drift review, and tested
@@ -98,6 +104,11 @@ incident-only repair records.
   private mode, use GitHub's signed-in Agents, Issues, Pull requests, Actions,
   and Deployments views instead; the private repository is not a secure
   private-hosting mechanism for a personal-account Pages site.
+- **Call the Destiny-authenticated Codex:** open an owner-authored pull request
+  to `main` with the exact title `[DESTINY-CODEX] <envelope title>` and one
+  generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
+  the event without an inbound tunnel. Wait for both the read-only validation
+  check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
 
 
 ## Candidate lifecycle

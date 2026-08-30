@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "1.0.0",
+  "dispatchId": "dcx-af21abd487992cbf429db7e1",
+  "idempotencyKey": "public-next-ui-20260830",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "644037de33bde603167ee256311fab6c95d2e775",
+  "target": "destiny-codex",
+  "sourceController": "primary-local-codex",
+  "targetController": "primary-cloud-codex",
+  "title": "Prepare the next public Mahoraga UI upgrade",
+  "task": "Use the temporarily public repository and current main to prepare the next conversation-first UI upgrade. Inspect and exercise the actual public interface where available. Test multi-turn conversation continuity, autonomous objective and dependency-graph updates, pending/success/failure tool states, admin-plugin and connector truthfulness, automatic integration and release visibility, rollback visibility, keyboard navigation, accessible announcements, and mobile/desktop layouts. Fix concrete defects only under web or cloud-app, add focused behavioral tests, and return concise rendered-browser evidence. Do not add credentials, private chats, personal context, browser history, plugin output, fake connector health, workflow changes, autonomy-policy changes, public local listeners, spending, or device activation.",
+  "allowedPaths": [
+    "cloud-app",
+    "web"
+  ],
+  "verification": [
+    "coordination",
+    "github-audit",
+    "manifest",
+    "tests"
+  ],
+  "maximumAttempts": 2,
+  "createdAt": "2026-08-30T13:12:36.234Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "personalContextIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  },
+  "requestHash": "0835811ca21c27c27280fda534589c6545a6279f302decc0fd3a2b3aa1e3e0fd"
+}

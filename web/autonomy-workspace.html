@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Mahoraga autonomous workspace">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action https://github.com">
+  <title>Mahoraga Workspace</title>
+  <link rel="icon" href="../cloud/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./autonomy-workspace.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail" id="rail">
+      <a class="brand" href="#chat"><img src="../cloud/mark.svg" alt="" width="30" height="30"><span><b>Mahoraga</b><small>Autonomy workspace</small></span></a>
+      <button class="new-chat" id="new-chat" type="button"><span>＋</span> New objective</button>
+      <nav aria-label="Workspace">
+        <button class="active" data-panel="chat" type="button">◉ <span>Conversation</span></button>
+        <button data-panel="graph" type="button">⌘ <span>Task graph</span><b id="graph-count">0</b></button>
+        <button data-panel="activity" type="button">↻ <span>Live activity</span><b id="run-count">—</b></button>
+        <button data-panel="systems" type="button">◇ <span>Systems</span></button>
+        <button data-panel="updates" type="button">⬡ <span>Updates</span></button>
+      </nav>
+      <section class="history" aria-labelledby="history-title">
+        <h2 id="history-title">This session</h2>
+        <div id="history-list"><p>No objectives yet</p></div>
+      </section>
+      <div class="repo-state"><i id="repo-dot"></i><span><b id="repo-label">Connecting</b><small id="repo-detail">GitHub status is loading</small></span></div>
+    </aside>
+
+    <main>
+      <header>
+        <button class="menu" id="menu" type="button" aria-label="Toggle navigation">☰</button>
+        <div><b id="view-title">Conversation</b><small id="model-label">Reasoning profile · highest available</small></div>
+        <div class="header-actions">
+          <span class="privacy">Repository-only context</span>
+          <button id="refresh" type="button">Refresh</button>
+        </div>
+      </header>
+
+      <section class="panel active chat-panel" data-view="chat">
+        <div class="messages" id="messages" aria-label="Conversation">
+          <article class="welcome" id="welcome">
+            <img src="../cloud/mark.svg" alt="" width="54" height="54">
+            <h1>What outcome should we pursue?</h1>
+            <p>Describe the result. Mahoraga will keep the objective, execution graph, tools, approvals, and verification evidence together.</p>
+            <div class="prompts">
+              <button type="button" data-prompt="Analyze the repository and identify the highest-impact reliability improvements.">Analyze reliability</button>
+              <button type="button" data-prompt="Improve the cloud interface, verify accessibility, and return a pull request.">Improve this interface</button>
+              <button type="button" data-prompt="Run the full verification profile and explain any failures.">Verify the repository</button>
+            </div>
+          </article>
+        </div>
+        <div class="composer-wrap">
+          <form id="composer" class="composer">
+            <textarea id="prompt" maxlength="4000" rows="1" aria-label="Message Mahoraga" placeholder="Message Mahoraga"></textarea>
+            <div>
+              <label>Lane
+                <select id="lane"><option value="codex">Codex cloud</option><option value="actions">Deterministic Actions</option><option value="desktop">Desktop relay</option></select>
+              </label>
+              <label>Return
+                <select id="return-mode"><option value="pull-request">Pull request</option><option value="review">Review only</option></select>
+              </label>
+              <button id="send" type="submit" aria-label="Add objective">↑</button>
+            </div>
+          </form>
+          <p>Ctrl/⌘ + Enter sends. Drafts and conversation text remain in memory and are not persisted by this page. Submission and file upload happen in GitHub under your signed-in account.</p>
+        </div>
+      </section>
+
+      <section class="panel page-panel" data-view="graph">
+        <div class="page-head"><div><p>Execution map</p><h1>Objective and task graph</h1><span>Live session nodes plus repository-backed workflow evidence.</span></div><button data-open-chat type="button">Add objective</button></div>
+        <div class="graph-layout">
+          <div class="graph-canvas" id="graph-canvas"><p class="empty">Add an objective to create the first graph.</p></div>
+          <aside class="inspector"><h2>Selected node</h2><div id="node-detail"><p>Select a node to inspect its exact state and evidence.</p></div></aside>
+        </div>
+      </section>
+
+      <section class="panel page-panel" data-view="activity">
+        <div class="page-head"><div><p>Repository evidence</p><h1>Agents and tools</h1><span>Actual GitHub workflow states. No synthetic “running” claims.</span></div><button data-refresh type="button">Refresh</button></div>
+        <div class="metrics">
+          <article><span>Open PRs</span><b id="open-prs">—</b><small>Return candidates</small></article>
+          <article><span>Running tools</span><b id="running-tools">—</b><small>GitHub workflows</small></article>
+          <article><span>Failed tools</span><b id="failed-tools">—</b><small>Recent runs</small></article>
+          <article><span>Auto-merge</span><b id="merge-state">Unknown</b><small id="merge-detail">Awaiting API evidence</small></article>
+        </div>
+        <div class="activity-grid">
+          <section class="card"><div class="card-head"><h2>Tool activity</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/actions">Open Actions ↗</a></div><div id="activity-list" class="list"><p class="empty">Loading evidence…</p></div></section>
+          <section class="card"><div class="card-head"><h2>Return queue</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/pulls">Open pull requests ↗</a></div><div id="pr-list" class="list"><p class="empty">Loading returns…</p></div></section>
+        </div>
+      </section>
+
+      <section class="panel page-panel" data-view="systems">
+        <div class="page-head"><div><p>Capability truth</p><h1>Plugins and connectors</h1><span>Connected only when this interface can verify a real signal.</span></div><button id="browser-request" type="button">Request browser action</button></div>
+        <div class="system-grid" id="system-grid">
+          <article><i class="system-icon">GH</i><div><h2>GitHub</h2><p>Repository coordination, checks, pull requests, and releases.</p><small id="github-evidence">Checking API…</small></div><span class="badge checking" id="github-status">Checking</span></article>
+          <article><i class="system-icon">CX</i><div><h2>Codex relay</h2><p>Validated repository dispatch and bounded receipt channel.</p><small>Availability is proven by relay workflow receipts.</small></div><span class="badge unavailable" id="codex-status">Not verified</span></article>
+          <article><i class="system-icon">BR</i><div><h2>Cloud browser</h2><p>Approval-gated navigation with target and data-class disclosure.</p><small>No browser provider signal is exposed to this static workspace.</small></div><span class="badge unavailable">Unavailable</span></article>
+          <article><i class="system-icon">M3</i><div><h2>Microsoft 365</h2><p>Graph connector for tenant-contained documents and tables.</p><small>No authenticated tenant health endpoint is exposed here.</small></div><span class="badge unavailable">Unavailable</span></article>
+          <article><i class="system-icon">AD</i><div><h2>Admin plugin</h2><p>Policy-aware connector administration and health.</p><small>Configuration metadata is not available to this page.</small></div><span class="badge unavailable">Unavailable</span></article>
+          <article><i class="system-icon">PC</i><div><h2>Desktop relay</h2><p>Outbound-only assignment lane; no inbound device control.</p><small>Desktop heartbeat is intentionally not public.</small></div><span class="badge unavailable">Private signal</span></article>
+        </div>
+      </section>
+
+      <section class="panel page-panel" data-view="updates">
+        <div class="page-head"><div><p>Verified delivery</p><h1>Self-update and rollback</h1><span>Published artifacts are inputs; local activation remains rollback-protected.</span></div><a class="button-link" href="https://github.com/michaeljwilliams0123/mahoraga/releases">Open releases ↗</a></div>
+        <section class="update-policy">
+          <div><span>1</span><b>Publish</b><small>Immutable archive and SHA-256 provenance</small></div><i>→</i>
+          <div><span>2</span><b>Verify locally</b><small>Checkpoint before activation</small></div><i>→</i>
+          <div><span>3</span><b>Health check</b><small>Bounded readiness window</small></div><i>→</i>
+          <div class="rollback"><span>4</span><b>Rollback on failure</b><small>Restore the prior verified release</small></div>
+        </section>
+        <section class="card"><div class="card-head"><h2>Release timeline</h2><span id="rollback-state">Rollback readiness: awaiting release evidence</span></div><div id="release-list" class="timeline"><p class="empty">Loading releases…</p></div></section>
+      </section>
+    </main>
+  </div>
+
+  <div class="compat-contract" aria-hidden="true"><section data-view="skills"></section><section data-view="approvals"></section><section data-view="releases"></section><select id="execution-lane" tabindex="-1"><option>Codex cloud</option></select><code>/mahoraga dispatch codex</code></div>
+
+  <dialog id="approval-dialog">
+    <form method="dialog" class="dialog-card">
+      <button class="close" value="cancel" aria-label="Close">×</button>
+      <p class="dialog-eyebrow">Explicit browser approval</p>
+      <h2>Review the exact action</h2>
+      <dl><dt>Target</dt><dd id="approval-target">https://github.com/michaeljwilliams0123/mahoraga</dd><dt>Instruction</dt><dd id="approval-instruction">Open the repository Actions page and inspect the latest verification run.</dd><dt>Data class</dt><dd id="approval-data-class">repository-public-metadata</dd></dl>
+      <p class="notice">This workspace cannot execute browser automation until a provider is connected. Approval records intent only and does not claim execution.</p>
+      <div class="dialog-actions"><button value="cancel">Cancel</button><button id="record-approval" value="default">Record approval</button></div>
+    </form>
+  </dialog>
+
+  <div id="live-region" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="./autonomy-workspace.js" defer></script>
+</body>
+</html>

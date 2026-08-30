@@ -22,6 +22,8 @@ import {
   CONTROL_SESSION_COOKIE,
 } from "./control-session.mjs";
 import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-policy.mjs";
+import { autonomyPolicySnapshot } from "./autonomy-policy.mjs";
+import { createAutonomousConversation, createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -48,6 +50,7 @@ export function createControlServer({
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
+  const autonomyPolicy = autonomyPolicySnapshot(manifest);
   return createServer(async (request, response) => {
     try {
       setHeaders(response, manifest);
@@ -174,13 +177,38 @@ export function createControlServer({
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
         return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments, classification: body.classification ?? "local-only" }) });
+        const result = createAutonomousConversation({
+          database,
+          policy: autonomyPolicy,
+          title: body.title,
+          initialMessage: body.initialMessage ?? null,
+          attachments,
+          requiresResponse: body.requiresResponse ?? false,
+          requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode,
+          taskArea: body.taskArea ?? "mahoraga-autonomy",
+        });
+        if (result.objective) return json(response, 202, result);
+        return json(response, 201, { conversation: result.conversation });
       }
       const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
       if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
       if (request.method === "POST" && conversationMessages) {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        return json(response, 201, { message: database.addConversationMessage({ conversationId: conversationMessages[1], taskId: body.taskId ?? null, role: body.role ?? "user", content: body.content, attachments, requiresResponse: body.requiresResponse ?? false }) });
+        const turn = createAutonomousConversationTurn({
+          database,
+          policy: autonomyPolicy,
+          conversationId: conversationMessages[1],
+          taskId: body.taskId ?? null,
+          role: body.role ?? "user",
+          content: body.content,
+          attachments,
+          requiresResponse: body.requiresResponse ?? false,
+          requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode,
+          taskArea: body.taskArea ?? "mahoraga-autonomy",
+        });
+        if (turn.objective) return json(response, 202, turn);
+        return json(response, 201, { message: turn.message });
       }
       if (request.method === "POST" && url.pathname === "/api/tasks") {
         const body = await bodyJson(request);
