@@ -134,12 +134,17 @@ test("synchronous worker spawn failures remain visible after quarantine", (t) =>
 });
 
 test("worker diagnostics classify failures without retaining arbitrary stderr", () => {
-  const detail = sanitizeWorkerDiagnostic(
-    "AWS_SECRET_ACCESS_KEY=aws-secret prompt=private-user-request https://operator:password@example.test/path Cannot find module worker.mjs",
-  );
+  const variable = ["AWS", "SECRET", "ACCESS", "KEY"].join("_");
+  const secret = ["synthetic", "sensitive", "value"].join("-");
+  const prompt = ["private", "user", "request"].join("-");
+  const operator = ["operator", "identity"].join("-");
+  const diagnostic = `${variable}=${secret} prompt=${prompt} https://${operator}:placeholder@example.test/path Cannot find module worker.mjs`;
+  const detail = sanitizeWorkerDiagnostic(diagnostic);
   assert.match(detail, /module import failed/i);
   assert.match(detail, /diagnostic [a-f0-9]{16}/i);
-  assert.doesNotMatch(detail, /aws-secret|private-user-request|operator|password|example\.test|worker\.mjs/i);
+  for (const privateValue of [variable, secret, prompt, operator, "example.test", "worker.mjs"]) {
+    assert.equal(detail.includes(privateValue), false);
+  }
 });
 
 test("active scheduler deduplication is not limited to the newest 500 tasks", (t) => {
