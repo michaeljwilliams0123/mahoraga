@@ -369,6 +369,13 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
   }
 
+  hasActiveTask(capability) {
+    validateCapability(capability);
+    return Boolean(this.db.prepare(
+      "SELECT 1 FROM tasks WHERE capability=? AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user') LIMIT 1",
+    ).get(capability));
+  }
+
   createObjective({ title, correlationId = `obj-${randomUUID()}`, maximumReplans = 2, tasks }) {
     bounded(title, 240, "objective title"); bounded(correlationId, 120, "objective correlation id");
     if (!Number.isInteger(maximumReplans) || maximumReplans < 0 || maximumReplans > 20) throw new TypeError("Objective maximum replans is invalid.");
