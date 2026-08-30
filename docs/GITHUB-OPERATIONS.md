@@ -14,13 +14,11 @@ conversation content are prohibited.
 
 The verified production history is published on `main`; production-worker and
 candidate branches remain available for attribution and recovery evidence.
-Local and cloud Primary Codex have equal authority over architecture, assignment
-creation, implementation, validation, review, and integration. Updating `main`
-requires one primary to hold the repository's single bounded integration lease;
-path overlap is reported and coordinated, not automatically rejected. The lease
-does not auto-merge or bypass verification. Secondary Codex may implement bounded assignments and
-push only `secondary/<assignment-id>`; Copilot and cloud Codex return branches
-or pull requests for Primary review. Use the attribution prefixes `[PRIMARY]`,
+Local Codex, cloud Codex, and Destiny may architect, implement, validate, and
+integrate within their declared paths. Eligible same-repository branches are
+squash-merged after successful exact-head CI when `main` has not advanced and no
+protected root changed. Other candidates remain normal pull requests. Use the
+attribution prefixes `[PRIMARY]`,
 `[COPILOT]`, and `[SECONDARY]` while preserving those authority boundaries.
 
 Implementation work should normally use a branch and pull request so GitHub's
@@ -36,11 +34,11 @@ comment cannot independently invoke a model. The gateway writes only validated,
 idempotent coordination metadata to `main`; the existing cloud dispatcher or
 outbound Windows poller performs the selected execution later.
 
-Neither primary may activate a core update: that decision belongs only to the
-user. The release workflow is also owner-started. It builds only from authoritative
-`main`, runs full verification, emits a strict update manifest, and records
-provenance. Releases are staging artifacts, not an automatic core activation
-mechanism.
+A successful `Verify Mahoraga` run on `main` automatically publishes an immutable
+beta artifact for that exact SHA and reuses the completed verification evidence.
+Manual beta or stable publishing still performs its own full gate. Releases carry
+a strict update manifest and provenance but never install on a device; local
+activation retains canary, checkpoint, rollback, and user-stop controls.
 
 Run `npm run github:audit` before publishing a branch. The deterministic audit
 checks the candidate repository state without reading GitHub credentials or

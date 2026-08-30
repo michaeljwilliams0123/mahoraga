@@ -81,6 +81,23 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     unsafeTriggers.length ? { files: unsafeTriggers } : undefined,
   );
 
+  const autonomousWorkflow = workflowSources.find(([file]) => file === ".github/workflows/autonomous-integration.yml")?.[1] ?? "";
+  const autonomousFiles = [
+    ".github/workflows/autonomous-integration.yml",
+    "scripts/autonomous-integration.mjs",
+    "src/autonomous-integration.mjs",
+    "src/autonomy-policy.mjs",
+  ];
+  const autonomousMissing = autonomousFiles.filter((file) => !fileSet.has(file));
+  const autonomousTrusted = autonomousMissing.length === 0 && isTrustedAutonomousIntegrationWorkflow(autonomousWorkflow);
+  add(
+    "autonomous-integration",
+    autonomousTrusted,
+    "blocking",
+    autonomousTrusted ? "Automatic integration is bound to trusted main policy, exact verified heads, and current base." : "Automatic integration authority is missing or broader than the trusted contract.",
+    autonomousMissing.length ? { files: autonomousMissing } : undefined,
+  );
+
   const destinyWorkflow = workflowSources.find(([file]) => file === ".github/workflows/destiny-codex-relay.yml")?.[1] ?? "";
   const destinyFiles = [
     ".github/workflows/destiny-codex-relay.yml",
@@ -168,6 +185,20 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     checks,
     note: "Live GitHub settings and historical Git objects require GitHub-native verification; no credential or file content is emitted.",
   });
+}
+
+export function isTrustedAutonomousIntegrationWorkflow(source) {
+  if (typeof source !== "string") return false;
+  return /workflow_run\s*:/.test(source)
+    && /workflows:\s*\["Verify Mahoraga"\]/.test(source)
+    && /contents:\s*write/.test(source)
+    && /pull-requests:\s*write/.test(source)
+    && /ref:\s*main/.test(source)
+    && /persist-credentials:\s*false/.test(source)
+    && /node scripts\/autonomous-integration\.mjs --input state\/autonomous-integration-input\.json/.test(source)
+    && /pr\.head\.sha !== expectedHead/.test(source)
+    && /pr\.base\.sha !== main\.commit\.sha/.test(source)
+    && /pulls\.merge\(\{[\s\S]*sha:\s*expectedHead[\s\S]*merge_method:\s*"squash"/.test(source);
 }
 
 export function isDeterministicDependency(specification) {

@@ -1,0 +1,80 @@
+name: Autonomous Integration
+
+on:
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: mahoraga-autonomous-main-integration
+  cancel-in-progress: false
+
+jobs:
+  integrate:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted policy from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+      - name: Collect bounded candidate metadata
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const run = context.payload.workflow_run;
+            const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              owner, repo, commit_sha: run.head_sha, per_page: 100,
+            });
+            const candidates = associated.filter((item) => item.state === "open" && item.base.ref === "main");
+            if (candidates.length !== 1) throw new Error(`expected-one-open-main-pr:${candidates.length}`);
+            const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
+            const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
+            const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: detail.number, per_page: 100 });
+            fs.mkdirSync("state", { recursive: true });
+            fs.writeFileSync("state/autonomous-integration-input.json", JSON.stringify({
+              workflow: { name: run.name, conclusion: run.conclusion, headSha: run.head_sha },
+              pullRequest: {
+                number: detail.number, state: detail.state, draft: detail.draft,
+                baseRef: detail.base.ref, baseSha: detail.base.sha, currentMainSha: main.commit.sha,
+                headRef: detail.head.ref, headSha: detail.head.sha,
+                headRepository: detail.head.repo?.full_name, baseRepository: detail.base.repo.full_name,
+                mergeable: detail.mergeable === true,
+                changedFiles: files.slice(0, 257).map((item) => item.filename),
+              },
+            }));
+      - name: Evaluate trusted integration policy
+        id: policy
+        run: node scripts/autonomous-integration.mjs --input state/autonomous-integration-input.json
+      - name: Merge exact verified head
+        if: steps.policy.outputs.eligible == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          PULL_REQUEST: ${{ steps.policy.outputs.pull_request }}
+          VERIFIED_HEAD: ${{ steps.policy.outputs.head_sha }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            const pull_number = Number(process.env.PULL_REQUEST);
+            const expectedHead = process.env.VERIFIED_HEAD;
+            const pr = (await github.rest.pulls.get({ owner, repo, pull_number })).data;
+            const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
+            if (pr.head.sha !== expectedHead) throw new Error("verified-head-advanced");
+            if (pr.base.sha !== main.commit.sha) throw new Error("base-advanced-before-merge");
+            const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
+            if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);

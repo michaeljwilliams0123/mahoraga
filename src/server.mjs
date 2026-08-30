@@ -12,7 +12,7 @@ import { LocalArtifactStore } from "./local-artifact-store.mjs";
 import { controllerAuthoritySnapshot } from "./controller-authority.mjs";
 import { listExpertSkills, selectExpertSkills } from "./expert-skill-registry.mjs";
 import { autonomyPolicySnapshot } from "./autonomy-policy.mjs";
-import { createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
+import { createAutonomousConversation, createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
 
 const WEB_ROOT = path.join(ROOT, "web");
 const STATIC = new Map([
@@ -124,7 +124,18 @@ export function createControlServer({ manifest, database, supervisor, primaryCod
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments }) });
+        const result = createAutonomousConversation({
+          database,
+          policy: autonomyPolicy,
+          title: body.title,
+          initialMessage: body.initialMessage ?? null,
+          attachments,
+          requiresResponse: body.requiresResponse ?? false,
+          requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode,
+          taskArea: body.taskArea ?? "mahoraga-autonomy",
+        });
+        if (result.objective) return json(response, 202, result);
+        return json(response, 201, { conversation: result.conversation });
       }
       const conversationMessages = url.pathname.match(/^\/api\/conversations\/(con-[a-f0-9-]+)\/messages$/);
       if (request.method === "GET" && conversationMessages) return json(response, 200, { messages: database.listConversationMessages(conversationMessages[1]) });
