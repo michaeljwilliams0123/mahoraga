@@ -1,4 +1,5 @@
 import { fork } from "node:child_process";
+import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -345,13 +346,15 @@ function safeErrorCode(error) {
 }
 
 export function sanitizeWorkerDiagnostic(value) {
-  let diagnostic = value instanceof Error ? `${value.name}: ${value.message}` : String(value ?? "Worker exited without diagnostic output.");
-  diagnostic = diagnostic
-    .replace(/\b(OPENAI_API_KEY|GITHUB_TOKEN|GH_TOKEN|AZURE_CLIENT_SECRET|CLIENT_SECRET|ACCESS_TOKEN|REFRESH_TOKEN|PASSWORD)\s*[:=]\s*[^\s]+/gi, "$1=[redacted]")
-    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]+=*/gi, "Bearer [redacted]")
-    .replace(/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g, "[redacted]")
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return (diagnostic || "Worker exited without diagnostic output.").slice(-1000);
+  const diagnostic = value instanceof Error ? `${value.name}: ${value.message}` : String(value ?? "");
+  const digest = createHash("sha256").update(diagnostic).digest("hex").slice(0, 16);
+  const summary =
+    /ERR_MODULE_NOT_FOUND|Cannot find (?:module|package)|module import/i.test(diagnostic) ? "Worker module import failed." :
+    /SyntaxError|Unexpected token/i.test(diagnostic) ? "Worker source failed to parse." :
+    /ENOENT|entrypoint.*not found|not found.*entrypoint/i.test(diagnostic) ? "Worker entrypoint was not found." :
+    /EACCES|EPERM|permission denied/i.test(diagnostic) ? "Worker process permission failure." :
+    /IPC|channel.*closed/i.test(diagnostic) ? "Worker IPC channel reported an error." :
+    /timeout|timed out/i.test(diagnostic) ? "Worker process timed out." :
+    "Worker process reported diagnostic output.";
+  return `${summary} Sensitive diagnostic content redacted. Diagnostic ${digest}.`;
 }
