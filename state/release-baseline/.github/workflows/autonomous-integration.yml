@@ -39,6 +39,7 @@ jobs:
         with:
           node-version: 24
       - name: Collect bounded candidate metadata
+        id: candidate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         with:
           script: |
@@ -47,6 +48,19 @@ jobs:
             const { pathToFileURL } = require("url");
             const { latestExactDestinyResult, latestExactWorkflowRun } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "autonomous-integration.mjs")).href);
             const { owner, repo } = context.repo;
+            const run = context.payload.workflow_run;
+            const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+              owner, repo, commit_sha: run.head_sha, per_page: 100,
+            });
+            const candidates = associated.filter((item) => item.state === "open" && item.base.ref === "main");
+            if (candidates.length === 0) {
+              core.notice("No open main pull request is associated with this verified commit; integration is not applicable.");
+              core.setOutput("found", "false");
+              return;
+            }
+            if (candidates.length > 1) throw new Error(`ambiguous-open-main-prs:${candidates.length}`);
+            core.setOutput("found", "true");
+            const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
             let pullNumber;
             if (context.eventName === "issue_comment") {
               pullNumber = context.issue.number;
@@ -93,7 +107,10 @@ jobs:
             }));
       - name: Evaluate trusted integration policy
         id: policy
+        if: steps.candidate.outputs.found == 'true'
         run: node scripts/autonomous-integration.mjs --input state/autonomous-integration-input.json
+      - name: Merge exact verified head
+        if: steps.candidate.outputs.found == 'true' && steps.policy.outputs.eligible == 'true'
       - name: Revalidate and merge exact verified head
         if: steps.policy.outputs.eligible == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
