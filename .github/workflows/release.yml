@@ -11,6 +11,10 @@ on:
         options:
           - beta
           - stable
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
+
 
 permissions:
   contents: write
@@ -18,21 +22,22 @@ permissions:
   attestations: write
 
 concurrency:
-  group: mahoraga-release-${{ inputs.channel }}
+  group: mahoraga-release-${{ github.event_name == 'workflow_run' && 'automatic' || inputs.channel }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Verify, attest, and publish staged update
-    if: github.actor == github.repository_owner
+    name: Attest and publish exact verified update
+    if: (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out authoritative main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: main
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || 'main' }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Use Mahoraga Node runtime
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
@@ -40,13 +45,14 @@ jobs:
           node-version: "24"
 
       - name: Verify authoritative release source
+        if: github.event_name == 'workflow_dispatch'
         run: npm run verify
 
       - name: Build immutable update archive and manifest
         id: package
         shell: bash
         env:
-          CHANNEL: ${{ inputs.channel }}
+          CHANNEL: ${{ github.event_name == 'workflow_run' && 'beta' || inputs.channel }}
         run: |
           set -euo pipefail
           base_version="$(node -p 'require("./mahoraga.manifest.json").version')"
@@ -80,7 +86,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          CHANNEL: ${{ inputs.channel }}
+          CHANNEL: ${{ github.event_name == 'workflow_run' && 'beta' || inputs.channel }}
           TAG: ${{ steps.package.outputs.tag }}
           VERSION: ${{ steps.package.outputs.version }}
           ARTIFACT: ${{ steps.package.outputs.artifact }}

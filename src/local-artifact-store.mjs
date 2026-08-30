@@ -11,11 +11,14 @@ const TEXT_EXTENSIONS = new Set([
 ]);
 
 export class LocalArtifactStore {
-  constructor(root, { maximumBytes = MAX_LOCAL_ARTIFACT_BYTES } = {}) {
+  constructor(root, { maximumBytes = MAX_LOCAL_ARTIFACT_BYTES, contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
     if (typeof root !== "string" || !path.isAbsolute(root)) throw new TypeError("artifact-root-invalid");
     if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1024 || maximumBytes > 100 * 1024 * 1024) throw new TypeError("artifact-limit-invalid");
+    if (contentVault !== null && (!contentVault || typeof contentVault.put !== "function" || typeof contentVault.get !== "function")) throw new TypeError("artifact-content-vault-invalid");
     this.root = root;
     this.maximumBytes = maximumBytes;
+    this.contentVault = contentVault; this.contentTtlMs = contentTtlMs;
+    this.allowLegacyPlaintextWrites = allowLegacyPlaintextWrites === true;
   }
 
   async put({ name, mimeType = "application/octet-stream", source = "picker", bytes }) {
@@ -27,6 +30,10 @@ export class LocalArtifactStore {
     if (bytes.length > this.maximumBytes) throw new TypeError("artifact-too-large");
     const id = `art-${randomUUID()}`;
     const directory = this.#directory(id);
+    if (!this.contentVault && !this.allowLegacyPlaintextWrites) throw new Error("artifact-content-vault-required");
+    const vaultReference = this.contentVault
+      ? this.contentVault.put(bytes, { classification: "local-only", ownerType: "artifact", ownerId: id, ttlMs: this.contentTtlMs })
+      : null;
     const createdAt = new Date().toISOString();
     const metadata = Object.freeze({
       id,
@@ -36,10 +43,11 @@ export class LocalArtifactStore {
       sha256: createHash("sha256").update(bytes).digest("hex"),
       source,
       createdAt,
-      storageClass: "device-local-private",
+      storageClass: vaultReference ? "encrypted-local-private" : "device-local-private",
+      vaultReference,
     });
     await mkdir(directory, { recursive: true });
-    await writeFile(path.join(directory, "payload"), bytes, { flag: "wx" });
+    if (!vaultReference) await writeFile(path.join(directory, "payload"), bytes, { flag: "wx" });
     await writeFile(path.join(directory, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
     return metadata;
   }
@@ -52,9 +60,12 @@ export class LocalArtifactStore {
 
   async read(id) {
     const metadata = await this.get(id);
-    const bytes = await readFile(path.join(this.#directory(id), "payload"));
+    const bytes = metadata.vaultReference
+      ? this.contentVault?.get(metadata.vaultReference, { ownerType: "artifact", ownerId: id, classification: "local-only" })
+      : await readFile(path.join(this.#directory(id), "payload"));
+    if (!bytes) throw new Error("artifact-content-vault-required");
     if (bytes.length !== metadata.sizeBytes || createHash("sha256").update(bytes).digest("hex") !== metadata.sha256) throw new Error("artifact-integrity-failed");
-    return { metadata, bytes };
+    return { metadata, bytes: Buffer.from(bytes) };
   }
 
   async resolve(ids) {
@@ -64,6 +75,8 @@ export class LocalArtifactStore {
 
   async remove(id) {
     artifactId(id);
+    const metadata = await this.get(id);
+    if (metadata.vaultReference) this.contentVault?.remove(metadata.vaultReference, { ownerType: "artifact", ownerId: id, classification: "local-only" });
     await rm(this.#directory(id), { recursive: true, force: true });
   }
 
@@ -90,11 +103,10 @@ async function inspectOne(store, id) {
     const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     const normalized = text.replace(/\u0000/g, "").replace(/\s+/g, " ").trim();
     const words = normalized ? normalized.split(/\s+/).length : 0;
-    const preview = normalized.slice(0, 700);
     return {
       id, name: metadata.name, mimeType: metadata.mimeType, sizeBytes: metadata.sizeBytes, sha256: metadata.sha256,
-      kind: "text", characters: text.length, words,
-      summary: `${metadata.name}: readable text, ${words} words. ${preview ? `Preview: ${preview}` : "The file is empty after text normalization."}`,
+      kind: "text", characters: text.length, words, inspectionMethod: "local-utf8-structure",
+      summary: `${metadata.name}: readable text, ${words} words, ${text.length} characters, ${formatBytes(metadata.sizeBytes)}; content preview withheld from operational state.`,
     };
   }
   const dimensions = imageDimensions(metadata.mimeType, bytes);
@@ -102,6 +114,7 @@ async function inspectOne(store, id) {
     return {
       id, name: metadata.name, mimeType: metadata.mimeType, sizeBytes: metadata.sizeBytes, sha256: metadata.sha256,
       kind: "image", ...dimensions,
+      inspectionMethod: "local-image-header",
       summary: `${metadata.name}: private image${dimensions.width ? `, ${dimensions.width}×${dimensions.height}` : ""}, ${formatBytes(metadata.sizeBytes)}. It is ready for an image-capable local or approved provider; deterministic inspection does not invent visual content.`,
     };
   }
@@ -109,6 +122,7 @@ async function inspectOne(store, id) {
   return {
     id, name: metadata.name, mimeType: metadata.mimeType, sizeBytes: metadata.sizeBytes, sha256: metadata.sha256,
     kind: structured ? "structured-document" : "binary",
+    inspectionMethod: "local-file-signature",
     summary: `${metadata.name}: ${structured ? "structured document" : "binary file"}, ${formatBytes(metadata.sizeBytes)}. The original is retained locally and is ready for a compatible document or application provider.`,
   };
 }
@@ -125,7 +139,9 @@ function validateStoredMetadata(value, expectedId, maximumBytes) {
   artifactId(value.id); artifactName(value.name); artifactMimeType(value.mimeType);
   if (!Number.isSafeInteger(value.sizeBytes) || value.sizeBytes < 1 || value.sizeBytes > maximumBytes) throw new TypeError("artifact-size-invalid");
   if (!/^[a-f0-9]{64}$/.test(value.sha256)) throw new TypeError("artifact-hash-invalid");
-  if (value.storageClass !== "device-local-private" || !Number.isFinite(Date.parse(value.createdAt))) throw new TypeError("artifact-metadata-invalid");
+  if (!new Set(["device-local-private", "encrypted-local-private"]).has(value.storageClass) || !Number.isFinite(Date.parse(value.createdAt))) throw new TypeError("artifact-metadata-invalid");
+  if (value.storageClass === "encrypted-local-private" && (typeof value.vaultReference !== "string" || !/^vault:[a-f0-9-]{36}$/.test(value.vaultReference))) throw new TypeError("artifact-metadata-invalid");
+  if (value.storageClass === "device-local-private" && value.vaultReference) throw new TypeError("artifact-metadata-invalid");
   return Object.freeze({ ...value });
 }
 

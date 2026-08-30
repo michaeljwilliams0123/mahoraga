@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 
-export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync } = {}) {
+export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, evidence = {} } = {}) {
   if (!manifest || typeof manifest !== "object") throw new TypeError("Manifest is required for gap audit.");
 
   const worker = (id) => manifest.workers?.find((item) => item.id === id) ?? null;
@@ -10,6 +10,21 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
 
   const closed = [];
   const open = [];
+  const record = (target, condition, item) => {
+    if (!condition) return;
+    const proof = auditProof(item.id, evidence);
+    if (proof?.verified === true) {
+      target.push(Object.freeze({ ...item, state: "closed", evidenceLevel: "verified", lastVerifiedAt: proof.verifiedAt ?? null, verifier: proof.verifier ?? "contract-evidence" }));
+      return;
+    }
+    open.push(Object.freeze({
+      ...item,
+      state: "unverified",
+      evidenceLevel: "supporting",
+      supportingEvidence: "Repository file or manifest declaration is present.",
+      dependency: "A passing contract check or fresh runtime verification is required before this gap can close.",
+    }));
+  };
 
   record(closed, manifest.runtime?.host === "127.0.0.1", {
     id: "localhost-runtime-boundary",
@@ -145,22 +160,32 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync }
     schemaVersion: 1,
     product: manifest.product,
     version: manifest.version,
-    scope: "repository-declared-state-only",
-    liveWindowsRuntimeVerified: false,
+    scope: "evidence-backed-contract-and-runtime-state",
+    liveWindowsRuntimeVerified: evidence.runtime?.verified === true,
     generatedAt: new Date().toISOString(),
     counts: { open: open.length, closed: closed.length },
     open,
     closed,
-    note: "This audit does not claim live Windows process, browser-session, desktop, local-model, or tenant-authentication health.",
+    note: "File presence and manifest declarations are supporting evidence only; closure requires a passing contract or fresh verified runtime evidence.",
   });
 }
 
-function record(target, condition, item) {
-  if (condition) target.push(Object.freeze({ ...item, state: "closed" }));
+function gap(target, condition, item) {
+  if (condition) target.push(Object.freeze({ ...item, evidenceLevel: "unknown", lastVerifiedAt: null }));
 }
 
-function gap(target, condition, item) {
-  if (condition) target.push(Object.freeze({ ...item }));
+function auditProof(id, evidence) {
+  const contract = evidence.contracts?.[id];
+  if (contract?.verified === true) return { verified: true, verifiedAt: contract.verifiedAt ?? null, verifier: contract.verifier ?? "contract-test" };
+  const workerByControl = new Map([["browser-worker-baseline", "browser"], ["repository-worker-baseline", "repository"]]);
+  const workerId = workerByControl.get(id);
+  if (workerId) {
+    const route = evidence.capabilities?.find((item) => item.workerId === workerId && item.routable === true && item.evidenceLevel === "verified");
+    if (route) return { verified: true, verifiedAt: route.lastVerifiedAt, verifier: `${workerId}-runtime-canary` };
+  }
+  if (id === "automatic-operational-repair" && evidence.repairScan?.healthy === true && evidence.repairScan.lastVerifiedAt) return { verified: true, verifiedAt: evidence.repairScan.lastVerifiedAt, verifier: "repair-scan" };
+  if (id === "localhost-runtime-boundary" && evidence.runtime?.verified === true && evidence.runtime.host === "127.0.0.1") return { verified: true, verifiedAt: evidence.runtime.verifiedAt ?? null, verifier: "runtime-observation" };
+  return null;
 }
 
 function queueDependency(manifest) {

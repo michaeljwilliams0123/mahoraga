@@ -10,7 +10,7 @@ import { RuntimeDatabase } from "../src/database.mjs";
 function fixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-coordination-"));
   mkdirSync(path.join(root, "coordination", "assignments"), { recursive: true });
-  const database = new RuntimeDatabase(path.join(root, "state.sqlite"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
   t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   return { root, database };
 }

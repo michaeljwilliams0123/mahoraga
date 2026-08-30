@@ -1,18 +1,28 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
+import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
+import { advanceRepairIncident, reconcileRepairIncidents as reconcileIncidentState } from "./repair-incidents.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
 const IMPROVEMENT_STATES = new Set(["proposed", "approved", "rejected", "activated"]);
+const CAPABILITY_PROCESS_STATES = new Set(["stopped", "starting", "live", "busy", "stale", "crashed", "quarantined"]);
+const CAPABILITY_PROVIDER_STATES = new Set(["unknown", "unavailable", "degraded", "ready"]);
+const CAPABILITY_CANARY_STATES = new Set(["never", "stale", "failed", "verified"]);
 const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unresolved"]);
 
 export class RuntimeDatabase {
-  constructor(file) {
+  constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
+    if (contentVault !== null && (!contentVault || typeof contentVault.put !== "function" || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function")) throw new TypeError("Content vault is invalid.");
+    if (!Number.isSafeInteger(contentTtlMs) || contentTtlMs < 1000) throw new TypeError("Content TTL is invalid.");
     mkdirSync(path.dirname(file), { recursive: true });
     this.db = new DatabaseSync(file);
+    this.contentVault = contentVault;
+    this.contentTtlMs = contentTtlMs;
+    this.allowLegacyPlaintextWrites = allowLegacyPlaintextWrites === true;
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     this.#migrate();
   }
@@ -59,7 +69,8 @@ export class RuntimeDatabase {
         pid INTEGER,
         restart_count INTEGER NOT NULL DEFAULT 0,
         last_heartbeat_at TEXT,
-        last_error_code TEXT
+        last_error_code TEXT,
+        last_error_detail TEXT
       );
       CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
@@ -189,21 +200,63 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_secondary_assignments_status ON secondary_assignments(status, created_at);
       CREATE INDEX IF NOT EXISTS idx_objective_tasks_objective ON objective_tasks(objective_id, status);
     `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS capability_readiness (
+        worker_id TEXT NOT NULL,
+        capability TEXT NOT NULL,
+        process_status TEXT NOT NULL,
+        provider_status TEXT NOT NULL,
+        canary_status TEXT NOT NULL,
+        process_observed_at TEXT,
+        provider_observed_at TEXT,
+        canary_verified_at TEXT,
+        last_error_code TEXT,
+        PRIMARY KEY(worker_id, capability)
+      );
+      CREATE INDEX IF NOT EXISTS idx_capability_readiness_route ON capability_readiness(capability, process_status, provider_status, canary_status);
+    `);
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS repair_incidents (
+        id TEXT PRIMARY KEY,
+        relative_path TEXT NOT NULL,
+        condition_code TEXT NOT NULL,
+        expected_sha256 TEXT,
+        observed_sha256 TEXT,
+        baseline_version TEXT NOT NULL,
+        status TEXT NOT NULL,
+        recovery_state TEXT NOT NULL,
+        opened_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        resolved_at TEXT,
+        last_error_code TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_repair_incidents_status ON repair_incidents(status, updated_at);
+    `);
     this.#ensureTaskColumns();
     this.#ensureReceiptColumns();
     this.#ensureSecondaryAssignmentColumns();
+    this.#ensureContentColumns();
+    this.#ensureWorkerStateColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
+    this.#migrateLegacyContent();
   }
 
   #ensureTaskColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(tasks)").all().map((column) => column.name));
     const additions = [
       ["correlation_id", "TEXT"], ["task_type", "TEXT"], ["requested_outcome", "TEXT"],
+      ["requested_outcome_ref", "TEXT"], ["requested_outcome_sha256", "TEXT"], ["requested_outcome_size_bytes", "INTEGER"], ["requested_outcome_expires_at", "TEXT"],
+      ["result_summary_ref", "TEXT"], ["result_summary_sha256", "TEXT"], ["result_summary_size_bytes", "INTEGER"], ["result_summary_expires_at", "TEXT"],
       ["execution_plane", "TEXT NOT NULL DEFAULT 'local'"], ["priority", "TEXT NOT NULL DEFAULT 'normal'"],
       ["maximum_attempts", "INTEGER NOT NULL DEFAULT 3"], ["checkpoint", "TEXT"], ["verifier", "TEXT"],
       ["conversation_id", "TEXT"],
       ["task_area", "TEXT"], ["excluded_worker_ids", "TEXT NOT NULL DEFAULT '[]'"],
       ["completion_criteria", "TEXT NOT NULL DEFAULT 'worker-verified'"],
+      ["intent", "TEXT"], ["attended_required", "INTEGER NOT NULL DEFAULT 0"],
+      ["allowed_worker_ids_json", "TEXT NOT NULL DEFAULT '[]'"], ["authority_session_id", "TEXT"],
+      ["integration_lease_id", "TEXT"], ["content_references_json", "TEXT NOT NULL DEFAULT '[]'"],
+      ["base_commit", "TEXT"], ["allowed_paths_json", "TEXT NOT NULL DEFAULT '[]'"],
+      ["policy_version", "TEXT NOT NULL DEFAULT 'legacy-internal'"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
   }
@@ -211,6 +264,10 @@ export class RuntimeDatabase {
   #ensureReceiptColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(execution_receipts)").all().map((column) => column.name));
     if (!current.has("metadata_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}'");
+    if (!current.has("receipt_json")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN receipt_json TEXT");
+    if (!current.has("receipt_sha256")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN receipt_sha256 TEXT");
+    if (!current.has("capability")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN capability TEXT");
+    if (!current.has("outcome")) this.db.exec("ALTER TABLE execution_receipts ADD COLUMN outcome TEXT");
   }
 
   #ensureSecondaryAssignmentColumns() {
@@ -219,22 +276,110 @@ export class RuntimeDatabase {
     if (!current.has("source")) this.db.exec("ALTER TABLE secondary_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'runtime-api'");
   }
 
+  #ensureContentColumns() {
+    const conversations = new Set(this.db.prepare("PRAGMA table_info(conversations)").all().map((column) => column.name));
+    for (const [name, definition] of [
+      ["title_ref", "TEXT"], ["title_sha256", "TEXT"], ["title_size_bytes", "INTEGER"], ["title_classification", "TEXT"], ["title_expires_at", "TEXT"],
+    ]) if (!conversations.has(name)) this.db.exec(`ALTER TABLE conversations ADD COLUMN ${name} ${definition}`);
+    const messages = new Set(this.db.prepare("PRAGMA table_info(conversation_messages)").all().map((column) => column.name));
+    for (const [name, definition] of [
+      ["content_ref", "TEXT"], ["content_sha256", "TEXT"], ["content_size_bytes", "INTEGER"], ["content_classification", "TEXT"], ["content_expires_at", "TEXT"],
+    ]) if (!messages.has(name)) this.db.exec(`ALTER TABLE conversation_messages ADD COLUMN ${name} ${definition}`);
+  }
+
+  #migrateLegacyContent() {
+    const sentinel = "[vault-content]";
+    const conversations = this.db.prepare(`SELECT id,title,title_ref,title_classification
+      FROM conversations WHERE title_ref IS NULL OR title<>?`).all(sentinel);
+    const messages = this.db.prepare(`SELECT m.id,m.content,m.content_ref,
+      COALESCE(m.content_classification,c.title_classification,'local-only') AS classification
+      FROM conversation_messages m LEFT JOIN conversations c ON c.id=m.conversation_id
+      WHERE m.content_ref IS NULL OR m.content<>?`).all(sentinel);
+    const missingConversationReference = conversations.some((row) => row.title_ref === null && row.title === sentinel);
+    const missingMessageReference = messages.some((row) => row.content_ref === null && row.content === sentinel);
+    if (missingConversationReference || missingMessageReference) throw new Error("vault-content-reference-missing");
+    const plaintextExists = conversations.some((row) => row.title_ref === null && row.title !== sentinel)
+      || messages.some((row) => row.content_ref === null && row.content !== sentinel);
+    if (plaintextExists && !this.contentVault) {
+      if (this.allowLegacyPlaintextWrites) return;
+      throw new Error("content-vault-required-for-legacy-migration");
+    }
+    if (conversations.length === 0 && messages.length === 0) return;
+    this.#transaction(() => {
+      const updateConversation = this.db.prepare(`UPDATE conversations SET
+        title=?,title_ref=?,title_sha256=?,title_size_bytes=?,title_classification=?,title_expires_at=? WHERE id=?`);
+      for (const row of conversations) {
+        if (row.title_ref !== null) {
+          this.db.prepare("UPDATE conversations SET title=? WHERE id=?").run(sentinel, row.id);
+          continue;
+        }
+        const classification = row.title_classification ?? "local-only";
+        const stored = this.#storeContent(row.title, { classification, ownerType: "conversation", ownerId: row.id });
+        updateConversation.run(sentinel, stored.reference, stored.sha256, stored.sizeBytes, classification, stored.expiresAt, row.id);
+      }
+      const updateMessage = this.db.prepare(`UPDATE conversation_messages SET
+        content=?,content_ref=?,content_sha256=?,content_size_bytes=?,content_classification=?,content_expires_at=? WHERE id=?`);
+      for (const row of messages) {
+        if (row.content_ref !== null) {
+          this.db.prepare("UPDATE conversation_messages SET content=? WHERE id=?").run(sentinel, row.id);
+          continue;
+        }
+        const classification = row.classification ?? "local-only";
+        const stored = this.#storeContent(row.content, { classification, ownerType: "message", ownerId: row.id });
+        updateMessage.run(sentinel, stored.reference, stored.sha256, stored.sizeBytes, classification, stored.expiresAt, row.id);
+      }
+    });
+  }
+
+  submitPolicyTask(task) {
+    if (!task || task.policyVersion !== "7.0.0-alpha.1") throw new TypeError("Task policy version is invalid.");
+    if (!Array.isArray(task.allowedWorkerIds) || task.allowedWorkerIds.length < 1) throw new TypeError("Task policy has no allowed workers.");
+    return this.submitTask(task);
+  }
+
+  submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
+  #ensureWorkerStateColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
+    if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
+  }
+
   submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
-    completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified" }) {
+    completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
+    attendedRequired = false, allowedWorkerIds = [], authoritySessionId = null, integrationLeaseId = null,
+    contentReferences = [], baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" }) {
+    bounded(intent, 80, "task intent");
     validateCapability(capability);
     validateDataClass(dataClass);
     bounded(requestedMode, 30, "requested mode");
     bounded(idempotencyKey, 120, "idempotency key");
     bounded(correlationId, 120, "correlation id"); bounded(taskType, 64, "task type");
     bounded(requestedOutcome, 1000, "requested outcome"); bounded(executionPlane, 40, "execution plane");
+    const requestedOutcomeSha256 = digestText(requestedOutcome);
     bounded(completionCriteria, 400, "completion criteria");
     if (!PRIORITIES.has(priority)) throw new TypeError("Task priority is invalid.");
     if (!Number.isInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 20) throw new TypeError("Maximum attempts is invalid.");
     slug(taskArea, "task area");
     if (!Array.isArray(excludedWorkerIds) || excludedWorkerIds.length > 16) throw new TypeError("Excluded worker IDs are invalid.");
     excludedWorkerIds.forEach((item) => slug(item, "excluded worker id"));
+    if (typeof attendedRequired !== "boolean") throw new TypeError("Attended requirement is invalid.");
+    if (!Array.isArray(allowedWorkerIds) || allowedWorkerIds.length > 32) throw new TypeError("Allowed worker IDs are invalid.");
+    allowedWorkerIds.forEach((item) => slug(item, "allowed worker id"));
+    if (authoritySessionId !== null) bounded(authoritySessionId, 128, "authority session id");
+    if (integrationLeaseId !== null) bounded(integrationLeaseId, 128, "integration lease id");
+    if (!Array.isArray(contentReferences) || contentReferences.length > 20) throw new TypeError("Content references are invalid.");
+    contentReferences.forEach((item) => bounded(item, 180, "content reference"));
+    let normalizedAllowedPaths = [];
+    if (capability === "codex.execute") {
+      if (!/^[a-f0-9]{40,64}$/i.test(baseCommit ?? "")) throw new TypeError("Codex Builder base commit is invalid.");
+      if (integrationLeaseId === null) throw new TypeError("Codex Builder integration lease is missing.");
+      normalizedAllowedPaths = executionPaths(allowedPaths);
+      baseCommit = baseCommit.toLowerCase();
+    } else if (baseCommit !== null || (Array.isArray(allowedPaths) && allowedPaths.length > 0)) {
+      throw new TypeError("Execution cell contract is not allowed for this capability.");
+    }
+    bounded(policyVersion, 40, "policy version");
     if (conversationId !== null) { bounded(conversationId, 80, "conversation id"); if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing."); }
     const id = `mhg-${randomUUID()}`;
     const now = new Date().toISOString();
@@ -243,32 +388,40 @@ export class RuntimeDatabase {
       if (existing) {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
-          correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
+          correlationId, taskType, requestedOutcomeSha256, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
+          attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, baseCommit, allowedPaths: normalizedAllowedPaths, policyVersion,
         });
         return task;
       }
+      const requestedContent = this.#storeContent(requestedOutcome, { classification: dataClass, ownerType: "task", ownerId: id });
       this.db.prepare(`INSERT INTO tasks
-        (id, idempotency_key, correlation_id, task_type, requested_outcome, capability, data_class, requested_mode,
-         execution_plane, priority, maximum_attempts, conversation_id, task_area, excluded_worker_ids, completion_criteria, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
-        .run(id, idempotencyKey, correlationId, taskType, requestedOutcome, capability, dataClass, requestedMode,
-          executionPlane, priority, maximumAttempts, conversationId, taskArea, JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
-      this.#event("task.submitted", id, { correlationId, taskType, capability, dataClass, requestedMode, executionPlane, priority });
+        (id, idempotency_key, correlation_id, task_type, requested_outcome, requested_outcome_ref, requested_outcome_sha256, requested_outcome_size_bytes, requested_outcome_expires_at, intent, capability, data_class, requested_mode,
+         execution_plane, attended_required, allowed_worker_ids_json, authority_session_id, integration_lease_id,
+         content_references_json, base_commit, allowed_paths_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
+         excluded_worker_ids, completion_criteria, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+        .run(id, idempotencyKey, correlationId, taskType, requestedContent ? "[vault-content]" : requestedOutcome, requestedContent?.reference ?? null, requestedContent?.sha256 ?? requestedOutcomeSha256, requestedContent?.sizeBytes ?? Buffer.byteLength(requestedOutcome, "utf8"), requestedContent?.expiresAt ?? null, intent, capability, dataClass, requestedMode,
+          executionPlane, attendedRequired ? 1 : 0, JSON.stringify(allowedWorkerIds), authoritySessionId, integrationLeaseId,
+          JSON.stringify(contentReferences), baseCommit, JSON.stringify(normalizedAllowedPaths), policyVersion, priority, maximumAttempts, conversationId, taskArea,
+          JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
+      this.#event("task.submitted", id, { correlationId, taskType, intent, capability, dataClass, executionPlane, priority, policyVersion });
       return this.getTask(id);
     });
   }
 
-  createConversation({ title, initialMessage = null, attachments = [] }) {
+  createConversation({ title, initialMessage = null, attachments = [], classification = "local-only" }) {
     bounded(title, 200, "conversation title");
     if (initialMessage !== null) boundedMultiline(initialMessage, 12000, "initial message");
+    validateDataClass(classification);
     const normalizedAttachments = conversationAttachments(attachments);
     if (!initialMessage && normalizedAttachments.length === 0) throw new TypeError("Initial message or attachment is required.");
     const id = `con-${randomUUID()}`; const now = new Date().toISOString();
     this.#transaction(() => {
-      this.db.prepare("INSERT INTO conversations(id,title,status,created_at,updated_at) VALUES(?,?,'active',?,?)").run(id, title, now, now);
-      this.#event("conversation.created", id, { title });
-      if (initialMessage || normalizedAttachments.length) this.#addMessage({ conversationId: id, role: "user", content: initialMessage || "Attached file", attachments: normalizedAttachments, createdAt: now });
+      const titleContent = this.#storeContent(title, { classification, ownerType: "conversation", ownerId: id });
+      this.db.prepare("INSERT INTO conversations(id,title,title_ref,title_sha256,title_size_bytes,title_classification,title_expires_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)").run(id, titleContent ? "[vault-content]" : title, titleContent?.reference ?? null, titleContent?.sha256 ?? digestText(title), titleContent?.sizeBytes ?? Buffer.byteLength(title, "utf8"), classification, titleContent?.expiresAt ?? null, now, now);
+      this.#event("conversation.created", id, { titleSha256: digestText(title), classification });
+      if (initialMessage || normalizedAttachments.length) this.#addMessage({ conversationId: id, role: "user", content: initialMessage || "Attached file", attachments: normalizedAttachments, classification, createdAt: now });
     });
     return this.getConversation(id);
   }
@@ -284,27 +437,33 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM conversations ORDER BY updated_at DESC LIMIT ?").all(size).map(normalizeConversation);
   }
 
-  addConversationMessage({ conversationId, taskId = null, role = "user", content, attachments = [], requiresResponse = false }) {
+  addConversationMessage({ conversationId, taskId = null, role = "user", content, attachments = [], requiresResponse = false, classification = null }) {
     bounded(conversationId, 80, "conversation id");
     if (taskId !== null) bounded(taskId, 80, "task id");
     if (!new Set(["user", "assistant", "system", "worker"]).has(role)) throw new TypeError("Conversation role is invalid.");
     boundedMultiline(content, 12000, "conversation message");
     const normalizedAttachments = conversationAttachments(attachments);
     if (!this.getConversation(conversationId)) throw new TypeError("Conversation is missing.");
-    const message = this.#addMessage({ conversationId, taskId, role, content, attachments: normalizedAttachments, requiresResponse });
+    const effectiveClassification = classification ?? (taskId ? this.getTask(taskId)?.dataClass : null) ?? "local-only";
+    validateDataClass(effectiveClassification);
+    const message = this.#addMessage({ conversationId, taskId, role, content, attachments: normalizedAttachments, requiresResponse, classification: effectiveClassification });
     this.#event("conversation.message", conversationId, { messageId: message.id, taskId, role, requiresResponse, attachmentCount: normalizedAttachments.length });
     return message;
   }
 
-  #addMessage({ conversationId, taskId = null, role, content, attachments = [], requiresResponse = false, createdAt = new Date().toISOString() }) {
+  #addMessage({ conversationId, taskId = null, role, content, attachments = [], requiresResponse = false, classification = "local-only", createdAt = new Date().toISOString() }) {
     const id = `msg-${randomUUID()}`;
-    this.db.prepare(`INSERT INTO conversation_messages(id,conversation_id,task_id,role,content,requires_response,created_at)
-      VALUES(?,?,?,?,?,?,?)`).run(id, conversationId, taskId, role, content, requiresResponse ? 1 : 0, createdAt);
+    const stored = this.#storeContent(content, { classification, ownerType: "message", ownerId: id });
+    this.db.prepare(`INSERT INTO conversation_messages(id,conversation_id,task_id,role,content,content_ref,content_sha256,content_size_bytes,content_classification,content_expires_at,requires_response,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`).run(id, conversationId, taskId, role, stored ? "[vault-content]" : content, stored?.reference ?? null, stored?.sha256 ?? digestText(content), stored?.sizeBytes ?? Buffer.byteLength(content, "utf8"), classification, stored?.expiresAt ?? null, requiresResponse ? 1 : 0, createdAt);
     const insertAttachment = this.db.prepare(`INSERT INTO conversation_message_attachments
       (message_id,artifact_id,name,mime_type,size_bytes,sha256,created_at) VALUES(?,?,?,?,?,?,?)`);
     for (const attachment of attachments) insertAttachment.run(id, attachment.id, attachment.name, attachment.mimeType, attachment.sizeBytes, attachment.sha256, createdAt);
     this.db.prepare("UPDATE conversations SET updated_at=? WHERE id=?").run(createdAt, conversationId);
-    return { id, conversationId, taskId, role, content, attachments, requiresResponse: Boolean(requiresResponse), createdAt };
+    return { id, conversationId, taskId, role, content: stored ? null : content,
+      contentReference: stored?.reference ?? null, contentSha256: stored?.sha256 ?? digestText(content),
+      contentSizeBytes: stored?.sizeBytes ?? Buffer.byteLength(content, "utf8"), classification, expiresAt: stored?.expiresAt ?? null,
+      attachments, requiresResponse: Boolean(requiresResponse), createdAt };
   }
 
   listConversationMessages(conversationId, limit = 500) {
@@ -313,6 +472,12 @@ export class RuntimeDatabase {
     const attachmentQuery = this.db.prepare("SELECT artifact_id,name,mime_type,size_bytes,sha256 FROM conversation_message_attachments WHERE message_id=? ORDER BY created_at,artifact_id");
     return this.db.prepare("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY created_at, id LIMIT ?")
       .all(conversationId, size).map((row) => normalizeMessageWithAttachments(row, attachmentQuery.all(row.id)));
+  }
+
+  listConversationMessagesForExecution(conversationId, limit = 500) {
+    return this.listConversationMessages(conversationId, limit).map((message) => message.contentReference
+      ? Object.freeze({ ...message, content: this.#resolveContent(message.contentReference, { ownerType: "message", ownerId: message.id, classification: message.classification }).toString("utf8") })
+      : message);
   }
 
   isArtifactReferenced(artifactId) {
@@ -357,9 +522,23 @@ export class RuntimeDatabase {
     return row ? normalizeTask(row) : null;
   }
 
+  getTaskForExecution(id) {
+    const task = this.getTask(id);
+    if (!task || !task.requestedOutcomeReference) return task;
+    const requestedOutcome = this.#resolveContent(task.requestedOutcomeReference, { ownerType: "task", ownerId: task.id, classification: task.dataClass }).toString("utf8");
+    return Object.freeze({ ...task, requestedOutcome });
+  }
+
   listTasks(limit = 100) {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
+  }
+
+  hasActiveTask(capability) {
+    validateCapability(capability);
+    return Boolean(this.db.prepare(
+      "SELECT 1 FROM tasks WHERE capability=? AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user') LIMIT 1",
+    ).get(capability));
   }
 
   createObjective({ title, correlationId = `obj-${randomUUID()}`, maximumReplans = 2, tasks }) {
@@ -460,7 +639,25 @@ export class RuntimeDatabase {
   }
 
   getCodexBuilderSession(id) { bounded(id, 80, "builder session id"); const row = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE id=?").get(id); return row ? normalizeCodexBuilderSession(row) : null; }
+  getCodexBuilderSessionByTaskId(taskId) { bounded(taskId, 80, "task id"); const row = this.db.prepare("SELECT * FROM codex_builder_sessions WHERE task_id=?").get(taskId); return row ? normalizeCodexBuilderSession(row) : null; }
   listCodexBuilderSessions(limit = 100) { const size = Math.max(1, Math.min(Number(limit) || 100, 500)); return this.db.prepare("SELECT * FROM codex_builder_sessions ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeCodexBuilderSession); }
+
+  recordCodexBuilderExecution({ taskId, outcome, evidence }) {
+    bounded(taskId, 80, "task id");
+    if (!new Set(["succeeded", "failed", "waiting"]).has(outcome)) throw new TypeError("Codex Builder execution outcome is invalid.");
+    if (!isRecord(evidence) || evidence.executionMode !== "candidate-worktree") throw new TypeError("Codex Builder execution evidence is invalid.");
+    const session = this.getCodexBuilderSessionByTaskId(taskId);
+    if (!session || session.status !== "PREPARED") return session;
+    const now = new Date().toISOString();
+    const status = outcome === "succeeded" ? "RETURNED" : outcome === "waiting" ? "PREPARED" : "FAILED";
+    this.db.prepare("UPDATE codex_builder_sessions SET status=?, updated_at=? WHERE id=? AND status='PREPARED'").run(status, now, session.id);
+    this.#event("codex-builder.execution-recorded", session.id, {
+      taskId, status, validationState: evidence.validationState ?? "failed", quarantineState: evidence.quarantineState ?? "unknown",
+      worktreeIdentitySha256: evidence.worktreeIdentitySha256 ?? null, headCommit: evidence.headCommit?.slice(0, 12) ?? null,
+      changedFileCount: Array.isArray(evidence.changedPaths) ? evidence.changedPaths.length : 0,
+    });
+    return this.getCodexBuilderSession(session.id);
+  }
 
   recordCodexBuilderResult({ sessionId, status, verificationState = "not-run", changedFileCount = 0, commitId = null }) {
     bounded(sessionId, 80, "builder session id");
@@ -619,7 +816,7 @@ export class RuntimeDatabase {
         lease_expires_at=?, updated_at=? WHERE id=? AND status='queued'`).run(workerId, lease, now.toISOString(), row.id);
       if (changed.changes !== 1) return null;
       this.#event("task.claimed", row.id, { workerId, leaseExpiresAt: lease });
-      return this.getTask(row.id);
+      return this.getTaskForExecution(row.id);
     });
     return transaction();
   }
@@ -630,7 +827,7 @@ export class RuntimeDatabase {
     const changed = this.db.prepare("UPDATE tasks SET status='verifying', verifier=?, updated_at=? WHERE id=? AND status='running'")
       .run(verifier, now, id);
     if (changed.changes === 1) this.#event("task.verifying", id, { verifier });
-    return this.getTask(id);
+    return this.getTaskForExecution(id);
   }
 
   finishTask(id, { status, resultSummary = null, errorCode = null, receiptMetadata = {} }) {
@@ -639,8 +836,10 @@ export class RuntimeDatabase {
     if (errorCode !== null) bounded(errorCode, 80, "error code");
     const task = this.getTask(id);
     const now = new Date().toISOString();
-    const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, error_code=?, lease_expires_at=NULL, updated_at=?
-      WHERE id=? AND status IN ('running','verifying')`).run(status, resultSummary, errorCode, now, id);
+    const storedResult = resultSummary === null ? null : this.#storeContent(resultSummary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+    const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+      WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
+        storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
     if (changed.changes === 1) {
       this.#event(`task.${status}`, id, { errorCode });
       this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.`, metadata: receiptMetadata });
@@ -657,13 +856,66 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
+  completeTaskWithReceipt(id, value) {
+    const task = this.getTask(id);
+    if (!task) throw new TypeError("Receipt task is missing.");
+    const receipt = validateCapabilityReceipt(task.capability, value);
+    const status = receipt.outcome === "succeeded" ? "completed" : receipt.outcome === "waiting" ? "waiting" : "failed";
+    const errorCode = status === "failed" ? "verification-failed" : null;
+    const now = new Date().toISOString();
+    const completed = this.#transaction(() => {
+      const storedResult = this.#storeContent(receipt.summary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+      const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : receipt.summary, storedResult?.reference ?? null,
+          storedResult?.sha256 ?? digestText(receipt.summary), storedResult?.sizeBytes ?? Buffer.byteLength(receipt.summary, "utf8"), storedResult?.expiresAt ?? null, errorCode, now, id);
+      if (changed.changes !== 1) throw new Error("receipt-task-state-invalid");
+      this.#event(`task.${status}`, id, { errorCode, receiptSha256: receiptDigest(receipt) });
+      this.recordCapabilityReceipt({ task, receipt, verifier: task.verifier ?? "worker-result" });
+      return this.getTask(id);
+    });
+    if (task.conversationId) this.addConversationMessage({
+      conversationId: task.conversationId, taskId: id,
+      role: status === "completed" ? "assistant" : "system", content: receipt.summary,
+    });
+    return completed;
+  }
+
+  failTaskSafely(id, { errorCode = "task-completion-failed", resultSummary = null } = {}) {
+    try {
+      return this.finishTask(id, { status: "failed", errorCode, resultSummary });
+    } catch {
+      const now = new Date().toISOString();
+      const task = this.getTask(id); const storedResult = resultSummary === null || !task ? null : this.#storeContent(resultSummary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
+      this.db.prepare(`UPDATE tasks SET status='failed', result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
+          storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
+      return this.getTask(id);
+    }
+  }
+
+  recordCapabilityReceipt({ task, receipt: value, verifier }) {
+    if (!task) throw new TypeError("Task is required for a receipt.");
+    bounded(verifier, 80, "receipt verifier");
+    const receipt = validateCapabilityReceipt(task.capability, value);
+    const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
+    const sha256 = receiptDigest(receipt);
+    const persistedReceipt = { ...receipt, summary: "[vault-content]" };
+    this.db.prepare(`INSERT INTO execution_receipts
+      (id,task_id,correlation_id,phase,verifier,summary,metadata_json,receipt_json,receipt_sha256,capability,outcome,created_at)
+      VALUES(?,?,?,?,?,?,'{}',?,?,?,?,?)`)
+      .run(id, task.id, task.correlationId, receipt.outcome, verifier, "[vault-content]", JSON.stringify(persistedReceipt), sha256, receipt.capability, receipt.outcome, createdAt);
+    this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase: receipt.outcome, verifier, capability: receipt.capability, sha256 });
+    return { id, taskId: task.id, correlationId: task.correlationId, phase: receipt.outcome, verifier, summary: receipt.summary, receipt, sha256, createdAt };
+  }
+
   recordReceipt({ task, phase, verifier, summary, metadata = {} }) {
     if (!task) throw new TypeError("Task is required for a receipt.");
     bounded(phase, 40, "receipt phase"); bounded(verifier, 80, "receipt verifier"); bounded(summary, 2000, "receipt summary");
     const receiptMetadata = normalizeReceiptMetadata(metadata);
     const id = `rcpt-${randomUUID()}`; const createdAt = new Date().toISOString();
+    const persistedMetadata = { ...receiptMetadata, summarySha256: digestText(summary) };
     this.db.prepare("INSERT INTO execution_receipts(id,task_id,correlation_id,phase,verifier,summary,metadata_json,created_at) VALUES(?,?,?,?,?,?,?,?)")
-      .run(id, task.id, task.correlationId, phase, verifier, summary, JSON.stringify(receiptMetadata), createdAt);
+      .run(id, task.id, task.correlationId, phase, verifier, "[vault-content]", JSON.stringify(persistedMetadata), createdAt);
     this.#event("task.receipt", task.id, { receiptId: id, correlationId: task.correlationId, phase, verifier });
     return { id, taskId: task.id, correlationId: task.correlationId, phase, verifier, summary, metadata: receiptMetadata, createdAt };
   }
@@ -673,7 +925,9 @@ export class RuntimeDatabase {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM execution_receipts WHERE task_id=? ORDER BY created_at DESC LIMIT ?").all(taskId, size).map((row) => ({
       id: row.id, taskId: row.task_id, correlationId: row.correlation_id, phase: row.phase, verifier: row.verifier,
-      summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"), createdAt: row.created_at,
+      summary: row.summary, metadata: JSON.parse(row.metadata_json ?? "{}"),
+      receipt: row.receipt_json ? JSON.parse(row.receipt_json) : null, sha256: row.receipt_sha256 ?? null,
+      capability: row.capability ?? null, outcome: row.outcome ?? null, createdAt: row.created_at,
     }));
   }
 
@@ -754,18 +1008,102 @@ export class RuntimeDatabase {
     return rows.length;
   }
 
+  setCapabilityReadiness({
+    workerId, capability, processStatus, providerStatus, canaryStatus,
+    processObservedAt = null, providerObservedAt = null, canaryVerifiedAt = null, lastErrorCode = null,
+  }) {
+    slug(workerId, "readiness worker id");
+    validateCapability(capability);
+    if (!CAPABILITY_PROCESS_STATES.has(processStatus)) throw new TypeError("Capability process status is invalid.");
+    if (!CAPABILITY_PROVIDER_STATES.has(providerStatus)) throw new TypeError("Capability provider status is invalid.");
+    if (!CAPABILITY_CANARY_STATES.has(canaryStatus)) throw new TypeError("Capability canary status is invalid.");
+    for (const [value, name] of [[processObservedAt, "process observed at"], [providerObservedAt, "provider observed at"], [canaryVerifiedAt, "canary verified at"]]) {
+      if (value !== null && !Number.isFinite(Date.parse(value))) throw new TypeError(`Capability ${name} is invalid.`);
+    }
+    if (lastErrorCode !== null) bounded(lastErrorCode, 80, "readiness error code");
+    this.db.prepare(`INSERT INTO capability_readiness
+      (worker_id,capability,process_status,provider_status,canary_status,process_observed_at,provider_observed_at,canary_verified_at,last_error_code)
+      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(worker_id,capability) DO UPDATE SET
+      process_status=excluded.process_status,provider_status=excluded.provider_status,canary_status=excluded.canary_status,
+      process_observed_at=excluded.process_observed_at,provider_observed_at=excluded.provider_observed_at,
+      canary_verified_at=excluded.canary_verified_at,last_error_code=excluded.last_error_code`)
+      .run(workerId, capability, processStatus, providerStatus, canaryStatus, processObservedAt, providerObservedAt, canaryVerifiedAt, lastErrorCode);
+  }
+
+  listCapabilityReadiness(workerId = null) {
+    if (workerId !== null) slug(workerId, "readiness worker id");
+    const rows = workerId === null
+      ? this.db.prepare("SELECT * FROM capability_readiness ORDER BY worker_id, capability").all()
+      : this.db.prepare("SELECT * FROM capability_readiness WHERE worker_id=? ORDER BY capability").all(workerId);
+    return rows.map((row) => ({
+      workerId: row.worker_id, capability: row.capability, processStatus: row.process_status,
+      providerStatus: row.provider_status, canaryStatus: row.canary_status,
+      processObservedAt: row.process_observed_at, providerObservedAt: row.provider_observed_at,
+      canaryVerifiedAt: row.canary_verified_at, lastErrorCode: row.last_error_code,
+    }));
+  }
+
   setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null }) {
+  setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null, lastErrorDetail = null }) {
     bounded(workerId, 64, "worker id"); bounded(status, 30, "worker status");
-    this.db.prepare(`INSERT INTO worker_state(worker_id,status,pid,restart_count,last_heartbeat_at,last_error_code)
-      VALUES(?,?,?,?,?,?) ON CONFLICT(worker_id) DO UPDATE SET status=excluded.status,pid=excluded.pid,
-      restart_count=excluded.restart_count,last_heartbeat_at=excluded.last_heartbeat_at,last_error_code=excluded.last_error_code`)
-      .run(workerId, status, pid, restartCount, lastHeartbeatAt, lastErrorCode);
+    if (lastErrorCode !== null) bounded(lastErrorCode, 80, "worker error code");
+    if (lastErrorDetail !== null) bounded(lastErrorDetail, 1000, "worker error detail");
+    this.db.prepare(`INSERT INTO worker_state(worker_id,status,pid,restart_count,last_heartbeat_at,last_error_code,last_error_detail)
+      VALUES(?,?,?,?,?,?,?) ON CONFLICT(worker_id) DO UPDATE SET status=excluded.status,pid=excluded.pid,
+      restart_count=excluded.restart_count,last_heartbeat_at=excluded.last_heartbeat_at,last_error_code=excluded.last_error_code,
+      last_error_detail=excluded.last_error_detail`)
+      .run(workerId, status, pid, restartCount, lastHeartbeatAt, lastErrorCode, lastErrorDetail);
   }
 
   listWorkerState() { return this.db.prepare("SELECT * FROM worker_state ORDER BY worker_id").all().map((row) => ({
     workerId: row.worker_id, status: row.status, pid: row.pid, restartCount: row.restart_count,
-    lastHeartbeatAt: row.last_heartbeat_at, lastErrorCode: row.last_error_code,
+    lastHeartbeatAt: row.last_heartbeat_at, lastErrorCode: row.last_error_code, lastErrorDetail: row.last_error_detail,
   })); }
+
+  listRepairIncidents({ includeResolved = true, limit = 500 } = {}) {
+    const size = Math.max(1, Math.min(Number(limit) || 500, 1000));
+    const rows = includeResolved
+      ? this.db.prepare("SELECT * FROM repair_incidents ORDER BY updated_at DESC, id LIMIT ?").all(size)
+      : this.db.prepare("SELECT * FROM repair_incidents WHERE status<>'resolved' ORDER BY updated_at DESC, id LIMIT ?").all(size);
+    return rows.map(normalizeRepairIncidentRow);
+  }
+
+  reconcileRepairIncidents(issues, baselineVersion, at = new Date()) {
+    const result = reconcileIncidentState(this.listRepairIncidents({ includeResolved: true, limit: 1000 }), issues, { baselineVersion, now: () => at });
+    if (result.events.length === 0) return { ...result, active: result.incidents.filter((item) => item.status !== "resolved") };
+    this.#transaction(() => {
+      for (const event of result.events) {
+        this.#upsertRepairIncident(event.incident);
+        this.#event(event.type, event.incident.id, {
+          relative: event.incident.relative, condition: event.incident.condition,
+          expectedSha256: event.incident.expectedSha256, observedSha256: event.incident.observedSha256,
+          baselineVersion: event.incident.baselineVersion, recoveryState: event.incident.recoveryState,
+        });
+      }
+    });
+    return { ...result, active: result.incidents.filter((item) => item.status !== "resolved") };
+  }
+
+  transitionRepairIncident(id, transition, { errorCode = null, at = new Date() } = {}) {
+    const current = this.listRepairIncidents({ includeResolved: true, limit: 1000 }).find((item) => item.id === id);
+    if (!current) throw new TypeError("Repair incident is missing.");
+    const result = advanceRepairIncident(current, transition, { errorCode, now: () => at });
+    this.#transaction(() => {
+      this.#upsertRepairIncident(result.incident);
+      this.#event(result.event.type, id, { relative: result.incident.relative, condition: result.incident.condition, recoveryState: result.incident.recoveryState, errorCode });
+    });
+    return result.incident;
+  }
+
+  #upsertRepairIncident(incident) {
+    this.db.prepare(`INSERT INTO repair_incidents
+      (id,relative_path,condition_code,expected_sha256,observed_sha256,baseline_version,status,recovery_state,opened_at,updated_at,resolved_at,last_error_code)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+      observed_sha256=excluded.observed_sha256,status=excluded.status,recovery_state=excluded.recovery_state,
+      updated_at=excluded.updated_at,resolved_at=excluded.resolved_at,last_error_code=excluded.last_error_code`)
+      .run(incident.id, incident.relative, incident.condition, incident.expectedSha256, incident.observedSha256, incident.baselineVersion,
+        incident.status, incident.recoveryState, incident.openedAt, incident.updatedAt, incident.resolvedAt, incident.lastErrorCode);
+  }
 
   proposeImprovement({ title, summary, testSummary = null }) {
     bounded(title, 160, "improvement title"); bounded(summary, 4000, "improvement summary");
@@ -788,6 +1126,29 @@ export class RuntimeDatabase {
     this.db.prepare("UPDATE improvements SET status=?, decided_at=? WHERE id=? AND status='proposed'").run(decision, now, id);
     this.#event(`improvement.${decision}`, id, {});
     return this.getImprovement(id);
+  }
+
+  recordContentAccess({ reference, ownerType, ownerId, classification, mechanism = "unknown", sessionId = null }) {
+    if (typeof reference !== "string" || !/^vault:[a-f0-9-]{36}$/.test(reference)) throw new TypeError("Content reference is invalid.");
+    bounded(ownerType, 32, "content owner type"); bounded(ownerId, 120, "content owner id"); validateDataClass(classification);
+    if (!new Set(["bearer", "cookie"]).has(mechanism)) throw new TypeError("Content access mechanism is invalid.");
+    if (sessionId !== null) bounded(sessionId, 180, "content session id");
+    this.#event("content.accessed", ownerId, { referenceSha256: digestText(reference), ownerType, classification, mechanism, sessionBound: sessionId !== null });
+  }
+
+  #storeContent(value, { classification, ownerType, ownerId }) {
+    if (!this.contentVault) {
+      if (this.allowLegacyPlaintextWrites) return null;
+      throw new Error("content-vault-required");
+    }
+    const reference = this.contentVault.put(Buffer.from(value, "utf8"), { classification, ownerType, ownerId, ttlMs: this.contentTtlMs });
+    const metadata = this.contentVault.metadata(reference, { classification, ownerType, ownerId });
+    return { reference, sha256: metadata.sha256, sizeBytes: metadata.sizeBytes, expiresAt: metadata.expiresAt };
+  }
+
+  #resolveContent(reference, expected) {
+    if (!this.contentVault) throw new Error("content-vault-required");
+    return this.contentVault.get(reference, expected);
   }
 
   #event(type, subjectId, metadata) {
@@ -857,25 +1218,34 @@ function answerEvaluationIdentity(value) {
 
 function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
   id: row.id, idempotencyKey: row.idempotency_key, correlationId: row.correlation_id, taskType: row.task_type,
-  requestedOutcome: row.requested_outcome, capability: row.capability, dataClass: row.data_class,
+  requestedOutcome: row.requested_outcome_ref ? null : row.requested_outcome,
+  requestedOutcomeReference: row.requested_outcome_ref ?? null, requestedOutcomeSha256: row.requested_outcome_sha256 ?? digestText(row.requested_outcome ?? ""),
+  requestedOutcomeSizeBytes: row.requested_outcome_size_bytes ?? Buffer.byteLength(row.requested_outcome ?? "", "utf8"), requestedOutcomeExpiresAt: row.requested_outcome_expires_at ?? null,
+  intent: row.intent ?? row.capability, capability: row.capability, dataClass: row.data_class,
   requestedMode: row.requested_mode, status: row.status, assignedWorker: row.assigned_worker,
-  attemptCount: row.attempt_count, leaseExpiresAt: row.lease_expires_at, resultSummary: row.result_summary,
+  attemptCount: row.attempt_count, leaseExpiresAt: row.lease_expires_at, resultSummary: row.result_summary_ref ? null : row.result_summary,
+  resultSummaryReference: row.result_summary_ref ?? null, resultSummarySha256: row.result_summary_sha256 ?? (row.result_summary ? digestText(row.result_summary) : null),
+  resultSummarySizeBytes: row.result_summary_size_bytes ?? (row.result_summary ? Buffer.byteLength(row.result_summary, "utf8") : null), resultSummaryExpiresAt: row.result_summary_expires_at ?? null,
   errorCode: row.error_code, executionPlane: row.execution_plane, priority: row.priority,
   maximumAttempts: row.maximum_attempts, checkpoint: row.checkpoint, verifier: row.verifier,
   conversationId: row.conversation_id,
   taskArea: row.task_area ?? "general", excludedWorkerIds: JSON.parse(row.excluded_worker_ids ?? "[]"),
   completionCriteria: row.completion_criteria ?? "worker-verified",
+  attendedRequired: Boolean(row.attended_required), allowedWorkerIds: JSON.parse(row.allowed_worker_ids_json ?? "[]"),
+  authoritySessionId: row.authority_session_id, integrationLeaseId: row.integration_lease_id,
+  contentReferences: JSON.parse(row.content_references_json ?? "[]"), policyVersion: row.policy_version ?? "legacy-internal",
+  baseCommit: row.base_commit, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"),
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcome", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria"];
+  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }
-  const storedExcluded = [...task.excludedWorkerIds].sort();
-  const requestedExcluded = [...request.excludedWorkerIds].sort();
-  if (JSON.stringify(storedExcluded) !== JSON.stringify(requestedExcluded)) {
-    throw idempotencyConflict("excludedWorkerIds");
+  for (const field of ["excludedWorkerIds", "allowedWorkerIds", "contentReferences", "allowedPaths"]) {
+    const stored = [...task[field]].sort();
+    const requested = [...request[field]].sort();
+    if (JSON.stringify(stored) !== JSON.stringify(requested)) throw idempotencyConflict(field);
   }
 }
 function idempotencyConflict(field) {
@@ -885,14 +1255,31 @@ function idempotencyConflict(field) {
 }
 function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeConversation(row) { return { id: row.id, title: row.title, status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeMessage(row) { return { id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role, content: row.content, requiresResponse: Boolean(row.requires_response), createdAt: row.created_at }; }
+function normalizeConversation(row) { return {
+  id: row.id, title: row.title_ref ? null : row.title, titleReference: row.title_ref ?? null,
+  titleSha256: row.title_sha256 ?? digestText(row.title ?? ""), titleSizeBytes: row.title_size_bytes ?? Buffer.byteLength(row.title ?? "", "utf8"),
+  classification: row.title_classification ?? "local-only", expiresAt: row.title_expires_at ?? null,
+  status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at,
+}; }
+function normalizeMessage(row) { return {
+  id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role,
+  content: row.content_ref ? null : row.content, contentReference: row.content_ref ?? null,
+  contentSha256: row.content_sha256 ?? digestText(row.content ?? ""), contentSizeBytes: row.content_size_bytes ?? Buffer.byteLength(row.content ?? "", "utf8"),
+  classification: row.content_classification ?? "local-only", expiresAt: row.content_expires_at ?? null,
+  requiresResponse: Boolean(row.requires_response), createdAt: row.created_at,
+}; }
 function normalizeMessageWithAttachments(row, attachments) {
   return { ...normalizeMessage(row), attachments: attachments.map((item) => ({ id: item.artifact_id, name: item.name, mimeType: item.mime_type, sizeBytes: item.size_bytes, sha256: item.sha256 })) };
 }
 function normalizeCodexBuilderSession(row) { return { id: row.id, taskId: row.task_id, correlationId: row.correlation_id, authoritySessionId: row.authority_session_id, executionSessionId: row.execution_session_id, status: row.status, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeSecondaryAssignment(row) { return { id: row.id, correlationId: row.correlation_id, title: row.title, taskArea: row.task_area, expectedTask: row.expected_task, expectedBaseCommit: row.expected_base_commit, returnBranch: row.return_branch, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"), source: row.source ?? "runtime-api", status: row.status, returnCommit: row.return_commit, validationTaskId: row.validation_task_id, verificationState: row.verification_state, lastObservation: row.last_observation, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeIntegrationLease(row) { return { leaseId: row.lease_id, controllerId: row.controller_id, purpose: row.purpose, paths: JSON.parse(row.paths_json), acquiredAt: row.acquired_at, expiresAt: row.expires_at }; }
+function normalizeRepairIncidentRow(row) { return Object.freeze({
+  id: row.id, relative: row.relative_path, condition: row.condition_code,
+  expectedSha256: row.expected_sha256, observedSha256: row.observed_sha256, baselineVersion: row.baseline_version,
+  status: row.status, recoveryState: row.recovery_state, openedAt: row.opened_at, updatedAt: row.updated_at,
+  resolvedAt: row.resolved_at, lastErrorCode: row.last_error_code,
+}); }
 function integrationController(value) { if (!PRIMARY_CONTROLLERS.includes(value)) throw new TypeError("Primary integration controller is invalid."); return value; }
 function integrationPaths(value) {
   if (!Array.isArray(value) || value.length > 64) throw new TypeError("Integration lease paths are invalid.");
@@ -929,11 +1316,12 @@ function normalizeReceiptMetadata(value) {
   }
   return Object.freeze(metadata);
 }
+function digestText(value) { return createHash("sha256").update(String(value ?? ""), "utf8").digest("hex"); }
 function conversationAttachments(value) {
   if (!Array.isArray(value) || value.length > 20 || new Set(value.map((item) => item?.id)).size !== value.length) throw new TypeError("Conversation attachments are invalid.");
   return value.map((item) => {
     if (!isRecord(item)) throw new TypeError("Conversation attachment is invalid.");
-    const allowed = new Set(["id", "name", "mimeType", "sizeBytes", "sha256", "source", "createdAt", "storageClass"]);
+    const allowed = new Set(["id", "name", "mimeType", "sizeBytes", "sha256", "source", "createdAt", "storageClass", "vaultReference"]);
     for (const key of Object.keys(item)) if (!allowed.has(key)) throw new TypeError("Conversation attachment field is invalid.");
     artifactReferenceId(item.id);
     bounded(item.name, 200, "attachment name");
@@ -963,4 +1351,14 @@ function coordinationPaths(value) {
   if (!Array.isArray(value) || value.length < 1 || value.length > 32 || new Set(value).size !== value.length) throw new TypeError("Secondary assignment allowed paths are invalid.");
   for (const item of value) if (typeof item !== "string" || item.length < 1 || item.length > 160 || item.startsWith("/") || item.startsWith("\\") || item.includes("..") || item.includes("\\") || !/^[a-zA-Z0-9][a-zA-Z0-9._/-]*$/.test(item)) throw new TypeError("Secondary assignment allowed path is invalid.");
   return [...value];
+}
+function executionPaths(value) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 64) throw new TypeError("Codex Builder allowed paths are invalid.");
+  return [...new Set(value.map((item) => {
+    if (typeof item !== "string") throw new TypeError("Codex Builder allowed path is invalid.");
+    const normalized = item.replace(/^\.\//, "").replace(/\/$/, "");
+    const segments = normalized.split("/");
+    if (!normalized || normalized.length > 240 || normalized.startsWith("/") || normalized.includes("\\") || /[\u0000-\u001f\u007f:*?]/.test(normalized) || segments.some((segment) => !segment || segment === "." || segment === "..") || normalized === ".git" || normalized.startsWith(".git/")) throw new TypeError("Codex Builder allowed path is invalid.");
+    return normalized;
+  }))].sort();
 }

@@ -14,6 +14,7 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/dependabot.yml",
     ".github/pull_request_template.md",
     ".github/workflows/chromebook-control-plane.yml",
+    ".github/workflows/autonomous-integration.yml",
     ".github/workflows/codex-cloud-dispatch.yml",
     ".github/workflows/cloud-task-gateway.yml",
     ".github/workflows/destiny-codex-relay.yml",
@@ -21,8 +22,22 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/workflows/verify.yml",
     "src/github-audit.mjs",
     "src/destiny-codex-dispatch.mjs",
+    "src/autonomy-policy.mjs",
+    "src/autonomy-orchestrator.mjs",
+    "src/autonomous-integration.mjs",
     "scripts/github-audit.mjs",
+    "src/control-session.mjs",
+    "src/task-policy.mjs",
+    "src/receipt-registry.mjs",
+    "src/capability-readiness.mjs",
+    "src/execution-cell.mjs",
+    "src/content-vault.mjs",
+    "src/repair-incidents.mjs",
+    "scripts/content-vault-key.ps1",
+    "scripts/open-control-center.ps1",
+    "scripts/create-release-baseline.mjs",
     "scripts/destiny-codex-dispatch.mjs",
+    "scripts/autonomous-integration.mjs",
     "docs/DESTINY-CODEX-RELAY.md",
     "docs/GITHUB-CODEX-COORDINATION.md",
     "docs/ZERO-CREDIT-AUTOMATION.md",
@@ -48,7 +63,10 @@ test("release baseline rejects stale production copies", async () => {
     ESSENTIAL_FILES.push(relative);
     const scan = await scanRepairState(manifest);
     assert.equal(scan.healthy, false);
-    assert.deepEqual(scan.issues.filter((issue) => issue.relative === relative), [{ code: "baseline-file-out-of-date", relative }]);
+    const issue = scan.issues.find((item) => item.relative === relative);
+    assert.equal(issue.code, "baseline-file-out-of-date");
+    assert.match(issue.expectedSha256, /^[a-f0-9]{64}$/);
+    assert.match(issue.observedSha256, /^[a-f0-9]{64}$/);
   } finally {
     ESSENTIAL_FILES.pop();
     rmSync(path.dirname(live), { recursive: true, force: true });

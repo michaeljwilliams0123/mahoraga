@@ -8,7 +8,7 @@ import { createAssignmentRecord } from "../src/coordination-records.mjs";
 
 function databaseFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-"));
-  const database = new RuntimeDatabase(path.join(root, "state.sqlite"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
   t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   return database;
 }
@@ -78,7 +78,9 @@ test("browser receipts retain only bounded verification metadata", (t) => {
   const sha256 = "a".repeat(64);
   database.finishTask(task.id, { status: "completed", resultSummary: "Browser observation completed.", receiptMetadata: { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 } });
   const receipt = database.listReceipts(task.id)[0];
-  assert.deepEqual(receipt.metadata, { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 });
+  const { summarySha256, ...metadata } = receipt.metadata;
+  assert.match(summarySha256, /^[a-f0-9]{64}$/);
+  assert.deepEqual(metadata, { operation: "browser-observe", titleSha256: sha256, artifactSha256: sha256, screenshotWidth: 1280, screenshotHeight: 720, networkRequests: 2, networkFailures: 0, networkStatus2xx: 2, networkStatus3xx: 0, networkStatus4xx: 0, networkStatus5xx: 0, consoleErrors: 0, consoleWarnings: 0, consoleHashCount: 0 });
   assert.throws(() => database.recordReceipt({ task, phase: "completed", verifier: "browser", summary: "bad receipt", metadata: { url: "http://127.0.0.1:4782/" } }), /metadata key/);
 });
 
@@ -106,7 +108,7 @@ test("objective graphs release dependencies, retain overlap evidence, and comple
 
 test("Codex Builder sessions preserve only task-scoped structured result metadata", (t) => {
   const database = databaseFixture(t);
-  const task = database.submitTask({ capability: "codex.execute", dataClass: "synthetic", idempotencyKey: "builder-task", correlationId: "pcx-builder" });
+  const task = database.submitTask({ capability: "codex.execute", dataClass: "synthetic", idempotencyKey: "builder-task", correlationId: "pcx-builder", integrationLeaseId: "int-00000000-0000-4000-8000-000000000004", baseCommit: "a".repeat(40), allowedPaths: ["src"] });
   const session = database.createCodexBuilderSession({ taskId: task.id, authoritySessionId: "primary-session" });
   assert.equal(session.status, "PREPARED");
   const recorded = database.recordCodexBuilderResult({ sessionId: session.id, status: "completed", verificationState: "passed", changedFileCount: 2, commitId: "abcdef0123456789" });

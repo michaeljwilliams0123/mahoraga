@@ -17,22 +17,20 @@ test("cloud workspace is credential-free and never controls localhost", async ()
   assert.match(docs, /localhost runtime remains bound to `127\.0\.0\.1`/);
 });
 
-test("cloud task handoff keeps prompts out of URLs and exposes real skills and lanes", async () => {
-  const [html, app, template] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read(".github/ISSUE_TEMPLATE/codex-cloud-task.yml")]);
-  assert.match(app, /navigator\.clipboard\.writeText/);
+test("cloud workspace is conversation-first and contains no intake handoff", async () => {
+  const [html, app, docs] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read("docs/CLOUD-WORKSPACE.md")]);
+  assert.match(html, /id="conversation-thread"/);
+  assert.match(html, /id="conversation-composer"/);
+  assert.match(html, /No skill, lane, or return fields/);
+  assert.match(app, /function classifyTask/);
+  assert.match(app, /function appendMessage/);
+  assert.match(app, /Authenticated execution bridge is not connected/);
+  assert.match(docs, /conversation-first workspace/);
+  assert.match(docs, /has not been dispatched/);
+  assert.doesNotMatch(html, /id="(?:tool-profile|execution-lane|return-mode|handoff-dialog)"/);
+  assert.doesNotMatch(html, /Continue task in GitHub|Submission and file upload happen in GitHub|Bounded task field/);
+  assert.doesNotMatch(app, /navigator\.clipboard|ISSUE_TEMPLATE|prepareHandoff|openGithubTask/);
   assert.doesNotMatch(app, /encodeURIComponent\(state\.draft\)/);
-  assert.match(html, /Submission and file upload happen in GitHub/);
-  assert.match(template, /id: attachments/);
-  assert.match(template, /Attachments inherit repository visibility/);
-  assert.match(template, /does not spend model credits/);
-  assert.match(html, /data-view="skills"/);
-  assert.match(html, /data-view="approvals"/);
-  assert.match(html, /data-view="releases"/);
-  assert.match(html, /id="execution-lane"/);
-  assert.match(html, /\/mahoraga dispatch codex/);
-  assert.match(template, /label: Preferred execution lane/);
-  assert.match(app, /github\('\/releases\?per_page=12'\)/);
-  assert.doesNotMatch(template, /^\s+- codex:queued\s*$/m);
 });
 
 test("Pages deployment is least-privilege and immutable", async () => {

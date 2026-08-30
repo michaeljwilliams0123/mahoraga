@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-745554ac-e7d2-4996-ab73-483e7ac027f2",
+  "idempotencyKey": "answer-quality-pr-trigger-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "795085405151b677064e03a1e5305e6695804ee3",
+  "title": "Primary Cloud review of bounded answer quality",
+  "task": "Independently review the answer-quality correction after the declared base. Verify bounded retries and rerouting, explicit unresolved uncertainty, content-free evidence, and no false completion. If a concrete defect exists, make the smallest correction within allowed paths only. Do not access chat history, enterprise files, attachments, credentials, UI, workflows, repository settings, or core-update activation.",
+  "allowedPaths": [
+    "src/answer-quality.mjs",
+    "src/database.mjs",
+    "src/supervisor.mjs",
+    "test/answer-quality.test.mjs",
+    "test/answer-quality-runtime.test.mjs",
+    "test/database.test.mjs"
+  ],
+  "verification": [
+    "node --test --test-isolation=none test/answer-quality.test.mjs test/answer-quality-runtime.test.mjs test/database.test.mjs",
+    "npm run verify"
+  ],
+  "maximumAttempts": 1,
+  "integrationMode": "pull-request",
+  "createdBy": "primary-local-codex",
+  "createdAt": "2026-08-25T05:08:27.260Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}

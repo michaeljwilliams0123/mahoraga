@@ -21,7 +21,15 @@ export function controllerAuthoritySnapshot() {
       verificationRequired: true,
     },
     pathCoordination: { overlapVisible: true, overlapProhibited: false },
-    coreUpdateActivationAuthority: "mahoraga-verified-automatic",
+    executionCells: {
+      requiredForCodeWriters: true,
+      root: "state/execution-cells/codex",
+      directAuthoritativeWrites: false,
+      mergePushDeployFromCell: false,
+      outboundNetworkAccess: false,
+      promotionOwner: "lease-holding-integrator",
+    },
+    coreUpdateActivationAuthority: "lease-holding-integrator-after-verification",
     secondary: {
       id: "secondary-codex",
       backwardCompatibleMailbox: true,

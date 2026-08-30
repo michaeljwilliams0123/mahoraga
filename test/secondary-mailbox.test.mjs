@@ -6,9 +6,10 @@ import { secondaryValidationContext } from "../src/repository-worker.mjs";
 test("Builder intake accepts only explicit task-scoped metadata", () => {
   const intake = builderIntakeBody({ requestedOutcome: "Implement focused change.", taskArea: "provider-adapter", initialMessage: "secret prompt", injected: "ignored" }, "pcx-builder-test");
   assert.deepEqual(intake, {
-    capability: "codex.execute", dataClass: "synthetic", requestedMode: "hybrid", idempotencyKey: undefined,
-    correlationId: "pcx-builder-test", taskType: "codex-builder", requestedOutcome: "Implement focused change.",
-    executionPlane: "primary-codex-local", priority: "normal", maximumAttempts: 1, taskArea: "provider-adapter", conversationId: false,
+    intent: "codex.execute", idempotencyKey: undefined, correlationId: "pcx-builder-test",
+    requestedOutcome: "Implement focused change.", priority: "normal", maximumAttempts: 1,
+    taskArea: "provider-adapter", conversationId: false, authoritySessionId: null, integrationLeaseId: null,
+    baseCommit: undefined, allowedPaths: undefined,
   });
   assert.equal("initialMessage" in intake, false);
 });
