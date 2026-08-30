@@ -26,9 +26,10 @@ suites are source material for later worker migration.
   debugging endpoint is exposed; an unowned loopback CDP endpoint is rejected.
 - A bounded Repository Worker for status, inspection, recent history, and the
   repository's fixed verification command.
-- Durable assignment conversations, worker questions, and user replies. A task
-  can enter `waiting_for_user`, survive restart, and resume without losing its
-  correlation ID or conversation history.
+- Ordinary response-requesting conversation turns create a durable autonomous
+  objective with propose, challenge, synthesis, implementation, verification,
+  and integration nodes. Journal-style messages can explicitly remain notes,
+  while worker questions still survive restart and resume in the same thread.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
@@ -50,10 +51,10 @@ suites are source material for later worker migration.
   idempotently routes an approved issue to Codex cloud or the outbound desktop
   poller. Deterministic Actions remain visibly separated from explicit model
   work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
-- The staged update channel packages immutable source, verifies it, publishes a
-  strict SHA-256 manifest, and attaches GitHub provenance. Beta and stable
-  releases never install themselves; the local runtime may activate them after
-  verification and a rollback checkpoint. See
+- A successful exact-`main` verification automatically packages an immutable beta
+  release with a strict SHA-256 manifest and GitHub provenance, without repeating
+  the same full gate. Releases never install themselves; the local runtime may
+  activate one only after verification and a rollback checkpoint. See
   [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
 - Candidate improvements pass candidate-specific verification before the local
   runtime activates them. Activation records a receipt and restores the prior
