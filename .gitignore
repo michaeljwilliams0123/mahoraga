@@ -2,6 +2,7 @@ state/*.sqlite*
 state/*.pid
 state/*.log
 state/*.token
+state/*.dpapi
 state/last-known-good.manifest.json
 state/browser-profile/
 state/browser-artifacts/
@@ -12,6 +13,8 @@ state/cache/
 state/checkpoints/
 state/repairs/
 state/artifacts/
+state/execution-cells/
+state/content-vault/
 node_modules/
 .env
 .env.*

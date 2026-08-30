@@ -81,6 +81,23 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     unsafeTriggers.length ? { files: unsafeTriggers } : undefined,
   );
 
+  const autonomousWorkflow = workflowSources.find(([file]) => file === ".github/workflows/autonomous-integration.yml")?.[1] ?? "";
+  const autonomousFiles = [
+    ".github/workflows/autonomous-integration.yml",
+    "scripts/autonomous-integration.mjs",
+    "src/autonomous-integration.mjs",
+    "src/autonomy-policy.mjs",
+  ];
+  const autonomousMissing = autonomousFiles.filter((file) => !fileSet.has(file));
+  const autonomousTrusted = autonomousMissing.length === 0 && isTrustedAutonomousIntegrationWorkflow(autonomousWorkflow);
+  add(
+    "autonomous-integration",
+    autonomousTrusted,
+    "blocking",
+    autonomousTrusted ? "Automatic integration is bound to trusted main policy, exact verified heads, and current base." : "Automatic integration authority is missing or broader than the trusted contract.",
+    autonomousMissing.length ? { files: autonomousMissing } : undefined,
+  );
+
   const destinyWorkflow = workflowSources.find(([file]) => file === ".github/workflows/destiny-codex-relay.yml")?.[1] ?? "";
   const destinyFiles = [
     ".github/workflows/destiny-codex-relay.yml",
@@ -168,6 +185,32 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     checks,
     note: "Live GitHub settings and historical Git objects require GitHub-native verification; no credential or file content is emitted.",
   });
+}
+
+export function isTrustedAutonomousIntegrationWorkflow(source) {
+  if (typeof source !== "string") return false;
+  return /workflow_run\s*:/.test(source)
+    && /workflows:\s*\[[^\]]*"Verify Mahoraga"[^\]]*\]/.test(source)
+    && /issue_comment\s*:/.test(source)
+    && /actions:\s*write/.test(source)
+    && /contents:\s*write/.test(source)
+    && /pull-requests:\s*write/.test(source)
+    && /github\.event\.workflow_run\.event == 'pull_request'/.test(source)
+    && /github\.event\.comment\.user\.login == github\.repository_owner/.test(source)
+    && /ref:\s*main/.test(source)
+    && /persist-credentials:\s*false/.test(source)
+    && /node scripts\/autonomous-integration\.mjs --input state\/autonomous-integration-input\.json/.test(source)
+    && /latestExactWorkflowRun\(runs,\s*\{\s*name:\s*"Verify Mahoraga",\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
+    && /latestExactWorkflowRun\(runs,\s*\{\s*name:\s*"Validate Destiny Codex Relay",\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
+    && /latestExactDestinyResult\(comments,\s*\{\s*owner,\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
+    && /verify\?\.status === "completed" && verify\.conclusion === "success"/.test(source)
+    && /relay\?\.status === "completed" && relay\.conclusion === "success"/.test(source)
+    && /freshDecision = evaluateAutonomousIntegration/.test(source)
+    && /policy-changed-before-merge/.test(source)
+    && /headContainsMain:\s*ancestry\.data\.behind_by === 0/.test(source)
+    && /freshDecision\.headSha !== expectedHead/.test(source)
+    && /pulls\.merge\(\{[\s\S]*sha:\s*expectedHead[\s\S]*merge_method:\s*"squash"/.test(source)
+    && /actions\.createWorkflowDispatch\(\{[\s\S]*workflow_id:\s*"verify\.yml"[\s\S]*ref:\s*"main"/.test(source);
 }
 
 export function isDeterministicDependency(specification) {

@@ -8,9 +8,10 @@ async function builderWorker() { return (await loadManifest()).workers.find((wor
 
 test("Codex Builder is separate, task-scoped, account-authenticated, and enabled", async () => {
   const worker = await builderWorker();
-  const envelope = buildCodexBuilderEnvelope({ worker, task: { id: "mhg-builder", correlationId: "pcx-builder", requestedOutcome: "Inspect and repair the provider adapter." }, session: { authoritySessionId: "primary-session", executionSessionId: "cdb-session" } });
+  const task = { id: "mhg-builder", correlationId: "pcx-builder", requestedOutcome: "Inspect and repair the provider adapter." };
+  const envelope = buildCodexBuilderEnvelope({ worker, task, session: { authoritySessionId: "primary-session", executionSessionId: "cdb-session" }, cell: { taskId: task.id, path: "C:\\candidate", baseCommit: "a".repeat(40), allowedPaths: ["src"] } });
   assert.equal(worker.enabled, true);
-  assert.equal(envelope.executionMode, "task-scoped");
+  assert.equal(envelope.executionMode, "candidate-worktree");
   assert.equal(envelope.interactiveAuthority, false);
   assert.equal(envelope.directExecutionEnabled, true);
   assert.equal(envelope.apiKeyRequired, false);
@@ -19,23 +20,23 @@ test("Codex Builder is separate, task-scoped, account-authenticated, and enabled
 
 test("Codex Builder health accepts the callable user-level CLI and saved account auth", async () => {
   const worker = await builderWorker();
-  const result = await executeCodexBuilderCapability("codex.health", {}, worker, { run: async () => ({ exitCode: 0, errorCode: null, stdout: "codex-cli 0.145.0", stderr: "", authenticationConfigured: true }) });
+  const result = await executeCodexBuilderCapability("codex.health", {}, worker, { run: async () => ({ exitCode: 0, errorCode: null, stdout: "codex-cli 0.145.0", stderr: "", authenticationConfigured: true, executionCellCanary: "verified" }) });
   assert.equal(result.verified, true);
   assert.equal(result.providerHealth.invocation, "non-interactive-cli");
   assert.equal(result.providerHealth.authentication, "verified");
   assert.equal(result.providerHealth.version, "0.145.0");
 });
 
-test("Codex Builder execution stores bounded metadata but not the final model response", async () => {
+test("Codex Builder refuses execution before provider invocation when the execution-cell contract is missing", async () => {
   const worker = await builderWorker();
   const task = { id: "mhg-builder-run", correlationId: "pcx-builder-run", requestedOutcome: "Run the narrow repair." };
+  let invoked = false;
   const result = await executeCodexBuilderCapability("codex.execute", task, worker, {
-    runTask: async () => ({ exitCode: 0, completed: true, threadId: "01a0375c-6146-7dc0-bc8d-c0cb8c44228b", outputSha256: "a".repeat(64), changedPaths: ["src/provider.mjs"], usage: { input_tokens: 10, cached_input_tokens: 5, output_tokens: 3, reasoning_output_tokens: 1 }, finalText: "private response" }),
+    runTask: async () => { invoked = true; return { exitCode: 0, completed: true }; },
   });
-  assert.equal(result.verified, true);
+  assert.equal(result.verified, false);
+  assert.equal(invoked, false);
   assert.equal(result.providerReceipt.finalResponseStored, false);
-  assert.deepEqual(result.providerReceipt.changedPaths, ["src/provider.mjs"]);
-  assert.equal(JSON.stringify(result).includes("private response"), false);
 });
 
 test("Codex CLI discovery is fixed to the user-level package or sandbox binary", async () => {

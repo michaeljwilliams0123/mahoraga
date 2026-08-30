@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "1.0.0",
+  "dispatchId": "dcx-ab122b371d0ba4504ebce4a2",
+  "idempotencyKey": "owner-20260830-public-next-ui-v2",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "1d0072fb64aee613b2ae704304469b5fc0c91a9e",
+  "target": "destiny-codex",
+  "sourceController": "primary-local-codex",
+  "targetController": "primary-cloud-codex",
+  "title": "Improve conversation-first public workspace UI",
+  "task": "Implement and test a conversation-first public Mahoraga workspace UI. Make ordinary chat feel natural and capable: clear threaded messages, a simple composer, live objective/debate/progress visibility, truthful node and link status, and straightforward admin-style plugin and capability controls. Improve responsive, mobile, keyboard, and screen-reader behavior. Work only within web and cloud. Do not change workflows, authority policy, security boundaries, credentials, or private data handling. Run focused UI and cloud tests plus the repository verification. Commit the implementation to this branch and post an exact-head DESTINY-CODEX RESULT with status success only after verification; otherwise post the terminal blocker.",
+  "allowedPaths": [
+    "cloud",
+    "web"
+  ],
+  "verification": [
+    "coordination",
+    "github-audit",
+    "manifest",
+    "tests"
+  ],
+  "maximumAttempts": 2,
+  "createdAt": "2026-08-30T17:38:51.110Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "personalContextIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  },
+  "requestHash": "cecdebb2902a0234c848f0ba1df76360328c52c769f4d59691a6ce6eb6cb0f99"
+}

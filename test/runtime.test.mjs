@@ -8,6 +8,10 @@ import { snapshotStaticAssets } from "../src/server.mjs";
 import { normalizeSummary } from "../src/supervisor.mjs";
 import { bearerMatches } from "../src/local-auth.mjs";
 
+const PRIMARY_TOKEN = "runtime-test-primary-token-0000000000000001";
+const AUTH = { authorization: `Bearer ${PRIMARY_TOKEN}` };
+const TEST_VAULT_KEY = Buffer.alloc(32, 24);
+
 test("worker receipts are bounded to a safe single line before persistence", () => {
   const summary = normalizeSummary(`passed\n${"verified ".repeat(400)}`);
   assert.equal(/[\r\n]/.test(summary), false);
@@ -41,9 +45,16 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const base = `http://127.0.0.1:${runtime.address.port}`;
   await waitFor(async () => {
     const status = await (await fetch(`${base}/api/status`)).json();
-    return status.capabilities.some((item) => item.capability === "system.health" && item.availability === "healthy");
+    const requiredRoutesReady = ["system.health", "repository.inspect"].every((capability) =>
+      status.capabilities.some((item) => item.capability === capability && item.routable === true),
+    );
+    const providerReadinessSettled = status.capabilities.filter((item) => item.provider === "ready").every((item) => item.canary !== "never");
+    return requiredRoutesReady && providerReadinessSettled;
   });
   const status = await (await fetch(`${base}/api/status`)).json();
+  const readyCapabilities = status.capabilities.filter((item) => item.provider === "ready");
+  assert.ok(readyCapabilities.length > 0);
+  assert.deepEqual(readyCapabilities.filter((item) => item.canary === "never").map((item) => item.capability), []);
   assert.equal(status.controlCenterApi.protocolVersion, 1);
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
@@ -53,19 +64,21 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(statusResponse.headers.get("x-mahoraga-control-center-version"), status.versions.controlCenter);
   const healthCapability = status.capabilities.find((item) => item.capability === "system.health");
   assert.equal(healthCapability.permissionClass, "bounded-local");
-  assert.equal(healthCapability.availability, "healthy");
+  assert.equal(healthCapability.availability, "live");
+  const repositoryCapability = status.capabilities.find((item) => item.capability === "repository.inspect");
+  assert.equal(repositoryCapability.routable, true);
   assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
   const html = await (await fetch(base)).text();
   assert.match(html, /data-page="capabilities"/);
   assert.match(html, /data-page="coordination"/);
   assert.match(html, /DUAL PRIMARY · REPOSITORY-ONLY/);
   assert.match(html, /id="github-assurance-list"/);
-  assert.match(html, /Equal controller authority/i);
+  assert.match(html, /Awaiting authority snapshot/i);
   runtime.database.createSecondaryAssignment({
     title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
     expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],
   });
-  const coordination = await (await fetch(`${base}/api/coordination`)).json();
+  const coordination = await (await fetch(`${base}/api/coordination`, { headers: AUTH })).json();
   assert.equal(coordination.transport.outboundOnly, true);
   assert.equal(coordination.authority.model, "dual-primary-single-integration-lease");
   assert.equal(coordination.authority.rolesAreTransportOnly, true);
@@ -87,32 +100,34 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal("expectedTask" in coordination.assignments[0], false);
   assert.equal("expectedBaseCommit" in coordination.assignments[0], false);
   const created = await (await fetch(`${base}/api/tasks`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: `test-${Date.now()}` }),
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
+    body: JSON.stringify({ intent: "system.health", requestedOutcome: "Verify local health.", idempotencyKey: `test-${Date.now()}` }),
   })).json();
   const completed = await waitFor(async () => {
-    const tasks = await (await fetch(`${base}/api/tasks`)).json();
+    const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
   });
-  assert.match(completed.resultSummary, /runtime is responsive/);
+  assert.match(runtime.contentVault.get(completed.resultSummaryReference, {
+    ownerType: "task-result", ownerId: completed.id, classification: completed.dataClass,
+  }).toString("utf8"), /runtime is responsive/);
 });
 
 test("task API retries are idempotent without duplicate conversation side effects", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const idempotencyKey = `api-idempotency-${Date.now()}`;
-  const request = { capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey };
+  const request = { intent: "system.health", requestedOutcome: "Verify local health.", idempotencyKey };
   const submit = () => fetch(`${base}/api/tasks`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request),
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify(request),
   });
   const first = await (await submit()).json();
   const second = await (await submit()).json();
   assert.equal(second.task.id, first.task.id);
-  const conversations = await (await fetch(`${base}/api/conversations`)).json();
+  const conversations = await (await fetch(`${base}/api/conversations`, { headers: AUTH })).json();
   assert.equal(conversations.conversations.length, 1);
   const conflict = await fetch(`${base}/api/tasks`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...request, capability: "manifest.validate" }),
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
+    body: JSON.stringify({ ...request, intent: "manifest.validate" }),
   });
   assert.equal(conflict.status, 409);
   assert.equal((await conflict.json()).error, "idempotency-conflict");
@@ -121,10 +136,10 @@ test("task API retries are idempotent without duplicate conversation side effect
 test("improvement decisions fail closed without the candidate-specific approval header", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
-  const proposed = await (await fetch(`${base}/api/improvements`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Candidate", summary: "Tested proposal" }) })).json();
-  const denied = await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ decision: "approved" }) });
+  const proposed = await (await fetch(`${base}/api/improvements`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ title: "Candidate", summary: "Tested proposal" }) })).json();
+  const denied = await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ decision: "approved" }) });
   assert.equal(denied.status, 403);
-  const approved = await (await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { "content-type": "application/json", "x-mahoraga-approval": proposed.improvement.id }, body: JSON.stringify({ decision: "approved" }) })).json();
+  const approved = await (await fetch(`${base}/api/improvements/${proposed.improvement.id}/decision`, { method: "POST", headers: { ...AUTH, "content-type": "application/json", "x-mahoraga-approval": proposed.improvement.id }, body: JSON.stringify({ decision: "approved" }) })).json();
   assert.equal(approved.improvement.status, "approved");
 });
 
@@ -132,35 +147,35 @@ test("Control Center creates and continues a durable assignment thread", async (
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const created = await (await fetch(`${base}/api/conversations`, {
-    method: "POST", headers: { "content-type": "application/json" },
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
     body: JSON.stringify({ title: "Persistent assignment", initialMessage: "Continue while I am away." }),
   })).json();
   await fetch(`${base}/api/conversations/${created.conversation.id}/messages`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ content: "Additional input.", role: "user" }),
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ content: "Additional input.", role: "user" }),
   });
-  const messages = await (await fetch(`${base}/api/conversations/${created.conversation.id}/messages`)).json();
-  assert.deepEqual(messages.messages.map((item) => item.content), ["Continue while I am away.", "Additional input."]);
+  const messages = runtime.database.listConversationMessagesForExecution(created.conversation.id);
+  assert.deepEqual(messages.map((item) => item.content), ["Continue while I am away.", "Additional input."]);
 });
 
 test("completed worker receipts return to the chat conversation", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const conversation = await (await fetch(`${base}/api/conversations`, {
-    method: "POST", headers: { "content-type": "application/json" },
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
     body: JSON.stringify({ title: "Chat receipt", initialMessage: "Is the runtime healthy?" }),
   })).json();
   const created = await (await fetch(`${base}/api/tasks`, {
-    method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", conversationId: conversation.conversation.id, idempotencyKey: `chat-${Date.now()}` }),
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
+    body: JSON.stringify({ intent: "system.health", requestedOutcome: "Verify local health.", conversationId: conversation.conversation.id, idempotencyKey: `chat-${Date.now()}` }),
   })).json();
   await waitFor(async () => {
-    const tasks = await (await fetch(`${base}/api/tasks`)).json();
+    const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
 
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
   });
-  const messages = await (await fetch(`${base}/api/conversations/${conversation.conversation.id}/messages`)).json();
-  assert.deepEqual(messages.messages.map((item) => item.role), ["user", "assistant"]);
-  assert.match(messages.messages[1].content, /runtime is responsive/);
+  const messages = runtime.database.listConversationMessagesForExecution(conversation.conversation.id);
+  assert.deepEqual(messages.map((item) => item.role), ["user", "assistant"]);
+  assert.match(messages[1].content, /runtime is responsive/);
 });
 
 async function waitFor(check, timeoutMs = 8000) {
@@ -171,7 +186,13 @@ async function waitFor(check, timeoutMs = 8000) {
 
 async function runtimeFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-runtime-"));
-  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), syncCoordinationMailbox: false });
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: TEST_VAULT_KEY,
+    primaryCodexToken: PRIMARY_TOKEN,
+    syncCoordinationMailbox: false,
+  });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   return { runtime, root };
 }

@@ -13,7 +13,7 @@ async function source() {
 test("Destiny relay reacts to live pull-request changes and remains read-only", async () => {
   const workflow = await source();
   assert.match(workflow, /pull_request:\s*\n\s+types: \[opened, reopened, synchronize, ready_for_review, edited\]/);
-  assert.match(workflow, /if: startsWith\(github\.event\.pull_request\.title, '\[DESTINY-CODEX\]'\)/);
+  assert.match(workflow, /if: startsWith\(github\.event\.pull_request\.head\.ref, 'destiny\/'\)/);
   const permissions = workflow.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(permissions, "permissions block missing");
   assert.deepEqual(permissions.trim().split(/\n/).map((line) => line.trim()).filter(Boolean), ["contents: read", "pull-requests: read"]);
