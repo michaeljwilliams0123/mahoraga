@@ -99,14 +99,16 @@ export class Supervisor extends EventEmitter {
       return;
     }
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
-      lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null };
+      lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
+      spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
     this.database.setWorkerState({ workerId: definition.id, status: "starting", pid: child.pid, restartCount });
     child.stderr?.on?.("data", (chunk) => {
       state.stderrTail = sanitizeWorkerDiagnostic(`${state.stderrTail} ${String(chunk)}`);
     });
+    child.on("spawn", () => { state.spawned = true; });
     child.on("message", (message) => this.#safeMessage(state, message));
-    child.on("error", (error) => this.#exit(state, null, null, error));
+    child.on("error", (error) => this.#processError(state, error));
     child.on("exit", (code, signal) => this.#exit(state, code, signal));
   }
 
@@ -196,6 +198,7 @@ export class Supervisor extends EventEmitter {
       definition, process: null, ready: false, busy: false, status: exhausted ? "quarantined" : "crashed",
       restartCount, lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null,
       stderrTail: "", lastErrorCode: errorCode, lastErrorDetail: errorDetail,
+      spawned: false, terminating: false, terminated: true,
     };
     if (exhausted) this.workers.set(definition.id, state);
     this.database.setWorkerState({
@@ -208,12 +211,41 @@ export class Supervisor extends EventEmitter {
     }
   }
 
+  #processError(state, error) {
+    if (this.workers.get(state.definition.id)?.process !== state.process || state.terminated || state.terminating) return;
+    if (!state.spawned) {
+      this.#exit(state, null, null, error);
+      return;
+    }
+    state.terminating = true;
+    if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "worker-process-error");
+    state.ready = false; state.busy = false; state.currentTaskId = null; state.currentTaskStartedAt = null;
+    state.status = "crashed"; state.lastErrorCode = `process-${safeErrorCode(error)}`;
+    state.lastErrorDetail = sanitizeWorkerDiagnostic(error);
+    this.database.setWorkerState({
+      workerId: state.definition.id, status: state.status, pid: state.process?.pid ?? null, restartCount: state.restartCount,
+      lastErrorCode: state.lastErrorCode, lastErrorDetail: state.lastErrorDetail,
+    });
+    try {
+      state.process?.kill?.();
+    } catch (killError) {
+      state.status = "quarantined";
+      state.lastErrorCode = `kill-${safeErrorCode(killError)}`;
+      state.lastErrorDetail = sanitizeWorkerDiagnostic(killError);
+      this.database.setWorkerState({
+        workerId: state.definition.id, status: state.status, pid: state.process?.pid ?? null, restartCount: state.restartCount,
+        lastErrorCode: state.lastErrorCode, lastErrorDetail: state.lastErrorDetail,
+      });
+    }
+  }
+
   #exit(state, code, signal = null, error = null) {
-    if (this.workers.get(state.definition.id)?.process !== state.process) return;
+    if (this.workers.get(state.definition.id)?.process !== state.process || state.terminated) return;
+    state.terminated = true;
     if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, `worker-exit-${code ?? "unknown"}`);
     const exhausted = state.restartCount >= this.manifest.runtime.maximumWorkerRestarts;
-    const errorCode = error ? `spawn-${safeErrorCode(error)}` : signal ? `signal-${signal}` : `exit-${code ?? "unknown"}`;
-    const errorDetail = sanitizeWorkerDiagnostic(error ?? state.stderrTail ?? `Worker exited with ${errorCode}.`);
+    const errorCode = state.lastErrorCode ?? (error ? `spawn-${safeErrorCode(error)}` : signal ? `signal-${signal}` : `exit-${code ?? "unknown"}`);
+    const errorDetail = state.lastErrorDetail ?? (state.stderrTail || sanitizeWorkerDiagnostic(error ?? `Worker exited with ${errorCode}.`));
     state.ready = false; state.busy = false; state.currentTaskId = null; state.currentTaskStartedAt = null;
     state.status = this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed";
     state.lastErrorCode = errorCode; state.lastErrorDetail = errorDetail;
