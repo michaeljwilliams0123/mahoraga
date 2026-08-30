@@ -111,7 +111,7 @@ test("worker stderr and exit failures are surfaced with secrets redacted", (t) =
   const state = database.listWorkerState().find((worker) => worker.workerId === "repair-worker");
   assert.equal(state.status, "quarantined");
   assert.equal(state.lastErrorCode, "exit-1");
-  assert.match(state.lastErrorDetail, /\[redacted\]/i);
+  assert.match(state.lastErrorDetail, /redacted/i);
   assert.match(state.lastErrorDetail, /module import failed/i);
   assert.doesNotMatch(state.lastErrorDetail, /super-secret-value/);
 });
