@@ -96,6 +96,14 @@ test("requires a real worker for success and rejects provider-gap success", () =
   }));
 
   assert.throws(() => createTaskReceipt({
+    intent,
+    route: { capability: null, workerId: "worker.fake", reason: "no-registered-capability" },
+    state: "succeeded",
+    providerDecision: { providerId: null },
+    nextAction: "return-summary",
+  }));
+
+  assert.throws(() => createTaskReceipt({
     intent: { ...intent, intentKind: "microsoft-work", capability: "provider.gap", requiredEvidenceIds: ["evidence.microsoft-work"], limitations: ["no-registered-capability"] },
     route: { capability: "provider.gap", workerId: "worker.provider-gap", reason: "provider-unavailable" },
     state: "succeeded",

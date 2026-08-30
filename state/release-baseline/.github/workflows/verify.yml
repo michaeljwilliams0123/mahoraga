@@ -37,6 +37,9 @@ jobs:
       - name: Verify authoritative repository
         run: npm run verify
 
+      - name: Validate static self-upgrade policy
+        run: npm run self-upgrade:validate
+
       - name: Render declared capability gap audit
         run: npm run gap:audit
 

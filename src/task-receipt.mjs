@@ -33,7 +33,8 @@ const RECEIPT_CONTRACTS = new Map([
 ]);
 
 export function createTaskReceipt({ intent, route, state, providerDecision, nextAction } = {}) {
-  const receipt = { schemaVersion: 1, intentKind: intent?.intentKind, capability: route?.capability ?? intent?.capability ?? null, state, requiredEvidenceIds: intent?.requiredEvidenceIds, workerId: route?.workerId ?? null, routeReason: route?.reason, providerId: providerDecision?.providerId ?? null, normalCreditBudget: 0, hostedComputeSpendCeilingUsd: 0, limitations: intent?.limitations ?? [], nextAction };
+  const capability = route && Object.hasOwn(route, "capability") ? route.capability : intent?.capability ?? null;
+  const receipt = { schemaVersion: 1, intentKind: intent?.intentKind, capability, state, requiredEvidenceIds: intent?.requiredEvidenceIds, workerId: route?.workerId ?? null, routeReason: route?.reason, providerId: providerDecision?.providerId ?? null, normalCreditBudget: 0, hostedComputeSpendCeilingUsd: 0, limitations: intent?.limitations ?? [], nextAction };
   return validateTaskReceipt(receipt);
 }
 
