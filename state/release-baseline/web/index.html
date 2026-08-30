@@ -24,7 +24,7 @@
         <button data-view="improvements"><span>✦</span> Improvements</button>
         <button data-view="diagnostics"><span>⌘</span> Diagnostics</button>
       </nav>
-      <div class="runtime-card"><span class="status-dot"></span><div><strong id="runtime-state">Connecting</strong><small>User-controlled core updates</small></div></div>
+      <div class="runtime-card"><span class="status-dot"></span><div><strong id="runtime-state">Connecting</strong><small id="runtime-evidence">Awaiting runtime evidence</small></div></div>
     </aside>
 
     <main class="main-stage">
@@ -52,7 +52,7 @@
             <div class="composer-bar"><button type="button" id="attach-files" class="attach-button" aria-label="Attach files" title="Attach files">＋</button><select id="chat-tool" aria-label="Tool routing"><option value="auto">Auto</option></select><span id="composer-status">Durable conversation</span><button type="submit" id="send-message" aria-label="Send message">↑</button></div>
           </form>
           <p class="attachment-note">Choose files, drag them here, or paste images. Originals stay private on this device unless you explicitly route them elsewhere.</p>
-          <p class="composer-note">Mahoraga can recover, verify, and apply core updates automatically, with rollback if the updated runtime fails.</p>
+          <p class="composer-note" id="repair-policy-note">Runtime repair policy is loading.</p>
         </div>
       </section>
 
@@ -64,15 +64,15 @@
       </section>
 
       <section class="page operations-page" data-page="coordination">
-        <header class="page-header"><div><p>CODEX CONTROL PLANE</p><h1>Coordination</h1><span>Track equal Primary controllers, bounded Secondary returns, deterministic validation, and leased integration.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>CODEX CONTROL PLANE</p><h1>Coordination</h1><span>Authority, transport, privacy, and validation evidence.</span></div><button data-refresh>Refresh</button></header>
         <div class="metric-row coordination-metrics"><article><span>Total assignments</span><strong id="coord-total">-</strong></article><article><span>Waiting return</span><strong id="coord-ready">-</strong></article><article><span>In validation</span><strong id="coord-active">-</strong></article><article><span>Validated</span><strong id="coord-validated">-</strong></article></div>
         <section class="bridge-overview">
           <div class="bridge-head"><div><p class="eyebrow">DUAL PRIMARY · REPOSITORY-ONLY</p><h2>GitHub coordination mailbox</h2></div><span class="badge" id="coord-state">Loading</span></div>
           <div class="controller-grid">
-            <article><span class="controller-mark primary">M</span><div><strong>Primary / local Codex</strong><small>Equal controller authority; integration requires the single bounded lease</small></div></article>
-            <div class="bridge-lane"><i></i><span>bounded metadata<br>verified integration</span><i></i></div>
-            <article><span class="controller-mark primary">C</span><div><strong>Primary / cloud Codex</strong><small>Equal controller authority; no automatic merge or core activation</small></div></article>
-            <article><span class="controller-mark secondary">S</span><div><strong>Secondary Codex</strong><small>Existing bounded mailbox remains compatible; Secondary cannot integrate</small></div></article>
+            <article><span class="controller-mark primary">M</span><div><strong>Primary / local Codex</strong><small id="local-controller-authority">Awaiting authority snapshot</small></div></article>
+            <div class="bridge-lane"><i></i><span id="coordination-boundary">Awaiting transport evidence</span><i></i></div>
+            <article><span class="controller-mark primary">C</span><div><strong>Primary / cloud Codex</strong><small id="cloud-controller-authority">Awaiting authority snapshot</small></div></article>
+            <article><span class="controller-mark secondary">S</span><div><strong>Secondary Codex</strong><small id="secondary-controller-authority">Awaiting authority snapshot</small></div></article>
           </div>
           <p class="bridge-policy" id="coord-policy">No chats, credentials, browser data, or model output cross this mailbox.</p>
           <p class="bridge-runtime" id="coord-runner">Runner status is loading.</p>
@@ -86,12 +86,12 @@
       </section>
 
       <section class="page operations-page" data-page="workers">
-        <header class="page-header"><div><p>PROCESS SUPERVISOR</p><h1>Workers</h1><span>Probe or restart isolated execution processes.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>PROCESS SUPERVISOR</p><h1>Workers</h1><span>Process, provider, canary, and observation evidence.</span></div><button data-refresh>Refresh</button></header>
         <div class="card-grid" id="worker-list"></div>
       </section>
 
       <section class="page operations-page" data-page="capabilities">
-        <header class="page-header"><div><p>CAPABILITY ROUTER</p><h1>Capabilities</h1><span>See exactly how Mahoraga chooses tools, permissions, cost, reliability, and fallbacks.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>CAPABILITY ROUTER</p><h1>Capabilities</h1><span>Runtime, provider, canary, routing, and evidence state.</span></div><button data-refresh>Refresh</button></header>
         <div class="section-heading"><div><h2>Execution providers</h2><span>Live workers and provider routes</span></div></div>
         <div class="card-grid" id="capability-list"></div>
         <div class="section-heading"><div><h2>Expert methods</h2><span>Evidence-led domain profiles with explicit professional boundaries</span></div></div>
@@ -99,18 +99,21 @@
       </section>
 
       <section class="page operations-page" data-page="connections">
-        <header class="page-header"><div><p>PROVIDER MESH</p><h1>Connections</h1><span>Live, degraded, staged, and blocked integrations.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>PROVIDER MESH</p><h1>Connections</h1><span>Configured endpoints reconciled with verified route evidence.</span></div><button data-refresh>Refresh</button></header>
         <div class="card-grid" id="connection-list"></div>
       </section>
 
       <section class="page operations-page" data-page="improvements">
-        <header class="page-header"><div><p>SELF-IMPROVEMENT</p><h1>Improvements</h1><span>Review candidate changes before activation.</span></div><button data-refresh>Refresh</button></header>
+        <header class="page-header"><div><p>SELF-IMPROVEMENT</p><h1>Improvements</h1><span>Recorded candidates and their current decision state.</span></div><button data-refresh>Refresh</button></header>
         <form id="improvement-form" class="control-form"><label>Title<input id="improvement-title" maxlength="160" required placeholder="Improvement candidate"></label><label class="grow">Summary<input id="improvement-summary" maxlength="4000" required placeholder="What changes and why"></label><button type="submit">Record proposal</button></form>
         <div class="card-grid" id="improvement-list"></div>
       </section>
 
       <section class="page operations-page" data-page="diagnostics">
         <header class="page-header"><div><p>AUDIT LEDGER</p><h1>Diagnostics</h1><span>Trace every action through the durable event record.</span></div><button data-refresh>Refresh</button></header>
+        <div class="section-heading"><div><h2>Active repair incidents</h2><span>Transition evidence only</span></div></div>
+        <div class="card-grid incident-grid" id="incident-list"></div>
+        <div class="section-heading event-heading"><div><h2>Event record</h2><span>Newest first</span></div></div>
         <div class="event-list" id="event-list"></div>
       </section>
     </main>

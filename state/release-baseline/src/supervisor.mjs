@@ -6,10 +6,17 @@ import { fileURLToPath } from "node:url";
 import { routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
+import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
+import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
+  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true }) {
+    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
+    this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
+    this.lastRepairScanAt = null; this.lastRepairScanHealthy = null; this.lastRepairChecked = 0; this.nextRepairScanAt = 0; this.repairScanInFlight = false;
+    this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   constructor({ manifest, database, artifactRoot, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
     super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.syncCoordinationMailbox = syncCoordinationMailbox; this.forkWorker = forkWorker; this.tickIntervalMs = tickIntervalMs; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
@@ -25,7 +32,7 @@ export class Supervisor extends EventEmitter {
     }
     for (const definition of this.manifest.workers.filter((item) => item.enabled)) this.#spawn(definition);
     this.database.recoverExpired();
-    this.#scheduleAutomaticRepair();
+    this.#scheduleRepairIncidentScan(true);
     this.#scheduleMicrosoftQueuePoll();
     this.#scheduleSecondaryMailboxMonitor();
     this.timer = setInterval(() => this.#tick(), this.tickIntervalMs);
@@ -38,6 +45,9 @@ export class Supervisor extends EventEmitter {
     this.timer = null;
     this.startedAt = null;
     for (const state of this.workers.values()) {
+      const observedAt = new Date().toISOString();
+      this.#setProcessReadiness(state, "stopped", observedAt);
+      this.database.setWorkerState({ workerId: state.definition.id, status: "stopped", pid: null, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
       if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-stopping");
       state.process?.send?.({ type: "shutdown" });
     }
@@ -45,6 +55,16 @@ export class Supervisor extends EventEmitter {
   }
 
   status() {
+    return [...this.workers.entries()].map(([workerId, state]) => {
+      const readiness = this.database.listCapabilityReadiness(workerId);
+      return {
+        workerId, label: state.definition.label, version: state.definition.version,
+        status: state.status ?? (state.busy ? "busy" : state.ready ? "live" : "starting"), pid: state.process.pid,
+        restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
+        currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
+        timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities, readiness,
+      };
+    });
     return [...this.workers.entries()].map(([workerId, state]) => ({
       workerId, label: state.definition.label, version: state.definition.version,
       status: state.status ?? (state.ready ? (state.busy ? "busy" : "healthy") : "starting"), pid: state.process?.pid ?? null,
@@ -60,9 +80,15 @@ export class Supervisor extends EventEmitter {
     const workers = this.status();
     const unhealthy = enabled.filter((definition) => {
       const state = workers.find((worker) => worker.workerId === definition.id);
-      return !state || !["healthy", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
+      return !state || !["live", "busy"].includes(state.status) || !state.lastHeartbeatAt || now - Date.parse(state.lastHeartbeatAt) > this.manifest.runtime.heartbeatTimeoutMs;
     }).map((worker) => worker.id);
-    return { supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt, healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0, unhealthyWorkers: unhealthy };
+    const activeIncidents = this.database.listRepairIncidents({ includeResolved: false }).length;
+    return {
+      supervisorRunning: Boolean(this.startedAt) && !this.stopping, startedAt: this.startedAt,
+      healthy: Boolean(this.startedAt) && !this.stopping && unhealthy.length === 0,
+      unhealthyWorkers: unhealthy,
+      repairScan: { lastVerifiedAt: this.lastRepairScanAt, healthy: this.lastRepairScanHealthy, checked: this.lastRepairChecked, inProgress: this.repairScanInFlight, activeIncidents },
+    };
   }
 
   restartWorker(workerId) {
@@ -91,6 +117,12 @@ export class Supervisor extends EventEmitter {
   }
 
   #spawn(definition, restartCount = 0) {
+    const child = fork(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"], env: {
+      ...process.env,
+      MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
+      MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
+      MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
+    } });
     let child;
     try {
       child = this.forkWorker(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "pipe", "ipc"], env: { ...process.env, MAHORAGA_ARTIFACT_ROOT: this.artifactRoot } });
@@ -102,6 +134,9 @@ export class Supervisor extends EventEmitter {
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
       spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
+    for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
+      workerId: definition.id, capability, processStatus: "starting", providerStatus: "unknown", canaryStatus: "never",
+    });
     this.database.setWorkerState({ workerId: definition.id, status: "starting", pid: child.pid, restartCount });
     child.stderr?.on?.("data", (chunk) => {
       state.stderrTail = sanitizeWorkerDiagnostic(`${state.stderrTail} ${String(chunk)}`);
@@ -126,13 +161,53 @@ export class Supervisor extends EventEmitter {
 
   #message(state, message) {
     if (this.stopping) return;
-    if (message?.type === "ready") {
-      state.ready = true; state.status = "healthy"; state.lastHeartbeatAt = new Date().toISOString();
-      this.database.setWorkerState({ workerId: state.definition.id, status: "healthy", pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+    if (message?.type === "process.ready") {
+      state.status = "live"; state.lastHeartbeatAt = new Date().toISOString();
+      this.database.setWorkerState({ workerId: state.definition.id, status: "live", pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+      this.#setProcessReadiness(state, "live", state.lastHeartbeatAt);
+    } else if (message?.type === "provider.readiness") {
+      const observedAt = message.observedAt ?? new Date().toISOString();
+      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null; let executionCellCanary = null;
+      try {
+        const receipt = validateCapabilityReceipt(state.definition.healthProbe, message.receipt);
+        providerStatus = receipt.outcome === "succeeded" ? "ready" : "unavailable";
+        canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
+        canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
+        executionCellCanary = receipt.details.providerEvidence.executionCellCanary ?? null;
+      } catch {}
+      for (const capability of state.definition.capabilities) {
+        const exactCanary = capability === state.definition.healthProbe || (capability === "codex.execute" && executionCellCanary === "verified");
+        this.database.setCapabilityReadiness({
+          workerId: state.definition.id, capability, processStatus: "live", providerStatus,
+          canaryStatus: exactCanary ? canaryStatus : "never",
+          processObservedAt: state.lastHeartbeatAt, providerObservedAt: observedAt,
+          canaryVerifiedAt: exactCanary ? canaryVerifiedAt : null,
+          lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
+        });
+      }
+      state.status = "live";
+    } else if (message?.type === "capability.canary") {
+      if (!state.definition.capabilities.includes(message.capability)) throw new Error("capability-canary-unknown");
+      const observedAt = message.observedAt ?? new Date().toISOString();
+      const previous = this.database.listCapabilityReadiness(state.definition.id).find((item) => item.capability === message.capability);
+      let canaryStatus = "failed"; let canaryVerifiedAt = null;
+      try {
+        const receipt = validateCapabilityReceipt(message.capability, message.receipt);
+        if (receipt.outcome === "succeeded") { canaryStatus = "verified"; canaryVerifiedAt = observedAt; }
+      } catch {}
+      this.database.setCapabilityReadiness({
+        workerId: state.definition.id, capability: message.capability, processStatus: "live",
+        providerStatus: previous?.providerStatus ?? "unknown", canaryStatus,
+        processObservedAt: state.lastHeartbeatAt, providerObservedAt: previous?.providerObservedAt ?? observedAt,
+        canaryVerifiedAt, lastErrorCode: canaryStatus === "verified" ? null : message.errorCode ?? "capability-canary-failed",
+      });
+    } else if (message?.type === "readiness.complete") {
+      state.ready = true; state.status = "live";
     } else if (message?.type === "heartbeat") {
       state.lastHeartbeatAt = message.timestamp;
-      state.status = state.busy ? "busy" : "healthy";
+      state.status = state.busy ? "busy" : "live";
       this.database.setWorkerState({ workerId: state.definition.id, status: state.status, pid: state.process.pid, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
+      this.#setProcessReadiness(state, state.status, state.lastHeartbeatAt);
     } else if (message?.type === "task.completed") {
       this.#applySecondaryResult(message.taskId, message.result);
       if (message.result?.waitingForUser === true) {
@@ -171,23 +246,43 @@ export class Supervisor extends EventEmitter {
           return;
         }
       }
-      if (message.result?.verified === false) {
-        this.database.finishTask(message.taskId, { status: "failed", errorCode: "verification-failed" });
-      } else {
-        this.database.finishTask(message.taskId, { status: "completed", resultSummary: normalizeSummary(message.result?.summary), receiptMetadata: message.result?.receiptMetadata ?? message.result?.providerReceipt ?? {} });
+      try {
+        const receipt = validateCapabilityReceipt(task.capability, message.result?.receipt);
+        if (task.capability === "codex.execute") {
+          this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
+        }
+        this.database.completeTaskWithReceipt(message.taskId, receipt);
+      } catch (error) {
+        const failure = receiptFailure(error);
+        this.database.failTaskSafely(message.taskId, { errorCode: failure.errorCode, resultSummary: failure.boundedSummary });
+      } finally {
+        this.#release(state);
       }
-      this.#release(state);
     } else if (message?.type === "task.failed") {
       const failed = this.database.getTask(message.taskId);
       const assignmentId = secondaryAssignmentId(failed, "secondary-validate");
       if (assignmentId) this.database.completeSecondaryValidation({ taskId: failed.id, verified: false });
-      this.database.finishTask(message.taskId, { status: "failed", errorCode: message.errorCode });
+      this.database.failTaskSafely(message.taskId, { errorCode: message.errorCode });
       this.#release(state);
     }
   }
 
   #release(state) {
-    state.busy = false; state.status = "healthy"; state.currentTaskId = null; state.currentTaskStartedAt = null;
+    state.busy = false; state.status = "live"; state.currentTaskId = null; state.currentTaskStartedAt = null;
+    this.#setProcessReadiness(state, "live", new Date().toISOString());
+  }
+
+  #setProcessReadiness(state, processStatus, observedAt) {
+    const current = new Map(this.database.listCapabilityReadiness(state.definition.id).map((item) => [item.capability, item]));
+    for (const capability of state.definition.capabilities) {
+      const previous = current.get(capability);
+      this.database.setCapabilityReadiness({
+        workerId: state.definition.id, capability, processStatus,
+        providerStatus: previous?.providerStatus ?? "unknown", canaryStatus: previous?.canaryStatus ?? "never",
+        processObservedAt: observedAt, providerObservedAt: previous?.providerObservedAt ?? null,
+        canaryVerifiedAt: previous?.canaryVerifiedAt ?? null, lastErrorCode: previous?.lastErrorCode ?? null,
+      });
+    }
   }
 
   #spawnFailure(definition, restartCount, error) {
@@ -244,6 +339,9 @@ export class Supervisor extends EventEmitter {
     state.terminated = true;
     if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, `worker-exit-${code ?? "unknown"}`);
     const exhausted = state.restartCount >= this.manifest.runtime.maximumWorkerRestarts;
+    this.#setProcessReadiness(state, this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", new Date().toISOString());
+    this.database.setWorkerState({ workerId: state.definition.id, status: this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", restartCount: state.restartCount, lastErrorCode: `exit-${code ?? "unknown"}` });
+    if (!this.stopping && state.restartCount < this.manifest.runtime.maximumWorkerRestarts) {
     const errorCode = state.lastErrorCode ?? (error ? `spawn-${safeErrorCode(error)}` : signal ? `signal-${signal}` : `exit-${code ?? "unknown"}`);
     const errorDetail = state.lastErrorDetail ?? (state.stderrTail || sanitizeWorkerDiagnostic(error ?? `Worker exited with ${errorCode}.`));
     state.ready = false; state.busy = false; state.currentTaskId = null; state.currentTaskStartedAt = null;
@@ -263,7 +361,7 @@ export class Supervisor extends EventEmitter {
   #tick() {
     this.database.recoverExpired();
     this.database.reconcileObjectives();
-    this.#scheduleAutomaticRepair();
+    this.#scheduleRepairIncidentScan();
     this.#scheduleMicrosoftQueuePoll();
     this.#scheduleSecondaryMailboxMonitor();
     const now = Date.now();
@@ -282,12 +380,60 @@ export class Supervisor extends EventEmitter {
         this.database.finishTask(task.id, { status: "waiting", errorCode: route.reason ?? "routing-changed" });
         continue;
       }
+      let executionTask = task;
+      if (task.capability === "codex.execute") {
+        const integrationLease = this.database.getIntegrationLease();
+        const session = this.database.getCodexBuilderSessionByTaskId(task.id);
+        if (!integrationLease || integrationLease.leaseId !== task.integrationLeaseId || !session || session.status !== "PREPARED") {
+          this.database.finishTask(task.id, { status: "waiting", errorCode: !integrationLease ? "integration-lease-not-active" : !session ? "codex-builder-session-missing" : "codex-builder-session-invalid" });
+          continue;
+        }
+        executionTask = { ...task, integrationLease, executionSessionId: session.executionSessionId };
+      }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
-      const envelope = task.conversationId ? { ...task, messages: this.database.listConversationMessages(task.conversationId) } : task;
+      const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessagesForExecution(task.conversationId) } : executionTask;
       state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
     }
   }
 
+  #scheduleRepairIncidentScan(force = false) {
+    if (!this.manifest.repair?.enabled || this.repairScanInFlight || this.stopping) return;
+    const current = Date.now();
+    if (!force && current < this.nextRepairScanAt) return;
+    this.nextRepairScanAt = current + this.manifest.repair.scanIntervalMs;
+    this.repairScanInFlight = true;
+    void this.#runRepairIncidentScan().catch(() => {
+      this.lastRepairScanAt = new Date().toISOString();
+      this.lastRepairScanHealthy = false;
+    }).finally(() => { this.repairScanInFlight = false; });
+  }
+
+  async #runRepairIncidentScan() {
+    const scan = await scanRepairState(this.manifest);
+    this.lastRepairScanAt = new Date().toISOString();
+    this.lastRepairScanHealthy = scan.healthy;
+    this.lastRepairChecked = scan.checked;
+    const reconciled = this.database.reconcileRepairIncidents(scan.issues, scan.baselineVersion, new Date(this.lastRepairScanAt));
+    const recoverable = reconciled.events
+      .filter((event) => event.type === "repair-incident-opened" && event.incident.condition === "live-file-missing-or-empty" && event.incident.expectedSha256)
+      .map((event) => event.incident);
+    if (recoverable.length === 0 || !this.manifest.repair.automaticRiskClasses.includes("core")) return;
+    for (const incident of recoverable) this.database.transitionRepairIncident(incident.id, "recovery-attempted");
+    let recovery;
+    try {
+      recovery = await applyAutomaticRepairs(this.manifest);
+    } catch {
+      for (const incident of recoverable) this.database.transitionRepairIncident(incident.id, "recovery-failed", { errorCode: "automatic-repair-failed" });
+      return;
+    }
+    for (const incident of recoverable) {
+      if (recovery.repaired.includes(incident.relative)) this.database.transitionRepairIncident(incident.id, "recovery-verified");
+      else if (recovery.rolledBack.includes(incident.relative)) this.database.transitionRepairIncident(incident.id, "recovery-rolled-back", { errorCode: "repair-rolled-back" });
+      else this.database.transitionRepairIncident(incident.id, "recovery-failed", { errorCode: "repair-unresolved" });
+    }
+    const verified = await scanRepairState(this.manifest);
+    this.lastRepairScanAt = new Date().toISOString(); this.lastRepairScanHealthy = verified.healthy; this.lastRepairChecked = verified.checked;
+    this.database.reconcileRepairIncidents(verified.issues, verified.baselineVersion, new Date(this.lastRepairScanAt));
   #scheduleAutomaticRepair() {
     if (!this.manifest.repair?.enabled) return;
     const task = { capability: "repair.apply", dataClass: "local-only", requestedMode: "local", executionPlane: "local" };

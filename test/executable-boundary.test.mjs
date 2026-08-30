@@ -21,7 +21,6 @@ test("runtime subprocess executables cannot be selected through environment inpu
   assert.doesNotMatch(repository, /MAHORAGA_GIT_EXECUTABLE/);
   assert.match(repository, /const GIT = "git";/);
 });
-
 test("Dataverse cache paths remain fixed under trusted roots", async () => {
   const auth = await source("scripts/auth.py");
   assert.doesNotMatch(auth, /Path\(os\.environ\.get\("LOCALAPPDATA"/);
@@ -31,7 +30,13 @@ test("Dataverse cache paths remain fixed under trusted roots", async () => {
   assert.match(auth, /reject caller-selected absolute, parent-relative, or alternate paths/);
 });
 
+test("isolated workers do not inherit parent Node execution flags", async () => {
+  const supervisor = await source("src/supervisor.mjs");
+  assert.match(supervisor, /fork\(WORKER_PROCESS,[\s\S]*execArgv:\s*\[\]/);
+});
+
 test("Windows launchers derive the user profile without a committed username", async () => {
+
   const [readme, control, production] = await Promise.all([
     source("README.md"),
     source("scripts/start-control-center.ps1"),

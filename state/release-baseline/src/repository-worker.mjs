@@ -15,7 +15,10 @@ export async function executeRepositoryCapability(capability, task = {}) {
   }
   if (capability === "repository.status") {
     const result = await run(GIT, ["-C", ROOT, "status", "--short", "--branch"], 15000);
-    return { verified: true, summary: result.stdout.trim() || "Repository is clean.", exitCode: result.exitCode };
+    const entries = result.stdout.split(/\r?\n/).filter((line) => line.trim() && !line.startsWith("## "));
+    const changeCount = entries.length;
+    return { verified: true, summary: changeCount ? `Repository is readable with ${changeCount} change entries.` : "Repository is clean.",
+      exitCode: result.exitCode, clean: changeCount === 0, changeCount };
   }
   if (capability === "repository.history") {
     const result = await run(GIT, ["-C", ROOT, "log", "-5", "--date=iso-strict", "--pretty=format:%h %ad %s"], 15000);
