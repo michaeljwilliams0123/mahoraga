@@ -27,6 +27,14 @@ $('new-chat').addEventListener('click', newObjective);
 $('menu').addEventListener('click', () => $('rail').classList.toggle('open'));
 $('refresh').addEventListener('click', refresh);
 $('composer').addEventListener('submit', submitObjective);
+$('messages').addEventListener('click', async (event) => {
+  const link = event.target.closest('[data-dispatch-objective]');
+  if (!link) return;
+  const objective = state.objectives.find((item) => item.id === link.dataset.dispatchObjective);
+  if (!objective) return;
+  try { await navigator.clipboard.writeText(objective.prompt); announce('Task copied. Paste it into the authenticated GitHub form.'); }
+  catch { announce('Clipboard unavailable. Copy the task from the conversation before continuing.'); }
+});
 $('prompt').addEventListener('input', resizeComposer);
 $('prompt').addEventListener('keydown', (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
@@ -162,7 +170,7 @@ async function refresh() {
     getJson(API),
     getJson(API + '/pulls?state=open&per_page=20'),
     getJson(API + '/actions/runs?per_page=20'),
-    getJson(API + '/releases?per_page=10')
+    github('/releases?per_page=12')
   ]);
   if (results[0].status === 'fulfilled') {
     state.repository = results[0].value;
@@ -240,13 +248,11 @@ function renderUpdates() {
   $('release-list').innerHTML = state.releases.length ? state.releases.map((release) => '<a class="list-item" href="' + escapeHtml(release.html_url) + '"><i></i><span><b>' + escapeHtml(release.name || release.tag_name) + '</b><small>' + (release.prerelease ? 'Beta' : 'Stable') + ' · published ' + time(release.published_at) + '</small></span><span class="badge success">published</span></a>').join('') : '<p class="empty">' + (state.repository ? 'No releases published.' : 'Release evidence unavailable.') + '</p>';
 }
 
-function issueLink(objective) {
-  const params = new URLSearchParams({
-    title: '[MAHORAGA] ' + objective.title,
-    body: '## Bounded task\n' + objective.prompt + '\n\n## Requested lane\n' + laneLabel(objective.lane) + '\n\n## Return mode\n' + objective.returnMode + '\n\nRepository-only context. Do not include credentials or private conversation content.'
-  });
-  return ISSUE_TEMPLATE + '&' + params.toString();
+function issueLink() {
+  return ISSUE_TEMPLATE;
 }
+
+function github(path) { return getJson(API + path); }
 
 async function getJson(url) {
   const response = await fetch(url, { headers: { Accept: 'application/vnd.github+json' } });
