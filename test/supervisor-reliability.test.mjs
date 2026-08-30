@@ -138,11 +138,11 @@ test("worker diagnostics classify failures without retaining arbitrary stderr", 
   const secret = ["synthetic", "sensitive", "value"].join("-");
   const prompt = ["private", "user", "request"].join("-");
   const operator = ["operator", "identity"].join("-");
-  const diagnostic = `${variable}=${secret} prompt=${prompt} https://${operator}:placeholder@example.test/path Cannot find module worker.mjs`;
+  const diagnostic = `${variable}=${secret} prompt=${prompt} https://${operator}:placeholder@example.com/path Cannot find module worker.mjs`;
   const detail = sanitizeWorkerDiagnostic(diagnostic);
   assert.match(detail, /module import failed/i);
   assert.match(detail, /diagnostic [a-f0-9]{16}/i);
-  for (const privateValue of [variable, secret, prompt, operator, "example.test", "worker.mjs"]) {
+  for (const privateValue of [variable, secret, prompt, operator, "example.com", "worker.mjs"]) {
     assert.equal(detail.includes(privateValue), false);
   }
 });
