@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { RuntimeDatabase } from "../src/database.mjs";
-import { Supervisor } from "../src/supervisor.mjs";
+import { Supervisor, sanitizeWorkerDiagnostic } from "../src/supervisor.mjs";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -131,4 +131,13 @@ test("synchronous worker spawn failures remain visible after quarantine", (t) =>
   assert.equal(persisted.lastErrorCode, "spawn-ENOENT");
   assert.match(persisted.lastErrorDetail, /entrypoint was not found/i);
   assert.equal(supervisor.status()[0].status, "quarantined");
+});
+
+test("worker diagnostics classify failures without retaining arbitrary stderr", () => {
+  const detail = sanitizeWorkerDiagnostic(
+    "AWS_SECRET_ACCESS_KEY=aws-secret prompt=private-user-request https://operator:password@example.test/path Cannot find module worker.mjs",
+  );
+  assert.match(detail, /module import failed/i);
+  assert.match(detail, /diagnostic [a-f0-9]{16}/i);
+  assert.doesNotMatch(detail, /aws-secret|private-user-request|operator|password|example\.test|worker\.mjs/i);
 });
