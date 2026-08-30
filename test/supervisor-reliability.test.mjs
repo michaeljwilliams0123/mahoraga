@@ -21,6 +21,12 @@ function workerDefinition(overrides = {}) {
     id: "repair-worker", label: "Repair Worker", version: "1.0.0", enabled: true,
     healthProbe: "system.health", capabilities: ["repair.apply", "system.health"],
     dataClasses: ["local-only", "synthetic"], executionPlane: "local", timeoutMs: 5000,
+    costClass: "deterministic",
+    routing: {
+      interfaceType: "deterministic-worker", permissionClass: "bounded-local", reliability: 99,
+      requiresAttendedDesktop: false, executionType: "isolated-process", latencyMs: 1,
+      maximumWorkload: 1, fallbackWorkerIds: [],
+    },
     ...overrides,
   };
 }
@@ -29,6 +35,11 @@ function manifestFixture(overrides = {}) {
   return {
     defaultAutonomyMode: "local",
     runtime: { heartbeatTimeoutMs: 5000, taskLeaseMs: 5000, maximumWorkerRestarts: 0 },
+    routingPolicy: {
+      interfaceOrder: ["deterministic-worker"], availabilityOrder: ["healthy", "busy", "starting"],
+      minimumReliability: 60,
+    },
+    costModes: { local: ["deterministic"], hybrid: ["deterministic"], maximum: ["deterministic"] },
     workers: [workerDefinition()],
     repair: { enabled: true, scanIntervalMs: 10 },
     queue: { pollIntervalMs: 10 },
