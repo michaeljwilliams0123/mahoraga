@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "protocolVersion": "1.0.0",
+  "dispatchId": "dcx-89fafac581054c6bd342ba65",
+  "idempotencyKey": "destiny-ui-functional-audit-20260831-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "99d6346b81338730a63d6a94697ab153fbdd9cb1",
+  "target": "destiny-codex",
+  "sourceController": "primary-local-codex",
+  "targetController": "primary-cloud-codex",
+  "title": "Audit rendered Mahoraga UI functionality",
+  "task": "Perform a black-box functional audit of the rendered Mahoraga interfaces from this exact repository revision. Start the application in the GitHub/Codex environment where supported and interact with the UI as a user: click every meaningful button and navigation control, submit harmless synthetic conversation text, exercise cancel/retry, skill presets, refresh/status, connection controls without pairing external services, improvement lookup with synthetic invalid input, keyboard navigation, responsive desktop/mobile states, accessible announcements, and release/rollback visibility without activating anything. For each control report action, expected visible behavior, actual visible behavior, console or network error, and verdict: working, disabled by design, cosmetic-only, or broken. Test behavior rather than inferring from source. Do not change implementation code, merge, publish, deploy, apply an update, roll back, delete data, create external records beyond this PR, or include private content. Return the evidence matrix and prioritized blockers as a PR comment.",
+  "allowedPaths": [
+    "cloud",
+    "cloud-app",
+    "web"
+  ],
+  "verification": [
+    "coordination",
+    "github-audit",
+    "manifest",
+    "tests"
+  ],
+  "maximumAttempts": 1,
+  "createdAt": "2026-08-31T21:44:18.546Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "personalContextIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  },
+  "requestHash": "27f8a77562fae02dabfcbdef984614718a01500d481634de67a2602c070cb8e5"
+}
