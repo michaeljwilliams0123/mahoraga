@@ -147,11 +147,24 @@ function isTrustedCodexExecutablePath(executable, env = process.env) {
 }
 
 async function resolveAndValidateCodexExecutable(dependencies) {
-  const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
-  if (!isTrustedCodexExecutablePath(executable, dependencies.env ?? process.env)) {
+  const env = dependencies.env ?? process.env;
+  const trustedDiscoveredExecutable = await findInstalledCodexCli({ env, list: dependencies.list, canAccess: dependencies.canAccess });
+  if (!isTrustedCodexExecutablePath(trustedDiscoveredExecutable, env)) {
     throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
   }
-  return executable;
+
+  if (dependencies.resolveExecutable) {
+    const requestedExecutable = await dependencies.resolveExecutable(dependencies);
+    if (!isTrustedCodexExecutablePath(requestedExecutable, env)) {
+      throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
+    }
+    if (normalizeForComparison(path.resolve(requestedExecutable)) !== normalizeForComparison(path.resolve(trustedDiscoveredExecutable))) {
+      throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
+    }
+    return requestedExecutable;
+  }
+
+  return trustedDiscoveredExecutable;
 }
 
 async function probeCodexCli(dependencies) {
