@@ -75,11 +75,10 @@ test("integration rejects ineligible branches and every protected root", () => {
   }
 });
 
-test("Destiny integration requires a successful exact-head result and relay verification", () => {
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate(), policy).eligible, true);
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: null }), policy).reason, "destiny-result-required");
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "blocked-terminal-pr", headSha: "abc123" } }), policy).reason, "destiny-result-required");
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "success", headSha: "different" } }), policy).reason, "destiny-result-head-mismatch");
+test("Destiny integration does not wait for an exact-head result after trusted checks pass", () => {
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: null }), policy).eligible, true);
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "blocked-terminal-pr", headSha: "abc123" } }), policy).eligible, true);
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "success", headSha: "different" } }), policy).eligible, true);
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyRelayVerified: false }), policy).reason, "destiny-relay-verification-required");
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ headRef: "feature/ui", destinyResult: null }), policy).eligible, true);
 });
