@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawn, execFile } from "node:child_process";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { ROOT } from "./config.mjs";
@@ -146,25 +146,34 @@ function isTrustedCodexExecutablePath(executable, env = process.env) {
   return trustedBases.some((base) => normalizeForComparison(resolvedExecutable) === normalizeForComparison(base) || isWithinDirectory(resolvedExecutable, base));
 }
 
+function sanitizedCodexPathEnv(env = process.env) {
+  const sanitized = {};
+  if (typeof env.LOCALAPPDATA === "string" && path.isAbsolute(env.LOCALAPPDATA)) sanitized.LOCALAPPDATA = path.resolve(env.LOCALAPPDATA);
+  if (typeof env.USERPROFILE === "string" && path.isAbsolute(env.USERPROFILE)) sanitized.USERPROFILE = path.resolve(env.USERPROFILE);
+  return sanitized;
+}
+
 async function resolveAndValidateCodexExecutable(dependencies) {
-  const env = dependencies.env ?? process.env;
+  const env = sanitizedCodexPathEnv(dependencies.env ?? process.env);
   const trustedDiscoveredExecutable = await findInstalledCodexCli({ env, list: dependencies.list, canAccess: dependencies.canAccess });
-  if (!isTrustedCodexExecutablePath(trustedDiscoveredExecutable, env)) {
+  const canonicalTrustedDiscoveredExecutable = await realpath(trustedDiscoveredExecutable);
+  if (!isTrustedCodexExecutablePath(canonicalTrustedDiscoveredExecutable, env)) {
     throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
   }
 
   if (dependencies.resolveExecutable) {
     const requestedExecutable = await dependencies.resolveExecutable(dependencies);
-    if (!isTrustedCodexExecutablePath(requestedExecutable, env)) {
+    const canonicalRequestedExecutable = await realpath(requestedExecutable);
+    if (!isTrustedCodexExecutablePath(canonicalRequestedExecutable, env)) {
       throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
     }
-    if (normalizeForComparison(path.resolve(requestedExecutable)) !== normalizeForComparison(path.resolve(trustedDiscoveredExecutable))) {
+    if (normalizeForComparison(path.resolve(canonicalRequestedExecutable)) !== normalizeForComparison(path.resolve(canonicalTrustedDiscoveredExecutable))) {
       throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
     }
-    return requestedExecutable;
+    return canonicalRequestedExecutable;
   }
 
-  return trustedDiscoveredExecutable;
+  return canonicalTrustedDiscoveredExecutable;
 }
 
 async function probeCodexCli(dependencies) {
