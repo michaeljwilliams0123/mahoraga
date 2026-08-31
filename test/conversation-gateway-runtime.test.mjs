@@ -27,6 +27,13 @@ test("authenticated v2 loopback intake returns replayable SSE and cancels the ru
   });
   assert.equal(accepted.status, 202);
   const { run } = await accepted.json();
+  const repeated = await fetch(`${base}/api/v2/runs`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ content: "Verify system health", idempotencyKey: "runtime-v2-run" }),
+  });
+  assert.equal(repeated.status, 202);
+  assert.equal((await repeated.json()).run.id, run.id);
   const replay = await fetch(`${base}/api/v2/runs/${run.id}/events?after=0`, { headers: { authorization: `Bearer ${TOKEN}`, accept: "text/event-stream" } });
   assert.equal(replay.status, 200);
   assert.match(await replay.text(), /event: run-start/);

@@ -63,7 +63,7 @@ jobs:
           artifact="dist/mahoraga-${version}.zip"
           relay_artifact="dist/mahoraga-relay-${version}.zip"
           git archive --format=zip --prefix="mahoraga-${version}/" --output="$artifact" "$commit"
-          git archive --format=zip --prefix="mahoraga-relay-${version}/" --output="$relay_artifact" "$commit" relay/core.mjs relay/cloudflare-worker.mjs docs/DESTINY-CODEX-RELAY.md
+          git archive --format=zip --prefix="mahoraga-relay-${version}/" --output="$relay_artifact" "$commit" relay/core.mjs relay/cloudflare-worker.mjs relay/wrangler.toml docs/DESTINY-CODEX-RELAY.md
           node scripts/update-manifest.mjs create \
             --artifact "$artifact" \
             --version "$version" \

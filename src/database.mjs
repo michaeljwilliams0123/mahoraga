@@ -111,6 +111,7 @@ export class RuntimeDatabase {
         conversation_id TEXT NOT NULL,
         task_id TEXT UNIQUE,
         idempotency_key TEXT UNIQUE NOT NULL,
+        request_sha256 TEXT,
         state TEXT NOT NULL,
         cancel_requested INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL,
@@ -290,6 +291,7 @@ export class RuntimeDatabase {
     this.#ensureSecondaryAssignmentColumns();
     this.#ensureContentColumns();
     this.#ensureWorkerStateColumns();
+    this.#ensureConversationRunColumns();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
     this.#migrateLegacyContent();
   }
@@ -343,6 +345,11 @@ export class RuntimeDatabase {
   #ensureWorkerStateColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
     if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
+  }
+
+  #ensureConversationRunColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(conversation_runs)").all().map((column) => column.name));
+    if (!current.has("request_sha256")) this.db.exec("ALTER TABLE conversation_runs ADD COLUMN request_sha256 TEXT");
   }
 
   #migrateLegacyContent() {
@@ -478,6 +485,35 @@ export class RuntimeDatabase {
     return this.getConversation(id);
   }
 
+  createConversationAndRun({ sessionId, title, content, classification = "local-only", idempotencyKey, requestSha256 }) {
+    bounded(sessionId, 120, "run session id");
+    bounded(title, 200, "conversation title");
+    boundedMultiline(content, 12000, "conversation message");
+    validateDataClass(classification);
+    bounded(idempotencyKey, 120, "run idempotency key");
+    if (requestSha256 !== undefined && !/^[a-f0-9]{64}$/i.test(requestSha256)) throw runError("run-request-digest-invalid");
+    const existing = this.db.prepare("SELECT * FROM conversation_runs WHERE idempotency_key=?").get(idempotencyKey);
+    if (existing) {
+      const run = normalizeConversationRun(existing);
+      if (run.requestSha256 && requestSha256 && run.requestSha256 !== requestSha256.toLowerCase()) throw runError("run-idempotency-conflict");
+      return { conversation: this.getConversation(run.conversationId), run };
+    }
+    const id = `con-${randomUUID()}`;
+    const runId = `run-${randomUUID()}`;
+    const now = new Date().toISOString();
+    this.#transaction(() => {
+      const titleContent = this.#storeContent(title, { classification, ownerType: "conversation", ownerId: id });
+      this.db.prepare("INSERT INTO conversations(id,title,title_ref,title_sha256,title_size_bytes,title_classification,title_expires_at,status,created_at,updated_at) VALUES(?,?,?,?,?,?,?,'active',?,?)")
+        .run(id, titleContent ? "[vault-content]" : title, titleContent?.reference ?? null, titleContent?.sha256 ?? digestText(title), titleContent?.sizeBytes ?? Buffer.byteLength(title, "utf8"), classification, titleContent?.expiresAt ?? null, now, now);
+      this.#event("conversation.created", id, { titleSha256: digestText(title), classification });
+      this.#addMessage({ conversationId: id, role: "user", content, classification, createdAt: now });
+      this.db.prepare("INSERT INTO conversation_runs(id,session_id,conversation_id,task_id,idempotency_key,request_sha256,state,created_at,updated_at) VALUES(?,?,?,?,?,?, 'accepted',?,?)")
+        .run(runId, sessionId, id, null, idempotencyKey, requestSha256?.toLowerCase() ?? null, now, now);
+      this.#event("conversation.run-created", runId, { conversationId: id, taskId: null });
+    });
+    return { conversation: this.getConversation(id), run: this.getConversationRun(runId) };
+  }
+
   getConversation(id) {
     bounded(id, 80, "conversation id");
     const row = this.db.prepare("SELECT * FROM conversations WHERE id=?").get(id);
@@ -532,21 +568,23 @@ export class RuntimeDatabase {
       : message);
   }
 
-  createConversationRun({ sessionId, conversationId, idempotencyKey, taskId = null }) {
+  createConversationRun({ sessionId, conversationId, idempotencyKey, taskId = null, requestSha256 = undefined }) {
     bounded(sessionId, 120, "run session id"); bounded(conversationId, 80, "run conversation id"); bounded(idempotencyKey, 120, "run idempotency key");
     if (taskId !== null) bounded(taskId, 80, "run task id");
+    if (requestSha256 !== undefined && !/^[a-f0-9]{64}$/i.test(requestSha256)) throw runError("run-request-digest-invalid");
     if (!this.getConversation(conversationId)) throw runError("run-conversation-missing");
     const existing = this.db.prepare("SELECT * FROM conversation_runs WHERE idempotency_key=?").get(idempotencyKey);
     if (existing) {
       const run = normalizeConversationRun(existing);
-      if (run.sessionId !== sessionId || run.conversationId !== conversationId || run.taskId !== taskId) throw runError("run-idempotency-conflict");
+      if (run.sessionId !== sessionId || run.conversationId !== conversationId || (taskId !== null && run.taskId !== taskId)) throw runError("run-idempotency-conflict");
+      if (run.requestSha256 && requestSha256 && run.requestSha256 !== requestSha256.toLowerCase()) throw runError("run-idempotency-conflict");
       return run;
     }
     const active = this.db.prepare("SELECT id FROM conversation_runs WHERE conversation_id=? AND state IN ('accepted','running','verifying','waiting') LIMIT 1").get(conversationId);
     if (active) throw runError("foreground-run-active");
     const id = `run-${randomUUID()}`; const now = new Date().toISOString();
-    this.db.prepare("INSERT INTO conversation_runs(id,session_id,conversation_id,task_id,idempotency_key,state,created_at,updated_at) VALUES(?,?,?,?,?,'accepted',?,?)")
-      .run(id, sessionId, conversationId, taskId, idempotencyKey, now, now);
+    this.db.prepare("INSERT INTO conversation_runs(id,session_id,conversation_id,task_id,idempotency_key,request_sha256,state,created_at,updated_at) VALUES(?,?,?,?,?,?,'accepted',?,?)")
+      .run(id, sessionId, conversationId, taskId, idempotencyKey, requestSha256?.toLowerCase() ?? null, now, now);
     this.#event("conversation.run-created", id, { conversationId, taskId });
     return this.getConversationRun(id);
   }
@@ -568,6 +606,12 @@ export class RuntimeDatabase {
   getConversationRunByTaskId(taskId) {
     bounded(taskId, 80, "run task id");
     const row = this.db.prepare("SELECT * FROM conversation_runs WHERE task_id=?").get(taskId);
+    return row ? normalizeConversationRun(row) : null;
+  }
+
+  getConversationRunByIdempotencyKey(idempotencyKey) {
+    bounded(idempotencyKey, 120, "run idempotency key");
+    const row = this.db.prepare("SELECT * FROM conversation_runs WHERE idempotency_key=?").get(idempotencyKey);
     return row ? normalizeConversationRun(row) : null;
   }
 
@@ -1436,7 +1480,7 @@ function normalizeConversation(row) { return {
 function normalizeConversationRun(row) {
   if (!CONVERSATION_RUN_STATES.has(row.state)) throw new Error("stored-run-state-invalid");
   return Object.freeze({ id: row.id, sessionId: row.session_id, conversationId: row.conversation_id, taskId: row.task_id,
-    idempotencyKey: row.idempotency_key, state: row.state, cancelRequested: Boolean(row.cancel_requested),
+    idempotencyKey: row.idempotency_key, requestSha256: row.request_sha256 ?? null, state: row.state, cancelRequested: Boolean(row.cancel_requested),
     createdAt: row.created_at, updatedAt: row.updated_at, terminalAt: row.terminal_at });
 }
 function normalizeRunEventRow(row) { return validateRunEvent({ schemaVersion: 1, eventId: row.event_id, sessionId: row.session_id,

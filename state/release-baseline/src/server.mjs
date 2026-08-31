@@ -47,7 +47,7 @@ export function createControlServer({
   manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
-  webRoot = WEB_ROOT, conversationGateway = null,
+  webRoot = WEB_ROOT, conversationGateway = null, mcpHost = null,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
@@ -55,6 +55,11 @@ export function createControlServer({
   const autonomyPolicy = autonomyPolicySnapshot(manifest);
   const gateway = conversationGateway ?? createConversationGateway({
     database, manifest, supervisor,
+    capabilityResolver: () => {
+      const base = capabilityIndex(manifest, supervisor.status());
+      const discovered = mcpHost?.listTools?.() ?? [];
+      return [...base, ...discovered.map((item) => ({ capability: item.capabilityId, routable: item.routable, workerIds: [item.providerId] }))];
+    },
     submitTask: (body, context) => submitTask(database, manifest, body, {
       source: "conversation-gateway", internal: false, attendedSession: context.attendedSession ?? null,
     }),
@@ -286,6 +291,7 @@ export function createControlServer({
     }
   });
   server.once("close", () => gateway.close());
+  server.conversationGateway = gateway;
   return server;
 }
 

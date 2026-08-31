@@ -1,6 +1,6 @@
 const REPOSITORY = 'michaeljwilliams0123/mahoraga';
 const API = `https://api.github.com/repos/${REPOSITORY}`;
-const RELAY_ORIGIN = 'wss://relay.mahoraga.app';
+const RELAY_ORIGIN = 'wss://relay.mahoraga.app/pair';
 const TERMINAL_EVENTS = new Set(['run-completed', 'run-failed', 'run-cancelled']);
 const $ = (id) => document.getElementById(id);
 const encoder = new TextEncoder();
@@ -37,7 +37,7 @@ class LoopbackTransport {
 }
 
 class RelayTransport {
-  constructor() { this.kind = 'relay'; this.socket = null; this.session = null; this.pending = new Map(); this.requestCounter = 0; }
+  constructor() { this.kind = 'relay'; this.socket = null; this.session = null; this.pending = new Map(); this.requestCounter = 0; this.pairingPending = null; this.revokePending = null; this.deviceId = null; this.pairingId = null; }
   async pair(encodedOffer) {
     const offer = decodePairingOffer(encodedOffer);
     if (Date.parse(offer.expiresAt) <= Date.now()) throw new Error('relay-pairing-expired');
@@ -55,7 +55,16 @@ class RelayTransport {
     });
     this.socket.addEventListener('message', (event) => this.receive(event));
     this.socket.addEventListener('close', () => this.rejectPending('relay-disconnected'));
-    this.socket.send(JSON.stringify({ schemaVersion: 1, type: 'pair-remote', pairingId: offer.pairingId, code: offer.code, devicePublicKey: publicKey }));
+    this.pairingId = offer.pairingId;
+    const pairing = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { this.pairingPending = null; reject(new Error('relay-pairing-timeout')); }, 10000);
+      this.pairingPending = { resolve: (value) => { clearTimeout(timer); this.pairingPending = null; resolve(value); }, reject: (error) => { clearTimeout(timer); this.pairingPending = null; reject(error); } };
+    });
+    this.socket.send(JSON.stringify({ action: 'pair-remote', pairingId: offer.pairingId, code: offer.code, devicePublicKey: publicKey }));
+    const result = await pairing;
+    if (!result?.sessionId || !/^rls-[A-Za-z0-9_-]{32}$/.test(result.sessionId) || result.pairingId !== offer.pairingId || result.paired !== true) throw new Error('relay-pairing-response-invalid');
+    this.session.sessionId = result.sessionId;
+    this.deviceId = result.deviceId;
     return { sessionId: this.session.sessionId };
   }
   async start(input) { return this.call('run', input); }
@@ -71,21 +80,39 @@ class RelayTransport {
       const timer = setTimeout(() => { this.pending.delete(requestId); reject(new Error('relay-request-timeout')); }, 30000);
       this.pending.set(requestId, { resolve, reject, timer });
     });
-    this.socket.send(JSON.stringify(frame));
+    this.socket.send(JSON.stringify({ action: 'forward', sessionId: this.session.sessionId, from: 'remote', frame }));
     return response;
   }
   async receive(event) {
     try {
       const frame = JSON.parse(String(event.data));
-      if (frame.type === 'paired') return;
-      const value = await openBrowserFrame(this.session, frame);
+      if (frame.accepted === false && this.pairingPending) { this.pairingPending.reject(new Error(frame.error || 'relay-pairing-rejected')); return; }
+      if (frame.type === 'paired') {
+        if (!frame.accepted) this.pairingPending?.reject(new Error(frame.error || 'relay-pairing-rejected'));
+        else this.pairingPending?.resolve(frame.result);
+        return;
+      }
+      if (frame.type === 'forward-accepted' || frame.type === 'replay-complete') return;
+      if (frame.type === 'revoked') { this.revokePending?.(); this.revokePending = null; this.rejectPending('relay-revoked'); return; }
+      if (frame.type !== 'frame' || !frame.frame) throw new Error('relay-frame-envelope-invalid');
+      const value = await openBrowserFrame(this.session, frame.frame);
       const pending = this.pending.get(value.requestId);
       if (!pending) return;
       clearTimeout(pending.timer); this.pending.delete(value.requestId);
       if (value.error) pending.reject(new Error(value.error)); else pending.resolve(value.result);
     } catch { this.rejectPending('relay-frame-invalid'); }
   }
-  revoke() { if (this.socket) this.socket.close(1000, 'owner-revoked'); this.socket = null; this.session = null; this.rejectPending('relay-revoked'); }
+  async revoke() {
+    try {
+      if (this.socket?.readyState === WebSocket.OPEN && this.deviceId) {
+        const acknowledged = new Promise((resolve) => { this.revokePending = resolve; setTimeout(resolve, 1500); });
+        this.socket.send(JSON.stringify({ action: 'revoke-device', deviceId: this.deviceId }));
+        await acknowledged;
+      }
+    } finally {
+      if (this.socket) this.socket.close(1000, 'owner-revoked'); this.socket = null; this.session = null; this.deviceId = null; this.pairingId = null; this.revokePending = null; this.rejectPending('relay-revoked');
+    }
+  }
   rejectPending(code) { for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(new Error(code)); } this.pending.clear(); }
 }
 
@@ -198,7 +225,7 @@ async function pairRelay() {
   } catch (error) { $('relay-state').textContent = `Pairing failed: ${publicError(error)}`; }
   finally { $('pair-relay').disabled = false; }
 }
-function revokeRelay() { if (state.transport instanceof RelayTransport) state.transport.revoke(); state.transport = new OfflinePreviewTransport(); $('revoke-relay').disabled = true; $('relay-state').textContent = 'Relay session revoked.'; setConnection('offline-preview', 'Offline preview · not dispatched'); }
+async function revokeRelay() { if (state.transport instanceof RelayTransport) await state.transport.revoke(); state.transport = new OfflinePreviewTransport(); $('revoke-relay').disabled = true; $('relay-state').textContent = 'Relay session revoked.'; setConnection('offline-preview', 'Offline preview · not dispatched'); }
 
 async function refreshCapabilities() {
   try { state.capabilities = await state.transport.capabilities(); }

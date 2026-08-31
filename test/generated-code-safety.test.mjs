@@ -49,6 +49,20 @@ test("generated Python rejects process, socket, environment, and traversal surfa
   assert.deepEqual(decision.reasonCodes, ["environment-access", "filesystem-traversal", "network-access", "process-access"]);
 });
 
+test("generated extensions reject computed authority escapes", () => {
+  const cases = [
+    ["const p = globalThis.process; p['env'].TOKEN", "environment-access"],
+    ["const p = globalThis['process']; p.env.TOKEN", "environment-access"],
+    ["const spawn = process['spawn']; spawn('sh')", "process-access"],
+    ["const load = __import__; load('node:fs')", "unrestricted-filesystem"],
+  ];
+  for (const [source, code] of cases) {
+    const decision = inspectGeneratedExtension({ language: "javascript", source, manifest, candidateRoot: root });
+    assert.equal(decision.safe, false, source);
+    assert.ok(decision.reasonCodes.includes(code), `${source}: ${decision.reasonCodes.join(",")}`);
+  }
+});
+
 test("extension manifest cannot grant undeclared or conflicting authority", () => {
   assert.throws(() => inspectGeneratedExtension({ language: "javascript", source: "export const x = 1", manifest: { ...manifest, command: "sh" }, candidateRoot: root }), /extension-manifest-invalid/);
   assert.throws(() => inspectGeneratedExtension({ language: "javascript", source: "export const x = 1", manifest: { ...manifest, allowedPaths: ["../outside"] }, candidateRoot: root }), /extension-path-invalid/);

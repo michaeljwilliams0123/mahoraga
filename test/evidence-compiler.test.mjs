@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { compileEvidencePack } from "../src/evidence-compiler.mjs";
@@ -33,4 +33,19 @@ test("evidence compiler rejects lexical traversal and symlink escape", async (t)
   symlinkSync(outside, path.join(root, "escape"), process.platform === "win32" ? "junction" : "dir");
   await assert.rejects(() => compileEvidencePack({ root, selectedPaths: ["../outside.txt"], revision: "b".repeat(40) }), /evidence-path-invalid/);
   await assert.rejects(() => compileEvidencePack({ root, selectedPaths: ["escape/secret.txt"], revision: "b".repeat(40) }), /evidence-path-escape/);
+});
+
+test("evidence compiler never traverses VCS metadata or credential-like content", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-evidence-privacy-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, ".git"), { recursive: true });
+  mkdirSync(path.join(root, ".ssh"), { recursive: true });
+  writeFileSync(path.join(root, ".git", "config"), "https://github_pat_abcdefghijklmnopqrstuvwxyz0123456789@github.com/example/repo.git", "utf8");
+  writeFileSync(path.join(root, ".ssh", "known_hosts"), "ssh-rsa AAAA", "utf8");
+  writeFileSync(path.join(root, "notes.txt"), "API_KEY=abcdefghijklmnopqrstuvwxyz0123456789\n", "utf8");
+  writeFileSync(path.join(root, "safe.txt"), "safe evidence\n", "utf8");
+  const pack = await compileEvidencePack({ root, selectedPaths: [".git", ".ssh", "notes.txt", "safe.txt"], revision: "c".repeat(40) });
+  assert.deepEqual(pack.files.map((item) => item.path), ["safe.txt"]);
+  assert.ok(pack.excluded.some((item) => item.path === "notes.txt" && item.reasonCode === "secret-content"));
+  assert.doesNotMatch(JSON.stringify(pack), /github_pat_|API_KEY|known_hosts/);
 });

@@ -41,6 +41,20 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "docs/DESTINY-CODEX-RELAY.md",
     "docs/GITHUB-CODEX-COORDINATION.md",
     "docs/ZERO-CREDIT-AUTOMATION.md",
+    "src/run-event-contract.mjs",
+    "src/conversation-gateway.mjs",
+    "src/relay-client.mjs",
+    "src/relay-runtime.mjs",
+    "src/openclaw-adapter.mjs",
+    "src/mcp-host-manager.mjs",
+    "src/evidence-compiler.mjs",
+    "src/bounded-execution.mjs",
+    "src/observational-memory.mjs",
+    "src/generated-code-safety.mjs",
+    "src/evolution-controller.mjs",
+    "relay/core.mjs",
+    "relay/cloudflare-worker.mjs",
+    "relay/wrangler.toml",
   ]) assert.ok(ESSENTIAL_FILES.includes(relative), `${relative} is missing from the release baseline`);
 });
 

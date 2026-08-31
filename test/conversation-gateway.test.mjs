@@ -54,3 +54,24 @@ test("gateway capabilities expose routability without manifest secrets", (t) => 
   const { gateway } = fixture(t);
   assert.deepEqual(gateway.capabilities(), [{ capability: "system.health", routable: true, workerIds: ["local-core"] }]);
 });
+
+test("gateway retries are idempotent before mutating the conversation", (t) => {
+  const { database, gateway } = fixture(t);
+  const input = { sessionId: "ses-local", conversationId: null, content: "Verify system health", idempotencyKey: "gateway-repeat" };
+  const first = gateway.createRun(input);
+  const repeated = gateway.createRun(input);
+  assert.equal(repeated.run.id, first.run.id);
+  assert.equal(repeated.run.taskId, first.run.taskId);
+  assert.equal(database.listConversations().length, 2);
+  assert.equal(database.listConversationMessages(first.run.conversationId).length, 1);
+  assert.equal(database.listTasks().length, 1);
+});
+
+test("gateway rejects a conflicting retry without creating a second message", (t) => {
+  const { database, gateway } = fixture(t);
+  const first = gateway.createRun({ sessionId: "ses-local", conversationId: null, content: "Verify system health", idempotencyKey: "gateway-conflict" });
+  assert.throws(() => gateway.createRun({ sessionId: "ses-local", conversationId: first.run.conversationId, content: "Different request", idempotencyKey: "gateway-conflict" }), /run-idempotency-conflict/);
+  assert.equal(database.listConversations().length, 2);
+  assert.equal(database.listConversationMessages(first.run.conversationId).length, 1);
+  assert.equal(database.listTasks().length, 1);
+});

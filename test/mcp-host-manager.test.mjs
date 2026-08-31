@@ -49,3 +49,16 @@ test("MCP host rejects caller-supplied transports and undeclared capabilities", 
   await host.refresh();
   await assert.rejects(() => host.invoke("other.shell", {}, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), /mcp-tool-unavailable/);
 });
+
+test("MCP host validates invocation input against the discovered schema", async () => {
+  const host = createMcpHostManager({ declarations: [{ ...declaration, toolAllowlist: ["health"], readinessProbe: "health", canary: "health" }], transports: {
+    "local-process": {
+      async discover() { return [{ id: "health", inputSchema: { type: "object", properties: { query: { type: "string" } }, required: ["query"], additionalProperties: false } }]; },
+      async invoke() { return { status: "ok" }; },
+    },
+  } });
+  await host.refresh();
+  await assert.rejects(() => host.invoke("demo-mcp.health", {}, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), /mcp-input-schema-invalid/);
+  await assert.rejects(() => host.invoke("demo-mcp.health", { query: 42 }, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), /mcp-input-schema-invalid/);
+  assert.deepEqual(await host.invoke("demo-mcp.health", { query: "status" }, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), { status: "ok" });
+});

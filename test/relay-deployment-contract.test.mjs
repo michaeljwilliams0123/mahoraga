@@ -11,9 +11,12 @@ test("release packages and attests the host-neutral relay without embedded crede
   assert.match(release, /mahoraga-relay-\$\{version\}\.zip/);
   assert.match(release, /relay\/core\.mjs/);
   assert.match(release, /relay\/cloudflare-worker\.mjs/);
+  assert.match(release, /relay\/wrangler\.toml/);
   assert.match(release, /attest-build-provenance/);
   assert.doesNotMatch(release, /CLOUDFLARE_API_TOKEN|CLOUDFLARE_ACCOUNT_ID|OPENAI_API_KEY/);
+  const workerConfig = await read("relay/wrangler.toml");
   for (const value of ["Cloudflare Access", "MAHORAGA_OWNER_IDENTITY", "MAHORAGA_PAGES_ORIGIN", "RELAY_SESSIONS", "five-minute", "ciphertext", "canary", "rollback", "revoke"]) assert.match(docs, new RegExp(value, "i"));
+  assert.match(workerConfig, /class_name = "RelayDurableObject"/);
 });
 
 test("verification and Pages bind focused contracts to exact checked-out source", async () => {
