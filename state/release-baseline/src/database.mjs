@@ -337,13 +337,12 @@ export class RuntimeDatabase {
     return this.submitTask(task);
   }
 
-  submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
   #ensureWorkerStateColumns() {
     const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
     if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
   }
 
-  submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
+  submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
