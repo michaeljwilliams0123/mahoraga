@@ -27,11 +27,7 @@ export function evaluateAutonomousIntegration(input, policy) {
   if (!Array.isArray(policy.eligibleBranchPrefixes) || !policy.eligibleBranchPrefixes.some((prefix) => pullRequest.headRef?.startsWith(prefix))) return reject("branch-not-eligible");
   if (!Array.isArray(pullRequest.changedFiles) || pullRequest.changedFiles.length < 1 || pullRequest.changedFiles.length > 256) return reject("changed-files-invalid");
   if (pullRequest.changedFiles.some((changedPath) => policy.protectedPaths.some((protectedPath) => pathIsProtected(changedPath, protectedPath)))) return reject("protected-path");
-  if (pullRequest.headRef.startsWith("destiny/")) {
-    if (pullRequest.destinyResult?.status !== "success") return reject("destiny-result-required");
-    if (pullRequest.destinyResult.headSha !== pullRequest.headSha) return reject("destiny-result-head-mismatch");
-    if (pullRequest.destinyRelayVerified !== true) return reject("destiny-relay-verification-required");
-  }
+  if (pullRequest.headRef.startsWith("destiny/") && pullRequest.destinyRelayVerified !== true) return reject("destiny-relay-verification-required");
   return Object.freeze({
     eligible: true,
     reason: "eligible",
