@@ -5,13 +5,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { RuntimeDatabase } from "../src/database.mjs";
+import { createCapabilityReceipt } from "../src/receipt-registry.mjs";
 import { Supervisor, sanitizeWorkerDiagnostic } from "../src/supervisor.mjs";
 
 const delay = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function databaseFixture() {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-supervisor-"));
-  const database = new RuntimeDatabase(path.join(root, "state.sqlite"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
   return {
     database,
     cleanup: () => { database.close(); rmSync(root, { recursive: true, force: true }); },
@@ -59,11 +60,19 @@ function fakeChild(pid = 4242) {
   return child;
 }
 
-test("scheduled work waits for a healthy compatible worker and remains deduplicated", async (t) => {
+test("scheduled work waits for verified live readiness and remains deduplicated", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();
+  const manifest = manifestFixture({
+    repair: { enabled: false, scanIntervalMs: 10 },
+    featureFlags: { microsoftQueueWorker: true, secondaryCodexMailbox: false },
+    workers: [workerDefinition({
+      id: "microsoft-queue", healthProbe: "queue.poll", capabilities: ["queue.poll"],
+      dataClasses: ["enterprise"], executionPlane: "licensed-cloud",
+    })],
+  });
   const supervisor = new Supervisor({
-    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
     forkWorker: () => child, tickIntervalMs: 5,
   });
   t.after(() => { supervisor.stop(); cleanup(); });
@@ -72,11 +81,17 @@ test("scheduled work waits for a healthy compatible worker and remains deduplica
   await delay(30);
   assert.equal(database.listTasks(500).length, 0);
 
-  child.emit("message", { type: "ready" });
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", {
+    type: "provider.readiness",
+    receipt: createCapabilityReceipt("queue.poll", { verified: true, summary: "Queue provider ready." }),
+    observedAt: new Date().toISOString(),
+  });
+  child.emit("message", { type: "readiness.complete" });
   await delay(40);
-  const repairTasks = database.listTasks(500).filter((task) => task.capability === "repair.apply");
-  assert.equal(repairTasks.length, 1);
-  assert.ok(["queued", "running"].includes(repairTasks[0].status));
+  const queueTasks = database.listTasks(500).filter((task) => task.capability === "queue.poll");
+  assert.equal(queueTasks.length, 1);
+  assert.ok(["queued", "running"].includes(queueTasks[0].status));
 });
 
 test("startup reconciles persisted workers that have no live process", (t) => {
