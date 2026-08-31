@@ -124,9 +124,39 @@ export async function findInstalledCodexCli({ env = process.env, list = readdir,
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
 }
 
+function normalizeForComparison(value) {
+  return path.normalize(value).toLowerCase();
+}
+
+function isWithinDirectory(candidate, baseDirectory) {
+  const relative = path.relative(baseDirectory, candidate);
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function isTrustedCodexExecutablePath(executable, env = process.env) {
+  if (typeof executable !== "string" || executable.length === 0) return false;
+  if (!path.isAbsolute(executable)) return false;
+  if (normalizeForComparison(path.basename(executable)) !== "codex.exe") return false;
+
+  const trustedBases = [path.resolve(ROOT)];
+  if (env.LOCALAPPDATA) trustedBases.push(path.resolve(path.join(env.LOCALAPPDATA, "Programs", "CodexCLI")));
+  if (env.USERPROFILE) trustedBases.push(path.resolve(path.join(env.USERPROFILE, ".codex", ".sandbox-bin")));
+
+  const resolvedExecutable = path.resolve(executable);
+  return trustedBases.some((base) => normalizeForComparison(resolvedExecutable) === normalizeForComparison(base) || isWithinDirectory(resolvedExecutable, base));
+}
+
+async function resolveAndValidateCodexExecutable(dependencies) {
+  const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
+  if (!isTrustedCodexExecutablePath(executable, dependencies.env ?? process.env)) {
+    throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
+  }
+  return executable;
+}
+
 async function probeCodexCli(dependencies) {
   try {
-    const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
+    const executable = await resolveAndValidateCodexExecutable(dependencies);
     const result = await execFileAsync(executable, ["--version"], { cwd: ROOT, windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024, env: codexEnvironment(dependencies.env) });
     const containment = await probeExecutionCellEnvironment(ROOT, dependencies.executionCell ?? {});
     return { exitCode: 0, errorCode: null, containmentErrorCode: containment.verified ? null : containment.errorCode, stdout: result.stdout, stderr: result.stderr, authenticationConfigured: await authenticationConfigured(dependencies.env), executionCellCanary: containment.executionCellCanary };
@@ -136,7 +166,7 @@ async function probeCodexCli(dependencies) {
 }
 
 async function runCodexTask(envelope, adapter, dependencies) {
-  const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
+  const executable = await resolveAndValidateCodexExecutable(dependencies);
   const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", envelope.workingDirectory, "-"], envelope.prompt, envelope.workingDirectory, adapter, dependencies);
   const events = parseEvents(result.stdout);
   return { exitCode: result.exitCode, completed: events.completed, threadId: events.threadId, usage: events.usage, outputSha256: digest(events.finalText) };
