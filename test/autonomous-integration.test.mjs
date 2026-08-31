@@ -121,15 +121,13 @@ test("only verified cloud changes request a post-merge Pages deployment", () => 
   assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: ["cloudish/app.js"] }), policy).deployPages, false);
 });
 
-test("workflow waits for latest Destiny evidence and explicitly verifies each workflow-token merge", async () => {
+test("workflow merges exact verified heads without waiting for Destiny comments", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "autonomous-integration.yml"), "utf8");
-  assert.match(source, /issue_comment:/);
+  assert.doesNotMatch(source, /issue_comment:/);
+  assert.doesNotMatch(source, /latestExactDestinyResult/);
   assert.match(source, /github\.event\.workflow_run\.event == 'pull_request'/);
   assert.match(source, /actions: write/);
-  assert.match(source, /latestExactWorkflowRun/);
   assert.equal(source.match(/latestExactWorkflowRun/g)?.length, 6);
-  assert.match(source, /latestExactDestinyResult/);
-  assert.equal(source.match(/latestExactDestinyResult/g)?.length, 4);
   assert.match(source, /verify\?\.status === "completed" && verify\.conclusion === "success"/);
   assert.match(source, /relay\?\.status === "completed" && relay\.conclusion === "success"/);
   assert.match(source, /freshDecision = evaluateAutonomousIntegration/);
