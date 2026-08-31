@@ -58,8 +58,19 @@ async function validateRegistry() {
   print({ healthy: true, count: validated.length, dispatchIds: validated.map((item) => item.dispatchId) });
 }
 
+function resolveWithin(root, candidate, code) {
+  if (typeof root !== "string" || typeof candidate !== "string") throw new TypeError(code);
+  const base = path.resolve(root);
+  const target = path.resolve(base, candidate);
+  const relative = path.relative(base, target);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new TypeError(code);
+  return target;
+}
+
 async function validatePullRequest() {
-  const candidateRoot = options.has("root") ? path.resolve(process.cwd(), options.get("root")) : ROOT;
+  const candidateRoot = options.has("root")
+    ? resolveWithin(process.env.GITHUB_WORKSPACE ?? process.cwd(), path.resolve(process.cwd(), options.get("root")), "destiny-candidate-root-invalid")
+    : ROOT;
   const title = environment("PR_TITLE");
   const author = environment("PR_AUTHOR");
   const owner = environment("REPOSITORY_OWNER");
@@ -74,11 +85,12 @@ async function validatePullRequest() {
   const dispatchEntry = dispatchEntries[0];
   if (dispatchEntry.status !== "A") throw new Error("destiny-envelope-must-be-added");
   const dispatchPath = dispatchEntry.path;
-  const dispatch = JSON.parse(await readFile(path.join(candidateRoot, dispatchPath), "utf8"));
+  const dispatch = JSON.parse(await readFile(resolveWithin(candidateRoot, dispatchPath, "destiny-dispatch-path-invalid"), "utf8"));
   const receipt = validateDestinyDispatchPullRequest({ title, author, owner, baseBranch, baseSha, mergeBase, changedFiles, dispatchPath, dispatchStatus: dispatchEntry.status, dispatch });
   print({ healthy: true, ...receipt, shortRequestHash: receipt.requestHash.slice(0, 12) });
   if (process.env.GITHUB_OUTPUT) {
-    await appendFile(process.env.GITHUB_OUTPUT, [
+    const githubOutputPath = resolveWithin(process.env.RUNNER_TEMP, process.env.GITHUB_OUTPUT, "destiny-github-output-path-invalid");
+    await appendFile(githubOutputPath, [
       `dispatch_id=${receipt.dispatchId}`,
       `request_hash=${receipt.requestHash}`,
       `short_request_hash=${receipt.requestHash.slice(0, 12)}`,

@@ -12,7 +12,7 @@ const TEXT_EXTENSIONS = new Set([
 
 export class LocalArtifactStore {
   constructor(root, { maximumBytes = MAX_LOCAL_ARTIFACT_BYTES, contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
-    if (typeof root !== "string" || !path.isAbsolute(root)) throw new TypeError("artifact-root-invalid");
+    if (typeof root !== "string" || !path.isAbsolute(root) || path.resolve(root) !== root) throw new TypeError("artifact-root-invalid");
     if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1024 || maximumBytes > 100 * 1024 * 1024) throw new TypeError("artifact-limit-invalid");
     if (contentVault !== null && (!contentVault || typeof contentVault.put !== "function" || typeof contentVault.get !== "function")) throw new TypeError("artifact-content-vault-invalid");
     this.root = root;
@@ -80,7 +80,13 @@ export class LocalArtifactStore {
     await rm(this.#directory(id), { recursive: true, force: true });
   }
 
-  #directory(id) { return path.join(this.root, id); }
+  #directory(id) {
+    artifactId(id);
+    const directory = path.resolve(this.root, id);
+    const relative = path.relative(this.root, directory);
+    if (relative !== id || path.isAbsolute(relative)) throw new Error("artifact-path-escape");
+    return directory;
+  }
 }
 
 export async function inspectTaskArtifacts(task, { store }) {

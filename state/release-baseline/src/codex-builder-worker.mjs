@@ -9,13 +9,15 @@ import { createExecutionCell, inspectExecutionCell, probeExecutionCellEnvironmen
 const execFileAsync = promisify(execFile);
 const CODEX_EXECUTABLE = "user-codex-cli";
 const VENDOR_PATH = path.join("node_modules", "@openai", "codex", "vendor", "x86_64-pc-windows-msvc", "bin", "codex.exe");
+const BUNDLED_CODEX_EXECUTABLE = path.join(ROOT, VENDOR_PATH);
 
 export function buildCodexBuilderEnvelope({ task, worker, session = {}, cell }) {
   const adapter = requireAdapter(worker);
   const taskId = bounded(task?.id, 100, "task id");
   const correlationId = bounded(task?.correlationId, 120, "correlation id");
   const requestedOutcome = boundedMultiline(task?.requestedOutcome, adapter.maximumPromptBytes, "requested outcome");
-  if (!cell || typeof cell.path !== "string" || cell.taskId !== taskId || !Array.isArray(cell.allowedPaths)) throw new TypeError("Codex Builder execution cell is invalid.");
+  if (!cell || cell.taskId !== taskId || !Array.isArray(cell.allowedPaths)) throw new TypeError("Codex Builder execution cell is invalid.");
+  const workingDirectory = trustedExecutionCellDirectory(cell);
   const prompt = [
     "You are the task-scoped Primary Codex Builder operating inside a disposable Mahoraga candidate worktree.",
     `Task: ${taskId}`,
@@ -38,7 +40,8 @@ export function buildCodexBuilderEnvelope({ task, worker, session = {}, cell }) 
     interactiveAuthority: false,
     directExecutionEnabled: true,
     apiKeyRequired: false,
-    workingDirectory: cell.path,
+    workingDirectory,
+    executionCellRoot: path.resolve(cell.cellsRoot),
     prompt,
   });
 }
@@ -109,76 +112,31 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
 }
 
 export async function findInstalledCodexCli({ env = process.env, list = readdir, canAccess = access } = {}) {
-  const candidates = [];
-  if (env.LOCALAPPDATA) {
-    const store = path.join(env.LOCALAPPDATA, "Programs", "CodexCLI", "node_modules", ".pnpm");
-    try {
-      const entries = await list(store, { withFileTypes: true });
-      for (const item of entries.filter((entry) => entry.isDirectory() && /^@openai\+codex@.+-win32-x64$/i.test(entry.name)).map((entry) => entry.name).sort().reverse()) candidates.push(path.join(store, item, VENDOR_PATH));
-    } catch { /* optional user-level package store */ }
-  }
-  if (env.USERPROFILE) candidates.push(path.join(env.USERPROFILE, ".codex", ".sandbox-bin", "codex.exe"));
-  for (const candidate of candidates) {
-    try { await canAccess(candidate); return candidate; } catch { /* try next fixed path */ }
-  }
+  const candidate = BUNDLED_CODEX_EXECUTABLE;
+  const trustedRoots = [path.join(ROOT, "node_modules", "@openai", "codex", "vendor")];
+  try {
+    await canAccess(candidate);
+    if (await isTrustedCodexExecutable(candidate, trustedRoots)) return candidate;
+  } catch { /* fall through to ENOENT */ }
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
 }
 
-function normalizeForComparison(value) {
-  return path.normalize(value).toLowerCase();
-}
-
-function isWithinDirectory(candidate, baseDirectory) {
-  const relative = path.relative(baseDirectory, candidate);
-  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
-}
-
-function isTrustedCodexExecutablePath(executable, env = process.env) {
-  if (typeof executable !== "string" || executable.length === 0) return false;
-  if (!path.isAbsolute(executable)) return false;
-  if (normalizeForComparison(path.basename(executable)) !== "codex.exe") return false;
-
-  const trustedBases = [path.resolve(ROOT)];
-  if (env.LOCALAPPDATA) trustedBases.push(path.resolve(path.join(env.LOCALAPPDATA, "Programs", "CodexCLI")));
-  if (env.USERPROFILE) trustedBases.push(path.resolve(path.join(env.USERPROFILE, ".codex", ".sandbox-bin")));
-
-  const resolvedExecutable = path.resolve(executable);
-  return trustedBases.some((base) => normalizeForComparison(resolvedExecutable) === normalizeForComparison(base) || isWithinDirectory(resolvedExecutable, base));
-}
-
-function sanitizedCodexPathEnv(env = process.env) {
-  const sanitized = {};
-  if (typeof env.LOCALAPPDATA === "string" && path.isAbsolute(env.LOCALAPPDATA)) sanitized.LOCALAPPDATA = path.resolve(env.LOCALAPPDATA);
-  if (typeof env.USERPROFILE === "string" && path.isAbsolute(env.USERPROFILE)) sanitized.USERPROFILE = path.resolve(env.USERPROFILE);
-  return sanitized;
-}
-
-async function resolveAndValidateCodexExecutable(dependencies) {
-  const env = sanitizedCodexPathEnv(dependencies.env ?? process.env);
-  const trustedDiscoveredExecutable = await findInstalledCodexCli({ env, list: dependencies.list, canAccess: dependencies.canAccess });
-  const canonicalTrustedDiscoveredExecutable = await realpath(trustedDiscoveredExecutable);
-  if (!isTrustedCodexExecutablePath(canonicalTrustedDiscoveredExecutable, env)) {
-    throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
+async function isTrustedCodexExecutable(candidate, trustedRoots) {
+  const resolvedCandidate = await realpath(candidate);
+  if (path.basename(resolvedCandidate).toLowerCase() !== "codex.exe") return false;
+  const resolvedRoots = [];
+  for (const root of trustedRoots) {
+    try { resolvedRoots.push(await realpath(root)); } catch { /* ignore unavailable root */ }
   }
-
-  if (dependencies.resolveExecutable) {
-    const requestedExecutable = await dependencies.resolveExecutable(dependencies);
-    const canonicalRequestedExecutable = await realpath(requestedExecutable);
-    if (!isTrustedCodexExecutablePath(canonicalRequestedExecutable, env)) {
-      throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
-    }
-    if (normalizeForComparison(path.resolve(canonicalRequestedExecutable)) !== normalizeForComparison(path.resolve(canonicalTrustedDiscoveredExecutable))) {
-      throw Object.assign(new Error("codex-builder-cli-untrusted-path"), { code: "EACCES" });
-    }
-    return canonicalRequestedExecutable;
-  }
-
-  return canonicalTrustedDiscoveredExecutable;
+  return resolvedRoots.some((root) => {
+    const relative = path.relative(root, resolvedCandidate);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  });
 }
 
 async function probeCodexCli(dependencies) {
   try {
-    const executable = await resolveAndValidateCodexExecutable(dependencies);
+    const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
     const result = await execFileAsync(executable, ["--version"], { cwd: ROOT, windowsHide: true, timeout: 15000, maxBuffer: 32 * 1024, env: codexEnvironment(dependencies.env) });
     const containment = await probeExecutionCellEnvironment(ROOT, dependencies.executionCell ?? {});
     return { exitCode: 0, errorCode: null, containmentErrorCode: containment.verified ? null : containment.errorCode, stdout: result.stdout, stderr: result.stderr, authenticationConfigured: await authenticationConfigured(dependencies.env), executionCellCanary: containment.executionCellCanary };
@@ -188,8 +146,9 @@ async function probeCodexCli(dependencies) {
 }
 
 async function runCodexTask(envelope, adapter, dependencies) {
-  const executable = await resolveAndValidateCodexExecutable(dependencies);
-  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", envelope.workingDirectory, "-"], envelope.prompt, envelope.workingDirectory, adapter, dependencies);
+  const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
+  const workingDirectory = trustedExecutionCellDirectory({ path: envelope.workingDirectory, cellsRoot: envelope.executionCellRoot });
+  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", workingDirectory, "-"], envelope.prompt, workingDirectory, adapter, dependencies);
   const events = parseEvents(result.stdout);
   return { exitCode: result.exitCode, completed: events.completed, threadId: events.threadId, usage: events.usage, outputSha256: digest(events.finalText) };
 }
@@ -257,14 +216,28 @@ function parseEvents(source) {
   return { threadId, completed, usage, finalText };
 }
 
+function trustedExecutionCellDirectory(cell) {
+  if (!cell || typeof cell.path !== "string" || typeof cell.cellsRoot !== "string" || !path.isAbsolute(cell.path) || !path.isAbsolute(cell.cellsRoot)) throw new TypeError("Codex Builder execution cell is invalid.");
+  const cellsRoot = path.resolve(cell.cellsRoot);
+  const candidate = path.resolve(cell.path);
+  const relative = path.relative(cellsRoot, candidate);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new TypeError("Codex Builder execution cell is invalid.");
+  return candidate;
+}
+
+function trustedProfileDirectory(value) {
+  return typeof value === "string" && path.isAbsolute(value) && path.resolve(value) === value ? value : null;
+}
+
 function codexEnvironment(source = process.env) {
-  const profile = source.USERPROFILE;
-  return Object.fromEntries(Object.entries({ SystemRoot: source.SystemRoot, WINDIR: source.WINDIR, PATH: source.PATH, USERPROFILE: profile, LOCALAPPDATA: source.LOCALAPPDATA, APPDATA: source.APPDATA, TEMP: source.TEMP, TMP: source.TMP, CODEX_HOME: source.CODEX_HOME ?? (profile ? path.join(profile, ".codex") : undefined) }).filter(([, value]) => typeof value === "string" && value.length > 0));
+  const profile = trustedProfileDirectory(source.USERPROFILE);
+  return Object.fromEntries(Object.entries({ SystemRoot: source.SystemRoot, WINDIR: source.WINDIR, PATH: source.PATH, USERPROFILE: profile, LOCALAPPDATA: source.LOCALAPPDATA, APPDATA: source.APPDATA, TEMP: source.TEMP, TMP: source.TMP, CODEX_HOME: profile ? path.join(profile, ".codex") : undefined }).filter(([, value]) => typeof value === "string" && value.length > 0));
 }
 
 async function authenticationConfigured(env = process.env) {
-  if (!env.USERPROFILE) return false;
-  try { await access(path.join(env.CODEX_HOME ?? path.join(env.USERPROFILE, ".codex"), "auth.json")); return true; } catch { return false; }
+  const profile = trustedProfileDirectory(env.USERPROFILE);
+  if (!profile) return false;
+  try { await access(path.join(profile, ".codex", "auth.json")); return true; } catch { return false; }
 }
 
 function requireAdapter(worker) {
