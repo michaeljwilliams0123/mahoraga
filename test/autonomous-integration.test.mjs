@@ -83,6 +83,12 @@ test("Destiny integration does not wait for an exact-head result after trusted c
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ headRef: "feature/ui", destinyResult: null }), policy).eligible, true);
 });
 
+test("Destiny integration requires an implementation delta beyond its dispatch envelope", () => {
+  const dispatch = "coordination/destiny-dispatches/dcx-3c11bb0e4a5d3b6329832b0a.json";
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch] }), policy).reason, "destiny-implementation-required");
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch, "web/app.js"] }), policy).eligible, true);
+});
+
 test("the newest exact-head pull-request run is authoritative", () => {
   const headSha = "a".repeat(40);
   const runs = [
