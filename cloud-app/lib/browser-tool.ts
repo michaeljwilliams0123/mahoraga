@@ -24,6 +24,23 @@ function validateTarget(rawUrl: string) {
   return url;
 }
 
+function validateProviderEndpoint(rawEndpoint: string) {
+  const endpoint = new URL(rawEndpoint);
+  if (endpoint.protocol !== "https:") throw new Error("cloud-browser-provider-https-required");
+  if (endpoint.username || endpoint.password) throw new Error("cloud-browser-provider-auth-in-url-not-allowed");
+
+  const allowedHosts = (process.env.BROWSER_PROVIDER_ALLOWED_HOSTS ?? "api.browser-provider.com")
+    .split(",")
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (!allowedHosts.includes(endpoint.hostname.toLowerCase())) {
+    throw new Error("cloud-browser-provider-host-not-allowed");
+  }
+
+  return endpoint;
+}
+
 export const cloudBrowserTool = tool({
   description:
     "Run one bounded interaction in an isolated cloud browser. Never uses a local browser or extension. Every invocation requires human approval.",
@@ -34,8 +51,9 @@ export const cloudBrowserTool = tool({
     const token = process.env.BROWSER_PROVIDER_TOKEN;
     if (!endpoint || !token) throw new Error("cloud-browser-not-configured");
 
+    const providerUrl = validateProviderEndpoint(endpoint);
     const url = validateTarget(rawUrl);
-    const response = await fetch(endpoint, {
+    const response = await fetch(providerUrl.toString(), {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
