@@ -88,7 +88,22 @@ function validateFrame(value) {
 }
 function frameAad(sessionId, direction, counter) { return encoder.encode(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, sessionId, direction, counter })); }
 function canonicalContext(value) { return JSON.stringify({ code: value.code, expiresAt: value.expiresAt, pairingId: value.pairingId, protocolVersion: value.protocolVersion }); }
-function randomCode() { const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; const bytes = crypto.getRandomValues(new Uint8Array(8)); return [...bytes].map((value) => alphabet[value % alphabet.length]).join(""); }
+function randomCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bucketSize = Math.floor(256 / alphabet.length);
+  const limit = bucketSize * alphabet.length;
+  const bytes = new Uint8Array(16);
+  const output = [];
+  while (output.length < 8) {
+    crypto.getRandomValues(bytes);
+    for (const value of bytes) {
+      if (value >= limit) continue;
+      output.push(alphabet[Math.floor(value / bucketSize)]);
+      if (output.length === 8) break;
+    }
+  }
+  return output.join("");
+}
 function normalizeNow(value) { const result = value instanceof Date ? value.getTime() : Number(value); if (!Number.isFinite(result)) fail("relay-time-invalid"); return result; }
 function directionValue(value) { if (!DIRECTIONS.has(value)) fail("relay-direction-invalid"); return value; }
 function toBase64Url(value) { return Buffer.from(value).toString("base64url"); }
