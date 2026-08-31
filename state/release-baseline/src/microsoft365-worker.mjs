@@ -101,7 +101,7 @@ async function openInSignedApplication(url, dependencies) {
 }
 
 async function probePacAuthentication(dependencies = {}) {
-  const executable = dependencies.pacExecutable ?? (process.env.LOCALAPPDATA ? `${process.env.LOCALAPPDATA}\\Microsoft\\PowerAppsCLI\\pac.cmd` : "pac.cmd");
+  const executable = dependencies.pacExecutable ?? "pac.cmd";
   const run = dependencies.runPac ?? execFileAsync;
   try {
     const { stdout } = await run(executable, ["auth", "list"], { windowsHide: true, timeout: 20000, maxBuffer: 128 * 1024, env: { SystemRoot: process.env.SystemRoot, WINDIR: process.env.WINDIR, PATH: process.env.PATH, LOCALAPPDATA: process.env.LOCALAPPDATA, USERPROFILE: process.env.USERPROFILE } });
