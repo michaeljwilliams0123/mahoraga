@@ -5,6 +5,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from "./controller-authority.mjs";
 import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { advanceRepairIncident, reconcileRepairIncidents as reconcileIncidentState } from "./repair-incidents.mjs";
+import { runStateForEvent, terminalRunType, validateRunEvent } from "./run-event-contract.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -13,6 +14,9 @@ const CAPABILITY_PROCESS_STATES = new Set(["stopped", "starting", "live", "busy"
 const CAPABILITY_PROVIDER_STATES = new Set(["unknown", "unavailable", "degraded", "ready"]);
 const CAPABILITY_CANARY_STATES = new Set(["never", "stale", "failed", "verified"]);
 const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unresolved"]);
+const CONVERSATION_RUN_STATES = new Set(["accepted", "running", "verifying", "waiting", "completed", "failed", "cancelled"]);
+const ACTIVE_RUN_STATES = new Set(["accepted", "running", "verifying", "waiting"]);
+const EVOLUTION_STATES = new Set(["planned", "candidate-created", "verified", "deployed", "canary-passed", "activated", "failed", "rolled-back"]);
 
 export class RuntimeDatabase {
   constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
@@ -100,6 +104,51 @@ export class RuntimeDatabase {
         created_at TEXT NOT NULL,
         PRIMARY KEY(message_id, artifact_id),
         FOREIGN KEY(message_id) REFERENCES conversation_messages(id)
+      );
+      CREATE TABLE IF NOT EXISTS conversation_runs (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        task_id TEXT UNIQUE,
+        idempotency_key TEXT UNIQUE NOT NULL,
+        state TEXT NOT NULL,
+        cancel_requested INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        terminal_at TEXT,
+        FOREIGN KEY(conversation_id) REFERENCES conversations(id)
+      );
+      CREATE TABLE IF NOT EXISTS evolution_candidates (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        request_sha256 TEXT NOT NULL,
+        base_sha TEXT NOT NULL,
+        head_sha TEXT,
+        branch TEXT NOT NULL,
+        allowed_paths_json TEXT NOT NULL,
+        state TEXT NOT NULL,
+        pull_request_number INTEGER,
+        workflow_id TEXT,
+        artifact_id TEXT,
+        artifact_sha256 TEXT,
+        deployment_id TEXT,
+        canary_id TEXT,
+        activation_id TEXT,
+        rollback_id TEXT,
+        last_error_code TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS run_events (
+        event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        run_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        conversation_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        payload_json TEXT NOT NULL,
+        FOREIGN KEY(run_id) REFERENCES conversation_runs(id)
       );
       CREATE TABLE IF NOT EXISTS execution_receipts (
         id TEXT PRIMARY KEY,
@@ -194,6 +243,10 @@ export class RuntimeDatabase {
       CREATE INDEX IF NOT EXISTS idx_events_subject ON events(subject_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON conversation_messages(conversation_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_message_attachments_artifact ON conversation_message_attachments(artifact_id);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_conversation_runs_active ON conversation_runs(conversation_id)
+        WHERE state IN ('accepted','running','verifying','waiting');
+      CREATE INDEX IF NOT EXISTS idx_run_events_replay ON run_events(run_id,event_id);
+      CREATE INDEX IF NOT EXISTS idx_evolution_candidates_state ON evolution_candidates(state,updated_at);
       CREATE INDEX IF NOT EXISTS idx_receipts_task ON execution_receipts(task_id, created_at);
       CREATE INDEX IF NOT EXISTS idx_answer_evaluations_task ON answer_evaluations(task_id, attempt_number);
       CREATE INDEX IF NOT EXISTS idx_builder_sessions_correlation ON codex_builder_sessions(correlation_id, created_at);
@@ -469,7 +522,7 @@ export class RuntimeDatabase {
     bounded(conversationId, 80, "conversation id");
     const size = Math.max(1, Math.min(Number(limit) || 500, 1000));
     const attachmentQuery = this.db.prepare("SELECT artifact_id,name,mime_type,size_bytes,sha256 FROM conversation_message_attachments WHERE message_id=? ORDER BY created_at,artifact_id");
-    return this.db.prepare("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY created_at, id LIMIT ?")
+    return this.db.prepare("SELECT * FROM conversation_messages WHERE conversation_id=? ORDER BY created_at, rowid LIMIT ?")
       .all(conversationId, size).map((row) => normalizeMessageWithAttachments(row, attachmentQuery.all(row.id)));
   }
 
@@ -477,6 +530,125 @@ export class RuntimeDatabase {
     return this.listConversationMessages(conversationId, limit).map((message) => message.contentReference
       ? Object.freeze({ ...message, content: this.#resolveContent(message.contentReference, { ownerType: "message", ownerId: message.id, classification: message.classification }).toString("utf8") })
       : message);
+  }
+
+  createConversationRun({ sessionId, conversationId, idempotencyKey, taskId = null }) {
+    bounded(sessionId, 120, "run session id"); bounded(conversationId, 80, "run conversation id"); bounded(idempotencyKey, 120, "run idempotency key");
+    if (taskId !== null) bounded(taskId, 80, "run task id");
+    if (!this.getConversation(conversationId)) throw runError("run-conversation-missing");
+    const existing = this.db.prepare("SELECT * FROM conversation_runs WHERE idempotency_key=?").get(idempotencyKey);
+    if (existing) {
+      const run = normalizeConversationRun(existing);
+      if (run.sessionId !== sessionId || run.conversationId !== conversationId || run.taskId !== taskId) throw runError("run-idempotency-conflict");
+      return run;
+    }
+    const active = this.db.prepare("SELECT id FROM conversation_runs WHERE conversation_id=? AND state IN ('accepted','running','verifying','waiting') LIMIT 1").get(conversationId);
+    if (active) throw runError("foreground-run-active");
+    const id = `run-${randomUUID()}`; const now = new Date().toISOString();
+    this.db.prepare("INSERT INTO conversation_runs(id,session_id,conversation_id,task_id,idempotency_key,state,created_at,updated_at) VALUES(?,?,?,?,?,'accepted',?,?)")
+      .run(id, sessionId, conversationId, taskId, idempotencyKey, now, now);
+    this.#event("conversation.run-created", id, { conversationId, taskId });
+    return this.getConversationRun(id);
+  }
+
+  attachConversationRunTask(runId, taskId) {
+    bounded(runId, 80, "run id"); bounded(taskId, 80, "run task id");
+    const changed = this.db.prepare("UPDATE conversation_runs SET task_id=?,updated_at=? WHERE id=? AND task_id IS NULL AND state IN ('accepted','running')")
+      .run(taskId, new Date().toISOString(), runId);
+    if (changed.changes !== 1) throw runError("run-task-attachment-invalid");
+    return this.getConversationRun(runId);
+  }
+
+  getConversationRun(id) {
+    bounded(id, 80, "run id");
+    const row = this.db.prepare("SELECT * FROM conversation_runs WHERE id=?").get(id);
+    return row ? normalizeConversationRun(row) : null;
+  }
+
+  getConversationRunByTaskId(taskId) {
+    bounded(taskId, 80, "run task id");
+    const row = this.db.prepare("SELECT * FROM conversation_runs WHERE task_id=?").get(taskId);
+    return row ? normalizeConversationRun(row) : null;
+  }
+
+  appendRunEvent(runId, type, payload = {}, { agentId = "mahoraga" } = {}) {
+    bounded(runId, 80, "run id");
+    const run = this.getConversationRun(runId);
+    if (!run) throw runError("run-missing");
+    if (!ACTIVE_RUN_STATES.has(run.state)) throw runError("run-terminal");
+    const timestamp = new Date().toISOString();
+    const candidate = { schemaVersion: 1, eventId: 1, sessionId: run.sessionId, conversationId: run.conversationId,
+      runId: run.id, agentId, type, timestamp, payload };
+    validateRunEvent(candidate);
+    const inserted = this.db.prepare("INSERT INTO run_events(run_id,session_id,conversation_id,agent_id,type,timestamp,payload_json) VALUES(?,?,?,?,?,?,?)")
+      .run(run.id, run.sessionId, run.conversationId, agentId, type, timestamp, JSON.stringify(payload));
+    const event = validateRunEvent({ ...candidate, eventId: Number(inserted.lastInsertRowid) });
+    const state = runStateForEvent(type, run.state);
+    if (state !== run.state) this.db.prepare("UPDATE conversation_runs SET state=?,updated_at=?,terminal_at=? WHERE id=?")
+      .run(state, timestamp, terminalRunType(type) ? timestamp : null, run.id);
+    return event;
+  }
+
+  listRunEvents(runId, { afterEventId = 0, limit = 500 } = {}) {
+    bounded(runId, 80, "run id");
+    if (!Number.isSafeInteger(afterEventId) || afterEventId < 0) throw runError("run-replay-cursor-invalid");
+    const size = Math.max(1, Math.min(Number(limit) || 500, 1000));
+    return this.db.prepare("SELECT * FROM run_events WHERE run_id=? AND event_id>? ORDER BY event_id LIMIT ?").all(runId, afterEventId, size).map(normalizeRunEventRow);
+  }
+
+  cancelConversationRun(runId) {
+    bounded(runId, 80, "run id");
+    const run = this.getConversationRun(runId);
+    if (!run || !ACTIVE_RUN_STATES.has(run.state)) return run;
+    const now = new Date().toISOString();
+    this.db.prepare("UPDATE conversation_runs SET cancel_requested=1,updated_at=? WHERE id=?").run(now, runId);
+    if (run.taskId) this.cancelTask(run.taskId);
+    this.appendRunEvent(runId, "run-cancelled", { reasonCode: "cancelled-by-user" });
+    return this.getConversationRun(runId);
+  }
+
+  createEvolutionCandidate({ conversationId, requestSha256, baseSha, branch, allowedPaths }) {
+    bounded(conversationId, 120, "evolution conversation id");
+    if (!/^[a-f0-9]{64}$/.test(requestSha256)) throw evolutionError("evolution-request-digest-invalid");
+    if (!/^[a-f0-9]{40}$/.test(baseSha)) throw evolutionError("evolution-base-invalid");
+    bounded(branch, 200, "evolution branch");
+    const paths = executionPaths(allowedPaths);
+    if (paths.length < 1) throw evolutionError("candidate-path-invalid");
+    const id = `imp-${randomUUID()}`; const now = new Date().toISOString();
+    this.db.prepare(`INSERT INTO evolution_candidates
+      (id,conversation_id,request_sha256,base_sha,branch,allowed_paths_json,state,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,'planned',?,?)`).run(id, conversationId, requestSha256, baseSha, branch, JSON.stringify(paths), now, now);
+    this.#event("evolution.planned", id, { conversationId, requestSha256, baseSha });
+    return this.getEvolutionCandidate(id);
+  }
+
+  getEvolutionCandidate(id) {
+    bounded(id, 80, "evolution candidate id");
+    const row = this.db.prepare("SELECT * FROM evolution_candidates WHERE id=?").get(id);
+    return row ? normalizeEvolutionCandidate(row) : null;
+  }
+
+  updateEvolutionCandidate(id, patch) {
+    bounded(id, 80, "evolution candidate id");
+    if (!isRecord(patch) || Object.keys(patch).length < 1) throw evolutionError("evolution-update-invalid");
+    const columns = new Map([
+      ["state", "state"], ["headSha", "head_sha"], ["pullRequestNumber", "pull_request_number"], ["workflowId", "workflow_id"],
+      ["artifactId", "artifact_id"], ["artifactSha256", "artifact_sha256"], ["deploymentId", "deployment_id"], ["canaryId", "canary_id"],
+      ["activationId", "activation_id"], ["rollbackId", "rollback_id"], ["lastErrorCode", "last_error_code"],
+    ]);
+    if (Object.keys(patch).some((key) => !columns.has(key))) throw evolutionError("evolution-update-invalid");
+    if (patch.state !== undefined && !EVOLUTION_STATES.has(patch.state)) throw evolutionError("evolution-state-invalid");
+    if (patch.headSha !== undefined && !/^[a-f0-9]{40}$/.test(patch.headSha)) throw evolutionError("candidate-head-invalid");
+    if (patch.artifactSha256 !== undefined && !/^[a-f0-9]{64}$/.test(patch.artifactSha256)) throw evolutionError("artifact-digest-invalid");
+    if (patch.pullRequestNumber !== undefined && (!Number.isSafeInteger(patch.pullRequestNumber) || patch.pullRequestNumber < 1)) throw evolutionError("pull-request-invalid");
+    for (const key of ["workflowId", "artifactId", "deploymentId", "canaryId", "activationId", "rollbackId", "lastErrorCode"]) if (patch[key] !== undefined) bounded(patch[key], 120, `evolution ${key}`);
+    const entries = Object.entries(patch); const now = new Date().toISOString();
+    const changed = this.db.prepare(`UPDATE evolution_candidates SET ${entries.map(([key]) => `${columns.get(key)}=?`).join(",")},updated_at=? WHERE id=?`)
+      .run(...entries.map(([, value]) => value), now, id);
+    if (changed.changes !== 1) throw evolutionError("evolution-candidate-missing");
+    const item = this.getEvolutionCandidate(id);
+    this.#event(`evolution.${item.state}`, id, { headSha: item.headSha, lastErrorCode: item.lastErrorCode });
+    return item;
   }
 
   isArtifactReferenced(artifactId) {
@@ -1251,6 +1423,8 @@ function idempotencyConflict(field) {
   error.code = "idempotency-conflict";
   return error;
 }
+function runError(code) { const error = new Error(code); error.code = code; return error; }
+function evolutionError(code) { const error = new TypeError(code); error.code = code; return error; }
 function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return {
@@ -1259,6 +1433,15 @@ function normalizeConversation(row) { return {
   classification: row.title_classification ?? "local-only", expiresAt: row.title_expires_at ?? null,
   status: row.status, currentTaskId: row.current_task_id, createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
+function normalizeConversationRun(row) {
+  if (!CONVERSATION_RUN_STATES.has(row.state)) throw new Error("stored-run-state-invalid");
+  return Object.freeze({ id: row.id, sessionId: row.session_id, conversationId: row.conversation_id, taskId: row.task_id,
+    idempotencyKey: row.idempotency_key, state: row.state, cancelRequested: Boolean(row.cancel_requested),
+    createdAt: row.created_at, updatedAt: row.updated_at, terminalAt: row.terminal_at });
+}
+function normalizeRunEventRow(row) { return validateRunEvent({ schemaVersion: 1, eventId: row.event_id, sessionId: row.session_id,
+  conversationId: row.conversation_id, runId: row.run_id, agentId: row.agent_id, type: row.type,
+  timestamp: row.timestamp, payload: JSON.parse(row.payload_json) }); }
 function normalizeMessage(row) { return {
   id: row.id, conversationId: row.conversation_id, taskId: row.task_id, role: row.role,
   content: row.content_ref ? null : row.content, contentReference: row.content_ref ?? null,
@@ -1292,6 +1475,17 @@ function normalizeImprovement(row) { if (!IMPROVEMENT_STATES.has(row.status)) th
   id: row.id, title: row.title, summary: row.summary, status: row.status, testSummary: row.test_summary,
   createdAt: row.created_at, decidedAt: row.decided_at, activatedAt: row.activated_at,
 }; }
+function normalizeEvolutionCandidate(row) {
+  if (!EVOLUTION_STATES.has(row.state)) throw new Error("Stored evolution state is invalid.");
+  return Object.freeze({
+    id: row.id, conversationId: row.conversation_id, requestSha256: row.request_sha256, baseSha: row.base_sha,
+    headSha: row.head_sha, branch: row.branch, allowedPaths: Object.freeze(JSON.parse(row.allowed_paths_json)), state: row.state,
+    pullRequestNumber: row.pull_request_number, workflowId: row.workflow_id, artifactId: row.artifact_id,
+    artifactSha256: row.artifact_sha256, deploymentId: row.deployment_id, canaryId: row.canary_id,
+    activationId: row.activation_id, rollbackId: row.rollback_id, lastErrorCode: row.last_error_code,
+    createdAt: row.created_at, updatedAt: row.updated_at,
+  });
+}
 function normalizeReceiptMetadata(value) {
   if (value === null || value === undefined) return {};
   if (!isRecord(value)) throw new TypeError("Receipt metadata is invalid.");

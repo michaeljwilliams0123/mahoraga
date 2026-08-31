@@ -97,6 +97,9 @@ export function validateManifest(value) {
   }
   validateTruthContracts(value.truthContracts);
   validateBrowserPolicy(value.browser);
+  validateMcpProviders(value.mcpProviders);
+  validateExecutionBudgets(value.executionBudgets);
+  validateObservationMemory(value.observationMemory);
   if (!isRecord(value.routingPolicy)) throw new TypeError("Routing policy is missing.");
   if (!Array.isArray(value.routingPolicy.interfaceOrder) || value.routingPolicy.interfaceOrder.length < 1 ||
       new Set(value.routingPolicy.interfaceOrder).size !== value.routingPolicy.interfaceOrder.length || value.routingPolicy.interfaceOrder.some((item) => !validRoutingValue(item))) {
@@ -259,6 +262,43 @@ function validateBrowserPolicy(browser) {
   }
   integer(browser.artifactRetentionMs, 60000, 7 * 24 * 60 * 60 * 1000, "Browser artifact retention");
   if (browser.signedSessionEnabled !== false) throw new TypeError("Signed browser session must remain disabled pending user approval.");
+}
+function validateMcpProviders(providers) {
+  if (!Array.isArray(providers) || providers.length > 32) throw new TypeError("MCP provider registry is invalid.");
+  const ids = new Set();
+  const fields = new Set(["id", "enabled", "transportKind", "executableIdentity", "toolAllowlist", "resourceAllowlist", "dataClasses", "permissionClass", "spendingClass", "credentialReference", "readinessProbe", "canary", "maximumRequestBytes", "maximumResponseBytes", "timeoutMs"]);
+  for (const provider of providers) {
+    if (!isRecord(provider) || Object.keys(provider).length !== fields.size || Object.keys(provider).some((key) => !fields.has(key))) throw new TypeError("MCP provider fields are invalid.");
+    slug(provider.id, "MCP provider id"); if (ids.has(provider.id)) throw new TypeError("MCP provider ID is duplicated."); ids.add(provider.id);
+    if (typeof provider.enabled !== "boolean" || provider.transportKind !== "local-process") throw new TypeError("MCP provider transport is invalid.");
+    if (typeof provider.executableIdentity !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{1,119}$/.test(provider.executableIdentity)) throw new TypeError("MCP executable identity is invalid.");
+    for (const [field, maximum] of [["toolAllowlist", 64], ["resourceAllowlist", 64]]) {
+      if (!Array.isArray(provider[field]) || provider[field].length > maximum || new Set(provider[field]).size !== provider[field].length || provider[field].some((item) => typeof item !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{1,119}$/.test(item))) throw new TypeError(`MCP provider ${field} is invalid.`);
+    }
+    if (!Array.isArray(provider.dataClasses) || provider.dataClasses.length < 1 || provider.dataClasses.some((item) => !DATA_CLASSES.has(item))) throw new TypeError("MCP provider data classes are invalid.");
+    slug(provider.permissionClass, "MCP permission class"); if (!COST_CLASSES.has(provider.spendingClass)) throw new TypeError("MCP spending class is invalid.");
+    if (typeof provider.credentialReference !== "string" || !/^(?:env|os-keychain|secret-store):[A-Z][A-Z0-9_]{2,63}$/.test(provider.credentialReference)) throw new TypeError("MCP credential reference is invalid.");
+    if (!provider.toolAllowlist.includes(provider.readinessProbe) || !provider.toolAllowlist.includes(provider.canary)) throw new TypeError("MCP provider probes are invalid.");
+    integer(provider.maximumRequestBytes, 256, 1048576, "MCP request limit"); integer(provider.maximumResponseBytes, 256, 4194304, "MCP response limit"); integer(provider.timeoutMs, 100, 300000, "MCP timeout");
+  }
+}
+function validateExecutionBudgets(value) {
+  if (!isRecord(value)) throw new TypeError("Execution budgets are missing.");
+  integer(value.maximumDepth, 0, 32, "execution maximumDepth");
+  integer(value.maximumChildWorkers, 0, 16, "execution maximumChildWorkers");
+  integer(value.maximumCycles, 1, 10000, "execution maximumCycles");
+  integer(value.maximumTokens, 1, 10000000, "execution maximumTokens");
+  if (!COST_CLASSES.has(value.spendingClass)) throw new TypeError("Execution spending class is invalid.");
+  for (const field of ["inheritedDenyRules", "childAllowRules"]) {
+    if (!Array.isArray(value[field]) || value[field].length > 64 || new Set(value[field]).size !== value[field].length || value[field].some((rule) => typeof rule !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(rule))) throw new TypeError(`Execution ${field} is invalid.`);
+  }
+  if (value.childAllowRules.some((rule) => value.inheritedDenyRules.includes(rule))) throw new TypeError("Execution rules conflict.");
+}
+function validateObservationMemory(value) {
+  if (!isRecord(value)) throw new TypeError("Observation memory is missing.");
+  integer(value.rawTurnLimit, 0, 1000, "observation rawTurnLimit");
+  integer(value.observationLimit, 0, 10000, "observation observationLimit");
+  integer(value.maximumBytes, 512, 16777216, "observation maximumBytes");
 }
 function integer(value, min, max, name) {
   if (!Number.isInteger(value) || value < min || value > max) throw new TypeError(`${name} is invalid.`);

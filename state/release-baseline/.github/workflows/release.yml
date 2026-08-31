@@ -61,7 +61,9 @@ jobs:
           commit="$(git rev-parse HEAD)"
           mkdir -p dist
           artifact="dist/mahoraga-${version}.zip"
+          relay_artifact="dist/mahoraga-relay-${version}.zip"
           git archive --format=zip --prefix="mahoraga-${version}/" --output="$artifact" "$commit"
+          git archive --format=zip --prefix="mahoraga-relay-${version}/" --output="$relay_artifact" "$commit" relay/core.mjs relay/cloudflare-worker.mjs docs/DESTINY-CODEX-RELAY.md
           node scripts/update-manifest.mjs create \
             --artifact "$artifact" \
             --version "$version" \
@@ -73,13 +75,15 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "relay_artifact=$relay_artifact" >> "$GITHUB_OUTPUT"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Attest release provenance
-        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
           subject-path: |
             ${{ steps.package.outputs.artifact }}
+            ${{ steps.package.outputs.relay_artifact }}
             dist/mahoraga-update.json
 
       - name: Publish staged GitHub release
@@ -90,9 +94,10 @@ jobs:
           TAG: ${{ steps.package.outputs.tag }}
           VERSION: ${{ steps.package.outputs.version }}
           ARTIFACT: ${{ steps.package.outputs.artifact }}
+          RELAY_ARTIFACT: ${{ steps.package.outputs.relay_artifact }}
           COMMIT: ${{ steps.package.outputs.commit }}
         run: |
           set -euo pipefail
           flags=(--target "$COMMIT" --title "Mahoraga ${VERSION}" --notes "Verified ${CHANNEL} update. Eligible for verified local rollout with mandatory rollback evidence.")
           if [ "$CHANNEL" = "beta" ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
-          gh release create "$TAG" "$ARTIFACT" dist/mahoraga-update.json "${flags[@]}"
+          gh release create "$TAG" "$ARTIFACT" "$RELAY_ARTIFACT" dist/mahoraga-update.json "${flags[@]}"

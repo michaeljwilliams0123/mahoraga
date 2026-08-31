@@ -18,6 +18,11 @@ test("canonical manifest defines verified automatic update authority and localho
   assert.ok(manifest.workers.some((worker) => worker.id === "repository" && worker.enabled));
   assert.equal(manifest.browser.controlCenterUrl, "http://127.0.0.1:4782/");
   assert.equal(manifest.browser.signedSessionEnabled, false);
+  assert.equal(manifest.mcpProviders.length, 1);
+  assert.equal(manifest.mcpProviders[0].enabled, false);
+  assert.equal(manifest.mcpProviders[0].executableIdentity, "openclaw-mcp-host");
+  assert.equal(manifest.executionBudgets.maximumDepth, 4);
+  assert.equal(manifest.observationMemory.rawTurnLimit, 24);
   assert.deepEqual(manifest.repair.automaticRiskClasses, ["operational", "core"]);
   assert.equal(manifest.routingPolicy.interfaceOrder[0], "native-api");
   assert.ok(manifest.workers.every((worker) => worker.routing.reliability >= 0));
@@ -57,4 +62,10 @@ test("manifest rejects unknown routing fallbacks", async () => {
   const manifest = structuredClone(await loadManifest());
   manifest.workers[0].routing.fallbackWorkerIds = ["missing-worker"];
   assert.throws(() => validateManifest(manifest), /fallback references/);
+});
+
+test("manifest rejects caller-addressable MCP transports", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.mcpProviders[0].endpoint = "https://caller.example";
+  assert.throws(() => validateManifest(manifest), /MCP provider fields/);
 });

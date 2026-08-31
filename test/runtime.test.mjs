@@ -31,8 +31,9 @@ test("runtime snapshots one compatible static asset set at server creation", (t)
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(path.join(webRoot, "index.html"), "<main>snapshot</main>");
   writeFileSync(path.join(webRoot, "styles.css"), "body{}");
-  writeFileSync(path.join(webRoot, "control.css"), ".panel{}");
-  writeFileSync(path.join(webRoot, "discourse.css"), ".thread{}");
+  writeFileSync(path.join(webRoot, "skills.css"), ".panel{}");
+  writeFileSync(path.join(webRoot, "mark.svg"), "<svg></svg>");
+  writeFileSync(path.join(webRoot, "site.webmanifest"), "{}");
   writeFileSync(path.join(webRoot, "app.js"), "window.assetSet='initial';");
   const assets = snapshotStaticAssets(webRoot);
   assert.equal(assets.get("/app.js").body.toString("utf8"), "window.assetSet='initial';");
@@ -69,11 +70,11 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(repositoryCapability.routable, true);
   assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
   const html = await (await fetch(base)).text();
-  assert.match(html, /data-page="capabilities"/);
-  assert.match(html, /data-page="coordination"/);
-  assert.match(html, /DUAL PRIMARY · REPOSITORY-ONLY/);
-  assert.match(html, /id="github-assurance-list"/);
-  assert.match(html, /Awaiting authority snapshot/i);
+  assert.match(html, /mahoraga-ui-version/);
+  assert.match(html, /id="conversation-composer"/);
+  assert.match(html, /id="session-select"/);
+  assert.match(html, /id="capability-list"/);
+  assert.match(html, /Conversation plaintext stays in memory/);
   runtime.database.createSecondaryAssignment({
     title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
     expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],

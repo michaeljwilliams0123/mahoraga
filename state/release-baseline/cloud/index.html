@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Mahoraga Cloud Workspace — a fast conversation-first control surface.">
   <meta name="referrer" content="no-referrer">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.github.com; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="mahoraga-ui-version" content="7.0.0-alpha.1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://relay.mahoraga.app wss://relay.mahoraga.app; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Mahoraga Cloud Workspace</title>
   <link rel="manifest" href="./site.webmanifest">
   <link rel="icon" href="./mark.svg" type="image/svg+xml">
@@ -41,7 +42,7 @@
     <main>
       <header class="topbar">
         <button class="mobile-nav" type="button" aria-label="Toggle navigation">☰</button>
-        <div><strong id="page-title">Workspace</strong><span class="cloud-pill" id="bridge-pill">Bridge staged</span></div>
+        <div><strong id="page-title">Workspace</strong><span class="cloud-pill" id="bridge-pill">Detecting transport</span></div>
         <a class="avatar" href="https://github.com/settings/installations" title="GitHub App settings" aria-label="GitHub App settings">M</a>
       </header>
 
@@ -62,7 +63,7 @@
               <div>
                 <strong>Mahoraga</strong>
                 <p>I’m ready for a direct request. No skill, lane, or return fields.</p>
-                <span class="message-state staged">Authenticated bridge staged</span>
+                <span class="message-state staged">Offline preview until a transport is ready</span>
               </div>
             </article>
           </div>
@@ -79,12 +80,15 @@
           <form id="conversation-composer" class="composer">
             <textarea id="task-text" maxlength="12000" rows="1" placeholder="Message Mahoraga" aria-label="Message Mahoraga"></textarea>
             <div class="composer-tools">
-              <span id="bridge-state" class="bridge-state"><i></i> Authenticated bridge staged</span>
+              <span id="bridge-state" class="bridge-state"><i></i> Detecting transport</span>
+              <label class="session-picker">Session <select id="session-select" aria-label="Conversation session"><option value="new">New session</option></select></label>
               <span id="classification-preview" class="classification-preview">Auto</span>
+              <button id="cancel-run" class="run-action" type="button" disabled>Cancel</button>
+              <button id="retry-run" class="run-action" type="button" disabled>Retry</button>
               <button class="send" type="submit" aria-label="Send message">↑</button>
             </div>
           </form>
-          <p class="composer-note"><strong>No skill, lane, or return fields.</strong> Until the authenticated execution bridge is connected, messages stay in this tab and are not dispatched.</p>
+          <p class="composer-note"><strong>No skill, lane, or return fields.</strong> Conversation plaintext stays in memory and is never written to browser storage.</p>
         </div>
       </section>
 
@@ -100,6 +104,7 @@
           <section class="panel"><div class="panel-head"><h2>Task queue</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/issues">All issues ↗</a></div><div id="task-list" class="activity-list"><p class="empty">Loading tasks…</p></div></section>
           <section class="panel"><div class="panel-head"><h2>Workflow runs</h2><a href="https://github.com/michaeljwilliams0123/mahoraga/actions">All runs ↗</a></div><div id="run-list" class="activity-list"><p class="empty">Loading runs…</p></div></section>
         </div>
+        <section class="panel improvement-panel"><div class="panel-head"><h2>Improvement status</h2></div><div class="pairing-row"><input id="improvement-id" maxlength="80" placeholder="imp-…" aria-label="Improvement ID"><button id="check-improvement" type="button">Check</button></div><p id="improvement-state" class="empty">No improvement selected.</p></section>
       </section>
 
       <section class="view page" data-view="skills">
@@ -146,9 +151,10 @@
         <div class="connection-grid">
           <article><div class="connection-icon ready">GH</div><div><h2>GitHub repository</h2><p>Cloud coordination, issues, pull requests, and Actions.</p><small id="github-visibility">Checking repository visibility…</small></div><span class="status ready">Active</span></article>
           <article><div class="connection-icon ready">CX</div><div><h2>Codex GitHub App</h2><p>Subscription-backed tasks and reviews remain controlled by your Codex account.</p><small>No API key is stored in Mahoraga.</small></div><a href="https://github.com/settings/installations">Manage ↗</a></article>
-          <article><div class="connection-icon staged">PC</div><div><h2>Windows relay</h2><p>The runtime remains loopback-only while an authenticated, allowlisted bridge is prepared.</p><small>No public listener or direct remote desktop control.</small></div><span class="status staged">Outbound</span></article>
+          <article><div class="connection-icon staged">PC</div><div><h2>Encrypted Windows relay</h2><p>Pair an outbound runtime using its short-lived public offer. Conversation frames are encrypted end to end.</p><div class="pairing-row"><input id="pair-code" autocomplete="off" maxlength="4096" placeholder="Paste pairing offer" aria-label="Pairing offer"><button id="pair-relay" type="button">Pair</button><button id="revoke-relay" type="button" disabled>Revoke</button></div><small id="relay-state">No relay session. No public runtime listener.</small></div><span class="status staged">Outbound</span></article>
           <article><div class="connection-icon staged">MQ</div><div><h2>Microsoft queue</h2><p>Authenticated durable task transport for later private-data workflows.</p><small>Staged until unattended tenant authentication succeeds.</small></div><span class="status staged">Staged</span></article>
         </div>
+        <section class="panel capability-panel"><div class="panel-head"><h2>Runtime capabilities</h2><button id="refresh-capabilities" type="button">Refresh</button></div><div id="capability-list" class="activity-list"><p class="empty">Connect to inspect declared capabilities.</p></div></section>
       </section>
 
       <section class="view page" data-view="security">
