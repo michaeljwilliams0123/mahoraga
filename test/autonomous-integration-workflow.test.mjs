@@ -7,7 +7,7 @@ test("write-capable autonomous integration stays bound to latest exact-head evid
   const trusted = `
 on:\n  workflow_run:\n    workflows: ["Verify Mahoraga", "Validate Destiny Codex Relay"]
 permissions:\n  actions: write\n  contents: write\n  pull-requests: write
-jobs:\n  integrate:\n    if: github.event.workflow_run.event == 'pull_request'
+jobs:\n  integrate:\n    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.head_repository.full_name == github.repository
 steps:
   - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
     with:\n      ref: main\n      persist-credentials: false
