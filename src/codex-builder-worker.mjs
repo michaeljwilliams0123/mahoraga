@@ -9,6 +9,7 @@ import { createExecutionCell, inspectExecutionCell, probeExecutionCellEnvironmen
 const execFileAsync = promisify(execFile);
 const CODEX_EXECUTABLE = "user-codex-cli";
 const VENDOR_PATH = path.join("node_modules", "@openai", "codex", "vendor", "x86_64-pc-windows-msvc", "bin", "codex.exe");
+const BUNDLED_CODEX_EXECUTABLE = path.join(ROOT, VENDOR_PATH);
 
 export function buildCodexBuilderEnvelope({ task, worker, session = {}, cell }) {
   const adapter = requireAdapter(worker);
@@ -109,28 +110,12 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
 }
 
 export async function findInstalledCodexCli({ env = process.env, list = readdir, canAccess = access } = {}) {
-  const candidates = [];
-  const trustedRoots = [];
-  if (env.LOCALAPPDATA) {
-    const codexProgramRoot = path.join(env.LOCALAPPDATA, "Programs", "CodexCLI");
-    trustedRoots.push(codexProgramRoot);
-    const store = path.join(codexProgramRoot, "node_modules", ".pnpm");
-    try {
-      const entries = await list(store, { withFileTypes: true });
-      for (const item of entries.filter((entry) => entry.isDirectory() && /^@openai\+codex@.+-win32-x64$/i.test(entry.name)).map((entry) => entry.name).sort().reverse()) candidates.push(path.join(store, item, VENDOR_PATH));
-    } catch { /* optional user-level package store */ }
-  }
-  if (env.USERPROFILE) {
-    const sandboxRoot = path.join(env.USERPROFILE, ".codex", ".sandbox-bin");
-    trustedRoots.push(sandboxRoot);
-    candidates.push(path.join(sandboxRoot, "codex.exe"));
-  }
-  for (const candidate of candidates) {
-    try {
-      await canAccess(candidate);
-      if (await isTrustedCodexExecutable(candidate, trustedRoots)) return candidate;
-    } catch { /* try next fixed path */ }
-  }
+  const candidate = BUNDLED_CODEX_EXECUTABLE;
+  const trustedRoots = [path.join(ROOT, "node_modules", "@openai", "codex", "vendor")];
+  try {
+    await canAccess(candidate);
+    if (await isTrustedCodexExecutable(candidate, trustedRoots)) return candidate;
+  } catch { /* fall through to ENOENT */ }
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
 }
 
