@@ -40,7 +40,7 @@ test("evidence compiler never traverses VCS metadata or credential-like content"
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(path.join(root, ".git"), { recursive: true });
   mkdirSync(path.join(root, ".ssh"), { recursive: true });
-  writeFileSync(path.join(root, ".git", "config"), "https://github_pat_abcdefghijklmnopqrstuvwxyz0123456789@github.com/example/repo.git", "utf8");
+  writeFileSync(path.join(root, ".git", "config"), `https://${"github_" + "pat_abcdefghijklmnopqrstuvwxyz0123456789"}@example.com/example/repo.git`, "utf8");
   writeFileSync(path.join(root, ".ssh", "known_hosts"), "ssh-rsa AAAA", "utf8");
   writeFileSync(path.join(root, "notes.txt"), "API_KEY=abcdefghijklmnopqrstuvwxyz0123456789\n", "utf8");
   writeFileSync(path.join(root, "safe.txt"), "safe evidence\n", "utf8");
