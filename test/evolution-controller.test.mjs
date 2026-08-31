@@ -87,3 +87,23 @@ test("failed canary rolls back the immutable deployed artifact", async (t) => {
   assert.equal(input.controller.status(candidate.id).rollbackId, "rollback-2");
   assert.equal(updaterCalls.length, 1);
 });
+
+test("evolution safety-gates generated extensions before candidate creation", async (t) => {
+  let inspected = 0;
+  const input = fixture(t, {
+    repository: {
+      async build() { return { headSha: "b".repeat(40), changedPaths: ["src/safe.mjs"], generatedExtensions: [{ language: "javascript", source: "eval('unsafe')", manifest: { schemaVersion: 1, id: "safe-extension", entrypoint: "extensions/safe.mjs", allowedApis: ["repository.read"], allowedPaths: ["src"] } }] }; },
+    },
+  });
+  const candidate = input.controller.request({ conversationId: "con-evolution-safety", requestSha256: "d".repeat(64), baseSha: input.baseSha, branch: "destiny/safety", allowedPaths: ["src"], candidateRoot: path.join(input.root, "candidate"), activeRoot: path.join(input.root, "active") });
+  const controller = createEvolutionController({
+    database: input.database,
+    repository: { async build(value) { const result = await input.controller.status(candidate.id); void result; return { headSha: "b".repeat(40), changedPaths: ["src/safe.mjs"], generatedExtensions: [{ language: "javascript", source: "eval('unsafe')", manifest: { schemaVersion: 1, id: "safe-extension", entrypoint: "extensions/safe.mjs", allowedApis: ["repository.read"], allowedPaths: ["src"] } }] }; } },
+    verifier: { async verify() { return { conclusion: "success", headSha: "b".repeat(40), workflowId: "wf-1", pullRequestNumber: 71 }; } },
+    deployer: input.controller ? { async deploy() { return { immutable: true, artifactId: "a", artifactSha256: "c".repeat(64), deploymentId: "d" }; }, async canary() { return { state: "passed", canaryId: "c" }; } } : null,
+    updater: { async activate() { return { activated: true, activationId: "a" }; }, async rollback() { return { rolledBack: true, rollbackId: "r" }; } },
+    safetyInspector(value) { inspected += 1; return { safe: value.source !== "eval('unsafe')" }; },
+  });
+  await assert.rejects(() => controller.advance(candidate.id), /generated-extension-unsafe/);
+  assert.equal(inspected, 1);
+});

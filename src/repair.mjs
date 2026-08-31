@@ -60,6 +60,17 @@ export const ESSENTIAL_FILES = [
   "src/runtime.mjs",
   "src/server.mjs",
   "src/supervisor.mjs",
+  "src/run-event-contract.mjs",
+  "src/conversation-gateway.mjs",
+  "src/relay-client.mjs",
+  "src/relay-runtime.mjs",
+  "src/openclaw-adapter.mjs",
+  "src/mcp-host-manager.mjs",
+  "src/evidence-compiler.mjs",
+  "src/bounded-execution.mjs",
+  "src/observational-memory.mjs",
+  "src/generated-code-safety.mjs",
+  "src/evolution-controller.mjs",
   "src/world-state-observer.mjs",
   "src/worker-process.mjs",
   "src/workspace-agent-worker.mjs",
@@ -99,6 +110,9 @@ export const ESSENTIAL_FILES = [
   "scripts/install-secondary-codex-runner.ps1",
   "scripts/microsoft_queue_worker.py",
   "scripts/start-production.ps1",
+  "relay/core.mjs",
+  "relay/cloudflare-worker.mjs",
+  "relay/wrangler.toml",
 ];
 
 export async function scanRepairState(manifest) {
