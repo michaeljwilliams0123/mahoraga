@@ -465,7 +465,7 @@ export class Supervisor extends EventEmitter {
     if (route.status !== "routable") return false;
     const state = this.workers.get(route.worker.id);
     const heartbeatAge = state?.lastHeartbeatAt ? Date.now() - Date.parse(state.lastHeartbeatAt) : Number.POSITIVE_INFINITY;
-    if (!state?.ready || !["healthy", "busy"].includes(state.status) || heartbeatAge > this.manifest.runtime.heartbeatTimeoutMs) return false;
+    if (!state?.ready || !["live", "busy"].includes(state.status) || heartbeatAge > this.manifest.runtime.heartbeatTimeoutMs) return false;
     return !this.database.hasActiveTask(task.capability);
   }
 
