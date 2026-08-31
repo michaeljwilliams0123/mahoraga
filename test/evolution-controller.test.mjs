@@ -8,9 +8,8 @@ import { createEvolutionController } from "../src/evolution-controller.mjs";
 
 function fixture(t, overrides = {}) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-evolution-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true });
-  t.after(() => database.close());
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   const baseSha = "a".repeat(40); const headSha = "b".repeat(40);
   const calls = [];
   const repository = overrides.repository ?? { async build(input) { calls.push(["build", input]); return { headSha, changedPaths: ["src/safe.mjs"] }; } };

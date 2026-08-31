@@ -8,9 +8,8 @@ import { createConversationGateway } from "../src/conversation-gateway.mjs";
 
 test("conversation intake replays a content-free terminal cancellation receipt", (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-conversation-smoke-"));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true });
-  t.after(() => database.close());
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   const gateway = createConversationGateway({
     database, manifest: {}, supervisor: {},
     capabilityResolver: () => [{ capability: "system.health", routable: true, workerIds: ["local-core"] }],

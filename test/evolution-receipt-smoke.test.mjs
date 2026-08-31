@@ -7,8 +7,9 @@ import { RuntimeDatabase } from "../src/database.mjs";
 import { createEvolutionController } from "../src/evolution-controller.mjs";
 
 test("evolution receipt joins exact head, PR, CI, artifact, canary, and activation", async (t) => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-evolution-smoke-")); t.after(() => rmSync(root, { recursive: true, force: true }));
-  const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true }); t.after(() => database.close());
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-evolution-smoke-"));
+  const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
   const headSha = "b".repeat(40);
   const controller = createEvolutionController({
     database,
