@@ -16,7 +16,8 @@ export function buildCodexBuilderEnvelope({ task, worker, session = {}, cell }) 
   const taskId = bounded(task?.id, 100, "task id");
   const correlationId = bounded(task?.correlationId, 120, "correlation id");
   const requestedOutcome = boundedMultiline(task?.requestedOutcome, adapter.maximumPromptBytes, "requested outcome");
-  if (!cell || typeof cell.path !== "string" || cell.taskId !== taskId || !Array.isArray(cell.allowedPaths)) throw new TypeError("Codex Builder execution cell is invalid.");
+  if (!cell || cell.taskId !== taskId || !Array.isArray(cell.allowedPaths)) throw new TypeError("Codex Builder execution cell is invalid.");
+  const workingDirectory = trustedExecutionCellDirectory(cell);
   const prompt = [
     "You are the task-scoped Primary Codex Builder operating inside a disposable Mahoraga candidate worktree.",
     `Task: ${taskId}`,
@@ -39,7 +40,8 @@ export function buildCodexBuilderEnvelope({ task, worker, session = {}, cell }) 
     interactiveAuthority: false,
     directExecutionEnabled: true,
     apiKeyRequired: false,
-    workingDirectory: cell.path,
+    workingDirectory,
+    executionCellRoot: path.resolve(cell.cellsRoot),
     prompt,
   });
 }
@@ -145,7 +147,8 @@ async function probeCodexCli(dependencies) {
 
 async function runCodexTask(envelope, adapter, dependencies) {
   const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
-  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", envelope.workingDirectory, "-"], envelope.prompt, envelope.workingDirectory, adapter, dependencies);
+  const workingDirectory = trustedExecutionCellDirectory({ path: envelope.workingDirectory, cellsRoot: envelope.executionCellRoot });
+  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", workingDirectory, "-"], envelope.prompt, workingDirectory, adapter, dependencies);
   const events = parseEvents(result.stdout);
   return { exitCode: result.exitCode, completed: events.completed, threadId: events.threadId, usage: events.usage, outputSha256: digest(events.finalText) };
 }
@@ -213,14 +216,28 @@ function parseEvents(source) {
   return { threadId, completed, usage, finalText };
 }
 
+function trustedExecutionCellDirectory(cell) {
+  if (!cell || typeof cell.path !== "string" || typeof cell.cellsRoot !== "string" || !path.isAbsolute(cell.path) || !path.isAbsolute(cell.cellsRoot)) throw new TypeError("Codex Builder execution cell is invalid.");
+  const cellsRoot = path.resolve(cell.cellsRoot);
+  const candidate = path.resolve(cell.path);
+  const relative = path.relative(cellsRoot, candidate);
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) throw new TypeError("Codex Builder execution cell is invalid.");
+  return candidate;
+}
+
+function trustedProfileDirectory(value) {
+  return typeof value === "string" && path.isAbsolute(value) && path.resolve(value) === value ? value : null;
+}
+
 function codexEnvironment(source = process.env) {
-  const profile = source.USERPROFILE;
-  return Object.fromEntries(Object.entries({ SystemRoot: source.SystemRoot, WINDIR: source.WINDIR, PATH: source.PATH, USERPROFILE: profile, LOCALAPPDATA: source.LOCALAPPDATA, APPDATA: source.APPDATA, TEMP: source.TEMP, TMP: source.TMP, CODEX_HOME: source.CODEX_HOME ?? (profile ? path.join(profile, ".codex") : undefined) }).filter(([, value]) => typeof value === "string" && value.length > 0));
+  const profile = trustedProfileDirectory(source.USERPROFILE);
+  return Object.fromEntries(Object.entries({ SystemRoot: source.SystemRoot, WINDIR: source.WINDIR, PATH: source.PATH, USERPROFILE: profile, LOCALAPPDATA: source.LOCALAPPDATA, APPDATA: source.APPDATA, TEMP: source.TEMP, TMP: source.TMP, CODEX_HOME: profile ? path.join(profile, ".codex") : undefined }).filter(([, value]) => typeof value === "string" && value.length > 0));
 }
 
 async function authenticationConfigured(env = process.env) {
-  if (!env.USERPROFILE) return false;
-  try { await access(path.join(env.CODEX_HOME ?? path.join(env.USERPROFILE, ".codex"), "auth.json")); return true; } catch { return false; }
+  const profile = trustedProfileDirectory(env.USERPROFILE);
+  if (!profile) return false;
+  try { await access(path.join(profile, ".codex", "auth.json")); return true; } catch { return false; }
 }
 
 function requireAdapter(worker) {

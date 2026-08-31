@@ -9,7 +9,8 @@ async function builderWorker() { return (await loadManifest()).workers.find((wor
 test("Codex Builder is separate, task-scoped, account-authenticated, and enabled", async () => {
   const worker = await builderWorker();
   const task = { id: "mhg-builder", correlationId: "pcx-builder", requestedOutcome: "Inspect and repair the provider adapter." };
-  const envelope = buildCodexBuilderEnvelope({ worker, task, session: { authoritySessionId: "primary-session", executionSessionId: "cdb-session" }, cell: { taskId: task.id, path: "C:\\candidate", baseCommit: "a".repeat(40), allowedPaths: ["src"] } });
+  const cellsRoot = path.resolve("state", "execution-cells", "codex");
+  const envelope = buildCodexBuilderEnvelope({ worker, task, session: { authoritySessionId: "primary-session", executionSessionId: "cdb-session" }, cell: { taskId: task.id, path: path.join(cellsRoot, "cell-test"), cellsRoot, baseCommit: "a".repeat(40), allowedPaths: ["src"] } });
   assert.equal(worker.enabled, true);
   assert.equal(envelope.executionMode, "candidate-worktree");
   assert.equal(envelope.interactiveAuthority, false);

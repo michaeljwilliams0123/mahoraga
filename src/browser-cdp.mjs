@@ -137,25 +137,38 @@ export async function writeScreenshotArtifact({ artifactDirectory, taskId, data,
   if (!/^[a-z0-9-]{1,80}$/i.test(taskId)) throw new Error("browser-artifact-task-invalid");
   const bytes = Buffer.from(String(data ?? ""), "base64");
   if (bytes.length < 8 || bytes.length > MAX_SCREENSHOT_BYTES) throw new Error("browser-screenshot-size-invalid");
-  await mkdir(artifactDirectory, { recursive: true });
-  const file = path.join(artifactDirectory, `${taskId}-${now}.png`);
+  const directory = trustedArtifactDirectory(artifactDirectory);
+  await mkdir(directory, { recursive: true });
+  const file = artifactFile(directory, `${taskId}-${now}.png`);
   await writeFile(file, bytes, { mode: 0o600 });
   return { sha256: hash(bytes), bytes: bytes.length };
 }
 
 export async function pruneBrowserArtifacts(artifactDirectory, retentionMs, now = Date.now()) {
   if (!Number.isInteger(retentionMs) || retentionMs < 60_000 || retentionMs > 7 * 24 * 60 * 60 * 1000) throw new Error("browser-artifact-retention-invalid");
+  const directory = trustedArtifactDirectory(artifactDirectory);
   let artifacts;
-  try { artifacts = await readdir(artifactDirectory, { withFileTypes: true }); } catch (error) { if (error?.code === "ENOENT") return 0; throw error; }
+  try { artifacts = await readdir(directory, { withFileTypes: true }); } catch (error) { if (error?.code === "ENOENT") return 0; throw error; }
   let removed = 0;
   for (const artifact of artifacts) {
-    if (!artifact.isFile() || !artifact.name.endsWith(".png")) continue;
-    const file = path.join(artifactDirectory, artifact.name);
+    if (!artifact.isFile() || !/^[a-z0-9-]{1,80}-[0-9]{1,16}\.png$/i.test(artifact.name)) continue;
+    const file = artifactFile(directory, artifact.name);
     if (now - (await stat(file)).mtimeMs <= retentionMs) continue;
     await rm(file, { force: true });
     removed += 1;
   }
   return removed;
+}
+
+function trustedArtifactDirectory(value) {
+  if (typeof value !== "string" || !path.isAbsolute(value) || path.resolve(value) !== value) throw new Error("browser-artifact-directory-invalid");
+  return value;
+}
+
+function artifactFile(directory, name) {
+  const file = path.resolve(directory, name);
+  if (path.dirname(file) !== directory) throw new Error("browser-artifact-path-invalid");
+  return file;
 }
 
 export function assertLoopbackControlCenter(url) {

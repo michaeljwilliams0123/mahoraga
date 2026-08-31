@@ -26,15 +26,20 @@ export async function createContentVault({
   maximumBytes = DEFAULT_MAX_BYTES,
   defaultTtlMs = DEFAULT_TTL_MS,
 } = {}) {
-  if (typeof root !== "string" || !path.isAbsolute(root)) throw vaultError("vault-root-invalid");
+  const normalizedRoot = trustedVaultRoot(root);
   if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1024 || maximumBytes > DEFAULT_MAX_BYTES) throw vaultError("vault-limit-invalid");
   validateTtl(defaultTtlMs);
-  mkdirSync(root, { recursive: true });
-  const rootReal = realpathSync(root);
+  mkdirSync(normalizedRoot, { recursive: true });
+  const rootReal = realpathSync(normalizedRoot);
   const key = masterKey === null
     ? await loadProtectedMasterKey({ keyFile, keyHelperScript, powershellExecutable })
     : normalizeMasterKey(masterKey);
   return Object.freeze(new ContentVault({ root: rootReal, key, now, random, maximumBytes, defaultTtlMs }));
+}
+
+function trustedVaultRoot(value) {
+  if (typeof value !== "string" || !path.isAbsolute(value) || path.resolve(value) !== value) throw vaultError("vault-root-invalid");
+  return value;
 }
 
 export async function loadProtectedMasterKey({ keyFile, keyHelperScript, powershellExecutable = "powershell.exe" } = {}) {
