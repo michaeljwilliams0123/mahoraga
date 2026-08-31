@@ -6,13 +6,14 @@ import { ROOT } from "../src/config.mjs";
 
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
-test("cloud workspace is credential-free and never controls localhost", async () => {
+test("cloud workspace is credential-free and uses only fixed direct or relay origins", async () => {
   const [html, app, docs] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read("docs/CLOUD-WORKSPACE.md")]);
   assert.match(html, /Content-Security-Policy/);
-  assert.match(html, /connect-src https:\/\/api\.github\.com/);
+  assert.match(html, /connect-src 'self' https:\/\/api\.github\.com https:\/\/relay\.mahoraga\.app wss:\/\/relay\.mahoraga\.app/);
   assert.match(app, /https:\/\/api\.github\.com\/repos\//);
   assert.doesNotMatch(`${html}\n${app}`, /localStorage|sessionStorage|Authorization|github_pat_|gh[pousr]_|OPENAI_API_KEY/);
-  assert.doesNotMatch(app, /fetch\([^)]*,\s*\{[^}]*method:\s*['"](?:POST|PUT|PATCH|DELETE)/s);
+  assert.match(app, /class LoopbackTransport/);
+  assert.match(app, /class RelayTransport/);
   assert.doesNotMatch(`${html}\n${app}`, /ngrok|0\.0\.0\.0|127\.0\.0\.1:4782|http:\/\/localhost/i);
   assert.match(docs, /localhost runtime remains bound to `127\.0\.0\.1`/);
 });
@@ -24,9 +25,9 @@ test("cloud workspace is conversation-first and contains no intake handoff", asy
   assert.match(html, /No skill, lane, or return fields/);
   assert.match(app, /function classifyTask/);
   assert.match(app, /function appendMessage/);
-  assert.match(app, /Authenticated execution bridge is not connected/);
+  assert.match(app, /OfflinePreviewTransport/);
   assert.match(docs, /conversation-first workspace/);
-  assert.match(docs, /has not been dispatched/);
+  assert.match(docs, /has not been dispatched|offline preview/i);
   assert.doesNotMatch(html, /id="(?:tool-profile|execution-lane|return-mode|handoff-dialog)"/);
   assert.doesNotMatch(html, /Continue task in GitHub|Submission and file upload happen in GitHub|Bounded task field/);
   assert.doesNotMatch(app, /navigator\.clipboard|ISSUE_TEMPLATE|prepareHandoff|openGithubTask/);

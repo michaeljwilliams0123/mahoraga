@@ -118,6 +118,52 @@
     "artifactRetentionMs": 86400000,
     "signedSessionEnabled": false
   },
+  "mcpProviders": [
+    {
+      "id": "openclaw",
+      "enabled": false,
+      "transportKind": "local-process",
+      "executableIdentity": "openclaw-mcp-host",
+      "toolAllowlist": [
+        "health",
+        "conversation"
+      ],
+      "resourceAllowlist": [],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "permissionClass": "bounded-provider",
+      "spendingClass": "licensed-cloud",
+      "credentialReference": "env:OPENCLAW_API_TOKEN",
+      "readinessProbe": "health",
+      "canary": "health",
+      "maximumRequestBytes": 65536,
+      "maximumResponseBytes": 262144,
+      "timeoutMs": 120000
+    }
+  ],
+  "executionBudgets": {
+    "maximumDepth": 4,
+    "maximumChildWorkers": 2,
+    "maximumCycles": 12,
+    "maximumTokens": 64000,
+    "spendingClass": "licensed-cloud",
+    "inheritedDenyRules": [
+      "network.socket",
+      "process.spawn"
+    ],
+    "childAllowRules": [
+      "repository.read",
+      "repository.write"
+    ]
+  },
+  "observationMemory": {
+    "rawTurnLimit": 24,
+    "observationLimit": 200,
+    "maximumBytes": 262144
+  },
   "routingPolicy": {
     "interfaceOrder": [
       "native-api",

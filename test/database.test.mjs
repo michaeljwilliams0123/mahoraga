@@ -70,6 +70,19 @@ test("assignment discourse persists and waiting tasks resume with user input", (
   assert.equal(messages[1].requiresResponse, true);
 });
 
+test("conversation messages preserve insertion order when timestamps are identical", { concurrency: false }, (t) => {
+  const database = databaseFixture(t);
+  const RealDate = globalThis.Date;
+  globalThis.Date = class FixedDate extends RealDate {
+    constructor(...args) { super(...(args.length ? args : ["2026-08-31T00:00:00.000Z"])); }
+    static now() { return RealDate.parse("2026-08-31T00:00:00.000Z"); }
+  };
+  t.after(() => { globalThis.Date = RealDate; });
+  const conversation = database.createConversation({ title: "Ordered messages", initialMessage: "message-0" });
+  for (let index = 1; index < 12; index += 1) database.addConversationMessage({ conversationId: conversation.id, content: `message-${index}` });
+  assert.deepEqual(database.listConversationMessages(conversation.id).map((item) => item.content), Array.from({ length: 12 }, (_, index) => `message-${index}`));
+});
+
 test("browser receipts retain only bounded verification metadata", (t) => {
   const database = databaseFixture(t);
   const task = database.submitTask({ capability: "browser.observe", dataClass: "synthetic", idempotencyKey: "browser-receipt" });

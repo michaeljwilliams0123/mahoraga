@@ -1,116 +1,44 @@
-# Destiny Codex event relay
+# Destiny Codex relay
 
-This relay lets Michael's authenticated Primary Codex call the separately
-authenticated Destiny Codex through the private GitHub repository. It is an
-event-driven, near-real-time handoff: GitHub emits the pull-request event and
-ChatGPT starts the configured Codex task without an inbound tunnel or a polling
-model call. Delivery still depends on GitHub and ChatGPT availability, so it is
-not an instantaneous or exactly-once transport guarantee.
+The Destiny Codex relay is an optional ciphertext-only path between the canonical Mahoraga browser application and an outbound-connected loopback runtime. It is not a generic proxy: callers cannot choose a host, port, URL, command, browser target, or filesystem path. The local runtime stays on `127.0.0.1`.
 
-The relay shares repository task metadata only. It does not transfer ChatGPT
-authentication, subscription credits, chat history, memories, email, personal
-files, browser history, credentials, or plugin output. Each Codex runs under
-the account that received the event. Destiny's conversations remain outside the
-repository and outside Mahoraga.
+## Trust boundary
 
-## Trigger contract
+- Cloudflare Access authenticates the one owner identity before the WebSocket reaches the Worker.
+- `MAHORAGA_OWNER_IDENTITY` contains the exact Access-authenticated owner identity.
+- `MAHORAGA_PAGES_ORIGIN` contains the exact HTTPS Pages origin allowed to pair remotely.
+- `RELAY_SESSIONS` is the Durable Object namespace binding; it is configuration, not user input.
+- Deploy credentials belong only in a protected deployment environment. Recommended secret names are `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; never commit their values or expose them to the Pages application.
+- The browser connects only to `wss://relay.mahoraga.app`. Change that origin only through a reviewed source and CSP update.
 
-A valid dispatch pull request has all of these properties:
+The relay sees owner/origin routing metadata, device/pairing/session identifiers, counters, IVs, and ciphertext. It never receives conversation plaintext, model responses, provider credentials, local paths, tool inputs, or raw connector/plugin results.
 
-- The author and repository owner are exactly `michaeljwilliams0123`.
-- The base branch is `main`.
-- The title is exactly `[DESTINY-CODEX] <envelope title>`.
-- The diff contains exactly one newly added immutable JSON envelope at
-  `coordination/destiny-dispatches/<dispatch-id>.json`; existing envelopes are
-  append-only and cannot be edited, renamed, or deleted.
-- The envelope binds its deterministic dispatch ID, idempotency key, repository,
-  current `main` base tip and merge base, target controllers, task, allowed paths, fixed verification
-  profile, retry ceiling, privacy declaration, and SHA-256 request hash.
-- Implementation changes, if present, are confined to `allowedPaths`. The
-  validator, relay workflow, and dispatch registry are protected paths.
+## Cryptographic protocol
 
-The pull-request workflow checks out `main` and the candidate into separate
-directories. It executes only the validator from trusted `main`, with read-only
-GitHub permissions. A candidate therefore cannot weaken its own gate.
+Pairing uses ephemeral P-256 ECDH. Both peers derive an AES-256-GCM key with HKDF-SHA-256 over the exact protocol version, pairing ID, eight-character code, and expiry. Each authenticated frame binds protocol, session, direction, and a strictly increasing counter as additional data. Replayed, expired, reordered, or modified frames fail closed.
 
-## Create a dispatch from Primary
+The public pairing offer expires in at most five minutes. Treat it as short-lived public metadata, show it only to the owner, and discard both ephemeral private keys when the session is revoked or expires.
 
-Start a branch directly from the current `main`, then capture that full commit
-SHA as the immutable base. Create the envelope with a unique semantic
-idempotency key:
+## Fixed limits
 
-```powershell
-git switch main
-git pull --ff-only
-git switch -c destiny/connection-probe
-$base = git rev-parse HEAD
-node scripts/destiny-codex-dispatch.mjs create `
-  --idempotency-key "owner-20260826-connection-probe" `
-  --base-commit $base `
-  --title "Verify Destiny relay" `
-  --task "Return a bounded connection receipt; do not change implementation files." `
-  --allowed-paths "docs/relay-probes"
-npm run destiny:validate
-git add coordination/destiny-dispatches
-git commit -m "[PRIMARY] Dispatch Destiny connection probe"
-git push -u origin destiny/connection-probe
-```
+The reference broker defaults to three paired devices, 65,536 bytes per frame, 120 frames per minute, a 30-minute session, and a five-minute reconnect buffer. It stores ciphertext frames only for reconnect replay. The runtime and UI must apply their lower request, response, event, execution, and provider limits as well.
 
-Open a pull request to `main` with the exact title:
+## Deploy
 
-```text
-[DESTINY-CODEX] Verify Destiny relay
-```
+1. Create a Cloudflare Access application for the exact relay hostname and restrict it to the owner identity.
+2. Create the `RELAY_SESSIONS` Durable Object binding and deploy `relay/cloudflare-worker.mjs` together with `relay/core.mjs` from the attested `mahoraga-relay-<version>.zip` release asset.
+3. Supply `MAHORAGA_OWNER_IDENTITY` and `MAHORAGA_PAGES_ORIGIN` as environment configuration. Supply Cloudflare deployment credentials only through an environment-protected secret store.
+4. Verify the deployed Worker exposes only `/pair`, requires WebSocket upgrade, rejects the wrong Access identity and origin, and returns 404 for proxy-shaped paths.
+5. Pair one disposable device, exchange an encrypted canary frame in each direction, reject a replayed counter, then revoke the device.
 
-The task text is data, never an executable shell command. Verification is an
-allowlist of identifiers (`manifest`, `coordination`, `github-audit`, and
-`tests`) mapped to repository-owned commands. Callers cannot submit arbitrary
-executables through the envelope.
+No repository workflow deploys the relay automatically. Packaging and provenance are automated; live hosting remains blocked until the protected Cloudflare environment, Access policy, DNS, and credentials exist.
 
-## Receipts and idempotency
+## Operations and privacy
 
-Treat the handoff as connected only when both signals exist:
+Log fixed error codes and bounded counts only. Do not log WebSocket message bodies, ciphertext, public offers, owner email addresses, IP addresses, headers, or decrypted data. Monitor session count, rejected authentication/origin checks, frame-size/rate-limit failures, canary state, and deployment version without correlating conversation content.
 
-1. **Destiny relay envelope** passes in GitHub Actions. This proves the trusted
-   repository contract accepted the PR.
-2. A matching `[DESTINY-CODEX:ACK]` comment appears. This proves the
-   Destiny-authenticated event task received the dispatch.
+Use the UI’s Revoke control or the broker’s `revokeDevice` operation to remove a device. Rotate the Access policy and deployment credential if ownership changes. A five-minute reconnect does not restore a revoked or expired device.
 
-The Destiny task uses bounded comment markers:
+## Canary and rollback
 
-- `[DESTINY-CODEX:ACK]` — accepted dispatch ID and short request hash.
-- `[DESTINY-CODEX:RESULT]` — bounded repository result and verification state.
-- `[DESTINY-CODEX:REJECTED]` — contract rejection without private content.
-
-Repeated opened, synchronize, comment, commit, or review events for an existing
-dispatch ID and request hash must not execute the work again. Marker comments
-created by the task are ignored so the automation cannot trigger itself. Reusing
-an idempotency key with changed task data produces an idempotency conflict.
-
-## Lane selection
-
-| Lane | Trigger | Recipient | Delivery proof |
-| --- | --- | --- | --- |
-| Destiny Codex | `[DESTINY-CODEX]` owner PR | This separately authenticated ChatGPT/Codex account | Matching ACK comment |
-| Codex cloud | Validated `@codex` PR comment | Connected general Codex cloud service | Cloud task/PR response |
-| Secondary desktop | Assignment on `main` | Outbound Windows poller and local Codex auth | Result record and return branch |
-
-These lanes coordinate through GitHub but do not share credentials or quota.
-Normal deterministic Actions, mailbox validation, and idle polling do not invoke
-a model. Only an explicit accepted model trigger starts model work.
-
-## Failure handling
-
-- Validation failure: correct the envelope generator input; never hand-edit the
-  hash or weaken the workflow.
-- No ACK after a green validation check: inspect the ChatGPT GitHub event task
-  connection and event history. Do not repeatedly mutate the PR, because each
-  event can create another delivery attempt.
-- Stale base: rebase onto current `main` and create a new idempotency key and
-  envelope. The old envelope is immutable evidence.
-- Rejection or blocked result: retain the bounded receipt and let a Primary
-  decide whether to issue a new dispatch.
-
-The relay never changes repository visibility, merges a pull request, bypasses
-checks, installs an update, or activates a release. Integration remains governed
-by the single Primary integration lease and the repository's normal review path.
+After deployment, confirm the exact artifact digest and Worker version, run the owner/origin rejection checks, perform the bidirectional encrypted canary, and verify replay rejection. If any canary fails, route the browser to offline preview, revoke affected sessions, and roll back to the last attested relay artifact. Do not enable the Pages relay connection until the rollback check also passes.

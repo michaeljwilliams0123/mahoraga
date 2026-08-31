@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ROOT } from "./config.mjs";
 import { capabilityIndex } from "./router.mjs";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
 import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
@@ -24,14 +24,16 @@ import {
 import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-policy.mjs";
 import { autonomyPolicySnapshot } from "./autonomy-policy.mjs";
 import { createAutonomousConversation, createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
+import { createConversationGateway } from "./conversation-gateway.mjs";
 
-const WEB_ROOT = path.join(ROOT, "web");
+const WEB_ROOT = path.join(ROOT, "cloud");
 const STATIC = new Map([
   ["/", ["index.html", "text/html; charset=utf-8"]],
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
-  ["/discourse.css", ["discourse.css", "text/css; charset=utf-8"]],
-  ["/control.css", ["control.css", "text/css; charset=utf-8"]],
+  ["/skills.css", ["skills.css", "text/css; charset=utf-8"]],
+  ["/mark.svg", ["mark.svg", "image/svg+xml"]],
+  ["/site.webmanifest", ["site.webmanifest", "application/manifest+json; charset=utf-8"]],
 ]);
 
 export function snapshotStaticAssets(webRoot = WEB_ROOT) {
@@ -45,13 +47,19 @@ export function createControlServer({
   manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
-  webRoot = WEB_ROOT,
+  webRoot = WEB_ROOT, conversationGateway = null,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   const autonomyPolicy = autonomyPolicySnapshot(manifest);
-  return createServer(async (request, response) => {
+  const gateway = conversationGateway ?? createConversationGateway({
+    database, manifest, supervisor,
+    submitTask: (body, context) => submitTask(database, manifest, body, {
+      source: "conversation-gateway", internal: false, attendedSession: context.attendedSession ?? null,
+    }),
+  });
+  const server = createServer(async (request, response) => {
     try {
       setHeaders(response, manifest);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
@@ -79,6 +87,26 @@ export function createControlServer({
         if (sessionId) controlSessions.revokeSession(sessionId);
         response.setHeader("Set-Cookie", clearSessionCookie());
         return json(response, 200, { authenticated: false });
+      }
+      if (request.method === "POST" && url.pathname === "/api/v2/runs") {
+        const body = await bodyJson(request);
+        const result = gateway.createRun({ ...body, sessionId: gatewaySessionId(authentication) }, {
+          attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
+        });
+        return json(response, 202, result);
+      }
+      const runEvents = url.pathname.match(/^\/api\/v2\/runs\/(run-[a-f0-9-]+)\/events$/);
+      if (request.method === "GET" && runEvents) {
+        const afterEventId = numericQuery(url, "after", 0);
+        return sse(response, gateway.replay(runEvents[1], afterEventId));
+      }
+      const runCancel = url.pathname.match(/^\/api\/v2\/runs\/(run-[a-f0-9-]+)\/cancel$/);
+      if (request.method === "POST" && runCancel) return json(response, 200, { run: gateway.cancelRun(runCancel[1]) });
+      if (request.method === "GET" && url.pathname === "/api/v2/capabilities") return json(response, 200, { capabilities: gateway.capabilities() });
+      const v2Improvement = url.pathname.match(/^\/api\/v2\/improvements\/(imp-[a-f0-9-]+)$/);
+      if (request.method === "GET" && v2Improvement) {
+        const improvement = gateway.getImprovement(v2Improvement[1]);
+        return improvement ? json(response, 200, { improvement }) : json(response, 404, { error: "improvement-not-found" });
       }
       const contentRoute = url.pathname.match(/^\/api\/content\/(vault:[a-f0-9-]{36})$/);
       if (request.method === "GET" && contentRoute) {
@@ -249,12 +277,16 @@ export function createControlServer({
       json(response, 404, { error: "not-found" });
     } catch (error) {
       if (error?.code === "idempotency-conflict") return json(response, 409, { error: "idempotency-conflict" });
+      if (error?.code === "foreground-run-active" || error?.code === "run-idempotency-conflict") return json(response, 409, { error: error.code });
+      if (/^(?:run-|gateway-)/.test(error?.code ?? "")) return json(response, 422, { error: error.code });
       if (/^(?:task-|caller-|attended-|integration-)/.test(error?.code ?? "")) {
         return json(response, 422, { error: error.code });
       }
       json(response, 400, { error: classify(error) });
     }
   });
+  server.once("close", () => gateway.close());
+  return server;
 }
 
 export function statusPayload(manifest, database, supervisor) {
@@ -421,12 +453,17 @@ export function builderIntakeBody(body, correlationId) {
 function setHeaders(response, manifest) {
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'");
+  response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com https://relay.mahoraga.app wss://relay.mahoraga.app; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   response.setHeader("X-Mahoraga-Runtime-Version", manifest.version);
   response.setHeader("X-Mahoraga-Control-Center-Version", manifest.versions.controlCenter);
 }
 function staticFile(response, asset) { response.writeHead(200, { "Content-Type": asset.contentType }); response.end(asset.body); }
 function json(response, status, value) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify(value)); }
+function sse(response, events) {
+  response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", Connection: "close", "Cache-Control": "no-store" });
+  for (const event of events) response.write(`id: ${event.eventId}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`);
+  response.end();
+}
 function artifactContent(response, { metadata, bytes }) {
   const safeInline = /^(?:image\/(?:png|jpeg|gif|webp|avif)|application\/pdf)$/.test(metadata.mimeType);
   const contentType = safeInline ? metadata.mimeType : "application/octet-stream";
@@ -452,6 +489,8 @@ function contentBytes(response, metadata, bytes) {
   response.end(bytes);
 }
 function requiredQuery(url, name) { const value = url.searchParams.get(name); if (!value) throw new Error(`content-${name}-required`); return value; }
+function numericQuery(url, name, fallback) { const raw = url.searchParams.get(name); if (raw === null) return fallback; const value = Number(raw); if (!Number.isSafeInteger(value) || value < 0) throw new Error(`${name}-invalid`); return value; }
+function gatewaySessionId(authentication) { return authentication.sessionId ? `ses-${createHash("sha256").update(authentication.sessionId).digest("hex").slice(0, 24)}` : "ses-primary-codex"; }
 async function bodyJson(request) {
   const chunks = []; let size = 0;
   for await (const chunk of request) { size += chunk.length; if (size > 16384) throw new Error("request-too-large"); chunks.push(chunk); }
