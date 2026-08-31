@@ -34,11 +34,24 @@ function validateProviderEndpoint(rawEndpoint: string) {
     .map((h) => h.trim().toLowerCase())
     .filter(Boolean);
 
-  if (!allowedHosts.includes(endpoint.hostname.toLowerCase())) {
+  const host = endpoint.hostname.toLowerCase();
+  if (!allowedHosts.includes(host)) {
     throw new Error("cloud-browser-provider-host-not-allowed");
   }
 
-  return endpoint;
+  if (endpoint.port && endpoint.port !== "443") {
+    throw new Error("cloud-browser-provider-port-not-allowed");
+  }
+
+  if (endpoint.pathname !== "/" && endpoint.pathname !== "") {
+    throw new Error("cloud-browser-provider-path-not-allowed");
+  }
+
+  if (endpoint.search || endpoint.hash) {
+    throw new Error("cloud-browser-provider-query-fragment-not-allowed");
+  }
+
+  return new URL(`https://${host}/`);
 }
 
 export const cloudBrowserTool = tool({
