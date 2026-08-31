@@ -21,6 +21,7 @@
     "docs/superpowers/specs",
     "mahoraga.manifest.json",
     "package.json",
+    "relay",
     "src/bounded-execution.mjs",
     "src/config.mjs",
     "src/conversation-gateway.mjs",
@@ -55,5 +56,5 @@
     "personalContextIncluded": false,
     "contentBoundary": "task-metadata-and-repository-context-only"
   },
-  "requestHash": "c6c68af8425e6d9ef8d0446158a26fb6756ee02f96b037f087b0d04a3b328f17"
+  "requestHash": "5f4b59b5093a31a0c6ca365f0bc15bbf28b7f5d87c139327b24079c16dea66f8"
 }
