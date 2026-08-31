@@ -151,9 +151,6 @@ async function github(path) {
 function renderCloudState(complete) {
   const available = Boolean(state.repository);
   $('repo-dot').className = available ? 'ready' : complete ? 'error' : '';
-  $('repo-state').textContent = available ? 'GitHub connected' : 'Open GitHub to continue';
-  $('repo-detail').textContent = available ? `${state.repository.visibility} repository · live read-only API` : 'GitHub status is temporarily unavailable';
-  $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · authenticated mutations stay on github.com` : 'The public repository remains available on github.com while this status request is retried.';
   $('repo-state').textContent = available ? 'Repository telemetry live' : 'Repository telemetry unavailable';
   $('repo-detail').textContent = available ? `${state.repository.visibility} repository · conversation bridge staged` : 'Open GitHub for authenticated repository state';
   $('github-visibility').textContent = available ? `${capitalize(state.repository.visibility)} · read-only telemetry connected` : 'Status is unavailable; open GitHub to authenticate.';
@@ -187,16 +184,6 @@ function renderRows(id, rows) {
   }) : [emptyRow()]));
 }
 
-function emptyRow() { const item = document.createElement('p'); item.className = 'empty'; item.textContent = 'No matching public activity is currently available.'; return item; }
-
-function prepareHandoff(attachmentsOnly = false) {
-  state.draft = $('task-text').value.trim();
-  const lane = $('execution-lane').value;
-  $('dispatch-command').textContent = lane === 'desktop' ? '/mahoraga dispatch desktop mahoraga' : lane === 'codex' ? '/mahoraga dispatch codex' : 'No model command — run the selected Action';
-  $('dialog-title').textContent = attachmentsOnly ? 'Attach securely in GitHub' : 'Continue task in GitHub';
-  $('copy-state').textContent = state.draft ? 'Your task text will be copied to the clipboard.' : 'The authenticated GitHub task form will open.';
-  $('continue-github').textContent = lane === 'actions' ? 'Open deterministic Action ↗' : 'Open authenticated task form ↗';
-  $('handoff-dialog').showModal();
 function emptyRow() {
   const item = document.createElement('p');
   item.className = 'empty';

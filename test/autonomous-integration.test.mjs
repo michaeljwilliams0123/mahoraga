@@ -75,13 +75,18 @@ test("integration rejects ineligible branches and every protected root", () => {
   }
 });
 
-test("Destiny integration requires a successful exact-head result and relay verification", () => {
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate(), policy).eligible, true);
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: null }), policy).reason, "destiny-result-required");
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "blocked-terminal-pr", headSha: "abc123" } }), policy).reason, "destiny-result-required");
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "success", headSha: "different" } }), policy).reason, "destiny-result-head-mismatch");
+test("Destiny integration does not wait for an exact-head result after trusted checks pass", () => {
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: null }), policy).eligible, true);
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "blocked-terminal-pr", headSha: "abc123" } }), policy).eligible, true);
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyResult: { status: "success", headSha: "different" } }), policy).eligible, true);
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ destinyRelayVerified: false }), policy).reason, "destiny-relay-verification-required");
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ headRef: "feature/ui", destinyResult: null }), policy).eligible, true);
+});
+
+test("Destiny integration requires an implementation delta beyond its dispatch envelope", () => {
+  const dispatch = "coordination/destiny-dispatches/dcx-3c11bb0e4a5d3b6329832b0a.json";
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch] }), policy).reason, "destiny-implementation-required");
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch, "web/app.js"] }), policy).eligible, true);
 });
 
 test("the newest exact-head pull-request run is authoritative", () => {
@@ -116,15 +121,13 @@ test("only verified cloud changes request a post-merge Pages deployment", () => 
   assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: ["cloudish/app.js"] }), policy).deployPages, false);
 });
 
-test("workflow waits for latest Destiny evidence and explicitly verifies each workflow-token merge", async () => {
+test("workflow merges exact verified heads without waiting for Destiny comments", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "autonomous-integration.yml"), "utf8");
-  assert.match(source, /issue_comment:/);
+  assert.doesNotMatch(source, /issue_comment:/);
+  assert.doesNotMatch(source, /latestExactDestinyResult/);
   assert.match(source, /github\.event\.workflow_run\.event == 'pull_request'/);
   assert.match(source, /actions: write/);
-  assert.match(source, /latestExactWorkflowRun/);
   assert.equal(source.match(/latestExactWorkflowRun/g)?.length, 6);
-  assert.match(source, /latestExactDestinyResult/);
-  assert.equal(source.match(/latestExactDestinyResult/g)?.length, 4);
   assert.match(source, /verify\?\.status === "completed" && verify\.conclusion === "success"/);
   assert.match(source, /relay\?\.status === "completed" && relay\.conclusion === "success"/);
   assert.match(source, /freshDecision = evaluateAutonomousIntegration/);

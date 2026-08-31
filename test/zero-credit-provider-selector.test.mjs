@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { selectZeroCreditProvider } from "../src/zero-credit-provider-selector.mjs";
-import { createTaskRouter, routeTask } from "../src/router.mjs";
+import { createTaskRouter } from "../src/router.mjs";
 
 const ready = (id) => ({ id, metered: false, priceUsd: 0, spendUsd: 0, billingState: "verified-zero", zeroDollarStopGuaranteed: true, ready: true, capabilityCanary: { fresh: true } });
 
@@ -35,9 +35,16 @@ test("zero-credit policy filters autonomous routes and leaves ordinary routing u
   ] };
   const task = { capability: "autonomy.self-upgrade", dataClass: "synthetic", requestedMode: "local" };
   const context = { providerPolicy: "zero-credit", cloudModeEnabled: false, requiresGeneration: true, providers: [ready("local-open-weight")] };
-  assert.equal(routeTask(manifest, task, context).worker.id, "local");
-  assert.equal(routeTask(manifest, task, context).providerDecision.providerId, "local-open-weight");
-  assert.equal(routeTask(manifest, task).worker.id, "local");
+  const router = createTaskRouter({ rankRoutes: () => ({
+    reason: null,
+    candidates: [
+      { workerId: "local", costClass: "local-model" },
+      { workerId: "cloud", costClass: "cloud-open-weight" },
+    ],
+  }) });
+  assert.equal(router(manifest, task, context).worker.id, "local");
+  assert.equal(router(manifest, task, context).providerDecision.providerId, "local-open-weight");
+  assert.equal(router(manifest, task).worker.id, "local");
 });
 
 test("waiting zero-credit autonomy routing skips general ranking", () => {

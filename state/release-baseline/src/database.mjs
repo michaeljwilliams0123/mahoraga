@@ -287,6 +287,11 @@ export class RuntimeDatabase {
     ]) if (!messages.has(name)) this.db.exec(`ALTER TABLE conversation_messages ADD COLUMN ${name} ${definition}`);
   }
 
+  #ensureWorkerStateColumns() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
+    if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
+  }
+
   #migrateLegacyContent() {
     const sentinel = "[vault-content]";
     const conversations = this.db.prepare(`SELECT id,title,title_ref,title_classification
@@ -338,12 +343,6 @@ export class RuntimeDatabase {
   }
 
   submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
-  #ensureWorkerStateColumns() {
-    const current = new Set(this.db.prepare("PRAGMA table_info(worker_state)").all().map((column) => column.name));
-    if (!current.has("last_error_detail")) this.db.exec("ALTER TABLE worker_state ADD COLUMN last_error_detail TEXT");
-  }
-
-  submitTask({ capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
@@ -1043,7 +1042,6 @@ export class RuntimeDatabase {
     }));
   }
 
-  setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null }) {
   setWorkerState({ workerId, status, pid = null, restartCount = 0, lastHeartbeatAt = null, lastErrorCode = null, lastErrorDetail = null }) {
     bounded(workerId, 64, "worker id"); bounded(status, 30, "worker status");
     if (lastErrorCode !== null) bounded(lastErrorCode, 80, "worker error code");

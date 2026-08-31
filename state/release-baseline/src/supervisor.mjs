@@ -12,13 +12,12 @@ import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true }) {
+  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
     super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
-    this.syncCoordinationMailbox = syncCoordinationMailbox; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
+    this.syncCoordinationMailbox = syncCoordinationMailbox; this.forkWorker = forkWorker; this.tickIntervalMs = tickIntervalMs;
+    this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
     this.lastRepairScanAt = null; this.lastRepairScanHealthy = null; this.lastRepairChecked = 0; this.nextRepairScanAt = 0; this.repairScanInFlight = false;
-    this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
-  constructor({ manifest, database, artifactRoot, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
-    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.syncCoordinationMailbox = syncCoordinationMailbox; this.forkWorker = forkWorker; this.tickIntervalMs = tickIntervalMs; this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null; this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
+    this.lastRepairBucket = null; this.lastQueueBucket = null; this.lastSecondaryMailboxBucket = null;
   }
 
   start() {
@@ -59,20 +58,13 @@ export class Supervisor extends EventEmitter {
       const readiness = this.database.listCapabilityReadiness(workerId);
       return {
         workerId, label: state.definition.label, version: state.definition.version,
-        status: state.status ?? (state.busy ? "busy" : state.ready ? "live" : "starting"), pid: state.process.pid,
+        status: state.status ?? (state.busy ? "busy" : state.ready ? "live" : "starting"), pid: state.process?.pid ?? null,
         restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
         currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
         timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities, readiness,
+        lastErrorCode: state.lastErrorCode ?? null, lastErrorDetail: state.lastErrorDetail ?? null,
       };
     });
-    return [...this.workers.entries()].map(([workerId, state]) => ({
-      workerId, label: state.definition.label, version: state.definition.version,
-      status: state.status ?? (state.ready ? (state.busy ? "busy" : "healthy") : "starting"), pid: state.process?.pid ?? null,
-      restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
-      currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
-      timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities,
-      lastErrorCode: state.lastErrorCode ?? null, lastErrorDetail: state.lastErrorDetail ?? null,
-    }));
   }
 
   health(now = Date.now()) {
@@ -117,15 +109,14 @@ export class Supervisor extends EventEmitter {
   }
 
   #spawn(definition, restartCount = 0) {
-    const child = fork(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "ignore", "ipc"], env: {
-      ...process.env,
-      MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
-      MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
-      MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
-    } });
     let child;
     try {
-      child = this.forkWorker(WORKER_PROCESS, [definition.id], { stdio: ["ignore", "ignore", "pipe", "ipc"], env: { ...process.env, MAHORAGA_ARTIFACT_ROOT: this.artifactRoot } });
+      child = this.forkWorker(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: {
+        ...process.env,
+        MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
+        MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
+        MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
+      } });
     } catch (error) {
       this.#spawnFailure(definition, restartCount, error);
       return;
@@ -339,14 +330,12 @@ export class Supervisor extends EventEmitter {
     state.terminated = true;
     if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, `worker-exit-${code ?? "unknown"}`);
     const exhausted = state.restartCount >= this.manifest.runtime.maximumWorkerRestarts;
-    this.#setProcessReadiness(state, this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", new Date().toISOString());
-    this.database.setWorkerState({ workerId: state.definition.id, status: this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed", restartCount: state.restartCount, lastErrorCode: `exit-${code ?? "unknown"}` });
-    if (!this.stopping && state.restartCount < this.manifest.runtime.maximumWorkerRestarts) {
     const errorCode = state.lastErrorCode ?? (error ? `spawn-${safeErrorCode(error)}` : signal ? `signal-${signal}` : `exit-${code ?? "unknown"}`);
     const errorDetail = state.lastErrorDetail ?? (state.stderrTail || sanitizeWorkerDiagnostic(error ?? `Worker exited with ${errorCode}.`));
     state.ready = false; state.busy = false; state.currentTaskId = null; state.currentTaskStartedAt = null;
     state.status = this.stopping ? "stopped" : exhausted ? "quarantined" : "crashed";
     state.lastErrorCode = errorCode; state.lastErrorDetail = errorDetail;
+    this.#setProcessReadiness(state, state.status, new Date().toISOString());
     this.database.setWorkerState({
       workerId: state.definition.id, status: state.status, pid: null, restartCount: state.restartCount,
       lastErrorCode: errorCode, lastErrorDetail: errorDetail,
@@ -434,14 +423,6 @@ export class Supervisor extends EventEmitter {
     const verified = await scanRepairState(this.manifest);
     this.lastRepairScanAt = new Date().toISOString(); this.lastRepairScanHealthy = verified.healthy; this.lastRepairChecked = verified.checked;
     this.database.reconcileRepairIncidents(verified.issues, verified.baselineVersion, new Date(this.lastRepairScanAt));
-  #scheduleAutomaticRepair() {
-    if (!this.manifest.repair?.enabled) return;
-    const task = { capability: "repair.apply", dataClass: "local-only", requestedMode: "local", executionPlane: "local" };
-    if (!this.#canSchedule(task)) return;
-    const bucket = Math.floor(Date.now() / this.manifest.repair.scanIntervalMs);
-    if (bucket === this.lastRepairBucket) return;
-    this.lastRepairBucket = bucket;
-    this.database.submitTask({ ...task, idempotencyKey: `automatic-operational-repair:${bucket}` });
   }
 
   #scheduleMicrosoftQueuePoll() {
@@ -484,7 +465,7 @@ export class Supervisor extends EventEmitter {
     if (route.status !== "routable") return false;
     const state = this.workers.get(route.worker.id);
     const heartbeatAge = state?.lastHeartbeatAt ? Date.now() - Date.parse(state.lastHeartbeatAt) : Number.POSITIVE_INFINITY;
-    if (!state?.ready || !["healthy", "busy"].includes(state.status) || heartbeatAge > this.manifest.runtime.heartbeatTimeoutMs) return false;
+    if (!state?.ready || !["live", "busy"].includes(state.status) || heartbeatAge > this.manifest.runtime.heartbeatTimeoutMs) return false;
     return !this.database.hasActiveTask(task.capability);
   }
 
