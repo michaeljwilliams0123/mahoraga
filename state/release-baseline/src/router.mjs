@@ -8,24 +8,20 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const providerDecision = zeroCreditDecision(task, context);
     if (providerDecision?.status === "waiting") return { status: "waiting", reason: providerDecision.providerId, worker: null, providerDecision };
     const ranked = rankRoutes(manifest, task, context);
-    const candidates = ranked.candidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId)).filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass);
-    if (candidates.length === 0) return { status: "waiting", reason: ranked.reason, worker: null };
+    const candidates = ranked.candidates
+      .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
+      .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass);
+    const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
+    if (candidates.length === 0) return { status: "waiting", reason, worker: null };
     const selected = candidates[0];
-    const route = { status: "routable", reason: null, worker: manifest.workers.find((worker) => worker.id === selected.workerId), decision: selected, alternates: candidates.slice(1) };
+    const route = {
+      status: "routable",
+      reason: null,
+      worker: manifest.workers.find((worker) => worker.id === selected.workerId),
+      decision: selected,
+      alternates: candidates.slice(1),
+    };
     return providerDecision ? { ...route, providerDecision } : route;
-  };
-export function routeTask(manifest, task, context = {}) {
-  const ranked = rankCapabilityRoutes(manifest, task, context);
-  const candidates = ranked.candidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId));
-  const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
-  if (candidates.length === 0) return { status: "waiting", reason, worker: null };
-  const selected = candidates[0];
-  return {
-    status: "routable",
-    reason: null,
-    worker: manifest.workers.find((worker) => worker.id === selected.workerId),
-    decision: selected,
-    alternates: candidates.slice(1),
   };
 }
 
@@ -33,6 +29,10 @@ export function capabilityIndex(manifest, workerStates = [], now = Date.now()) {
   return buildCapabilityRegistry(manifest, workerStates, now);
 }
 
-export function capabilityIndex(manifest, workerStates = []) { return buildCapabilityRegistry(manifest, workerStates); }
-function zeroCreditDecision(task, context) { return context.providerPolicy === "zero-credit" && isAutonomySelfUpgrade(task) ? selectZeroCreditProvider(context) : null; }
-function isAutonomySelfUpgrade(task) { return typeof task.capability === "string" && (task.capability.startsWith("autonomy.") || task.capability.startsWith("self-upgrade.")); }
+function zeroCreditDecision(task, context) {
+  return context.providerPolicy === "zero-credit" && isAutonomySelfUpgrade(task) ? selectZeroCreditProvider(context) : null;
+}
+
+function isAutonomySelfUpgrade(task) {
+  return typeof task.capability === "string" && (task.capability.startsWith("autonomy.") || task.capability.startsWith("self-upgrade."));
+}

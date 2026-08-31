@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -139,7 +139,7 @@ export async function writeScreenshotArtifact({ artifactDirectory, taskId, data,
   if (bytes.length < 8 || bytes.length > MAX_SCREENSHOT_BYTES) throw new Error("browser-screenshot-size-invalid");
   const directory = trustedArtifactDirectory(artifactDirectory);
   await mkdir(directory, { recursive: true });
-  const file = artifactFile(directory, `artifact-${now}-${randomUUID()}.png`);
+  const file = artifactFile(directory, `browser-observe-${now}.png`);
   await writeFile(file, bytes, { mode: 0o600 });
   return { sha256: hash(bytes), bytes: bytes.length };
 }

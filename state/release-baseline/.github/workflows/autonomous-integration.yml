@@ -4,8 +4,6 @@ on:
   workflow_run:
     workflows: ["Verify Mahoraga", "Validate Destiny Codex Relay"]
     types: [completed]
-  issue_comment:
-    types: [created]
 
 permissions:
   actions: write
@@ -19,14 +17,10 @@ concurrency:
 jobs:
   integrate:
     if: >-
-      (github.event_name == 'workflow_run' &&
-       github.event.workflow_run.event == 'pull_request' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_repository.full_name == github.repository) ||
-      (github.event_name == 'issue_comment' &&
-       github.event.issue.pull_request &&
-       startsWith(github.event.comment.body, '[DESTINY-CODEX:RESULT]') &&
-       github.event.comment.user.login == github.repository_owner)
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted policy from main
@@ -34,10 +28,12 @@ jobs:
         with:
           ref: main
           persist-credentials: false
+
       - name: Use Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: 24
+
       - name: Collect bounded candidate metadata
         id: candidate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
@@ -46,7 +42,7 @@ jobs:
             const fs = require("fs");
             const path = require("path");
             const { pathToFileURL } = require("url");
-            const { latestExactDestinyResult, latestExactWorkflowRun } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "autonomous-integration.mjs")).href);
+            const { latestExactWorkflowRun } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "autonomous-integration.mjs")).href);
             const { owner, repo } = context.repo;
             const run = context.payload.workflow_run;
             const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
@@ -59,22 +55,7 @@ jobs:
               return;
             }
             if (candidates.length > 1) throw new Error(`ambiguous-open-main-prs:${candidates.length}`);
-            core.setOutput("found", "true");
             const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
-            let pullNumber;
-            if (context.eventName === "issue_comment") {
-              pullNumber = context.issue.number;
-            } else {
-              const run = context.payload.workflow_run;
-              const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
-                owner, repo, commit_sha: run.head_sha, per_page: 100,
-              });
-              const candidates = associated.filter((item) => item.state === "open" && item.base.ref === "main");
-              if (candidates.length !== 1) throw new Error(`expected-one-open-main-pr:${candidates.length}`);
-              pullNumber = candidates[0].number;
-            }
-
-            const detail = (await github.rest.pulls.get({ owner, repo, pull_number: pullNumber })).data;
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
             const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: detail.head.sha });
             const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: detail.number, per_page: 100 });
@@ -85,10 +66,6 @@ jobs:
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: detail.head.sha });
             const verifySucceeded = verify?.status === "completed" && verify.conclusion === "success";
             const relaySucceeded = relay?.status === "completed" && relay.conclusion === "success";
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number: detail.number, per_page: 100,
-            });
-            const destinyResult = latestExactDestinyResult(comments, { owner, headSha: detail.head.sha });
 
             fs.mkdirSync("state", { recursive: true });
             fs.writeFileSync("state/autonomous-integration-input.json", JSON.stringify({
@@ -101,18 +78,18 @@ jobs:
                 mergeable: detail.mergeable === true,
                 headContainsMain: ancestry.data.behind_by === 0,
                 changedFiles: files.slice(0, 257).map((item) => item.filename),
-                destinyResult,
                 destinyRelayVerified: relaySucceeded,
               },
             }));
+            core.setOutput("found", "true");
+
       - name: Evaluate trusted integration policy
         id: policy
         if: steps.candidate.outputs.found == 'true'
         run: node scripts/autonomous-integration.mjs --input state/autonomous-integration-input.json
-      - name: Merge exact verified head
-        if: steps.candidate.outputs.found == 'true' && steps.policy.outputs.eligible == 'true'
+
       - name: Revalidate and merge exact verified head
-        if: steps.policy.outputs.eligible == 'true'
+        if: steps.candidate.outputs.found == 'true' && steps.policy.outputs.eligible == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           PULL_REQUEST: ${{ steps.policy.outputs.pull_request }}
@@ -126,7 +103,7 @@ jobs:
             const { pathToFileURL } = require("url");
             const workspace = process.env.GITHUB_WORKSPACE;
             const { autonomyPolicySnapshot } = await import(pathToFileURL(path.join(workspace, "src", "autonomy-policy.mjs")).href);
-            const { evaluateAutonomousIntegration, latestExactDestinyResult, latestExactWorkflowRun } = await import(pathToFileURL(path.join(workspace, "src", "autonomous-integration.mjs")).href);
+            const { evaluateAutonomousIntegration, latestExactWorkflowRun } = await import(pathToFileURL(path.join(workspace, "src", "autonomous-integration.mjs")).href);
             const manifest = JSON.parse(fs.readFileSync(path.join(workspace, "mahoraga.manifest.json"), "utf8"));
             const { owner, repo } = context.repo;
             const pull_number = Number(process.env.PULL_REQUEST);
@@ -135,16 +112,11 @@ jobs:
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
             const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: pr.head.sha });
             const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number, per_page: 100 });
-
             const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
               owner, repo, head_sha: pr.head.sha, per_page: 100,
             });
             const verify = latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: pr.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: pr.head.sha });
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner, repo, issue_number: pull_number, per_page: 100,
-            });
-            const destinyResult = latestExactDestinyResult(comments, { owner, headSha: pr.head.sha });
             const freshDecision = evaluateAutonomousIntegration({
               workflow: { name: "Verify Mahoraga", conclusion: verify?.status === "completed" && verify.conclusion === "success" ? "success" : "missing", headSha: pr.head.sha },
               pullRequest: {
@@ -155,7 +127,6 @@ jobs:
                 mergeable: pr.mergeable === true,
                 headContainsMain: ancestry.data.behind_by === 0,
                 changedFiles: files.slice(0, 257).map((item) => item.filename),
-                destinyResult,
                 destinyRelayVerified: relay?.status === "completed" && relay.conclusion === "success",
               },
             }, autonomyPolicySnapshot(manifest));

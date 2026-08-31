@@ -111,22 +111,22 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
   };
 }
 
-export async function findInstalledCodexCli({ env = process.env, list = readdir, canAccess = access } = {}) {
+export async function findInstalledCodexCli({ canAccess = access, resolveRealpath = realpath } = {}) {
   const candidate = BUNDLED_CODEX_EXECUTABLE;
   const trustedRoots = [path.join(ROOT, "node_modules", "@openai", "codex", "vendor")];
   try {
     await canAccess(candidate);
-    if (await isTrustedCodexExecutable(candidate, trustedRoots)) return candidate;
+    if (await isTrustedCodexExecutable(candidate, trustedRoots, resolveRealpath)) return candidate;
   } catch { /* fall through to ENOENT */ }
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
 }
 
-async function isTrustedCodexExecutable(candidate, trustedRoots) {
-  const resolvedCandidate = await realpath(candidate);
+async function isTrustedCodexExecutable(candidate, trustedRoots, resolveRealpath = realpath) {
+  const resolvedCandidate = await resolveRealpath(candidate);
   if (path.basename(resolvedCandidate).toLowerCase() !== "codex.exe") return false;
   const resolvedRoots = [];
   for (const root of trustedRoots) {
-    try { resolvedRoots.push(await realpath(root)); } catch { /* ignore unavailable root */ }
+    try { resolvedRoots.push(await resolveRealpath(root)); } catch { /* ignore unavailable root */ }
   }
   return resolvedRoots.some((root) => {
     const relative = path.relative(root, resolvedCandidate);

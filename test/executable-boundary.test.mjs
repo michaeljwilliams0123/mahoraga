@@ -32,7 +32,8 @@ test("Dataverse cache paths remain fixed under trusted roots", async () => {
 
 test("isolated workers do not inherit parent Node execution flags", async () => {
   const supervisor = await source("src/supervisor.mjs");
-  assert.match(supervisor, /fork\(WORKER_PROCESS,[\s\S]*execArgv:\s*\[\]/);
+  assert.match(supervisor, /forkWorker = fork/);
+  assert.match(supervisor, /this\.forkWorker\(WORKER_PROCESS,[\s\S]*execArgv:\s*\[\]/);
 });
 
 test("Windows launchers derive the user profile without a committed username", async () => {

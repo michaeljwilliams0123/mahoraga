@@ -190,19 +190,19 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
 export function isTrustedAutonomousIntegrationWorkflow(source) {
   if (typeof source !== "string") return false;
   return /workflow_run\s*:/.test(source)
-    && /workflows:\s*\[[^\]]*"Verify Mahoraga"[^\]]*\]/.test(source)
-    && /issue_comment\s*:/.test(source)
+    && /workflows:\s*\[[^\]]*"Verify Mahoraga"[^\]]*"Validate Destiny Codex Relay"[^\]]*\]/.test(source)
+    && !/issue_comment\s*:/.test(source)
+    && !/latestExactDestinyResult/.test(source)
     && /actions:\s*write/.test(source)
     && /contents:\s*write/.test(source)
     && /pull-requests:\s*write/.test(source)
     && /github\.event\.workflow_run\.event == 'pull_request'/.test(source)
-    && /github\.event\.comment\.user\.login == github\.repository_owner/.test(source)
+    && /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/.test(source)
     && /ref:\s*main/.test(source)
     && /persist-credentials:\s*false/.test(source)
     && /node scripts\/autonomous-integration\.mjs --input state\/autonomous-integration-input\.json/.test(source)
     && /latestExactWorkflowRun\(runs,\s*\{\s*name:\s*"Verify Mahoraga",\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
     && /latestExactWorkflowRun\(runs,\s*\{\s*name:\s*"Validate Destiny Codex Relay",\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
-    && /latestExactDestinyResult\(comments,\s*\{\s*owner,\s*headSha:\s*detail\.head\.sha\s*\}\)/.test(source)
     && /verify\?\.status === "completed" && verify\.conclusion === "success"/.test(source)
     && /relay\?\.status === "completed" && relay\.conclusion === "success"/.test(source)
     && /freshDecision = evaluateAutonomousIntegration/.test(source)
@@ -246,6 +246,7 @@ async function trackedFiles(root) {
 }
 
 function isSensitiveRuntimePath(file) {
+  if (/(?:^|\/)\.env\.example$/i.test(file)) return false;
   return /(?:^|\/)(?:\.env(?:\..*)?|\.git-credentials|\.netrc|\.npmrc|\.pypirc|\.token_cache\.bin)$/i.test(file)
     || /(?:^|\/)(?:credentials?|secrets?|tokens?)(?:\.[^/]*)?$/i.test(file)
     || /(?:^|\/)[^/]+\.(?:key|p12|pfx|pem|token)$/i.test(file);

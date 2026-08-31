@@ -58,7 +58,7 @@ test("Control Center queues repeated picker selections instead of dropping them"
   assert.equal(sandbox.state.queuedFiles, 0);
 });
 
-const SAFE_FUNCTION_SOURCE_PATTERN = /^[\w\s$()[\]{}.,;:+\-*/%<>=!&|^~?:'"`\\\n\r\t]+$/;
+const SAFE_FUNCTION_SOURCE_PATTERN = /^[\w\s$()[\]{}.,;:+\-*/%<>=!&|^~?:#'"`\\\n\r\t]+$/;
 
 function functionSource(name) {
   const start = SOURCE.indexOf(`function ${name}(`);

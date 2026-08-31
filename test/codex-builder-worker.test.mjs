@@ -43,11 +43,10 @@ test("Codex Builder refuses execution before provider invocation when the execut
 test("Codex CLI discovery is fixed to the user-level package or sandbox binary", async () => {
   const seen = [];
   const resolved = await findInstalledCodexCli({
-    env: { LOCALAPPDATA: "C:\\Users\\owner\\AppData\\Local", USERPROFILE: "C:\\Users\\owner" },
-    list: async () => [{ name: "@openai+codex@0.145.0-win32-x64", isDirectory: () => true }],
     canAccess: async (candidate) => { seen.push(candidate); },
+    resolveRealpath: async (candidate) => candidate,
   });
-  assert.match(resolved, /Programs[\\/]CodexCLI/);
+  assert.match(resolved, /node_modules[\\/]@openai[\\/]codex[\\/]vendor/);
   assert.equal(path.basename(resolved), "codex.exe");
   assert.equal(seen.length, 1);
 });
