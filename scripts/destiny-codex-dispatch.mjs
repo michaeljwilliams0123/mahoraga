@@ -78,7 +78,12 @@ async function validatePullRequest() {
   const receipt = validateDestinyDispatchPullRequest({ title, author, owner, baseBranch, baseSha, mergeBase, changedFiles, dispatchPath, dispatchStatus: dispatchEntry.status, dispatch });
   print({ healthy: true, ...receipt, shortRequestHash: receipt.requestHash.slice(0, 12) });
   if (process.env.GITHUB_OUTPUT) {
-    await appendFile(process.env.GITHUB_OUTPUT, [
+    const githubOutputPath = path.resolve(candidateRoot, process.env.GITHUB_OUTPUT);
+    const outputRelativePath = path.relative(candidateRoot, githubOutputPath);
+    if (outputRelativePath.startsWith("..") || path.isAbsolute(outputRelativePath)) {
+      throw new Error("destiny-github-output-path-invalid");
+    }
+    await appendFile(githubOutputPath, [
       `dispatch_id=${receipt.dispatchId}`,
       `request_hash=${receipt.requestHash}`,
       `short_request_hash=${receipt.requestHash.slice(0, 12)}`,
