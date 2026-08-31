@@ -146,7 +146,7 @@ The UI and local runtime perform ephemeral P-256 ECDH using browser and Node Web
 
 The reference relay:
 
-- authenticates the owner with a passkey or Cloudflare Access identity;
+- authenticates through Cloudflare Access against one owner identity configured only in the deployment environment;
 - accepts only the configured Pages origin;
 - limits one user, a bounded number of paired devices, frame size, event rate, and session lifetime;
 - keeps ciphertext only for reconnect delivery with a maximum five-minute TTL;
