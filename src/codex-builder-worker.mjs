@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { spawn, execFile } from "node:child_process";
-import { access, readdir } from "node:fs/promises";
+import { access, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { ROOT } from "./config.mjs";
@@ -110,18 +110,41 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
 
 export async function findInstalledCodexCli({ env = process.env, list = readdir, canAccess = access } = {}) {
   const candidates = [];
+  const trustedRoots = [];
   if (env.LOCALAPPDATA) {
-    const store = path.join(env.LOCALAPPDATA, "Programs", "CodexCLI", "node_modules", ".pnpm");
+    const codexProgramRoot = path.join(env.LOCALAPPDATA, "Programs", "CodexCLI");
+    trustedRoots.push(codexProgramRoot);
+    const store = path.join(codexProgramRoot, "node_modules", ".pnpm");
     try {
       const entries = await list(store, { withFileTypes: true });
       for (const item of entries.filter((entry) => entry.isDirectory() && /^@openai\+codex@.+-win32-x64$/i.test(entry.name)).map((entry) => entry.name).sort().reverse()) candidates.push(path.join(store, item, VENDOR_PATH));
     } catch { /* optional user-level package store */ }
   }
-  if (env.USERPROFILE) candidates.push(path.join(env.USERPROFILE, ".codex", ".sandbox-bin", "codex.exe"));
+  if (env.USERPROFILE) {
+    const sandboxRoot = path.join(env.USERPROFILE, ".codex", ".sandbox-bin");
+    trustedRoots.push(sandboxRoot);
+    candidates.push(path.join(sandboxRoot, "codex.exe"));
+  }
   for (const candidate of candidates) {
-    try { await canAccess(candidate); return candidate; } catch { /* try next fixed path */ }
+    try {
+      await canAccess(candidate);
+      if (await isTrustedCodexExecutable(candidate, trustedRoots)) return candidate;
+    } catch { /* try next fixed path */ }
   }
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
+}
+
+async function isTrustedCodexExecutable(candidate, trustedRoots) {
+  const resolvedCandidate = await realpath(candidate);
+  if (path.basename(resolvedCandidate).toLowerCase() !== "codex.exe") return false;
+  const resolvedRoots = [];
+  for (const root of trustedRoots) {
+    try { resolvedRoots.push(await realpath(root)); } catch { /* ignore unavailable root */ }
+  }
+  return resolvedRoots.some((root) => {
+    const relative = path.relative(root, resolvedCandidate);
+    return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+  });
 }
 
 async function probeCodexCli(dependencies) {
