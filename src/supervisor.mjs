@@ -242,7 +242,11 @@ export class Supervisor extends EventEmitter {
         if (task.capability === "codex.execute") {
           this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
         }
-        this.database.completeTaskWithReceipt(message.taskId, receipt);
+        this.database.completeTaskWithReceipt(message.taskId, receipt, {
+          conversationContent: task.capability === "assistant.respond" && typeof message.result?.answer === "string"
+            ? message.result.answer
+            : null,
+        });
       } catch (error) {
         const failure = receiptFailure(error);
         this.database.failTaskSafely(message.taskId, { errorCode: failure.errorCode, resultSummary: failure.boundedSummary });

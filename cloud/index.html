@@ -21,7 +21,10 @@
         <span><strong>Mahoraga</strong><small>Cloud workspace</small></span>
       </a>
 
-      <button class="new-task" type="button" data-view-target="workspace"><span>＋</span> New task</button>
+      <button class="new-task" type="button" data-view-target="workspace"><span>＋</span> New chat</button>
+
+      <label class="chat-search"><span>⌕</span><input id="chat-search" type="search" placeholder="Search chats" aria-label="Search chats"></label>
+      <div class="recent-chats"><small>Chats</small><div id="recent-chat-list"><p>No conversations yet</p></div></div>
 
       <nav class="nav-list">
         <button type="button" class="active" data-view-target="workspace"><span>◈</span> Workspace</button>
@@ -78,8 +81,12 @@
 
         <div class="composer-wrap">
           <form id="conversation-composer" class="composer">
+            <div id="attachment-tray" class="attachment-tray" aria-live="polite"></div>
             <textarea id="task-text" maxlength="12000" rows="1" placeholder="Message Mahoraga" aria-label="Message Mahoraga"></textarea>
             <div class="composer-tools">
+              <input id="file-input" type="file" multiple hidden>
+              <button id="attach-files" class="icon-button" type="button" aria-label="Attach files">＋</button>
+              <label class="mode-picker"><span>Mode</span><select id="chat-mode" aria-label="Chat mode"><option value="auto">Auto</option><option value="ask">Ask</option><option value="act">Act</option></select></label>
               <span id="bridge-state" class="bridge-state"><i></i> Detecting transport</span>
               <label class="session-picker">Session <select id="session-select" aria-label="Conversation session"><option value="new">New session</option></select></label>
               <span id="classification-preview" class="classification-preview">Auto</span>
@@ -88,7 +95,7 @@
               <button class="send" type="submit" aria-label="Send message">↑</button>
             </div>
           </form>
-          <p class="composer-note"><strong>No skill, lane, or return fields.</strong> Conversation plaintext stays in memory and is never written to browser storage.</p>
+          <p class="composer-note"><strong>Auto answers questions and acts on clear requests.</strong> Ask is read-only; Act grants execution authority within Mahoraga’s firewall. Conversation plaintext stays in memory; private attachments stay in the local encrypted vault.</p>
         </div>
       </section>
 
@@ -174,6 +181,6 @@
 
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js" defer></script>
+  <script src="./app.js?v=7.0.1" defer></script>
 </body>
 </html>

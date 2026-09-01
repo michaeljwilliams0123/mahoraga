@@ -256,14 +256,18 @@ async function sendChat(content, forcedCapability = null) {
   try {
     const attachmentIds = attachments.map((item) => item.id);
     let conversationId = state.activeConversation;
-    if (!conversationId) {
-      const created = await post('/api/conversations', { title: content.slice(0, 72), initialMessage: content, attachmentIds });
-      conversationId = created.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
-    } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
     const selected = forcedCapability || $('chat-tool').value;
-    const intent = selected === 'auto' ? autoRoute(content, attachments) : selected;
-    if (!state.status.capabilities.some((item) => item.routable && item.capability === intent)) throw new Error(`${intent} is not routable with current verified evidence`);
-    await post('/api/tasks', { intent, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    if (selected === 'auto') {
+      const result = await post('/api/chat', { mode: 'auto', content, conversationId, attachmentIds, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+      conversationId = result.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
+    } else {
+      if (!conversationId) {
+        const created = await post('/api/conversations', { title: content.slice(0, 72), initialMessage: content, attachmentIds });
+        conversationId = created.conversation.id; state.activeConversation = conversationId; writeConversationHash(conversationId);
+      } else await post(`/api/conversations/${conversationId}/messages`, { content, role: 'user', attachmentIds });
+      if (!state.status.capabilities.some((item) => item.routable && item.capability === selected)) throw new Error(`${selected} is not routable with current verified evidence`);
+      await post('/api/tasks', { intent: selected, priority: 'high', requestedOutcome: content, conversationId, idempotencyKey: `chat-${Date.now()}-${Math.random().toString(16).slice(2)}` });
+    }
     state.pendingAttachments = [];
     await refresh();
   } catch (error) { notify(error.message, 'error'); }
@@ -294,15 +298,14 @@ function inferDataClass(content, attachments, supported) {
 }
 
 function filesFromClipboard(clipboardData) {
-  const files = [];
+  const files = []; const fingerprints = new Set();
+  const add = (file) => { const fingerprint = `${file.name}:${file.size}:${file.type}`; if (!fingerprints.has(fingerprint)) { fingerprints.add(fingerprint); files.push(file); } };
   for (const item of clipboardData?.items ?? []) {
     if (item.kind !== 'file') continue;
     const file = item.getAsFile();
-    if (file) files.push(file);
+    if (file) add(file);
   }
-  for (const file of clipboardData?.files ?? []) {
-    if (!files.some((item) => item === file || `${item.name}:${item.size}:${item.type}:${item.lastModified}` === `${file.name}:${file.size}:${file.type}:${file.lastModified}`)) files.push(file);
-  }
+  for (const file of clipboardData?.files ?? []) add(file);
   return files;
 }
 
@@ -363,7 +366,7 @@ function formatBytes(bytes) { if (bytes < 1024) return `${bytes} B`; if (bytes <
 
 function showView(name, persist = true) { state.activeView = name; document.querySelectorAll('[data-page]').forEach((page) => page.classList.toggle('active', page.dataset.page === name)); document.querySelectorAll('[data-view]').forEach((button) => button.classList.toggle('active', button.dataset.view === name)); if (persist) writeView(name); }
 function selectConversation(id) { state.activeConversation = id; writeConversationHash(id); showView('chat'); refresh(); }
-function newChat() { state.activeConversation = null; state.messages = []; writeConversationHash(null); showView('chat'); renderChat(); $('chat-input').focus(); }
+async function newChat() { const attachments = [...state.pendingAttachments]; state.pendingAttachments = []; await Promise.allSettled([...new Set(attachments.map((item) => item.id))].map((id) => api(`/api/artifacts/${id}`, { method: 'DELETE' }))); state.activeConversation = null; state.messages = []; writeConversationHash(null); showView('chat'); renderChat(); $('chat-input').focus(); }
 function syncDataClass() { const metadata = state.status?.capabilities.find((item) => item.capability === $('task-capability').value); if (!metadata) return; const select = $('task-data-class'); [...select.options].forEach((option) => { option.disabled = !metadata.dataClasses.includes(option.value); }); if (!metadata.dataClasses.includes(select.value)) select.value = metadata.dataClasses[0]; }
 
 $('new-chat').addEventListener('click', newChat);

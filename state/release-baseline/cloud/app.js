@@ -10,6 +10,7 @@ const state = {
   repository: null, commit: null, issues: [], pulls: [], runs: [], releases: [], messages: [],
   connection: 'detecting', transport: null, currentRun: null, currentConversationId: null,
   sessions: [], lastRequest: null, capabilities: [], improvement: null,
+  pendingAttachments: [], renderedMessageIds: new Set(), pendingTaskMessage: null,
 };
 
 class LoopbackTransport {
@@ -20,6 +21,20 @@ class LoopbackTransport {
     return response.json();
   }
   async start(input) { return this.request('/api/v2/runs', { method: 'POST', body: JSON.stringify(input) }); }
+  async chat(input) { return this.request('/api/chat', { method: 'POST', body: JSON.stringify(input) }); }
+  async tasks() { return (await this.request('/api/tasks')).tasks || []; }
+  async messages(conversationId) { return (await this.request(`/api/conversations/${encodeURIComponent(conversationId)}/messages`)).messages || []; }
+  async messageContent(message) {
+    const query = new URLSearchParams({ ownerType: 'message', ownerId: message.id, classification: message.classification });
+    const response = await fetch(`/api/content/${message.contentReference}?${query}`, { credentials: 'same-origin', headers: { Accept: 'text/plain' } });
+    if (!response.ok) throw new Error(`message-content-${response.status}`);
+    return response.text();
+  }
+  async upload(file) {
+    const response = await fetch('/api/artifacts', { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json', 'Content-Type': file.type || 'application/octet-stream', 'X-Mahoraga-File-Name': encodeURIComponent(file.name || 'attachment'), 'X-Mahoraga-File-Source': 'cloud-composer' }, body: file });
+    const value = await response.json().catch(() => ({})); if (!response.ok) throw new Error(value.error || `artifact-${response.status}`); return value.artifact;
+  }
+  async removeArtifact(id) { return this.request(`/api/artifacts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
   async events(runId, afterEventId = 0) {
     const response = await fetch(`/api/v2/runs/${encodeURIComponent(runId)}/events?after=${afterEventId}`, { credentials: 'same-origin', headers: { Accept: 'text/event-stream' } });
     if (!response.ok) throw new Error(`run-events-${response.status}`);
@@ -147,7 +162,11 @@ function bindInterface() {
   document.querySelectorAll('[data-new-cloud-task]').forEach((button) => button.addEventListener('click', () => { startNewConversation(); showView('workspace'); }));
   document.querySelectorAll('[data-skill-preset]').forEach((button) => button.addEventListener('click', () => { setPrompt(skillPrompts[button.dataset.skillPreset] || skillPrompts.auto); showView('workspace'); }));
   $('task-text').addEventListener('input', () => { resizeComposer(); renderClassificationPreview(); });
+  $('task-text').addEventListener('paste', pasteAttachments);
   $('conversation-composer').addEventListener('submit', submitConversation);
+  $('attach-files').addEventListener('click', () => $('file-input').click());
+  $('file-input').addEventListener('change', (event) => addAttachments(event.target.files));
+  $('chat-search').addEventListener('input', renderRecentChats);
   $('cancel-run').addEventListener('click', cancelCurrentRun);
   $('retry-run').addEventListener('click', retryLastRun);
   $('session-select').addEventListener('change', selectSession);
@@ -174,11 +193,24 @@ async function submitConversation(event) {
   event.preventDefault();
   const input = $('task-text'); const content = input.value.trim();
   if (!content || state.currentRun) { input.focus(); return; }
-  const classification = classifyTask(content);
-  appendMessage('user', content); state.messages.push({ role: 'user', classification: classification.id });
+  const classification = classifyTask(content); const attachmentIds = state.pendingAttachments.map((item) => item.artifact.id);
+  appendMessage('user', content, { attachments: state.pendingAttachments.map((item) => item.artifact) }); state.messages.push({ role: 'user', classification: classification.id });
   input.value = ''; resizeComposer(); renderClassificationPreview();
-  state.lastRequest = { content, classification: 'local-only' };
+  state.lastRequest = { content, mode: $('chat-mode').value, classification: 'local-only' };
   try {
+    if (typeof state.transport.chat === 'function') {
+      const result = await state.transport.chat({ conversationId: state.currentConversationId, content, mode: $('chat-mode').value, attachmentIds, idempotencyKey: `ui-${crypto.randomUUID()}` });
+      state.pendingAttachments = []; renderAttachmentTray();
+      state.currentConversationId = result.conversation.id; rememberSession(result.conversation.id, content);
+      if (result.task) {
+        clearPendingTaskMessage();
+        state.pendingTaskMessage = appendMessage('assistant', result.decision.mode === 'ask' ? 'Thinking through your question…' : 'Executing the requested action…', { label: result.task.status || 'queued', state: 'connected' });
+        await watchTask(result.task.id, result.conversation.id);
+      } else {
+        appendMessage('assistant', 'Action accepted. Mahoraga created a bounded six-stage implementation, verification, and integration objective.', { label: 'executing', state: 'connected' });
+      }
+      return;
+    }
     const result = await state.transport.start({ conversationId: state.currentConversationId, content, classification: 'local-only', attachmentCount: 0, idempotencyKey: `ui-${crypto.randomUUID()}` });
     state.currentRun = result.run; state.currentConversationId = result.run.conversationId;
     rememberSession(result.run.conversationId);
@@ -188,6 +220,37 @@ async function submitConversation(event) {
   } catch (error) {
     appendMessage('assistant', `Run was rejected: ${publicError(error)}`, { label: 'failed', state: 'staged' });
     finishRun();
+  }
+}
+
+async function watchTask(taskId, conversationId) {
+  try {
+    for (let attempt = 0; attempt < 120; attempt += 1) {
+      const task = (await state.transport.tasks()).find((item) => item.id === taskId);
+      if (task && ['completed', 'failed', 'waiting', 'cancelled'].includes(task.status)) {
+        clearPendingTaskMessage();
+        await renderConversationMessages(conversationId);
+        if (task.status !== 'completed') appendMessage('assistant', `The action stopped: ${task.errorCode || task.status}.`, { label: task.status, state: 'staged' });
+        finishRun(); return;
+      }
+      await delay(750);
+    }
+    appendMessage('assistant', 'This action is still running. You can continue using Mahoraga while it finishes.', { label: 'running', state: 'connected' });
+  } catch (error) { appendMessage('assistant', `I could not refresh the result: ${publicError(error)}`, { label: 'refresh failed', state: 'staged' }); }
+}
+
+async function renderConversationMessages(conversationId) {
+  const messages = await state.transport.messages(conversationId);
+  for (const message of messages) {
+    if (state.renderedMessageIds.has(message.id)) continue;
+    state.renderedMessageIds.add(message.id);
+    if (message.role === 'assistant' || message.role === 'system') {
+      let content = message.content;
+      if (!content && message.contentReference && typeof state.transport.messageContent === 'function') {
+        try { content = await state.transport.messageContent(message); } catch { content = 'The private response could not be opened in this session.'; }
+      }
+      appendMessage(message.role === 'assistant' ? 'assistant' : 'system', content || 'The response did not include displayable content.', { label: message.role === 'assistant' ? 'completed' : 'system' });
+    }
   }
 }
 
@@ -213,7 +276,8 @@ async function cancelCurrentRun() {
   finishRun();
 }
 async function retryLastRun() { if (!state.lastRequest) return; $('task-text').value = state.lastRequest.content; await submitConversation(new Event('submit')); }
-function finishRun() { state.currentRun = null; $('cancel-run').disabled = true; $('retry-run').disabled = !state.lastRequest; }
+function clearPendingTaskMessage() { state.pendingTaskMessage?.remove(); state.pendingTaskMessage = null; }
+function finishRun() { clearPendingTaskMessage(); state.currentRun = null; $('cancel-run').disabled = true; $('retry-run').disabled = !state.lastRequest; }
 
 async function pairRelay() {
   const offer = $('pair-code').value.trim(); if (!offer) return $('pair-code').focus();
@@ -260,16 +324,46 @@ function appendMessage(role, content, metadata = {}) {
   const article = document.createElement('article'); article.className = `message ${role}`;
   if (role === 'assistant') { const icon = document.createElement('img'); icon.src = './mark.svg'; icon.alt = ''; icon.width = 28; icon.height = 28; article.append(icon); }
   const body = document.createElement('div'); const author = document.createElement('strong'); author.textContent = role === 'user' ? 'You' : 'Mahoraga';
-  const paragraph = document.createElement('p'); paragraph.textContent = String(content); body.append(author, paragraph);
+  const rich = document.createElement('div'); rich.className = 'message-content'; appendRichContent(rich, String(content)); body.append(author, rich);
+  if (metadata.attachments?.length) { const files = document.createElement('div'); files.className = 'message-attachments'; for (const item of metadata.attachments) { const chip = document.createElement('span'); chip.textContent = `${item.name} · ${formatBytes(item.sizeBytes)}`; files.append(chip); } body.append(files); }
   if (metadata.label) { const status = document.createElement('span'); status.className = `message-state ${metadata.state || ''}`; status.textContent = metadata.label; body.append(status); }
+  if (role === 'assistant') { const actions = document.createElement('div'); actions.className = 'message-actions'; const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy'; copy.addEventListener('click', () => copyText(String(content))); actions.append(copy); body.append(actions); }
   article.append(body); $('conversation-thread').append(article); article.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); return article;
 }
-function startNewConversation() { const thread = $('conversation-thread'); while (thread.children.length > 1) thread.lastElementChild.remove(); state.messages = []; state.currentConversationId = null; state.currentRun = null; setPrompt(''); finishRun(); $('session-select').value = 'new'; }
-function rememberSession(conversationId) { if (!state.sessions.includes(conversationId)) { state.sessions.push(conversationId); const option = document.createElement('option'); option.value = conversationId; option.textContent = `Session ${state.sessions.length}`; $('session-select').append(option); } $('session-select').value = conversationId; }
+async function startNewConversation() { await discardPendingAttachments(); clearPendingTaskMessage(); const thread = $('conversation-thread'); while (thread.children.length > 1) thread.lastElementChild.remove(); state.messages = []; state.renderedMessageIds.clear(); state.currentConversationId = null; state.currentRun = null; setPrompt(''); finishRun(); $('session-select').value = 'new'; }
+function rememberSession(conversationId, content = '') { if (!state.sessions.some((item) => item.id === conversationId)) { const session = { id: conversationId, title: conversationTitle(content) }; state.sessions.unshift(session); const option = document.createElement('option'); option.value = conversationId; option.textContent = session.title; $('session-select').append(option); } $('session-select').value = conversationId; renderRecentChats(); }
 function selectSession() { state.currentConversationId = $('session-select').value === 'new' ? null : $('session-select').value; }
 function setPrompt(value) { $('task-text').value = value || ''; resizeComposer(); renderClassificationPreview(); $('task-text').focus(); }
 function renderClassificationPreview() { const value = $('task-text').value.trim(); $('classification-preview').textContent = value ? classifyTask(value).label : 'Auto'; }
 function resizeComposer() { const input = $('task-text'); input.style.height = 'auto'; input.style.height = `${Math.min(input.scrollHeight, 190)}px`; }
+
+async function addAttachments(fileList) {
+  if (!(state.transport instanceof LoopbackTransport)) return toast('Private attachment upload requires the local secure bridge.');
+  const known = new Set(state.pendingAttachments.map((item) => fileFingerprint(item.file)));
+  for (const file of Array.from(fileList || [])) {
+    const fingerprint = fileFingerprint(file); if (known.has(fingerprint)) continue; known.add(fingerprint);
+    try { const artifact = await state.transport.upload(file); state.pendingAttachments.push({ file, artifact }); renderAttachmentTray(); }
+    catch (error) { toast(`Attachment rejected: ${publicError(error)}`); }
+  }
+  $('file-input').value = '';
+}
+function pasteAttachments(event) { const files = Array.from(event.clipboardData?.files || []); if (files.length) addAttachments(files); }
+function fileFingerprint(file) { return [file?.name || 'attachment', Number(file?.size || 0), file?.type || 'application/octet-stream'].join(':'); }
+function renderAttachmentTray() {
+  const tray = $('attachment-tray'); tray.replaceChildren(...state.pendingAttachments.map((entry) => {
+    const chip = document.createElement('span'); const label = document.createElement('b'); label.textContent = `${entry.artifact.name} · ${formatBytes(entry.artifact.sizeBytes)}`;
+    const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', `Remove ${entry.artifact.name}`);
+    remove.addEventListener('click', async () => { try { await state.transport.removeArtifact(entry.artifact.id); } catch {} state.pendingAttachments = state.pendingAttachments.filter((item) => item.artifact.id !== entry.artifact.id); renderAttachmentTray(); });
+    chip.append(label, remove); return chip;
+  }));
+}
+async function discardPendingAttachments() { const items = [...state.pendingAttachments]; state.pendingAttachments = []; renderAttachmentTray(); if (typeof state.transport?.removeArtifact === 'function') await Promise.allSettled([...new Set(items.map((item) => item.artifact.id))].map((id) => state.transport.removeArtifact(id))); }
+function renderRecentChats() { const query = $('chat-search').value.trim().toLowerCase(); const items = state.sessions.filter((item) => item.title.toLowerCase().includes(query)).map((item) => { const button = document.createElement('button'); button.type = 'button'; button.textContent = item.title; button.classList.toggle('active', item.id === state.currentConversationId); button.addEventListener('click', () => { state.currentConversationId = item.id; $('session-select').value = item.id; renderRecentChats(); showView('workspace'); }); return button; }); const empty = document.createElement('p'); empty.textContent = query ? 'No matching chats' : 'No conversations yet'; $('recent-chat-list').replaceChildren(...(items.length ? items : [empty])); }
+function conversationTitle(content) { return String(content || 'New chat').replace(/^(?:can you|could you|would you|please|tell me|help me)\s+/i, '').replace(/[?.!]+$/, '').slice(0, 52) || 'New chat'; }
+function appendRichContent(container, source) { let list = null; for (const raw of source.split(/\r?\n/)) { const line = raw.trimEnd(); const heading = line.match(/^(#{1,3})\s+(.+)/); const bullet = line.match(/^[-*]\s+(.+)/); if (bullet) { if (!list) { list = document.createElement('ul'); container.append(list); } const item = document.createElement('li'); appendInline(item, bullet[1]); list.append(item); continue; } list = null; const node = document.createElement(heading ? `h${Math.min(heading[1].length + 2, 5)}` : 'p'); appendInline(node, heading ? heading[2] : line || ' '); container.append(node); } }
+function appendInline(node, text) { const parts = String(text).split(/(`[^`]+`)/g); for (const part of parts) { const child = /^`[^`]+`$/.test(part) ? document.createElement('code') : document.createTextNode(part); if (child.nodeType === 1) child.textContent = part.slice(1, -1); node.append(child); } }
+function formatBytes(value) { const bytes = Number(value || 0); return bytes < 1024 ? `${bytes} B` : bytes < 1048576 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / 1048576).toFixed(1)} MB`; }
+function copyText(value) { const field = document.createElement('textarea'); field.value = value; field.setAttribute('readonly', ''); field.style.position = 'fixed'; field.style.opacity = '0'; document.body.append(field); field.select(); const copied = document.execCommand('copy'); field.remove(); toast(copied ? 'Answer copied' : 'Copy unavailable'); }
 
 async function refreshCloudState(manual = false) {
   if (manual) $('refresh').disabled = true;

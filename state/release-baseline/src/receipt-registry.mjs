@@ -22,7 +22,7 @@ export function createCapabilityReceipt(capability, result, {
   const outcome = result.waitingForUser === true ? "waiting" : verified ? "succeeded" : "failed";
   const providerEvidence = sanitizeRecord(result.providerReceipt ?? result.receiptMetadata ?? result.providerHealth ?? {});
   const outputEvidence = sanitizeRecord(Object.fromEntries(Object.entries(result).filter(([key]) => ![
-    "summary", "verified", "waitingForUser", "prompt", "providerReceipt", "receiptMetadata", "providerHealth",
+    "answer", "summary", "verified", "waitingForUser", "prompt", "providerReceipt", "receiptMetadata", "providerHealth",
   ].includes(key))));
   const details = Object.freeze({ family, verified, providerEvidence, outputEvidence });
   const detailsDigest = digest(canonical(details));

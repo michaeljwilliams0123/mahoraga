@@ -25,6 +25,7 @@ import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-po
 import { autonomyPolicySnapshot } from "./autonomy-policy.mjs";
 import { createAutonomousConversation, createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
+import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 
 const WEB_ROOT = path.join(ROOT, "cloud");
 const STATIC = new Map([
@@ -206,10 +207,37 @@ export function createControlServer({
       });
       if (request.method === "GET" && url.pathname === "/api/world-state") return json(response, 200, await observeWorldState({ manifest, database, supervisor }));
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
+      if (request.method === "POST" && url.pathname === "/api/chat") {
+        const body = await bodyJson(request);
+        const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+        const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
+        const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
+        if (decision.execution === "unavailable") return json(response, 503, { error: decision.reasonCode, decision });
+        const title = chatConversationTitle(body.content);
+        if (decision.execution === "objective") {
+          const result = body.conversationId
+            ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind })
+            : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind });
+          const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
+          return json(response, 202, { decision, conversation, task: null, objective: result.objective });
+        }
+        let conversation;
+        if (body.conversationId) {
+          conversation = database.getConversation(body.conversationId);
+          if (!conversation) return json(response, 404, { error: "conversation-not-found" });
+          database.addConversationMessage({ conversationId: conversation.id, role: "user", content: body.content, attachments });
+        } else {
+          conversation = database.createConversation({ title, initialMessage: body.content, attachments, classification: "local-only" });
+        }
+        const task = submitTask(database, manifest, { intent: decision.capability, requestedOutcome: body.content, priority: "high", maximumAttempts: decision.capability === "assistant.respond" ? 1 : undefined, taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey }, {
+          source: "control-center-chat", internal: false,
+          attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
+        });
+        return json(response, 202, { decision, conversation, task, objective: null });
+      }
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        return json(response, 201, { conversation: database.createConversation({ title: body.title, initialMessage: body.initialMessage ?? null, attachments, classification: body.classification ?? "local-only" }) });
         const result = createAutonomousConversation({
           database,
           policy: autonomyPolicy,

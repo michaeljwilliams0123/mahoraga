@@ -17,7 +17,7 @@ const STOP_WORDS = new Set([
 export function evaluateAnswerQuality({ task, result }) {
   if (!task || typeof task !== "object") throw new TypeError("answer-quality-task-required");
   if (!result || typeof result !== "object") throw new TypeError("answer-quality-result-required");
-  const summary = normalize(result.summary);
+  const summary = normalize(result.answer ?? result.summary);
   const criteria = normalize(task.completionCriteria ?? "worker-verified");
   const requestedOutcome = normalize(task.requestedOutcome ?? task.capability ?? "task completion");
   const declared = completionEvidence(result.completionEvidence);

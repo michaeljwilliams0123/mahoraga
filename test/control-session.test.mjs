@@ -47,6 +47,8 @@ test("cookie auth and same-origin mutation checks are explicit", () => {
   const request = { headers: { cookie: `${CONTROL_SESSION_COOKIE}=${sessionId}`, origin: "http://127.0.0.1:4782" } };
   assert.deepEqual(authenticateLocalRequest(request, { primaryToken: "x".repeat(32), sessions }), { authenticated: true, mechanism: "cookie", sessionId });
   assert.equal(cookieMutationOriginAllowed(request, "http://127.0.0.1:4782"), true);
+  assert.equal(cookieMutationOriginAllowed({ headers: { ...request.headers, origin: "http://localhost:4782" } }, "http://127.0.0.1:4782"), true);
+  assert.equal(cookieMutationOriginAllowed({ headers: { ...request.headers, origin: "http://localhost:4783" } }, "http://127.0.0.1:4782"), false);
   assert.equal(cookieMutationOriginAllowed({ headers: { ...request.headers, origin: "http://evil.invalid" } }, "http://127.0.0.1:4782"), false);
   assert.equal(parseCookies(sessionCookie(sessionId, 60_000))[CONTROL_SESSION_COOKIE], sessionId);
 });

@@ -111,7 +111,12 @@ function matchingKey(map, candidate) {
 }
 
 function sameOrigin(value, expected) {
-  try { return new URL(value).origin === expected; } catch { return false; }
+  try {
+    const actual = new URL(value); const required = new URL(expected);
+    if (actual.origin === required.origin) return true;
+    const loopback = new Set(["127.0.0.1", "localhost", "[::1]"]);
+    return actual.protocol === "http:" && required.protocol === "http:" && actual.port === required.port && loopback.has(actual.hostname) && loopback.has(required.hostname);
+  } catch { return false; }
 }
 
 function singleHeader(value) {
