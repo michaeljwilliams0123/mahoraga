@@ -1,65 +1,19 @@
 {
-  "name": "@assistant-ui/monorepo",
+  "name": "@assistant-ui/social-media",
   "private": true,
-  "engines": {
-    "node": ">=24"
-  },
+  "type": "module",
   "scripts": {
-    "cleanup": "bash scripts/cleanup-monorepo.sh",
-    "docs:dev": "turbo run dev --filter=@assistant-ui/docs",
-    "ci:version": "changeset version && pnpm install --no-frozen-lockfile",
-    "ci:publish": "turbo build --filter=\"./packages/*\" && changeset publish",
-    "build": "turbo build --concurrency=4",
-    "api-surface": "pnpm api-surface:build && node scripts/generate-api-surface.mjs",
-    "api-surface:build": "pnpm exec turbo build --filter='./packages/*'",
-    "api-surface:check": "node scripts/check-api-surface.mjs",
-    "api-surface:test": "node --test scripts/generate-api-surface.test.mjs scripts/lib/workspace.test.mjs",
-    "changeset-semver:check": "node scripts/check-changeset-semver.mjs",
-    "changeset-semver:test": "node --test scripts/check-changeset-semver.test.mjs",
-    "changesets:check": "node scripts/check-changesets.mjs",
-    "changesets:test": "node --test scripts/check-changesets.test.mjs",
-    "declarations:check": "node scripts/check-built-declarations.mjs",
-    "declarations:test": "node --test scripts/check-built-declarations.test.mjs",
-    "workspace-ranges:check": "node scripts/check-workspace-ranges.mjs",
-    "workspace-ranges:test": "node --test scripts/check-workspace-ranges.test.mjs",
-    "unmanaged-pins:check": "node scripts/check-unmanaged-pins.mjs",
-    "unmanaged-pins:test": "node --test scripts/check-unmanaged-pins.test.mjs",
-    "lint": "pnpm exec oxlint && pnpm exec oxfmt --check",
-    "check:resource-memo": "node packages/x-buildutils/check-resource-memoization.mjs",
-    "lint:fix": "pnpm exec oxlint --fix && pnpm exec oxfmt",
-    "format": "pnpm exec oxfmt --check",
-    "format:fix": "pnpm exec oxfmt",
-    "sync-templates": "bash scripts/sync-templates.sh",
-    "test": "turbo test && pnpm test:react-compiler && pnpm test:types",
-    "test:react-compiler": "turbo test:react-compiler --filter=@assistant-ui/ai-sdk --filter=@assistant-ui/core --filter=@assistant-ui/store",
-    "test:types": "pnpm -r --workspace-concurrency=4 --no-bail exec sh -c '! test -f tsconfig.json || tsc --noEmit'",
-    "prepare": "husky && pnpm --filter @assistant-ui/react-devtools run build:css",
-    "deps:check": "npx taze major -f -r",
-    "deps:update": "bash scripts/update-deps.sh"
+    "build": "tsx src/build.tsx",
+    "dev": "tsx src/watch.tsx"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
+    "satori": "^0.33.4"
   },
   "devDependencies": {
-    "@assistant-ui/x-changelog": "workspace:*",
-    "@changesets/cli": "^3.0.1",
-    "husky": "^9.1.7",
-    "lint-staged": "^17.4.1",
-    "oxfmt": "^0.65.0",
-    "oxlint": "^1.80.0",
-    "pkg-pr-new": "^0.0.88",
-    "sharp": "0.35.3",
-    "turbo": "^2.10.12",
+    "@types/react": "^19.2.18",
+    "react": "^19.2.8",
+    "tsx": "^4.23.13",
     "typescript": "^7.0.2"
-  },
-  "packageManager": "pnpm@12.1.0",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,cjs,mjs,cts,mts,json,jsonc}": [
-      "oxlint --fix --no-error-on-unmatched-pattern",
-      "oxfmt --no-error-on-unmatched-pattern"
-    ]
-  },
-  "browserslist": [
-    "chrome 111",
-    "edge 111",
-    "firefox 111",
-    "safari 16.4"
-  ]
+  }
 }
