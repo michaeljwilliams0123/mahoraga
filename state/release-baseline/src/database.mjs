@@ -1071,9 +1071,10 @@ export class RuntimeDatabase {
     return this.getTask(id);
   }
 
-  completeTaskWithReceipt(id, value) {
+  completeTaskWithReceipt(id, value, { conversationContent = null } = {}) {
     const task = this.getTask(id);
     if (!task) throw new TypeError("Receipt task is missing.");
+    if (conversationContent !== null) boundedMultiline(conversationContent, 12000, "conversation completion");
     const receipt = validateCapabilityReceipt(task.capability, value);
     const status = receipt.outcome === "succeeded" ? "completed" : receipt.outcome === "waiting" ? "waiting" : "failed";
     const errorCode = status === "failed" ? "verification-failed" : null;
@@ -1090,7 +1091,8 @@ export class RuntimeDatabase {
     });
     if (task.conversationId) this.addConversationMessage({
       conversationId: task.conversationId, taskId: id,
-      role: status === "completed" ? "assistant" : "system", content: receipt.summary,
+      role: status === "completed" ? "assistant" : "system",
+      content: status === "completed" && conversationContent !== null ? conversationContent : receipt.summary,
     });
     return completed;
   }

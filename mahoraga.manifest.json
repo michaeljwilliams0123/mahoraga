@@ -218,7 +218,6 @@
         "local-only"
       ],
       "capabilities": [
-        "assistant.respond",
         "provider.gap",
         "artifact.inspect",
         "system.health",
@@ -235,7 +234,6 @@
       "concurrency": 1,
       "healthProbe": "system.health",
       "capabilityCanaries": {
-        "assistant.respond": "direct",
         "provider.gap": "direct",
         "artifact.inspect": "direct",
         "system.health": "health",
@@ -249,6 +247,43 @@
         "requiresAttendedDesktop": false,
         "executionType": "isolated-process",
         "latencyMs": 25,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "question-model",
+      "label": "Mahoraga Question Model",
+      "version": "cli-adapter-1",
+      "enabled": true,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "assistant.health",
+        "assistant.respond"
+      ],
+      "acceptedTaskTypes": [
+        "assistant"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "assistant.health",
+      "capabilityCanaries": {
+        "assistant.health": "health",
+        "assistant.respond": "provider-derived"
+      },
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "transient-question-model",
+        "reliability": 94,
+        "requiresAttendedDesktop": false,
+        "executionType": "transient-read-only",
+        "latencyMs": 2500,
         "maximumWorkload": 1,
         "fallbackWorkerIds": []
       }

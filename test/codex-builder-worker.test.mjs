@@ -51,6 +51,20 @@ test("Codex CLI discovery is fixed to the user-level package or sandbox binary",
   assert.equal(seen.length, 1);
 });
 
+test("Codex CLI discovery falls back to the fixed per-user Codex package", async () => {
+  const seen = [];
+  const resolved = await findInstalledCodexCli({
+    localAppData: "C:\\Users\\Owner\\AppData\\Local",
+    listPnpmPackages: async () => ["@openai+codex@0.145.0", "@openai+codex@0.145.0-win32-x64"],
+    canAccess: async (candidate) => { seen.push(candidate); if (!candidate.includes("CodexCLI")) throw Object.assign(new Error("missing"), { code: "ENOENT" }); },
+    resolveRealpath: async (candidate) => candidate,
+  });
+  assert.match(resolved, /Programs[\\/]CodexCLI[\\/]node_modules[\\/]\.pnpm/);
+  assert.match(resolved, /@openai\+codex@0\.145\.0-win32-x64/);
+  assert.equal(path.basename(resolved), "codex.exe");
+  assert.equal(seen.length, 2);
+});
+
 test("manifest rejects disabling direct task-scoped Codex execution or widening the sandbox", async () => {
   const manifest = structuredClone(await loadManifest());
   const adapter = manifest.workers.find((worker) => worker.id === "primary-codex-builder").adapter;

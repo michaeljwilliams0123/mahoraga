@@ -111,13 +111,26 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
   };
 }
 
-export async function findInstalledCodexCli({ canAccess = access, resolveRealpath = realpath } = {}) {
-  const candidate = BUNDLED_CODEX_EXECUTABLE;
-  const trustedRoots = [path.join(ROOT, "node_modules", "@openai", "codex", "vendor")];
-  try {
-    await canAccess(candidate);
-    if (await isTrustedCodexExecutable(candidate, trustedRoots, resolveRealpath)) return candidate;
-  } catch { /* fall through to ENOENT */ }
+export async function findInstalledCodexCli({ canAccess = access, resolveRealpath = realpath, listPnpmPackages = readdir, localAppData = process.env.LOCALAPPDATA } = {}) {
+  const repositoryRoot = path.join(ROOT, "node_modules", "@openai", "codex", "vendor");
+  const candidates = [{ executable: BUNDLED_CODEX_EXECUTABLE, trustedRoots: [repositoryRoot] }];
+  const normalizedLocalAppData = typeof localAppData === "string" && path.isAbsolute(localAppData) && /[\\/]AppData[\\/]Local$/i.test(path.resolve(localAppData)) ? path.resolve(localAppData) : null;
+  if (normalizedLocalAppData) {
+    const pnpmRoot = path.join(normalizedLocalAppData, "Programs", "CodexCLI", "node_modules", ".pnpm");
+    try {
+      const packages = (await listPnpmPackages(pnpmRoot)).filter((name) => /^@openai\+codex@[0-9][^\\/]*-win32-x64$/.test(name)).sort().reverse();
+      for (const name of packages) {
+        const vendorRoot = path.join(pnpmRoot, name, "node_modules", "@openai", "codex", "vendor");
+        candidates.push({ executable: path.join(vendorRoot, "x86_64-pc-windows-msvc", "bin", "codex.exe"), trustedRoots: [vendorRoot] });
+      }
+    } catch { /* user-level package is optional */ }
+  }
+  for (const candidate of candidates) {
+    try {
+      await canAccess(candidate.executable);
+      if (await isTrustedCodexExecutable(candidate.executable, candidate.trustedRoots, resolveRealpath)) return candidate.executable;
+    } catch { /* try the next fixed trusted candidate */ }
+  }
   throw Object.assign(new Error("codex-builder-cli-not-found"), { code: "ENOENT" });
 }
 
@@ -148,7 +161,7 @@ async function probeCodexCli(dependencies) {
 async function runCodexTask(envelope, adapter, dependencies) {
   const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
   const workingDirectory = trustedExecutionCellDirectory({ path: envelope.workingDirectory, cellsRoot: envelope.executionCellRoot });
-  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "--ask-for-approval", adapter.approvalPolicy, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", workingDirectory, "-"], envelope.prompt, workingDirectory, adapter, dependencies);
+  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "-c", `approval_policy=\"${adapter.approvalPolicy}\"`, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", workingDirectory, "-"], envelope.prompt, workingDirectory, adapter, dependencies);
   const events = parseEvents(result.stdout);
   return { exitCode: result.exitCode, completed: events.completed, threadId: events.threadId, usage: events.usage, outputSha256: digest(events.finalText) };
 }

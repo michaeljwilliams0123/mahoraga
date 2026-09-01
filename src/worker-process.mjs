@@ -12,6 +12,7 @@ import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
+import { executeQuestionModel, probeQuestionModel } from "./question-model.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -98,11 +99,10 @@ async function execute(capability, task) {
   if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
   if (capability.startsWith("m365.")) return executeMicrosoft365Capability(capability, task, worker);
   switch (capability) {
+    case "assistant.health":
+      return probeQuestionModel();
     case "assistant.respond":
-      return {
-        verified: true,
-        summary: `I saved this assignment in our durable conversation: ${String(task?.requestedOutcome ?? "Continue the assignment").replace(/\s+/g, " ").trim().slice(0, 240)}. I will keep the context available while you are away.`,
-      };
+      return executeQuestionModel({ task });
     case "provider.gap":
       return {
         verified: true,

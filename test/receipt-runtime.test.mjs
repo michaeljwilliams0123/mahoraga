@@ -32,3 +32,25 @@ test("malformed receipts leave a running task available for safe failure", (t) =
   assert.equal(database.getTask(task.id).status, "verifying");
   assert.equal(database.failTaskSafely(task.id, { errorCode: "receipt-invalid", resultSummary: "Worker completion rejected." }).status, "failed");
 });
+
+test("conversation completion preserves the detailed answer while the receipt stays bounded", (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-answer-receipt-"));
+  const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { allowLegacyPlaintextWrites: true });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+  const conversation = database.createConversation({ title: "Rain", initialMessage: "Why does it rain?" });
+  const task = database.submitTask({
+    capability: "assistant.respond", dataClass: "local-only", idempotencyKey: "receipt-detailed-answer",
+    requestedOutcome: "Why does it rain?", conversationId: conversation.id, allowedWorkerIds: ["question-model"],
+  });
+  database.claimNext({ workerId: "question-model", capabilities: ["assistant.respond"], leaseMs: 30_000 });
+  database.markVerifying(task.id, "question-model:test");
+  const answer = "Rain falls when condensed cloud droplets or ice crystals become heavy enough that gravity overcomes the air currents holding them up.";
+  const receipt = createCapabilityReceipt("assistant.respond", { verified: true, summary: "A detailed explanation of rain was produced." });
+
+  database.completeTaskWithReceipt(task.id, receipt, { conversationContent: answer });
+
+  const messages = database.listConversationMessages(conversation.id);
+  assert.equal(messages.at(-1).role, "assistant");
+  assert.equal(messages.at(-1).content, answer);
+  assert.equal(database.getTask(task.id).resultSummary, receipt.summary);
+});

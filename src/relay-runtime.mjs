@@ -1,7 +1,7 @@
 import { deriveRelaySession, openFrame, sealFrame } from "./relay-client.mjs";
 
 const DEFAULT_RELAY_URL = "wss://relay.mahoraga.app/pair";
-const ACTIONS = new Set(["run", "events", "cancel", "capabilities", "improvement"]);
+const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement"]);
 
 export function createRelayRuntimePeer({
   relayUrl = DEFAULT_RELAY_URL,
@@ -14,7 +14,7 @@ export function createRelayRuntimePeer({
   if (relayUrl !== DEFAULT_RELAY_URL) fail("relay-runtime-url-invalid");
   if (!pairing || !pairing.privateKey || !pairing.publicKey || !pairing.publicOffer) fail("relay-runtime-pairing-invalid");
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(deviceId)) fail("relay-runtime-device-invalid");
-  if (!gateway || typeof gateway.createRun !== "function" || typeof gateway.replay !== "function" || typeof gateway.cancelRun !== "function" || typeof gateway.capabilities !== "function") fail("relay-runtime-gateway-invalid");
+  if (!gateway || ["createRun", "chat", "tasks", "messages", "messageContent", "taskAction", "replay", "cancelRun", "capabilities"].some((name) => typeof gateway[name] !== "function")) fail("relay-runtime-gateway-invalid");
   if (typeof WebSocketImpl !== "function") fail("relay-runtime-websocket-invalid");
 
   let socket = null;
@@ -102,6 +102,15 @@ export function createRelayRuntimePeer({
 
   async function dispatch(type, payload) {
     if (type === "run") return gateway.createRun(payload);
+    const context = { attendedSession: { active: true, sessionId: session.sessionId }, mechanism: "owner-paired-relay" };
+    if (type === "chat") {
+      if (Array.isArray(payload?.attachmentIds) && payload.attachmentIds.length > 0) throw error("relay-attachments-local-only");
+      return gateway.chat({ ...payload, attachmentIds: [] }, context);
+    }
+    if (type === "tasks") return { tasks: gateway.tasks(payload?.conversationId, context) };
+    if (type === "messages") return { messages: gateway.messages(payload?.conversationId, context) };
+    if (type === "message-content") return gateway.messageContent(payload, context);
+    if (type === "task-action") return gateway.taskAction(payload, context);
     if (type === "events") return gateway.replay(payload?.runId, payload?.afterEventId ?? 0);
     if (type === "cancel") return gateway.cancelRun(payload?.runId);
     if (type === "capabilities") return { capabilities: gateway.capabilities() };
