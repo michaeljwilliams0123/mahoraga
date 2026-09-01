@@ -3,11 +3,13 @@ import { access, realpath } from 'node:fs/promises';
 import path from 'node:path';
 
 // Validate that a string is a safe argument (no shell metacharacters)
+// Note: spawn() passes args as array elements, NOT through shell interpretation.
+// Only backticks, $(...), and ${ } for shell substitution are truly dangerous.
 export function validateArgument(arg) {
   if (typeof arg !== 'string') throw new Error('argument-must-be-string');
   if (arg.length === 0) throw new Error('argument-empty');
-  // Reject shell metacharacters and null bytes
-  if (/[\x00`$(){}[\]|&;<>'"!*?\\]/.test(arg)) throw new Error('argument-contains-shell-metacharacters');
+  // Reject only genuine shell-substitution metacharacters and null bytes
+  if (/[\x00`$\{]|\$\(/.test(arg)) throw new Error('argument-contains-shell-metacharacters');
   return arg;
 }
 

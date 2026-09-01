@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
-import { spawn, execFile } from "node:child_process";
+import { execFile } from "node:child_process";
+import { safeSpawn, validateWorkingDirectory } from './safe-exec.mjs';
 import { access, readdir, realpath } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -161,13 +162,28 @@ async function probeCodexCli(dependencies) {
 async function runCodexTask(envelope, adapter, dependencies) {
   const executable = await (dependencies.resolveExecutable ?? findInstalledCodexCli)(dependencies);
   const workingDirectory = trustedExecutionCellDirectory({ path: envelope.workingDirectory, cellsRoot: envelope.executionCellRoot });
-  const result = await spawnCodex(executable, ["exec", "--ephemeral", "--sandbox", adapter.sandbox, "-c", `approval_policy=\"${adapter.approvalPolicy}\"`, "-c", "sandbox_workspace_write.network_access=false", "--ignore-user-config", "--json", "-C", workingDirectory, "-"], envelope.prompt, workingDirectory, adapter, dependencies);
+  
+  // Validate adapter properties before using them in command line
+  const sandbox = /^(read-only|full|ephemeral)$/.test(adapter.sandbox) ? adapter.sandbox : 'read-only';
+  const approvalPolicy = /^(always|never|required)$/.test(adapter.approvalPolicy) ? adapter.approvalPolicy : 'never';
+  
+  const args = [
+    "exec", "--ephemeral", "--sandbox", sandbox,
+    "-c", `approval_policy="${approvalPolicy}"`,
+    "-c", "sandbox_workspace_write.network_access=false",
+    "--ignore-user-config", "--json",
+    "-C", workingDirectory, "-"
+  ];
+  
+  const result = await spawnCodex(executable, args, envelope.prompt, workingDirectory, adapter, dependencies);
   const events = parseEvents(result.stdout);
   return { exitCode: result.exitCode, completed: events.completed, threadId: events.threadId, usage: events.usage, outputSha256: digest(events.finalText) };
 }
 
+
 function spawnCodex(executable, args, prompt, workingDirectory, adapter, dependencies) {
-  const launch = dependencies.spawn ?? spawn;
+  validateWorkingDirectory(workingDirectory);
+  const launch = dependencies.spawn ?? ((exe, args, opts) => safeSpawn(exe, args, opts));
   return new Promise((resolve, reject) => {
     let stdout = ""; let stderr = ""; let settled = false;
     const child = launch(executable, args, { cwd: workingDirectory, shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: codexEnvironment(dependencies.env) });
