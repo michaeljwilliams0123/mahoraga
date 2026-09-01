@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { safeSpawn } from "./safe-exec.mjs";
 import path from "node:path";
 import { findInstalledCodexCli } from "./codex-builder-worker.mjs";
 import { ROOT } from "./config.mjs";
@@ -83,7 +83,7 @@ export async function runCodexQuestion({ prompt }) {
     let stdout = "";
     let stderr = "";
     let settled = false;
-    const child = spawn(executable, args, { cwd: ROOT, shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: questionEnvironment() });
+    const child = safeSpawn(executable, args, { cwd: ROOT, shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"], env: questionEnvironment() });
     const finish = (error, value) => {
       if (settled) return;
       settled = true;

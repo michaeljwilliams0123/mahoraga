@@ -51,7 +51,10 @@ test("assistant answers render useful structure while keeping HTML inert", () =>
   assert.match(html, /<h2>Why rain forms<\/h2>/);
   assert.match(html, /<ul><li>Cooling air<\/li><li>Droplet growth<\/li><\/ul>/);
   assert.match(html, /<code>humidity<\/code>/);
-  assert.doesNotMatch(html, /<script>/);
+  // Verify no dangerous unescaped tags are present
+  assert.doesNotMatch(html, /(?<!&lt;)<script(?:\s|>|$)/i);
+  assert.doesNotMatch(html, /(?<!&lt;)on\w+\s*=/i);
+  // Verify dangerous content is properly escaped
   assert.match(html, /&lt;script&gt;/);
 });
 
