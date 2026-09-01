@@ -1,19 +1,42 @@
 {
-  "name": "@assistant-ui/social-media",
+  "name": "project-mahoraga-v2",
+  "version": "7.0.0-alpha.1",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
-    "build": "tsx src/build.tsx",
-    "dev": "tsx src/watch.tsx"
-  },
-  "dependencies": {
-    "@resvg/resvg-js": "^2.6.2",
-    "satori": "^0.33.4"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.18",
-    "react": "^19.2.8",
-    "tsx": "^4.23.13",
-    "typescript": "^7.0.2"
+    "start": "node src/cli.mjs start",
+    "start:production": "node src/cli.mjs start",
+    "status": "node src/cli.mjs status",
+    "submit:health": "node src/cli.mjs submit system.health",
+    "coordination:create": "node scripts/coordination.mjs create-assignment",
+    "coordination:complete": "node scripts/coordination.mjs complete-assignment",
+    "coordination:list": "node scripts/coordination.mjs list",
+    "coordination:validate": "node scripts/coordination.mjs validate",
+    "self-upgrade:validate": "node scripts/self-upgrade-instruction.mjs validate",
+    "secondary:configure": "node scripts/secondary-codex-runner.mjs configure",
+    "secondary:status": "node scripts/secondary-codex-runner.mjs status",
+    "secondary:run-once": "node scripts/secondary-codex-runner.mjs run-once",
+    "workspace-agent:health": "node scripts/workspace-agent.mjs health",
+    "workspace-agent:trigger": "node scripts/workspace-agent.mjs trigger",
+    "workspace-agent:status": "node scripts/workspace-agent.mjs status",
+    "codex-cloud:create": "node scripts/codex-cloud-task.mjs create",
+    "codex-cloud:list": "node scripts/codex-cloud-task.mjs list",
+    "codex-cloud:dispatch-bundle": "node scripts/codex-cloud-task.mjs dispatch-bundle",
+    "codex-cloud:validate": "node scripts/codex-cloud-task.mjs validate",
+    "codex-cloud:render": "node scripts/codex-cloud-task.mjs render",
+    "destiny:create": "node scripts/destiny-codex-dispatch.mjs create",
+    "destiny:validate": "node scripts/destiny-codex-dispatch.mjs validate",
+    "cloud-gateway:dispatch": "node scripts/cloud-task-gateway.mjs dispatch",
+    "update:manifest": "node scripts/update-manifest.mjs",
+    "gap:audit": "node scripts/gap-audit.mjs",
+    "github:audit": "node scripts/github-audit.mjs",
+    "providers:probe": "node scripts/provider-readiness.mjs",
+    "verify:conversation-plane": "node --test --test-isolation=none test/run-event-contract.test.mjs test/conversation-gateway.test.mjs test/conversation-plane-smoke.test.mjs test/relay-client.test.mjs test/relay-core.test.mjs test/relay-runtime.test.mjs test/cloudflare-relay-adapter.test.mjs test/relay-deployment-contract.test.mjs test/evidence-compiler.test.mjs test/generated-code-safety.test.mjs test/evolution-controller.test.mjs test/evolution-receipt-smoke.test.mjs test/canonical-cloud-runtime.test.mjs",
+    "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
+    "test": "node --test --test-isolation=none",
+    "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node --test --test-isolation=none"
   }
 }
