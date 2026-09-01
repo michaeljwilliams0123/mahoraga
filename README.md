@@ -1,160 +1,136 @@
-# Mahoraga 7.0 — Truth and Containment alpha
+<a href="https://www.assistant-ui.com">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/header-dark.svg" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/header.svg" />
+    <img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/header.svg" alt="assistant-ui Header" width="100%" />
+  </picture>
+</a>
 
-This branch stages Mahoraga `7.0.0-alpha.1`. It is an isolated candidate, not the
-active Windows production runtime. The last verified production and rollback
-target remains `3.6.0` at commit
-`397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite,
-inactive-runtime smoke, and rollback drill are recorded.
+<p align="center">
+  <a href="https://www.assistant-ui.com">Product</a> ·
+  <a href="https://www.assistant-ui.com/docs">Documentation</a> ·
+  <a href="https://www.assistant-ui.com/examples">Examples</a> ·
+  <a href="https://discord.gg/S9dwgCNEFs">Discord</a> ·
+  <a href="https://cal.com/simon-farshid/assistant-ui">Contact Sales</a>
+</p>
 
-The alpha preserves the Node.js supervisor, process-isolated workers, SQLite WAL
-ledger, loopback API, and browser Control Center while adding authenticated
-sensitive surfaces, server-derived authority, typed receipts, evidence-backed
-routing, isolated Codex worktrees, an encrypted local content vault, and
-incident-only repair records.
+[![npm version](https://img.shields.io/npm/v/@assistant-ui/react)](https://www.npmjs.com/package/@assistant-ui/react)
+[![npm downloads](https://img.shields.io/npm/dm/@assistant-ui/react)](https://www.npmjs.com/package/@assistant-ui/react)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/assistant-ui/assistant-ui)
+[![Weave Badge](https://img.shields.io/endpoint?url=https%3A%2F%2Fapp.workweave.ai%2Fapi%2Frepository%2Fbadge%2Forg_GhSIrtWo37b5B3Mv0At3wQ1Q%2F722184017&cacheSeconds=3600)](https://app.workweave.ai/reports/repository/org_GhSIrtWo37b5B3Mv0At3wQ1Q/722184017)
+![GitHub License](https://img.shields.io/github/license/assistant-ui/assistant-ui)
+[![GitHub stars](https://img.shields.io/github/stars/assistant-ui/assistant-ui)](https://github.com/assistant-ui/assistant-ui)
+![Backed by Y Combinator](https://img.shields.io/badge/Backed_by-Y_Combinator-orange)
 
-## Release truth
+## The UX of ChatGPT in your React app 💬🚀
 
-- Installed candidate metadata: `7.0.0-alpha.1` / Control Center
-  `7.0.0-alpha.1` / API `7.0.0-alpha.1`.
-- Active production baseline: `3.6.0`; this document does not claim it has been
-  replaced or restarted.
-- Verification state: implementation complete through the release-metadata
-  slice; focused and release gates are pending.
-- Provider state: declarations do not imply readiness. A route requires a live
-  process, ready provider, and fresh verified capability canary.
-- Rollback target: `3.6.0` until the alpha canary and rollback drill pass.
+**assistant-ui** is an open-source TypeScript/React library to build production-grade AI chat experiences fast.
 
-## Candidate capabilities
+## Installation
 
-- Canonical `mahoraga.manifest.json` for workers, connections, cost routing, and
-  update authority.
-- Explainable capability registry and ranked routing using interface type, live
-  availability, health, cost, permissions, reliability, latency, workload,
-  execution type, attended-desktop requirements, and explicit fallback workers.
-- Localhost-only control server at `http://127.0.0.1:4782`.
-- Permanent supervisor with worker heartbeats, crash restart, bounded retry, and
-  durable task leases.
-- SQLite task, worker, event, and improvement state using the Node 24 runtime.
-- Isolated `local-core`, `repository`, `browser`, and `self-healer` worker processes.
-- A Mahoraga-owned headless Chrome process on loopback for deterministic browser
-  health and bounded Control Center observation receipts (DOM title hash,
-  screenshot digest/dimensions, network counts, and console counts). No public
-  debugging endpoint is exposed; an unowned loopback CDP endpoint is rejected.
-- A bounded Repository Worker for status, inspection, recent history, and the
-  repository's fixed verification command.
-- Ordinary response-requesting conversation turns create a durable autonomous
-  objective with propose, challenge, synthesis, implementation, verification,
-  and integration nodes. Journal-style messages can explicitly remain notes,
-  while worker questions still survive restart and resume in the same thread.
-- Provider-neutral browser, signed-Chrome, and Windows desktop capability
-  contracts. Mahoraga maps supported behavior without copying proprietary
-  plugin implementations.
-- Control Center 7.0 uses a ChatGPT-style chat-first workspace with conversation
-  history, automatic worker routing, durable message threads, worker receipts in
-  the conversation, and a bottom composer. Task, worker, connection, improvement,
-  and diagnostic controls remain available as compact workspace views. A
-  dedicated Coordination console now exposes Primary-led authority, the
-  assignment-and-return mailbox lifecycle, bounded Secondary branches,
-  deterministic validation, GitHub assurance cards, and a sanitized
-  outbound-runner heartbeat without exposing chats, credentials, local checkout
-  paths, or model output. Operations views are bookmarkable and background tabs
-  stop polling until visible again.
-- Cloud Workspace 2.0 adds a ChatGPT-style GitHub Pages launcher, installed
-  Skills catalog, approvals queue, release dashboard, and read-only activity
-  status. Authenticated task submission, image paste, and file
-  attachment use GitHub's own signed-in issue form; the page stores no token,
-  prompt, attachment, or chat history. An exact owner-authored gateway command
-  idempotently routes an approved issue to Codex cloud or the outbound desktop
-  poller. Deterministic Actions remain visibly separated from explicit model
-  work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
-- A successful exact-`main` verification automatically packages an immutable beta
-  release with a strict SHA-256 manifest and GitHub provenance, without repeating
-  the same full gate. Releases never install themselves; the local runtime may
-  activate one only after verification and a rollback checkpoint. See
-  [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
-- Candidate improvements pass candidate-specific verification before the local
-  runtime activates them. Activation records a receipt and restores the prior
-  release automatically if post-activation checks fail.
-- Authenticated loopback-only Primary Codex intake with server-generated
-  correlation IDs and immutable execution receipts. The local token is runtime
-  state and is never kept in Git or SQLite.
-- Owner-gated, event-driven Destiny Codex dispatch through a hash-bound GitHub
-  pull-request envelope. Trusted `main` validates the immutable base commit,
-  allowed paths, fixed verification profiles, and privacy declaration before
-  work proceeds; `[DESTINY-CODEX:ACK]` is the delivery receipt. See
-  [`docs/DESTINY-CODEX-RELAY.md`](docs/DESTINY-CODEX-RELAY.md).
-- Operational and core repair remain automatic; missing core files are restored
-  from the verified release baseline with receipts and rollback checkpoints.
-- VS Code prompt files for health review, repository drift review, and tested
-  improvement-candidate creation.
+The fastest path is the CLI, which scaffolds a Next.js app or adds the styled components to an existing project:
 
-## Choose the right UI
-
-- **Operate Mahoraga on this Windows machine:** open
-  `http://127.0.0.1:4782`. This is the live Control Center for conversations,
-  workers, tasks, connections, improvements, diagnostics, and Primary/Secondary
-  coordination. Start the supervised runtime first if the page is unavailable.
-- **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
-  select `mahoraga`, choose `main` as the base branch, and start with a
-  read-only prompt such as `Inspect main and report current health; do not
-  modify files or create a pull request.` Use an issue assigned to Copilot when
-  a task should deliberately create a pull request.
-- **Use the Cloud Workspace launcher:** GitHub Pages is optional and public.
-  Mahoraga skips its Pages deployment while the repository is private. In
-  private mode, use GitHub's signed-in Agents, Issues, Pull requests, Actions,
-  and Deployments views instead; the private repository is not a secure
-  private-hosting mechanism for a personal-account Pages site.
-- **Call the Destiny-authenticated Codex:** open an owner-authored pull request
-  to `main` with the exact title `[DESTINY-CODEX] <envelope title>` and one
-  generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
-  the event without an inbound tunnel. Wait for both the read-only validation
-  check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
-
-
-## Candidate lifecycle
-
-Do not use `scripts/start-production.ps1` for this branch before release
-verification. Task 11 starts the candidate against a temporary state copy on
-alternate loopback port `4783`, leaving the `3.6.0` process and state untouched.
-
-After promotion, the production launcher remains the supported start path and
-verifies the declared runtime and Control Center versions before reporting
-readiness.
-
-## Verify
-
-```powershell
-$node = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
-& $node src\cli.mjs validate
-& $node --test --test-isolation=none
+```bash
+npx assistant-ui@latest create   # new project
+npx assistant-ui@latest init     # add to existing project
 ```
 
-GitHub verification, Dependabot, CodeQL, secret scanning, and idle mailbox
-polling are deterministic automation and do not invoke Codex or consume model
-credits. See [`docs/ZERO-CREDIT-AUTOMATION.md`](docs/ZERO-CREDIT-AUTOMATION.md)
-for the exact trigger boundary.
+Or install the packages directly:
 
-## Current candidate state
+```bash
+npm install @assistant-ui/react @assistant-ui/ai-sdk
+```
 
-The repository declares enabled workers, but routability is derived from current
-runtime evidence. An enabled flag or historical connection check is never
-presented as a verified route.
+## Usage
 
-- Deterministic local, repository, repair, browser, Desktop, Microsoft 365, and
-  Primary Codex Builder contracts are present; each remains unroutable when its
-  process, provider, canary, attended-session, or integration-lease evidence is
-  absent or stale.
-- LM Studio, GitHub Copilot, Workspace Agent cloud, Microsoft queue, Copilot
-  Studio delegation, Lenovo AI, and metered OpenAI API routes remain disabled or
-  blocked by their declared prerequisites.
-- New content-bearing writes use the encrypted local vault; SQLite retains
-  bounded references and operational evidence only.
-- Healthy repair scans do not create durable polling tasks or events. Incident
-  transitions are recorded only when the observed condition changes.
+```tsx
+"use client";
 
-## Update model
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { useChatRuntime } from "@assistant-ui/ai-sdk";
+import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 
-Mahoraga may observe incidents, propose a candidate, write a regression test,
-and report verification evidence. Its declared policy permits verified automatic
-activation with rollback after the required gates; this alpha branch itself is
-not activated and cannot use documentation as promotion evidence.
+export function Chat() {
+  const runtime = useChatRuntime();
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread />
+    </AssistantRuntimeProvider>
+  );
+}
+```
+
+`useChatRuntime` connects to the Vercel AI SDK out of the box. Swap it for `useLangGraphRuntime`, `useDataStreamRuntime`, or any custom runtime to integrate with your own backend.
+
+[![assistant-ui starter template](https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/assistant-ui-starter.gif)](https://youtu.be/k6Dc8URmLjk)
+
+## What you get
+
+- **Composable primitives**: build any chat UX from `Thread`, `Message`, `Composer`, `ThreadList`, `ActionBar`, and friends. Style every pixel yourself, or start from a polished shadcn/ui theme that the CLI copies into your project.
+- **Production UX out of the box**: streaming, auto-scroll, retries, attachments, markdown, code highlighting, voice dictation, keyboard shortcuts, and accessibility.
+- **Generative UI**: render tool calls and JSON as React components, collect inline human approvals, and expose safe frontend actions to the model.
+- **Strong TypeScript**: typed runtime APIs, tool schemas, message parts, and adapters end to end.
+
+## Backends
+
+| Integration                            | Package                                                          |
+| -------------------------------------- | ---------------------------------------------------------------- |
+| Vercel AI SDK                          | `@assistant-ui/ai-sdk`                                           |
+| LangGraph / LangChain                  | `@assistant-ui/react-langgraph`, `@assistant-ui/react-langchain` |
+| AG-UI / A2A protocols                  | `@assistant-ui/react-ag-ui`, `@assistant-ui/react-a2a`           |
+| Google ADK / OpenCode                  | `@assistant-ui/react-google-adk`, `@assistant-ui/react-opencode` |
+| Custom data-stream backend             | `@assistant-ui/react-data-stream`                                |
+| Managed thread history, telemetry, and file storage | `assistant-cloud`                                       |
+
+Broad model support out of the box (OpenAI, Anthropic, Google Gemini, Mistral, Perplexity, AWS Bedrock, Azure, Fireworks, Ollama) plus community providers via the AI SDK, and easy extension to any custom HTTP backend.
+
+## Customization
+
+Instead of a single monolithic chat component, you compose primitives and bring your own styles. The CLI ships a great starter in your choice of Base UI (the default) or Radix UI flavor; you control everything else.
+
+![Overview of components](https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/components.png)
+
+Sample customization to make a Perplexity lookalike:
+
+![Perplexity clone created with assistant-ui](https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/perplexity.gif)
+
+## Used in production by
+
+<a href="https://mastra.ai/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Mastra.svg" height="20" alt="Mastra"></a>, <a href="https://langchain.com/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/LangChain.svg" height="20" alt="LangChain"></a>, <a href="https://athenaintelligence.ai/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Athena-Intelligence.svg" height="20" alt="Athena Intelligence"></a>, <a href="https://browser-use.com/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Browser-Use.svg" height="20" alt="Browser Use"></a>, <a href="https://stack-ai.com/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Stack.svg" height="20" alt="Stack"></a>, <a href="https://inconvo.com/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Inconvo.svg" height="20" alt="Inconvo"></a>, <a href="https://iterable.com/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Iterable.svg" height="20" alt="Iterable"></a>, <a href="https://helicone.ai/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/helicone.svg" height="20" alt="Helicone"></a>, <a href="https://getgram.ai/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/gram.svg" height="20" alt="Gram"></a>, <a href="https://coreviz.io/?ref=assistant-ui" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/logos/Coreviz.svg" height="20" alt="Coreviz"></a>, and many more.
+
+![Chart of assistant-ui's traction](https://raw.githubusercontent.com/assistant-ui/assistant-ui/main/.github/assets/traction.png)
+
+## Demos
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://youtu.be/ZW56UHlqTCQ">
+        <img src="https://img.youtube.com/vi/ZW56UHlqTCQ/hqdefault.jpg" alt="Short Demo" />
+      </a>
+    </td>
+    <td align="center">
+      <a href="https://youtu.be/9eLKs9AM4tU">
+        <img src="https://img.youtube.com/vi/9eLKs9AM4tU/hqdefault.jpg" alt="Long Demo" />
+      </a>
+    </td>
+  </tr>
+</table>
+
+## Community & Support
+
+- [Examples](https://www.assistant-ui.com/examples)
+- [Documentation](https://www.assistant-ui.com/docs/)
+- [Discord](https://discord.com/invite/S9dwgCNEFs)
+- [Book a sales call](https://cal.com/simon-farshid/assistant-ui)
+
+## For other platforms
+
+- React Native: [`@assistant-ui/react-native`](https://www.npmjs.com/package/@assistant-ui/react-native)
+- Terminal (Ink): [`@assistant-ui/react-ink`](https://www.npmjs.com/package/@assistant-ui/react-ink)
+
+## License
+
+MIT, with optional Assistant Cloud for managed thread persistence and analytics.
+
+Backed by Y Combinator.
