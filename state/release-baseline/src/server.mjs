@@ -54,8 +54,9 @@ export function createControlServer({
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   const autonomyPolicy = autonomyPolicySnapshot(manifest);
+  const relayHandlers = createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy });
   const gateway = conversationGateway ?? createConversationGateway({
-    database, manifest, supervisor,
+    database, manifest, supervisor, relayHandlers,
     capabilityResolver: () => {
       const base = capabilityIndex(manifest, supervisor.status());
       const discovered = mcpHost?.listTools?.() ?? [];
@@ -209,31 +210,11 @@ export function createControlServer({
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/chat") {
         const body = await bodyJson(request);
-        const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-        const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
-        const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
-        if (decision.execution === "unavailable") return json(response, 503, { error: decision.reasonCode, decision });
-        const title = chatConversationTitle(body.content);
-        if (decision.execution === "objective") {
-          const result = body.conversationId
-            ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind })
-            : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind });
-          const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
-          return json(response, 202, { decision, conversation, task: null, objective: result.objective });
-        }
-        let conversation;
-        if (body.conversationId) {
-          conversation = database.getConversation(body.conversationId);
-          if (!conversation) return json(response, 404, { error: "conversation-not-found" });
-          database.addConversationMessage({ conversationId: conversation.id, role: "user", content: body.content, attachments });
-        } else {
-          conversation = database.createConversation({ title, initialMessage: body.content, attachments, classification: "local-only" });
-        }
-        const task = submitTask(database, manifest, { intent: decision.capability, requestedOutcome: body.content, priority: "high", maximumAttempts: decision.capability === "assistant.respond" ? 1 : undefined, taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey }, {
-          source: "control-center-chat", internal: false,
+        const result = await executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, context: {
+          source: "control-center-chat",
           attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
-        });
-        return json(response, 202, { decision, conversation, task, objective: null });
+        } });
+        return json(response, result.status, result.value);
       }
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
@@ -454,6 +435,88 @@ export function coordinationPayload(manifest, database) {
     })),
   };
 }
+
+function createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy }) {
+  return Object.freeze({
+    async chat(body, context) {
+      if (Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
+      const result = await executeChatTurn({
+        database, manifest, supervisor, artifactStore, autonomyPolicy,
+        body: { ...body, attachmentIds: [] },
+        context: { source: "owner-paired-relay-chat", attendedSession: context.attendedSession },
+      });
+      if (result.status >= 400) throw relayError(result.value.error ?? "relay-chat-rejected");
+      return result.value;
+    },
+    tasks(conversationId) {
+      const id = relayId(conversationId, /^con-[a-f0-9-]+$/, "relay-conversation-invalid");
+      if (!database.getConversation(id)) throw relayError("conversation-not-found");
+      return database.listTasks().filter((task) => task.conversationId === id);
+    },
+    messages(conversationId) {
+      const id = relayId(conversationId, /^con-[a-f0-9-]+$/, "relay-conversation-invalid");
+      if (!database.getConversation(id)) throw relayError("conversation-not-found");
+      return database.listConversationMessages(id);
+    },
+    messageContent(body, context) {
+      const conversationId = relayId(body?.conversationId, /^con-[a-f0-9-]+$/, "relay-conversation-invalid");
+      const messageId = relayId(body?.messageId, /^msg-[a-f0-9-]+$/, "relay-message-invalid");
+      const contentReference = relayId(body?.contentReference, /^vault:[a-f0-9-]{36}$/, "relay-content-reference-invalid");
+      const classification = relayId(body?.classification, /^(?:synthetic|personal|enterprise|local-only)$/, "relay-classification-invalid");
+      const message = database.listConversationMessages(conversationId).find((item) => item.id === messageId);
+      if (!message || message.contentReference !== contentReference || message.classification !== classification) throw relayError("relay-message-content-mismatch");
+      const expected = { ownerType: "message", ownerId: messageId, classification };
+      contentVault.metadata(contentReference, expected);
+      const bytes = contentVault.get(contentReference, expected);
+      database.recordContentAccess({ reference: contentReference, ...expected, mechanism: context.mechanism, sessionId: context.attendedSession.sessionId });
+      return { content: bytes.toString("utf8") };
+    },
+    taskAction(body) {
+      const taskId = relayId(body?.taskId, /^mhg-[a-f0-9-]+$/, "relay-task-invalid");
+      const conversationId = relayId(body?.conversationId, /^con-[a-f0-9-]+$/, "relay-conversation-invalid");
+      if (!new Set(["retry", "cancel"]).has(body?.action)) throw relayError("relay-task-action-invalid");
+      const existing = database.getTask(taskId);
+      if (!existing || existing.conversationId !== conversationId) throw relayError("task-not-found");
+      const task = body.action === "retry" ? database.retryTask(taskId) : database.cancelTask(taskId);
+      return { task };
+    },
+  });
+}
+
+async function executeChatTurn({ database, manifest, artifactStore, autonomyPolicy, body, context }) {
+  const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+  const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
+  const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
+  if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
+  const title = chatConversationTitle(body.content);
+  if (decision.execution === "objective") {
+    const result = body.conversationId
+      ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind })
+      : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind });
+    const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
+    return { status: 202, value: { decision, conversation, task: null, objective: result.objective } };
+  }
+  let conversation;
+  if (body.conversationId) {
+    conversation = database.getConversation(body.conversationId);
+    if (!conversation) return { status: 404, value: { error: "conversation-not-found" } };
+    database.addConversationMessage({ conversationId: conversation.id, role: "user", content: body.content, attachments });
+  } else {
+    conversation = database.createConversation({ title, initialMessage: body.content, attachments, classification: "local-only" });
+  }
+  const task = submitTask(database, manifest, {
+    intent: decision.capability, requestedOutcome: body.content, priority: "high",
+    maximumAttempts: decision.capability === "assistant.respond" ? 1 : undefined,
+    taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
+  }, { source: context.source, internal: false, attendedSession: context.attendedSession ?? null });
+  return { status: 202, value: { decision, conversation, task, objective: null } };
+}
+
+function relayId(value, pattern, code) {
+  if (typeof value !== "string" || !pattern.test(value)) throw relayError(code);
+  return value;
+}
+function relayError(code) { const error = new TypeError(code); error.code = code; return error; }
 
 function submitTask(database, manifest, body, options = {}) {
   const request = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);

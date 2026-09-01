@@ -10,7 +10,7 @@ const state = {
   repository: null, commit: null, issues: [], pulls: [], runs: [], releases: [], messages: [],
   connection: 'detecting', transport: null, currentRun: null, currentConversationId: null,
   sessions: [], lastRequest: null, capabilities: [], improvement: null,
-  pendingAttachments: [], renderedMessageIds: new Set(), pendingTaskMessage: null,
+  pendingAttachments: [], renderedMessageIds: new Set(), pendingTaskMessage: null, replayAttachmentIds: null,
 };
 
 class LoopbackTransport {
@@ -22,9 +22,9 @@ class LoopbackTransport {
   }
   async start(input) { return this.request('/api/v2/runs', { method: 'POST', body: JSON.stringify(input) }); }
   async chat(input) { return this.request('/api/chat', { method: 'POST', body: JSON.stringify(input) }); }
-  async tasks() { return (await this.request('/api/tasks')).tasks || []; }
+  async tasks(conversationId) { return ((await this.request('/api/tasks')).tasks || []).filter((task) => task.conversationId === conversationId); }
   async messages(conversationId) { return (await this.request(`/api/conversations/${encodeURIComponent(conversationId)}/messages`)).messages || []; }
-  async messageContent(message) {
+  async messageContent(message, _conversationId) {
     const query = new URLSearchParams({ ownerType: 'message', ownerId: message.id, classification: message.classification });
     const response = await fetch(`/api/content/${message.contentReference}?${query}`, { credentials: 'same-origin', headers: { Accept: 'text/plain' } });
     if (!response.ok) throw new Error(`message-content-${response.status}`);
@@ -35,6 +35,7 @@ class LoopbackTransport {
     const value = await response.json().catch(() => ({})); if (!response.ok) throw new Error(value.error || `artifact-${response.status}`); return value.artifact;
   }
   async removeArtifact(id) { return this.request(`/api/artifacts/${encodeURIComponent(id)}`, { method: 'DELETE' }); }
+  async taskAction(taskId, _conversationId, action) { return this.request(`/api/tasks/${encodeURIComponent(taskId)}/${action}`, { method: 'POST', body: '{}' }); }
   async events(runId, afterEventId = 0) {
     const response = await fetch(`/api/v2/runs/${encodeURIComponent(runId)}/events?after=${afterEventId}`, { credentials: 'same-origin', headers: { Accept: 'text/event-stream' } });
     if (!response.ok) throw new Error(`run-events-${response.status}`);
@@ -83,6 +84,22 @@ class RelayTransport {
     return { sessionId: this.session.sessionId };
   }
   async start(input) { return this.call('run', input); }
+  async chat(input) {
+    if (Array.isArray(input?.attachmentIds) && input.attachmentIds.length > 0) throw new Error('relay-attachments-local-only');
+    return this.call('chat', { ...input, attachmentIds: [] });
+  }
+  async tasks(conversationId) { return (await this.call('tasks', { conversationId })).tasks || []; }
+  async messages(conversationId) { return (await this.call('messages', { conversationId })).messages || []; }
+  async messageContent(message, conversationId) {
+    const result = await this.call('message-content', {
+      conversationId,
+      messageId: message.id,
+      contentReference: message.contentReference,
+      classification: message.classification,
+    });
+    return result.content;
+  }
+  async taskAction(taskId, conversationId, action) { return this.call('task-action', { taskId, conversationId, action }); }
   async events(runId, afterEventId = 0) { return (await this.call('events', { runId, afterEventId })).events || []; }
   async cancel(runId) { return this.call('cancel', { runId }); }
   async capabilities() { return (await this.call('capabilities', {})).capabilities || []; }
@@ -193,19 +210,19 @@ async function submitConversation(event) {
   event.preventDefault();
   const input = $('task-text'); const content = input.value.trim();
   if (!content || state.currentRun) { input.focus(); return; }
-  const classification = classifyTask(content); const attachmentIds = state.pendingAttachments.map((item) => item.artifact.id);
+  const classification = classifyTask(content); const attachmentIds = state.replayAttachmentIds ?? state.pendingAttachments.map((item) => item.artifact.id);
+  state.replayAttachmentIds = null;
   appendMessage('user', content, { attachments: state.pendingAttachments.map((item) => item.artifact) }); state.messages.push({ role: 'user', classification: classification.id });
   input.value = ''; resizeComposer(); renderClassificationPreview();
-  state.lastRequest = { content, mode: $('chat-mode').value, classification: 'local-only' };
+  state.lastRequest = { content, mode: $('chat-mode').value, classification: 'local-only', attachmentIds, conversationId: state.currentConversationId, taskId: null, taskStatus: null };
   try {
     if (typeof state.transport.chat === 'function') {
       const result = await state.transport.chat({ conversationId: state.currentConversationId, content, mode: $('chat-mode').value, attachmentIds, idempotencyKey: `ui-${crypto.randomUUID()}` });
       state.pendingAttachments = []; renderAttachmentTray();
       state.currentConversationId = result.conversation.id; rememberSession(result.conversation.id, content);
       if (result.task) {
-        clearPendingTaskMessage();
-        state.pendingTaskMessage = appendMessage('assistant', result.decision.mode === 'ask' ? 'Thinking through your question…' : 'Executing the requested action…', { label: result.task.status || 'queued', state: 'connected' });
-        await watchTask(result.task.id, result.conversation.id);
+        state.lastRequest = { ...state.lastRequest, conversationId: result.conversation.id, taskId: result.task.id, taskStatus: result.task.status };
+        await beginTask(result.task, result.conversation.id, result.decision.mode === 'ask' ? 'Thinking through your question…' : 'Executing the requested action…');
       } else {
         appendMessage('assistant', 'Action accepted. Mahoraga created a bounded six-stage implementation, verification, and integration objective.', { label: 'executing', state: 'connected' });
       }
@@ -226,8 +243,9 @@ async function submitConversation(event) {
 async function watchTask(taskId, conversationId) {
   try {
     for (let attempt = 0; attempt < 120; attempt += 1) {
-      const task = (await state.transport.tasks()).find((item) => item.id === taskId);
+      const task = (await state.transport.tasks(conversationId)).find((item) => item.id === taskId);
       if (task && ['completed', 'failed', 'waiting', 'cancelled'].includes(task.status)) {
+        if (state.lastRequest?.taskId === taskId) state.lastRequest.taskStatus = task.status;
         clearPendingTaskMessage();
         await renderConversationMessages(conversationId);
         if (task.status !== 'completed') appendMessage('assistant', `The action stopped: ${task.errorCode || task.status}.`, { label: task.status, state: 'staged' });
@@ -239,6 +257,14 @@ async function watchTask(taskId, conversationId) {
   } catch (error) { appendMessage('assistant', `I could not refresh the result: ${publicError(error)}`, { label: 'refresh failed', state: 'staged' }); }
 }
 
+async function beginTask(task, conversationId, label) {
+  state.currentRun = { kind: 'task', id: task.id, conversationId };
+  $('cancel-run').disabled = false; $('retry-run').disabled = true;
+  clearPendingTaskMessage();
+  state.pendingTaskMessage = appendMessage('assistant', label, { label: task.status || 'queued', state: 'connected' });
+  await watchTask(task.id, conversationId);
+}
+
 async function renderConversationMessages(conversationId) {
   const messages = await state.transport.messages(conversationId);
   for (const message of messages) {
@@ -247,7 +273,7 @@ async function renderConversationMessages(conversationId) {
     if (message.role === 'assistant' || message.role === 'system') {
       let content = message.content;
       if (!content && message.contentReference && typeof state.transport.messageContent === 'function') {
-        try { content = await state.transport.messageContent(message); } catch { content = 'The private response could not be opened in this session.'; }
+        try { content = await state.transport.messageContent(message, conversationId); } catch { content = 'The private response could not be opened in this session.'; }
       }
       appendMessage(message.role === 'assistant' ? 'assistant' : 'system', content || 'The response did not include displayable content.', { label: message.role === 'assistant' ? 'completed' : 'system' });
     }
@@ -271,11 +297,31 @@ function renderRunEvent(event) {
 
 async function cancelCurrentRun() {
   if (!state.currentRun) return;
-  try { await state.transport.cancel(state.currentRun.id); appendMessage('assistant', 'Cancellation requested.', { label: 'run-cancelled' }); }
+  try {
+    if (state.currentRun.kind === 'task' && typeof state.transport.taskAction === 'function') {
+      await state.transport.taskAction(state.currentRun.id, state.currentRun.conversationId, 'cancel');
+      if (state.lastRequest?.taskId === state.currentRun.id) state.lastRequest.taskStatus = 'cancelled';
+    } else await state.transport.cancel(state.currentRun.id);
+    appendMessage('assistant', 'Cancellation requested.', { label: 'run-cancelled' });
+  }
   catch (error) { toast(publicError(error)); }
   finishRun();
 }
-async function retryLastRun() { if (!state.lastRequest) return; $('task-text').value = state.lastRequest.content; await submitConversation(new Event('submit')); }
+async function retryLastRun() {
+  if (!state.lastRequest) return;
+  const request = { ...state.lastRequest };
+  if (request.taskId && ['failed', 'waiting', 'cancelled'].includes(request.taskStatus) && typeof state.transport.taskAction === 'function') {
+    const result = await state.transport.taskAction(request.taskId, request.conversationId, 'retry');
+    state.lastRequest.taskStatus = result.task.status;
+    await beginTask(result.task, request.conversationId, 'Retrying the requested work…');
+    return;
+  }
+  state.currentConversationId = request.conversationId;
+  state.replayAttachmentIds = request.attachmentIds;
+  $('chat-mode').value = request.mode;
+  $('task-text').value = request.content;
+  await submitConversation(new Event('submit'));
+}
 function clearPendingTaskMessage() { state.pendingTaskMessage?.remove(); state.pendingTaskMessage = null; }
 function finishRun() { clearPendingTaskMessage(); state.currentRun = null; $('cancel-run').disabled = true; $('retry-run').disabled = !state.lastRequest; }
 

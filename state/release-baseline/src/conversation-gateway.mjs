@@ -4,7 +4,7 @@ import { capabilityIndex } from "./router.mjs";
 
 const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 
-export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null } = {}) {
+export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null, relayHandlers = {} } = {}) {
   if (!database || typeof database.createConversationRun !== "function") throw gatewayError("gateway-database-required");
   if (!manifest || !supervisor || typeof submitTask !== "function") throw gatewayError("gateway-dependency-required");
   const listeners = new Map();
@@ -17,6 +17,12 @@ export function createConversationGateway({ database, manifest, supervisor, subm
   const emit = (runId, type, payload, options) => notify(database.appendRunEvent(runId, type, payload, options));
 
   const api = {
+    chat(input, context = {}) { return relayCall(relayHandlers, "chat", input, context); },
+    tasks(conversationId, context = {}) { return relayCall(relayHandlers, "tasks", conversationId, context); },
+    messages(conversationId, context = {}) { return relayCall(relayHandlers, "messages", conversationId, context); },
+    messageContent(input, context = {}) { return relayCall(relayHandlers, "messageContent", input, context); },
+    taskAction(input, context = {}) { return relayCall(relayHandlers, "taskAction", input, context); },
+
     createRun(input, context = {}) {
       const request = validateRunInput(input);
       const requestSha256 = digest(canonicalRequest(request));
@@ -163,6 +169,10 @@ function canonicalRequest(value) {
   });
 }
 function boundedCode(value) { const normalized = String(value).toLowerCase().replace(/[^a-z0-9.-]+/g, "-").slice(0, 64); return /^[a-z]/.test(normalized) ? normalized : `error-${normalized}`; }
+function relayCall(handlers, name, input, context) {
+  if (typeof handlers[name] !== "function") throw gatewayError("gateway-relay-action-unavailable");
+  return handlers[name](input, context);
+}
 function token(value, maximum, code) { if (typeof value !== "string" || value.length < 1 || value.length > maximum || /[\0\r\n]/.test(value)) throw gatewayError(code); return value; }
 function multiline(value, maximum, code) { if (typeof value !== "string" || value.trim().length < 1 || value.length > maximum || /\0/.test(value)) throw gatewayError(code); return value.trim(); }
 function gatewayError(code) { const error = new TypeError(code); error.code = code; return error; }

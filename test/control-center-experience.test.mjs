@@ -58,8 +58,22 @@ test("assistant answers render useful structure while keeping HTML inert", () =>
 test("cloud UI resolves encrypted message content locally and removes the temporary progress card", async () => {
   const source = await readFile(new URL("../cloud/app.js", import.meta.url), "utf8");
 
-  assert.match(source, /messageContent\(message\)/);
+  assert.match(source, /messageContent\(message, (?:_?conversationId)\)/);
   assert.match(source, /\/api\/content\/\$\{message\.contentReference\}/);
   assert.match(source, /clearPendingTaskMessage\(\)/);
   assert.doesNotMatch(source, /message\.content \|\| 'Mahoraga completed the task\.'/);
+});
+
+test("unified chat controls remain functional for loopback and encrypted relay transports", async () => {
+  const source = await readFile(new URL("../cloud/app.js", import.meta.url), "utf8");
+
+  assert.match(source, /class RelayTransport[\s\S]*async chat\(input\)/);
+  assert.match(source, /class RelayTransport[\s\S]*async tasks\(conversationId\)/);
+  assert.match(source, /class RelayTransport[\s\S]*async messages\(conversationId\)/);
+  assert.match(source, /class RelayTransport[\s\S]*async messageContent\(message, conversationId\)/);
+  assert.match(source, /class RelayTransport[\s\S]*async taskAction\(taskId, conversationId, action\)/);
+  assert.match(source, /currentRun = \{ kind: 'task'/);
+  assert.match(source, /\$\('chat-mode'\)\.value = request\.mode/);
+  assert.match(source, /taskAction\(state\.currentRun\.id/);
+  assert.match(source, /replayAttachmentIds/);
 });

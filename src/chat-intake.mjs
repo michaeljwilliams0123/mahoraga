@@ -2,6 +2,8 @@ import { classifyTaskIntent } from "./task-intent.mjs";
 
 const MODES = new Set(["auto", "ask", "act"]);
 const ACTION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|move|open|publish|repair|restart|run|scan|send|start|stop|update|write)\b/i;
+const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|move|publish|repair|restart|send|start|stop|update|write)\b/i;
+const READ_ONLY_CAPABILITY = /\.(?:health|inspect|observe|respond|scan|status|validate)$/;
 
 export function classifyChatTurn({ mode = "auto", content = "", attachmentCount = 0, availableCapabilities = [] } = {}) {
   if (!MODES.has(mode)) throw new TypeError("chat-mode-invalid");
@@ -9,6 +11,15 @@ export function classifyChatTurn({ mode = "auto", content = "", attachmentCount 
   if (!text && attachmentCount === 0) throw new TypeError("chat-content-required");
   const available = Array.isArray(availableCapabilities) ? availableCapabilities : [];
   const registered = classifyTaskIntent({ content: text, attachmentCount, availableCapabilities: available });
+  if (mode === "ask") {
+    if (registered.capability && registered.capability !== "provider.gap" && READ_ONLY_CAPABILITY.test(registered.capability)) {
+      return freeze({ mode: "ask", execution: "task", capability: registered.capability, intentKind: registered.intentKind, reasonCode: registered.reasonCode });
+    }
+    return answerDecision(available, "ask-read-only");
+  }
+  if (MUTATION_WORDS.test(text)) {
+    return freeze({ mode: "act", execution: "objective", capability: null, intentKind: "autonomous-action", reasonCode: "explicit-action-request" });
+  }
   if (registered.capability && registered.capability !== "provider.gap") {
     return freeze({
       mode: mode === "auto" && registered.intentKind === "attachment" ? "ask" : mode === "auto" ? "act" : mode,
@@ -20,8 +31,7 @@ export function classifyChatTurn({ mode = "auto", content = "", attachmentCount 
   }
   const act = mode === "act" || (mode === "auto" && ACTION_WORDS.test(text));
   if (act) return freeze({ mode: "act", execution: "objective", capability: null, intentKind: "autonomous-action", reasonCode: "explicit-action-request" });
-  if (!available.includes("assistant.respond")) return freeze({ mode: "ask", execution: "unavailable", capability: null, intentKind: "answer", reasonCode: "answer-provider-unavailable" });
-  return freeze({ mode: "ask", execution: "task", capability: "assistant.respond", intentKind: "answer", reasonCode: "general-question" });
+  return answerDecision(available, "general-question");
 }
 
 export function chatConversationTitle(content) {
@@ -32,3 +42,7 @@ export function chatConversationTitle(content) {
 }
 
 function freeze(value) { return Object.freeze(value); }
+function answerDecision(available, reasonCode) {
+  if (!available.includes("assistant.respond")) return freeze({ mode: "ask", execution: "unavailable", capability: null, intentKind: "answer", reasonCode: "answer-provider-unavailable" });
+  return freeze({ mode: "ask", execution: "task", capability: "assistant.respond", intentKind: "answer", reasonCode });
+}

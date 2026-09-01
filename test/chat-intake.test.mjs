@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { classifyChatTurn } from "../src/chat-intake.mjs";
 
-const CAPABILITIES = ["assistant.respond", "artifact.inspect", "repository.inspect", "system.health", "repair.scan"];
+const CAPABILITIES = ["assistant.respond", "artifact.inspect", "repository.inspect", "system.health", "repair.scan", "browser.navigate"];
 
 test("Auto treats a general question as an answer, not a merge candidate", () => {
   assert.deepEqual(classifyChatTurn({
@@ -58,4 +58,34 @@ test("Ask with an attachment inspects the artifact instead of discarding it", ()
     intentKind: "attachment",
     reasonCode: "attachment-present",
   });
+});
+
+test("Ask never grants navigation or other action authority", () => {
+  assert.deepEqual(classifyChatTurn({
+    mode: "ask",
+    content: "Go to YouTube",
+    availableCapabilities: CAPABILITIES,
+  }), {
+    mode: "ask",
+    execution: "task",
+    capability: "assistant.respond",
+    intentKind: "answer",
+    reasonCode: "ask-read-only",
+  });
+});
+
+test("mixed review-and-fix language escalates to an objective before read-only intent matching", () => {
+  for (const mode of ["auto", "act"]) {
+    assert.deepEqual(classifyChatTurn({
+      mode,
+      content: "Review the repository health and fix the highest-impact failure",
+      availableCapabilities: CAPABILITIES,
+    }), {
+      mode: "act",
+      execution: "objective",
+      capability: null,
+      intentKind: "autonomous-action",
+      reasonCode: "explicit-action-request",
+    });
+  }
 });

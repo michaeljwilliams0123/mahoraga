@@ -7,7 +7,13 @@ test("runtime relay peer pairs, decrypts a request, and returns an encrypted gat
   const localPairing = await createPairingOffer({ now: () => 0 });
   const remotePairing = await (await import("../src/relay-client.mjs")).acceptPairingOffer(localPairing.publicOffer, { now: () => 1 });
   const assignedSessionId = `rls-${"a".repeat(32)}`;
-  const gateway = { capabilities: () => [{ capability: "system.health", routable: true, workerIds: ["local-core"] }], createRun() {}, replay() {}, cancelRun() {} };
+  const gateway = {
+    capabilities: () => [{ capability: "system.health", routable: true, workerIds: ["local-core"] }],
+    createRun() {}, replay() {}, cancelRun() {},
+    chat: (payload, context) => ({ decision: { mode: payload.mode }, contextSessionId: context.attendedSession.sessionId }),
+    tasks: () => ({ tasks: [] }), messages: () => ({ messages: [] }),
+    messageContent: () => ({ content: "bounded answer" }), taskAction: () => ({ task: null }),
+  };
   class FakeSocket {
     static OPEN = 1;
     constructor() { this.readyState = 0; this.listeners = new Map(); this.sent = []; queueMicrotask(() => { this.readyState = 1; this.emit("open"); }); }
@@ -31,6 +37,25 @@ test("runtime relay peer pairs, decrypts a request, and returns an encrypted gat
   const responseEnvelope = socket.sent.find((message) => message.action === "forward" && message.from === "local");
   assert.ok(responseEnvelope);
   assert.deepEqual(await openFrame(remoteSession, responseEnvelope.frame), { requestId: "req-1", result: { capabilities: gateway.capabilities() } });
+  const chatFrame = await sealFrame(remoteSession, { requestId: "req-2", type: "chat", payload: { mode: "ask", content: "Why does it rain?" } });
+  socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: chatFrame });
+  await waitFor(() => socket.sent.filter((message) => message.action === "forward" && message.from === "local").length === 2);
+  const chatEnvelope = socket.sent.filter((message) => message.action === "forward" && message.from === "local").at(-1);
+  assert.deepEqual(await openFrame(remoteSession, chatEnvelope.frame), {
+    requestId: "req-2",
+    result: { decision: { mode: "ask" }, contextSessionId: assignedSessionId },
+  });
+  const attachmentFrame = await sealFrame(remoteSession, {
+    requestId: "req-3", type: "chat",
+    payload: { mode: "ask", content: "Inspect this", attachmentIds: ["art-00000000-0000-0000-0000-000000000000"] },
+  });
+  socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: attachmentFrame });
+  await waitFor(() => socket.sent.filter((message) => message.action === "forward" && message.from === "local").length === 3);
+  const attachmentEnvelope = socket.sent.filter((message) => message.action === "forward" && message.from === "local").at(-1);
+  assert.deepEqual(await openFrame(remoteSession, attachmentEnvelope.frame), {
+    requestId: "req-3",
+    error: "relay-attachments-local-only",
+  });
   peer.close();
 });
 
