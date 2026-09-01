@@ -4,6 +4,7 @@ const MODES = new Set(["auto", "ask", "act"]);
 const ACTION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|move|open|publish|repair|restart|run|scan|send|start|stop|update|write)\b/i;
 const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|move|publish|repair|restart|send|start|stop|update|write)\b/i;
 const READ_ONLY_CAPABILITY = /\.(?:health|inspect|observe|respond|scan|status|validate)$/;
+const INFORMATIONAL_QUESTION = /^(?:how (?:do|does|can|should|would)\b|why\b|what\b|when\b|where\b|who\b|which\b|(?:can|could) you (?:explain|tell|describe)\b)/i;
 
 export function classifyChatTurn({ mode = "auto", content = "", attachmentCount = 0, availableCapabilities = [] } = {}) {
   if (!MODES.has(mode)) throw new TypeError("chat-mode-invalid");
@@ -17,6 +18,7 @@ export function classifyChatTurn({ mode = "auto", content = "", attachmentCount 
     }
     return answerDecision(available, "ask-read-only");
   }
+  if (mode === "auto" && INFORMATIONAL_QUESTION.test(text)) return answerDecision(available, "general-question");
   if (MUTATION_WORDS.test(text)) {
     return freeze({ mode: "act", execution: "objective", capability: null, intentKind: "autonomous-action", reasonCode: "explicit-action-request" });
   }

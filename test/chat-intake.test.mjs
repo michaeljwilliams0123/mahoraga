@@ -89,3 +89,19 @@ test("mixed review-and-fix language escalates to an objective before read-only i
     });
   }
 });
+
+test("Auto keeps informational questions read-only even when they mention action verbs", () => {
+  for (const content of [
+    "How do I create a new chat?",
+    "Can you explain how to fix a flat tire?",
+    "Why does Windows restart after updates?",
+  ]) {
+    assert.deepEqual(classifyChatTurn({ mode: "auto", content, availableCapabilities: CAPABILITIES }), {
+      mode: "ask",
+      execution: "task",
+      capability: "assistant.respond",
+      intentKind: "answer",
+      reasonCode: "general-question",
+    });
+  }
+});
