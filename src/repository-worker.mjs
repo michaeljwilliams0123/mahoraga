@@ -7,6 +7,13 @@ import { validateActualChanges, validateAssignmentRecord, validateResultRecord }
 
 const GIT = "git";
 
+export async function readRepositoryHead() {
+  const result = await run(GIT, ["-C", ROOT, "rev-parse", "HEAD"], 15000);
+  const head = result.stdout.trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(head)) throw new Error("repository-head-invalid");
+  return head;
+}
+
 export async function executeRepositoryCapability(capability, task = {}) {
   if (capability === "repository.inspect") {
     const packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
@@ -25,8 +32,8 @@ export async function executeRepositoryCapability(capability, task = {}) {
     return { verified: true, summary: result.stdout.trim() || "Repository has no commits yet.", exitCode: result.exitCode };
   }
   if (capability === "repository.remote") {
-    const [head, branch, remote, commit] = await Promise.all([
-      run(GIT, ["-C", ROOT, "rev-parse", "HEAD"], 15000),
+    const [localHead, branch, remote, commit] = await Promise.all([
+      readRepositoryHead(),
       run(GIT, ["-C", ROOT, "branch", "--show-current"], 15000),
       run(GIT, ["-C", ROOT, "remote", "-v"], 15000),
       run(GIT, ["-C", ROOT, "log", "-1", "--pretty=format:%H%x00%s"], 15000),
@@ -39,7 +46,7 @@ export async function executeRepositoryCapability(capability, task = {}) {
       const remoteState = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin"], 30000);
       remoteHeads = Object.fromEntries(remoteState.stdout.trim().split(/\r?\n/).filter(Boolean).map((line) => { const [sha, ref] = line.split(/\s+/); return [ref, sha]; }));
     }
-    const localHead = head.stdout.trim(); const mainHead = remoteHeads["refs/heads/main"] ?? null;
+    const mainHead = remoteHeads["refs/heads/main"] ?? null;
     const sync = mainHead === null ? "unpublished" : mainHead === localHead ? "synchronized" : "diverged-or-branch-specific";
     return { verified: true, summary: remotes.length ? `Repository remote state captured for ${branch.stdout.trim()}; main is ${sync}.` : `Repository ${branch.stdout.trim()} has no configured remote.`, head: localHead, branch: branch.stdout.trim(), remotes, remoteHeads, mainHead, sync, commit: { id: commitId, subject, attribution } };
   }

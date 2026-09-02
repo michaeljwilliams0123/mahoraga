@@ -1,197 +1,98 @@
-# Production status and Mahoraga 7 candidate — 2026-08-25
+# Mahoraga production and repository status — 2026-09-02
 
-This record separates repository candidate state from live production state.
-Neither a manifest declaration nor this document proves that a Windows process
-is running, healthy, or activated. Those claims require current process,
-listener, status, canary, and verification evidence.
+This record deliberately separates **repository truth**, **GitHub verification**, and **live Windows production truth**. A manifest declaration, merged pull request, or green hosted-runner check does not prove which Mahoraga build is currently running on the Windows host. Live production claims require fresh process, listener, worker, provider, canary, and runtime-version evidence from that machine.
 
-## Installed repository candidate
+## Repository line
 
-- Candidate version: `7.0.0-alpha.1`
-- Runtime, API, and Control Center declaration: `7.0.0-alpha.1`
+- Repository candidate version: `7.0.0-alpha.1`
+- Runtime/API/Control Center declaration: `7.0.0-alpha.1`
 - Phase/environment: `alpha-candidate` / `candidate`
-- Candidate branch: `agent/mahoraga-7-truth-containment`
-- Loopback contract: `127.0.0.1:4782`; Task 11 uses inactive port `4783`
-- Verified implementation commit:
-  `06820ba3597e23c69adcfe3535a10673e2128191`
-- Update authority: verified automatic activation with rollback
+- Canonical runtime boundary: `127.0.0.1:4782`
 - OpenAI Platform API provider: disabled by default
-- Production activation: **not performed**
+- Last verified production predecessor / rollback target: `3.6.0`
+- Immutable predecessor commit: `397acebf16766f44e3b4317f9d8b68b10de5f821`
+- Mahoraga 7 production activation: **not asserted by this repository**
+- Current live Windows process/version: **not asserted by this repository**
 
-The candidate implements authenticated sensitive surfaces, server-derived task
-authority, typed capability receipts, evidence-backed routing, candidate-only
-Codex execution cells, encrypted content references, repair incident
-deduplication, and evidence-derived Control Center labels.
+The earlier `7.0.0-alpha.1` release receipt remains historical evidence for its exact reviewed implementation and rollback drill. It must not be reused as proof for later repository heads. See `docs/verification/7.0.0-alpha.1-release.json`.
 
-## Active production and rollback target
+## September 1 stabilization
 
-- Production predecessor: `3.6.0`
-- Immutable baseline commit:
-  `397acebf16766f44e3b4317f9d8b68b10de5f821`
-- Rollback target: `3.6.0`; its inactive rollback drill passed on port `4783`
-  without touching production
-- Current live-process state: not asserted by this repository document
+PR #76 introduced the unified ChatGPT-style conversation/action surface but GitHub's authoritative cross-platform verification detected a real integration regression after the merge. The failing path was:
 
-Historical acceptance evidence for the predecessor reported a loopback runtime,
-current worker heartbeats, private attachment intake, bounded answer-quality
-correction, and a passing suite. That evidence remains historical and is not
-reused as Mahoraga 7 verification.
+`conversation Act request -> autonomous objective -> codex.execute child -> RuntimeDatabase.submitTask`
 
-## Candidate capability truth
+The objective planner had created Codex child definitions without the execution-cell authority required by `RuntimeDatabase.submitTask`, producing `Codex Builder base commit is invalid.` during objective reconciliation. `main` also had no GitHub branch protection or required status checks, so the merge was not prevented by the failing workflow.
 
-Configured or enabled is not synonymous with routable. Every route now exposes
-five separate fields: process, provider, canary, routing decision, and evidence
-level. A write-capable route requires a canary no older than 15 minutes;
-deterministic read routes may use a 24-hour canary. Unknown or stale evidence
-fails closed.
+PR #77 repairs that boundary without changing the self-evolution stack:
 
-The manifest currently keeps optional or unproven providers disabled, including
-LM Studio execution, GitHub Copilot execution, Workspace Agent cloud, Microsoft
-queue polling, Copilot Studio delegation, Lenovo AI execution, and the metered
-OpenAI API. Enabled declarations still require current provider and canary
-evidence before dispatch.
+- preserves the six-node `propose + challenge -> synthesize -> implement -> verify -> integrate` objective graph;
+- derives an exact repository base SHA through a fixed Git boundary;
+- derives deterministic writable candidate scopes from the user's requested work while excluding `.github` workflow authority;
+- marks objective children as internal authority-derived work instead of trusting stored caller-like authority fields;
+- acquires a bounded `primary-local-codex` integration lease only when a Codex child is ready;
+- leaves the objective planned when a competing Primary owns the lease instead of stealing or bypassing authority;
+- derives every released child through the existing task-policy boundary;
+- prepares a Codex Builder session before a Codex child can dispatch;
+- releases/reacquires objective-owned integration leases between completed Codex stages so a long objective does not depend on one stale lease;
+- releases the objective-owned lease immediately after the final Codex stage and uses an unpaginated active-task predicate before declaring a lease idle;
+- resolves the exact repository base asynchronously before persisting autonomous chat/conversation state, including owner-paired relay chat;
+- derives new-conversation write scope from the original user request before encrypted-vault substitution;
+- adds the new autonomy authority modules to the immutable repair baseline;
+- preserves the existing candidate-worktree, exact-head, verification, integration, and rollback boundaries.
 
-## Release-gate status
+The implementation was developed test-first. GitHub Actions observed each intended RED state before its production repair. Exact implementation head `02ed3d30d79430f983e580a79f231dcf22d8a25a` passed complete `Verify Mahoraga` run #191 on both Ubuntu and Windows. Any later documentation-only commit must still pass the same exact-head merge gate. A separate stabilization record is maintained at `docs/verification/7.0.0-alpha.1-main-stabilization.md`.
 
-1. Focused Truth and Containment integration gate: **passed**.
-2. Complete repository suite: **247/247 passed**.
-3. Release-baseline refresh and digest verification: **84/84 healthy**.
-4. Inactive candidate smoke on loopback port `4783`: **passed** with temporary
-   encrypted state.
-5. Malformed-receipt resilience and three quiet repair scans: **passed**; the
-   malformed receipt failed closed, its worker stayed alive, and no incident
-   was created.
-6. Inactive rollback drill to immutable `3.6.0`: **passed**; the temporary slot
-   was removed afterward.
-7. Review-only GitHub Codex adversarial review against the exact verified SHA:
-   **pending**.
+## Self-evolution boundary for this stabilization
 
-The candidate is eligible for a review-only pull request, not production
-cutover or merge. The machine-readable receipt is
-[`verification/7.0.0-alpha.1-release.json`](verification/7.0.0-alpha.1-release.json).
+The September 1 stabilization does **not** modify:
 
-## Durable architecture retained
+- `src/evolution-controller.mjs`;
+- evolution-controller tests or contracts;
+- candidate build/deploy/canary/activation/rollback semantics;
+- automatic update authority in `mahoraga.manifest.json`;
+- repository visibility.
 
-The candidate retains the Node supervisor, isolated worker processes, SQLite WAL
-operational ledger, leases, heartbeats, crash recovery, bounded restarts,
-durable objectives, and outbound-only repository coordination. Content-bearing
-writes are stored in the encrypted local vault; SQLite stores bounded metadata,
-hashes, classifications, expiry, and references. Healthy repair polling creates
-no durable task or event noise.
+Evolution tests continue to run as part of the canonical conversation/evolution and complete repository gates; passing those tests is regression evidence only, not a change to their behavior.
 
-## Portable and cloud coordination
+## Durable architecture
 
-- The Chromebook Control Plane is repository-hosted through GitHub Actions and
-  supports `status`, `verify`, `gap-audit`, `secondary-assignment`, and
-  `codex-cloud-task` operations.
-- The Chromebook lane remains owner-gated and does not expose the Windows
-  localhost runtime to the internet.
-- Secondary Codex coordination remains outbound-only through the GitHub mailbox.
-- Idle mailbox polls perform no Codex CLI call. Model execution is single-flight,
-  receives one initial attempt, and requires an explicit bounded retry after a
-  failure.
-- Codex Cloud delegation uses repository task metadata and ChatGPT/Codex sign-in;
-  it is not an OpenAI Platform API-key integration.
-- Canonical CI runs `npm run verify` and the declared gap audit on Linux and
-  Windows GitHub-hosted runners.
-- Cloud Workspace task issues remain inert until an exact owner-authored gateway
-  command selects Codex cloud or a registered desktop task area. The gateway
-  revalidates the issue, writes one idempotent record, and posts bounded status
-  back without copying attachment URLs into coordination JSON.
-- The staged update workflow verifies authoritative `main`, packages an
-  immutable archive, emits SHA-256 metadata, and records GitHub provenance.
-  Publishing never installs or activates an update on a device.
+The current repository retains the Node supervisor, isolated workers, SQLite WAL operational ledger, leases, heartbeats, crash recovery, bounded restarts, durable conversations, durable objective graphs, encrypted content vault, bounded receipts, repository coordination, world-state observation, and evidence-backed routing.
 
-## Implemented planner/observer foundation
+Configured or enabled is not synonymous with routable. Capability routing separates process state, provider readiness, canary evidence, routing decision, and evidence level. Write-capable routes require current evidence and fail closed when canaries or attended authority are absent.
 
-Earlier records described the Objective Planner and World-State Observer as
-future gaps. The current repository now contains durable objective graphs,
-dependency reconciliation, objective intake/status APIs, and a read-only
-world-state observer covering runtime health, workers, leases, task counts,
-objectives, repository evidence, browser state, and declared providers.
+## Conversation and autonomy plane
 
-This closes the foundation gap. Higher-level autonomous decomposition and
-provider-specific execution can continue to evolve on top of these primitives.
+The repository implements durable conversation runs, idempotent intake, cancellation/replay, capability discovery, typed run events, answer-quality validation, and autonomous objective graphs. Conversation-driven code changes now use the same policy, integration-lease, execution-cell, and Codex Builder session boundaries as direct Builder work rather than bypassing them through objective reconciliation.
 
-## Desktop Worker contract
+The planner foundation and read-only World-State Observer are implemented. Higher-level capability quality still depends on the live providers and current canary evidence available on the machine where Mahoraga is running.
 
-The repository now contains a bounded Windows Desktop Worker execution contract.
-It is wired into the isolated worker process with a fixed allowlist for Chrome,
-Edge, Excel, Word, PowerPoint, and Visio. Inspection receipts contain only
-interactive-session state and allowlisted window counts. The initial interaction
-primitive is `focus-window`, which requires exactly one allowlisted top-level
-window and verifies the foreground handle after the action.
+## Browser and desktop truth
 
-The candidate manifest enables the Desktop contract, but routing remains blocked
-without a current attended-session canary. Arbitrary executables, arbitrary
-PowerShell, click/type
-sequences, window titles, document content, and screenshots are not part of this
-initial production contract.
+The repository contains a bounded browser worker and a Windows Desktop Worker contract. Managed loopback Chrome observation is implemented. The Desktop Worker remains attended and allowlisted. These repository contracts do not prove a current attended Windows canary.
 
-## Microsoft durable queue readiness
+Canonical signed-in autonomous browser ownership remains separate from attended browser/application handoff. A live provider observation is required before signed-session work can be treated as routable.
 
-The Dataverse queue implementation remains outbound-only and the production
-feature flag remains disabled until authentication is proven on the Windows
-host. The queue worker now distinguishes repository/configuration readiness from
-unattended authentication readiness rather than treating the presence of `.env`
-and a script as proof that polling can succeed.
+## Microsoft and local-provider truth
 
-`queue.status` performs a non-interactive `scripts/auth.py --diagnose` probe only
-when the publisher prefix, Dataverse URL, tenant identifier, queue script, and
-auth script are present. It marks the queue ready for unattended polling only
-when the existing authentication chain reports a silent credential tier. It
-never returns the Dataverse URL, tenant identifier, token, credential, or raw
-diagnostic transcript in the worker receipt.
+The Microsoft 365 attended worker and Dataverse queue contracts exist. Unattended queue polling remains dependent on a working silent credential and live outbound poll. LM Studio/local-reasoner execution, optional GitHub Copilot execution, Workspace Agent cloud triggering, Copilot Studio delegation, and Lenovo AI execution remain subject to their declared provider/readiness prerequisites.
 
-`queue.poll` also constrains the Python result to the expected relay identifier
-and bounded `claimed`, `completed`, and `requeued` counts. Unexpected fields are
-dropped before persistence. Live activation still requires one successful
-Windows-host status probe and one outbound poll against the configured Dataverse
-environment.
+Use `npm run providers:probe` on the authoritative Windows checkout for a bounded, non-activating readiness pass. The probe does not prove end-to-end execution and must not be substituted for task-specific canary evidence.
 
-## Local provider readiness
+## GitHub assurance and merge enforcement
 
-Run `npm run providers:probe` on the authoritative Windows checkout to perform a
-single non-activating readiness pass across the attended Desktop contract,
-Dataverse queue authentication, LM Studio loopback provider, GitHub Copilot CLI,
-Primary Codex Builder invocation, and Workspace Agent credential state.
+Canonical CI verifies the repository on both Linux and Windows using Node 24 and runs the focused conversation/evolution contract gate, full `npm run verify`, static self-upgrade policy validation, capability gap audit, and GitHub assurance dashboard.
 
-The report is deliberately sanitized. It reduces each provider to bounded
-availability/credential/readiness metadata and does not include document titles,
-model identifiers, Dataverse tenant values, tokens, prompts, provider stdout,
-or model responses. A successful readiness probe never flips a feature flag or
-claims end-to-end task execution.
+Repository code also enforces exact-head integration rules, immutable task/coordination evidence, protected-root boundaries, and release-baseline integrity.
 
-LM Studio now has a fixed read-only health probe at
-`http://127.0.0.1:1234/v1/models`. It records only the number of available models.
-Actual `reason.local` execution remains disabled until Mahoraga has a transient
-result channel that can consume generated content without persisting prompts or
-model responses in the runtime database.
+At the start of this stabilization, GitHub `main` itself was unprotected and had no required status checks. The connected GitHub interface available to this stabilization exposes branch-protection/ruleset state but does not expose a mutation action for enabling those repository settings. Therefore this repository document does **not** claim that GitHub branch protection has been enabled. Until that setting is changed through a GitHub settings surface that supports writes, merges must continue to be gated operationally on the exact PR head's successful Windows and Ubuntu `Verify Mahoraga` checks.
 
-## Remaining live capability gaps
+## Repair baseline
 
-The following declarations remain intentionally inactive until their provider or
-machine prerequisites are proven:
+The immutable repair baseline now covers the new autonomous write-scope resolver and objective-release authority in addition to the existing production-critical files. Baseline equality is verified by the complete repository suite; changed core files are not accepted by weakening the check or adding hash exceptions.
 
-- Desktop Worker: enabled as a candidate contract; a current attended-session
-  provider observation and canary remain required before any route is eligible.
-- Signed-in browser control: disabled pending an owned signed-session provider
-  and deterministic verification receipts.
-- Microsoft durable queue worker: code and unattended-auth diagnostics are
-  prepared; a live Windows silent credential and successful outbound poll remain.
-- LM Studio/local reasoner: loopback health diagnostics are prepared; a live
-  model probe plus a non-persistent result channel remain before execution.
-- Direct Primary Codex Builder: enabled only inside a candidate worktree and
-  still requires a verified environment canary plus an integration lease.
-- GitHub Copilot worker and Workspace Agent cloud trigger: optional declared
-  providers that remain disabled until their live authentication/health
-  prerequisites are satisfied.
+## Remaining live-evidence boundary
 
-Run `npm run gap:audit` for the machine-readable evidence-backed gap report.
+GitHub can establish source state and hosted-runner verification. It cannot establish the current Windows PID, listener, active version, worker processes, local provider authentication, attended desktop session, local canaries, SQLite operational state, or whether a candidate has been activated on the machine.
 
-## Historical note
-
-Earlier versions of this document described the `3.2.0` and `3.5.x` production
-lines. The rollback baseline for this alpha is `3.6.0`; none of those historical
-records proves the current Windows process state or verifies the Mahoraga 7
-candidate.
+A separate read-only live Windows audit is required before making any current-production claim.
