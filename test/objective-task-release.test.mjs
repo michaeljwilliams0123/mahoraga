@@ -24,10 +24,15 @@ function objectiveDefinition() {
   });
 }
 
-test("objective release derives policy, lease, and Codex Builder sessions before dispatch", async (t) => {
+async function installedFixture(t) {
   const database = fixture(t);
   const manifest = await loadManifest();
   installObjectiveReleaseAuthority({ database, manifest });
+  return database;
+}
+
+test("objective release derives policy, lease, and Codex Builder sessions before dispatch", async (t) => {
+  const database = await installedFixture(t);
   const objective = database.createObjective(objectiveDefinition());
 
   const reconciled = database.reconcileObjectives();
@@ -38,6 +43,7 @@ test("objective release derives policy, lease, and Codex Builder sessions before
 
   const lease = database.getIntegrationLease();
   assert.equal(lease.controllerId, "primary-local-codex");
+  assert.equal(lease.purpose, `objective:${objective.id}`);
   assert.deepEqual(lease.paths, ["src", "test"]);
   for (const child of released) {
     assert.equal(child.task.capability, "codex.execute");
@@ -50,10 +56,30 @@ test("objective release derives policy, lease, and Codex Builder sessions before
   }
 });
 
+test("completed Codex stages release their lease and reacquire a fresh lease for the next stage", async (t) => {
+  const database = await installedFixture(t);
+  const objective = database.createObjective(objectiveDefinition());
+  database.reconcileObjectives();
+  const firstLease = database.getIntegrationLease();
+
+  for (let index = 0; index < 2; index += 1) {
+    const claimed = database.claimNext({ workerId: "primary-codex-builder", capabilities: ["codex.execute"], leaseMs: 30_000 });
+    assert.ok(claimed);
+    database.finishTask(claimed.id, { status: "completed", resultSummary: "Verified bounded stage completion." });
+  }
+  database.reconcileObjectives();
+  database.reconcileObjectives();
+
+  const next = database.getObjective(objective.id).tasks.find((task) => task.id === "synthesize");
+  const secondLease = database.getIntegrationLease();
+  assert.equal(next.status, "released");
+  assert.notEqual(secondLease.leaseId, firstLease.leaseId);
+  assert.equal(next.task.integrationLeaseId, secondLease.leaseId);
+  assert.equal(database.getCodexBuilderSessionByTaskId(next.task.id).status, "PREPARED");
+});
+
 test("a competing Primary lease keeps Codex objective children planned without bypassing authority", async (t) => {
-  const database = fixture(t);
-  const manifest = await loadManifest();
-  installObjectiveReleaseAuthority({ database, manifest });
+  const database = await installedFixture(t);
   database.acquireIntegrationLease({
     controllerId: "primary-cloud-codex",
     durationMs: 60_000,
