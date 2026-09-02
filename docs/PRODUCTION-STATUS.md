@@ -1,4 +1,4 @@
-# Mahoraga production and repository status — 2026-09-01
+# Mahoraga production and repository status — 2026-09-02
 
 This record deliberately separates **repository truth**, **GitHub verification**, and **live Windows production truth**. A manifest declaration, merged pull request, or green hosted-runner check does not prove which Mahoraga build is currently running on the Windows host. Live production claims require fresh process, listener, worker, provider, canary, and runtime-version evidence from that machine.
 
@@ -35,11 +35,13 @@ PR #77 repairs that boundary without changing the self-evolution stack:
 - derives every released child through the existing task-policy boundary;
 - prepares a Codex Builder session before a Codex child can dispatch;
 - releases/reacquires objective-owned integration leases between completed Codex stages so a long objective does not depend on one stale lease;
+- releases the objective-owned lease immediately after the final Codex stage and uses an unpaginated active-task predicate before declaring a lease idle;
+- resolves the exact repository base asynchronously before persisting autonomous chat/conversation state, including owner-paired relay chat;
 - derives new-conversation write scope from the original user request before encrypted-vault substitution;
 - adds the new autonomy authority modules to the immutable repair baseline;
 - preserves the existing candidate-worktree, exact-head, verification, integration, and rollback boundaries.
 
-The implementation was developed test-first. GitHub Actions first observed the intended RED state and then verified the corrected implementation on hosted Ubuntu. The matching Windows job is also required before the PR is eligible for merge. A separate stabilization record is maintained at `docs/verification/7.0.0-alpha.1-main-stabilization.md`.
+The implementation was developed test-first. GitHub Actions observed each intended RED state before its production repair. Exact implementation head `02ed3d30d79430f983e580a79f231dcf22d8a25a` passed complete `Verify Mahoraga` run #191 on both Ubuntu and Windows. Any later documentation-only commit must still pass the same exact-head merge gate. A separate stabilization record is maintained at `docs/verification/7.0.0-alpha.1-main-stabilization.md`.
 
 ## Self-evolution boundary for this stabilization
 
