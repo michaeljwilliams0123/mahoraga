@@ -1,4 +1,5 @@
 import { currentAutonomyExecutionContract } from "./autonomy-execution-scope.mjs";
+import { AUTONOMY_OBJECTIVE_AUTHORITY } from "./objective-release-authority.mjs";
 
 const MAX_MESSAGE_LENGTH = 800;
 
@@ -23,6 +24,7 @@ function executionContract(value) {
 function codexTask({ id, dependsOn, outcome, conversationId, requestedMode, taskArea, contract }) {
   return {
     id,
+    authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY,
     capability: "codex.execute",
     dataClass: "synthetic",
     taskType: "codex-builder",
@@ -46,6 +48,7 @@ function codexTask({ id, dependsOn, outcome, conversationId, requestedMode, task
 function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, completionCriteria }) {
   return {
     id,
+    authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY,
     capability: "repository.verify",
     dataClass: "synthetic",
     taskType: "repository",
