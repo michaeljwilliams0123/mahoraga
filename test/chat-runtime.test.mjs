@@ -77,7 +77,7 @@ test("repository head failure leaves autonomous chat intake unpersisted", { conc
     body: JSON.stringify({ mode: "act", content: "Update the Mahoraga interface and apply the change", idempotencyKey: "chat-act-head-failure" }),
   });
 
-  assert.equal(acted.status, 500);
+  assert.equal(acted.status, 400);
   assert.equal(runtime.database.listConversations().length, 0);
   assert.equal(runtime.database.listObjectives().length, 0);
 });
