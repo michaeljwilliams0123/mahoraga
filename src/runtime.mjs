@@ -9,6 +9,7 @@ import { createControlSessionManager } from "./control-session.mjs";
 import { createContentVault } from "./content-vault.mjs";
 import { createRelayRuntimePeer } from "./relay-runtime.mjs";
 import { createMcpHostManager } from "./mcp-host-manager.mjs";
+import { installObjectiveReleaseAuthority } from "./objective-release-authority.mjs";
 
 export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot, relay = null, mcpTransports = {} } = {}) {
   const manifest = await loadManifest();
@@ -19,6 +20,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const contentVault = await createContentVault({ root: resolvedContentVaultRoot, keyFile: resolvedContentVaultKeyFile, masterKey: contentVaultMasterKey });
   contentVault.deleteExpired();
   const database = new RuntimeDatabase(resolvedDatabaseFile, { contentVault });
+  const objectiveReleaseAuthority = installObjectiveReleaseAuthority({ database, manifest });
   const resolvedArtifactRoot = artifactRoot ?? path.join(path.dirname(resolvedDatabaseFile), "artifacts");
   const artifactStore = new LocalArtifactStore(resolvedArtifactRoot, { contentVault });
   const supervisor = new Supervisor({ manifest, database, artifactRoot: resolvedArtifactRoot, contentVaultRoot: resolvedContentVaultRoot, contentVaultKeyFile: resolvedContentVaultKeyFile, syncCoordinationMailbox });
@@ -49,6 +51,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     relayRuntime?.close();
     supervisor.stop();
     await new Promise((resolve) => server.close(resolve));
+    objectiveReleaseAuthority.restore();
     database.close();
   };
   return { manifest, database, artifactStore, contentVault, supervisor, server, controlSessions, mcpHost, relayRuntime, address, stop };
