@@ -36,3 +36,21 @@ test("a journal-style first message can explicitly remain message-only", () => {
   assert.equal(result.objective, null);
   assert.equal(objectives, 0);
 });
+
+test("a missing execution contract cannot persist an autonomous conversation", () => {
+  const calls = [];
+  const database = {
+    createConversation(input) { calls.push(["conversation", input]); return { id: "con-1", title: input.title }; },
+    listConversationMessages() { return [{ id: "msg-1", role: "user", content: "Improve the routing logic." }]; },
+    createObjective(input) { calls.push(["objective", input]); return { id: "obj-1", ...input }; },
+  };
+
+  assert.throws(() => createAutonomousConversation({
+    database,
+    policy: { conversationActivation: true },
+    title: "Routing",
+    initialMessage: "Improve the routing logic.",
+    requiresResponse: true,
+  }), /Autonomy execution contract is required/);
+  assert.deepEqual(calls, []);
+});
