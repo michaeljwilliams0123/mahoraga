@@ -74,11 +74,11 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
 
 function prepareObjectiveLease(database, readyCodex) {
   let lease = database.getIntegrationLease();
-  if (!readyCodex) return lease;
   if (lease?.controllerId === LOCAL_PRIMARY && lease.purpose.startsWith("objective:") && !hasActiveLeaseTasks(database, lease.leaseId)) {
     database.releaseIntegrationLease({ controllerId: LOCAL_PRIMARY, leaseId: lease.leaseId });
     lease = null;
   }
+  if (!readyCodex) return lease;
   if (!lease) {
     const acquired = database.acquireIntegrationLease({
       controllerId: LOCAL_PRIMARY,
