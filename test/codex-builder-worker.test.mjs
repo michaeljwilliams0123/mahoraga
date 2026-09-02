@@ -53,8 +53,9 @@ test("Codex CLI discovery is fixed to the user-level package or sandbox binary",
 
 test("Codex CLI discovery falls back to the fixed per-user Codex package", async () => {
   const seen = [];
+  const localAppData = path.join(path.parse(process.cwd()).root, "Users", "Owner", "AppData", "Local");
   const resolved = await findInstalledCodexCli({
-    localAppData: "C:\\Users\\Owner\\AppData\\Local",
+    localAppData,
     listPnpmPackages: async () => ["@openai+codex@0.145.0", "@openai+codex@0.145.0-win32-x64"],
     canAccess: async (candidate) => { seen.push(candidate); if (!candidate.includes("CodexCLI")) throw Object.assign(new Error("missing"), { code: "ENOENT" }); },
     resolveRealpath: async (candidate) => candidate,
