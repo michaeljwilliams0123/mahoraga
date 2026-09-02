@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createAutonomousConversation } from "../src/autonomy-orchestrator.mjs";
 
+const EXECUTION_CONTRACT = Object.freeze({ baseCommit: "b".repeat(40), allowedPaths: Object.freeze(["src", "test"]) });
+
 test("a first conversational request creates the conversation and one autonomous objective", () => {
   const calls = [];
   const database = {
@@ -15,10 +17,12 @@ test("a first conversational request creates the conversation and one autonomous
     title: "Routing",
     initialMessage: "Improve the routing logic.",
     requiresResponse: true,
+    executionContract: EXECUTION_CONTRACT,
   });
   assert.equal(result.conversation.id, "con-1");
   assert.equal(result.objective.id, "obj-1");
   assert.deepEqual(calls.map(([kind]) => kind), ["conversation", "objective"]);
+  assert.equal(result.objective.tasks.find((task) => task.capability === "codex.execute").baseCommit, EXECUTION_CONTRACT.baseCommit);
 });
 
 test("a journal-style first message can explicitly remain message-only", () => {
