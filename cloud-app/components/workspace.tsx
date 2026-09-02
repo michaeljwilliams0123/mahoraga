@@ -203,17 +203,31 @@ export function Workspace() {
         attachmentIds: [],
         idempotencyKey: `vercel-${crypto.randomUUID()}`,
       });
+      if (runtimePollGeneration.current !== pollGeneration) {
+        if (result.task) {
+          try {
+            await transport.taskAction(result.task.id, result.task.conversationId, "cancel");
+          } catch (caught) {
+            setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "runtime-cancel-failed"));
+          }
+        }
+        return;
+      }
       const conversationId = result.conversation.id;
       setRuntimeConversationId(conversationId);
       activeRuntimeTask.current = result.task;
       await pollRuntime(transport, conversationId, Boolean(result.task || result.objective), pollGeneration);
     } catch (caught) {
-      const code = caught instanceof Error ? caught.message : "runtime-request-failed";
-      setRuntimeError(runtimeErrorMessage(code));
-      if (!transport.connected) setRelayState("error");
+      if (runtimePollGeneration.current === pollGeneration) {
+        const code = caught instanceof Error ? caught.message : "runtime-request-failed";
+        setRuntimeError(runtimeErrorMessage(code));
+        if (!transport.connected) setRelayState("error");
+      }
     } finally {
-      activeRuntimeTask.current = null;
-      setRuntimeBusy(false);
+      if (runtimePollGeneration.current === pollGeneration) {
+        activeRuntimeTask.current = null;
+        setRuntimeBusy(false);
+      }
     }
   }
 

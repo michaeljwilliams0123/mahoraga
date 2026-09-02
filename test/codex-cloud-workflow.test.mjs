@@ -25,6 +25,10 @@ test("Codex cloud dispatch remains main-only and stages one bounded draft PR", a
   assert.match(source, /const activationPath = `coordination\/codex-activations\/\$\{task\.taskId\}\.json`/);
   assert.match(source, /draft: true/);
   assert.match(source, /No model has been invoked/);
+  assert.match(source, /labelNames\.some\(\(name\) => name === "codex:done" \|\| name === "codex:blocked"\)/);
+  assert.match(source, /pulls\.data\.find\(\(candidate\) => candidate\.state === "open"\)/);
+  assert.match(source, /pulls\.data\.find\(\(candidate\) => Boolean\(candidate\.merged_at\)\)/);
+  assert.doesNotMatch(source, /if \(!labelNames\.includes\("codex:draft-required"\)\)/);
 });
 
 test("Codex cloud dispatch uses the validated bundle and stores no OpenAI credential", async () => {

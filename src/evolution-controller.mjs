@@ -104,7 +104,7 @@ function inspectGeneratedExtensions(result, safetyInspector) {
   const extensions = result?.generatedExtensions ?? result?.extensions ?? [];
   if (!Array.isArray(extensions) || extensions.length > 32) fail("generated-extensions-invalid");
   const changedPaths = Array.isArray(result?.changedPaths) ? result.changedPaths : [];
-  const generatedPaths = changedPaths.filter((value) => typeof value === "string" && /(?:^|\/)extensions\/[^/]+\.(?:mjs|js|py)$/.test(value));
+  const generatedPaths = changedPaths.filter((value) => typeof value === "string" && /(?:^|\/)extensions\/(?:[^/]+\/)*[^/]+\.(?:mjs|js|py)$/.test(value));
   const declaredPaths = new Set(extensions.map((extension) => extension?.manifest?.entrypoint).filter((value) => typeof value === "string"));
   if (generatedPaths.some((value) => !declaredPaths.has(value)) || [...declaredPaths].some((value) => !changedPaths.includes(value))) fail("generated-extension-metadata-required");
   for (const extension of extensions) {

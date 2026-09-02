@@ -43,6 +43,8 @@ jobs:
               { name: "codex:pr-comment-required", color: "fbca04", description: "Primary must place the bounded @codex task on a pull request" },
               { name: "codex:draft-required", color: "d4c5f9", description: "Deterministic draft activation PR has not been staged" },
               { name: "codex:activation-ready", color: "0e8a16", description: "Draft PR is ready for an owner-authored Codex mention" },
+              { name: "codex:blocked", color: "b60205", description: "Primary task reached a terminal blocker" },
+              { name: "codex:done", color: "006b75", description: "Primary task completed with verified return evidence" },
             ];
             for (const label of requiredLabels) {
               try {
@@ -79,8 +81,8 @@ jobs:
                 core.notice(`Staged issue #${issue.number} for ${task.taskId}; no model was invoked.`);
               }
               const labelNames = (issue.labels ?? []).map((label) => typeof label === "string" ? label : label.name);
-              if (!labelNames.includes("codex:draft-required")) {
-                core.notice(`Reused issue #${issue.number} for ${task.taskId}.`);
+              if (labelNames.some((name) => name === "codex:done" || name === "codex:blocked")) {
+                core.notice(`Task ${task.taskId} already has a terminal issue state.`);
                 continue;
               }
 
@@ -92,6 +94,33 @@ jobs:
                 if (error.status !== 404) throw error;
                 await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha: context.sha });
               }
+
+              const pulls = await github.rest.pulls.list({ owner, repo, state: "all", head: `${owner}:${branch}`, per_page: 10 });
+              const openPull = pulls.data.find((candidate) => candidate.state === "open");
+              const mergedPull = pulls.data.find((candidate) => Boolean(candidate.merged_at));
+              if (openPull) {
+                if (!labelNames.includes("codex:activation-ready")) {
+                  await github.rest.issues.createComment({
+                    owner,
+                    repo,
+                    issue_number: issue.number,
+                    body: `Draft activation PR #${openPull.number} is ready. No model was invoked. The repository owner must place the connected Codex mention and this issue's validated task body in a new comment on that PR.`,
+                  });
+                }
+                try { await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: "codex:draft-required" }); }
+                catch (error) { if (error.status !== 404) throw error; }
+                await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ["codex:activation-ready"] });
+                core.notice(`Reused open activation PR #${openPull.number} for ${task.taskId}.`);
+                continue;
+              }
+              if (mergedPull) {
+                core.notice(`Task ${task.taskId} already has merged activation PR #${mergedPull.number}.`);
+                continue;
+              }
+
+              await github.rest.issues.addLabels({ owner, repo, issue_number: issue.number, labels: ["codex:draft-required"] });
+              try { await github.rest.issues.removeLabel({ owner, repo, issue_number: issue.number, name: "codex:activation-ready" }); }
+              catch (error) { if (error.status !== 404) throw error; }
 
               const activationPath = `coordination/codex-activations/${task.taskId}.json`;
               const activationSource = `${JSON.stringify(task.activation, null, 2)}\n`;
@@ -116,28 +145,24 @@ jobs:
                 });
               }
 
-              const pulls = await github.rest.pulls.list({ owner, repo, state: "all", head: `${owner}:${branch}`, per_page: 10 });
-              let pull = pulls.data[0];
-              if (!pull) {
-                pull = (await github.rest.pulls.create({
-                  owner,
-                  repo,
-                  title: task.issue.title,
-                  head: branch,
-                  base: "main",
-                  draft: true,
-                  body: [
-                    `Deterministic activation for #${issue.number}. No model has been invoked.`,
-                    "",
-                    `Activation pointer: \`${activationPath}\``,
-                    "",
-                    "Owner activation: add the connected Codex account mention as the first token of a new pull-request comment, then paste the validated body from the staging issue.",
-                    "The implementation worker must remove the activation pointer before returning the completed diff.",
-                    "If the primary lane returns a terminal blocker, the owner may use the same source issue's bounded fallback command for the registered Secondary Codex task area.",
-                  ].join("\n"),
-                })).data;
-                await github.rest.issues.addLabels({ owner, repo, issue_number: pull.number, labels: ["codex:pr-comment-required", "privacy:repo-only"] });
-              }
+              const pull = (await github.rest.pulls.create({
+                owner,
+                repo,
+                title: task.issue.title,
+                head: branch,
+                base: "main",
+                draft: true,
+                body: [
+                  `Deterministic activation for #${issue.number}. No model has been invoked.`,
+                  "",
+                  `Activation pointer: \`${activationPath}\``,
+                  "",
+                  "Owner activation: add the connected Codex account mention as the first token of a new pull-request comment, then paste the validated body from the staging issue.",
+                  "The implementation worker must remove the activation pointer before returning the completed diff.",
+                  "If the primary lane returns a terminal blocker, the owner may use the same source issue's bounded fallback command for the registered Secondary Codex task area.",
+                ].join("\n"),
+              })).data;
+              await github.rest.issues.addLabels({ owner, repo, issue_number: pull.number, labels: ["codex:pr-comment-required", "privacy:repo-only"] });
               await github.rest.issues.createComment({
                 owner,
                 repo,

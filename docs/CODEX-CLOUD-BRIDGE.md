@@ -78,9 +78,12 @@ sharing ChatGPT conversations.
    node .\scripts\codex-cloud-task.mjs render --file .\task.json
    ```
 
-3. GitHub Actions creates missing bridge labels, searches open and closed staging
-   issues for the exact rendered marker, and reuses the existing issue, branch,
-   and pull request on reruns.
+3. GitHub Actions creates missing bridge labels and searches open and closed
+   staging issues for the exact rendered marker. It reuses an open activation
+   pull request, migrates legacy queued issues that have no activation label,
+   and creates a new draft when every earlier activation pull request is closed.
+   A merged activation pull request or an issue labeled `codex:done` or
+   `codex:blocked` is terminal and is never dispatched again.
 4. The repository owner opens the draft pull request and writes a new comment
    whose first token is the connected Codex mention, followed by the validated
    body from the staging issue. An owner-authored pull-request mention is the

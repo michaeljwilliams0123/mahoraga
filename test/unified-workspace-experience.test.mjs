@@ -16,6 +16,8 @@ test("unified workspace renders cloud and paired-runtime conversations without r
   assert.match(source, /resetConversation/);
   assert.match(source, /messageContent\(message, conversationId\)/);
   assert.match(source, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
+  assert.match(source, /runtimePollGeneration\.current !== pollGeneration[\s\S]*?taskAction\(result\.task\.id, result\.task\.conversationId, "cancel"\)/);
+  assert.match(source, /finally\s*{\s*if \(runtimePollGeneration\.current === pollGeneration\)/);
 });
 
 test("runtime relay keeps decrypted content in browser memory and rejects attachments", async () => {

@@ -114,3 +114,10 @@ test("evolution rejects generated extension paths without matching safety metada
   await assert.rejects(() => input.controller.advance(candidate.id), /generated-extension-metadata-required/);
   assert.equal(input.controller.status(candidate.id).state, "failed");
 });
+
+test("evolution rejects nested generated extension paths without matching safety metadata", async (t) => {
+  const input = fixture(t, { repository: { async build() { return { headSha: "b".repeat(40), changedPaths: ["extensions/nested/undeclared.mjs"] }; } } });
+  const candidate = input.controller.request({ conversationId: "con-evolution-nested-metadata", requestSha256: "f".repeat(64), baseSha: input.baseSha, branch: "destiny/nested-metadata", allowedPaths: ["extensions"], candidateRoot: path.join(input.root, "candidate"), activeRoot: path.join(input.root, "active") });
+  await assert.rejects(() => input.controller.advance(candidate.id), /generated-extension-metadata-required/);
+  assert.equal(input.controller.status(candidate.id).state, "failed");
+});
