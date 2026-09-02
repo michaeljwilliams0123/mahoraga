@@ -3,6 +3,7 @@ import { deriveTaskPolicy, policyTaskInput } from "./task-policy.mjs";
 
 export const AUTONOMY_OBJECTIVE_AUTHORITY = "autonomy-objective-v1";
 const LOCAL_PRIMARY = "primary-local-codex";
+const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 
 export function installObjectiveReleaseAuthority({ database, manifest }) {
   if (!database || typeof database.submitTask !== "function" || typeof database.reconcileObjectives !== "function") throw new TypeError("Objective release database is invalid.");
@@ -51,17 +52,7 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
   database.reconcileObjectives = () => {
     const objectives = originalListObjectives(500).filter((item) => ["planned", "running"].includes(item.status));
     const readyCodex = firstReadyCodexTask(objectives);
-    let lease = database.getIntegrationLease();
-    if (readyCodex && !lease) {
-      const acquired = database.acquireIntegrationLease({
-        controllerId: LOCAL_PRIMARY,
-        durationMs: MAX_INTEGRATION_LEASE_MS,
-        purpose: `objective:${readyCodex.objectiveId}`,
-        paths: readyCodex.definition.allowedPaths,
-      });
-      lease = acquired.lease;
-    }
-
+    const lease = prepareObjectiveLease(database, readyCodex);
     const allowedObjectiveIds = new Set(objectives.filter((objective) => objectiveCompatibleWithLease(objective, lease)).map((objective) => objective.id));
     const priorListObjectives = database.listObjectives;
     database.listObjectives = (limit = 100) => originalListObjectives(limit).filter((objective) => allowedObjectiveIds.has(objective.id));
@@ -81,6 +72,29 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
   });
 }
 
+function prepareObjectiveLease(database, readyCodex) {
+  let lease = database.getIntegrationLease();
+  if (!readyCodex) return lease;
+  if (lease?.controllerId === LOCAL_PRIMARY && lease.purpose.startsWith("objective:") && !hasActiveLeaseTasks(database, lease.leaseId)) {
+    database.releaseIntegrationLease({ controllerId: LOCAL_PRIMARY, leaseId: lease.leaseId });
+    lease = null;
+  }
+  if (!lease) {
+    const acquired = database.acquireIntegrationLease({
+      controllerId: LOCAL_PRIMARY,
+      durationMs: MAX_INTEGRATION_LEASE_MS,
+      purpose: `objective:${readyCodex.objectiveId}`,
+      paths: readyCodex.definition.allowedPaths,
+    });
+    lease = acquired.lease;
+  }
+  return lease;
+}
+
+function hasActiveLeaseTasks(database, leaseId) {
+  return database.listTasks(500).some((task) => task.integrationLeaseId === leaseId && ACTIVE_TASK_STATES.has(task.status));
+}
+
 function firstReadyCodexTask(objectives) {
   for (const objective of objectives) {
     const byId = new Map(objective.tasks.map((task) => [task.id, task]));
@@ -97,7 +111,7 @@ function objectiveCompatibleWithLease(objective, lease) {
   const byId = new Map(objective.tasks.map((task) => [task.id, task]));
   const ready = objective.tasks.filter((task) => task.status === "planned" && task.definition.capability === "codex.execute" && task.definition.dependsOn.every((dependency) => byId.get(dependency)?.status === "completed"));
   if (ready.length === 0) return true;
-  if (!lease || lease.controllerId !== LOCAL_PRIMARY) return false;
+  if (!lease || lease.controllerId !== LOCAL_PRIMARY || lease.purpose !== `objective:${objective.id}`) return false;
   return ready.every((task) => leaseCovers(lease, task.definition.allowedPaths));
 }
 
