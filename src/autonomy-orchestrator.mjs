@@ -136,6 +136,7 @@ export function createAutonomousConversation({
   const conversation = database.createConversation({ title, initialMessage, attachments });
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
   if (!shouldCreateObjective) return Object.freeze({ conversation, objective: null });
+  const contract = suppliedExecutionContract ?? currentAutonomyExecutionContract(initialMessage);
   const messages = database.listConversationMessages(conversation.id);
   const message = [...messages].reverse().find((item) => item.role === "user");
   if (!message) throw new TypeError("Initial conversation message is missing.");
@@ -145,7 +146,7 @@ export function createAutonomousConversation({
     message: message.content,
     requestedMode,
     taskArea,
-    executionContract: suppliedExecutionContract,
+    executionContract: contract,
   }));
   return Object.freeze({ conversation, objective });
 }
