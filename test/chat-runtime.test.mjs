@@ -53,3 +53,31 @@ test("unified chat intake separates questions from explicit actions", { concurre
     assert.equal(Object.hasOwn(definition, "integrationLeaseId"), false);
   }
 });
+
+test("repository head failure leaves autonomous chat intake unpersisted", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-chat-runtime-head-failure-"));
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: Buffer.alloc(32, 41),
+    primaryCodexToken: TOKEN,
+    syncCoordinationMailbox: false,
+    repositoryHeadReader: async () => {
+      const error = new Error("repository-head-unavailable");
+      error.code = "repository-head-unavailable";
+      throw error;
+    },
+  });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+
+  const acted = await fetch(`${base}/api/chat`, {
+    method: "POST",
+    headers: AUTH,
+    body: JSON.stringify({ mode: "act", content: "Update the Mahoraga interface and apply the change", idempotencyKey: "chat-act-head-failure" }),
+  });
+
+  assert.equal(acted.status, 500);
+  assert.equal(runtime.database.listConversations().length, 0);
+  assert.equal(runtime.database.listObjectives().length, 0);
+});
