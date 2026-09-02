@@ -1,3 +1,5 @@
+import { currentAutonomyExecutionContract } from "./autonomy-execution-scope.mjs";
+
 const MAX_MESSAGE_LENGTH = 800;
 
 function boundedText(value, fallback) {
@@ -68,9 +70,9 @@ export function buildAutonomyObjective({
   message,
   requestedMode = "hybrid",
   taskArea = "mahoraga-autonomy",
-  executionContract: suppliedExecutionContract,
+  executionContract: suppliedExecutionContract = null,
 }) {
-  const contract = executionContract(suppliedExecutionContract);
+  const contract = executionContract(suppliedExecutionContract ?? currentAutonomyExecutionContract(message));
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
   const context = `User request: ${request}`;
