@@ -81,3 +81,32 @@ test("repository head failure leaves autonomous chat intake unpersisted", { conc
   assert.equal(runtime.database.listConversations().length, 0);
   assert.equal(runtime.database.listObjectives().length, 0);
 });
+
+test("owner-paired relay autonomous chat resolves the exact repository base", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-relay-chat-runtime-"));
+  const expectedHead = "d".repeat(40);
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: Buffer.alloc(32, 43),
+    primaryCodexToken: TOKEN,
+    syncCoordinationMailbox: false,
+    repositoryHeadReader: async () => expectedHead,
+  });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+
+  const result = await runtime.server.conversationGateway.chat({
+    mode: "act",
+    content: "Update the Mahoraga interface and apply the change",
+    idempotencyKey: "relay-chat-act-runtime",
+  }, {
+    mechanism: "owner-paired-relay",
+    attendedSession: { active: true, sessionId: "rls-00000000000000000000000000000000" },
+  });
+
+  assert.equal(result.decision.mode, "act");
+  assert.equal(result.objective.tasks.filter((task) => task.definition.capability === "codex.execute").length, 4);
+  for (const task of result.objective.tasks.filter((item) => item.definition.capability === "codex.execute")) {
+    assert.equal(task.definition.baseCommit, expectedHead);
+  }
+});
