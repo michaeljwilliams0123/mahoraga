@@ -114,3 +114,25 @@ test("finishing the final Codex stage releases the objective lease before reposi
   assert.equal(verify.status, "released");
   assert.equal(database.getIntegrationLease(), null);
 });
+
+test("an active objective task retains its lease when newer tasks exceed the list limit", async (t) => {
+  const database = await installedFixture(t);
+  const objective = database.createObjective(objectiveDefinition());
+  database.reconcileObjectives();
+  const lease = database.getIntegrationLease();
+  const activeTaskIds = database.getObjective(objective.id).tasks
+    .filter((task) => task.status === "released")
+    .map((task) => task.task.id);
+
+  for (let index = 0; index < 501; index += 1) {
+    database.submitTask({
+      capability: "local.health",
+      dataClass: "synthetic",
+      idempotencyKey: `objective-lease-filler-${index}`,
+    });
+  }
+
+  assert.equal(database.listTasks(500).some((task) => activeTaskIds.includes(task.id)), false);
+  database.reconcileObjectives();
+  assert.equal(database.getIntegrationLease().leaseId, lease.leaseId);
+});
