@@ -2,12 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildAutonomyObjective, createAutonomousConversationTurn } from "../src/autonomy-orchestrator.mjs";
 
+const EXECUTION_CONTRACT = Object.freeze({
+  baseCommit: "a".repeat(40),
+  allowedPaths: Object.freeze(["cloud", "src", "test"]),
+});
+
 test("conversation autonomy builds two independent debate lanes before synthesis and implementation", () => {
   const objective = buildAutonomyObjective({
     conversationId: "con-00000000-0000-0000-0000-000000000000",
     messageId: "msg-00000000-0000-0000-0000-000000000000",
     message: "Upgrade the routing nodes and links, then verify the result.",
     requestedMode: "hybrid",
+    executionContract: EXECUTION_CONTRACT,
   });
   assert.equal(objective.correlationId, "aut-msg-00000000-0000-0000-0000-000000000000");
   assert.deepEqual(objective.tasks.map(({ id, dependsOn }) => ({ id, dependsOn })), [
@@ -18,7 +24,13 @@ test("conversation autonomy builds two independent debate lanes before synthesis
     { id: "verify", dependsOn: ["implement"] },
     { id: "integrate", dependsOn: ["verify"] },
   ]);
-  assert.equal(objective.tasks.filter((task) => task.capability === "codex.execute").length, 4);
+  const codexTasks = objective.tasks.filter((task) => task.capability === "codex.execute");
+  assert.equal(codexTasks.length, 4);
+  for (const task of codexTasks) {
+    assert.equal(task.baseCommit, EXECUTION_CONTRACT.baseCommit);
+    assert.deepEqual(task.allowedPaths, EXECUTION_CONTRACT.allowedPaths);
+    assert.equal(Object.hasOwn(task, "integrationLeaseId"), false);
+  }
   assert.equal(objective.tasks.find((task) => task.id === "integrate").completionCriteria, "merge-after-verify");
 });
 
@@ -37,10 +49,12 @@ test("a response-requesting user turn persists once and creates one objective", 
     conversationId: "con-00000000-0000-0000-0000-000000000000",
     content: "Build autonomy from this conversation.",
     requiresResponse: true,
+    executionContract: EXECUTION_CONTRACT,
   });
   assert.equal(result.message.id, "msg-00000000-0000-0000-0000-000000000001");
   assert.equal(result.objective.id, "obj-1");
   assert.deepEqual(calls.map(([kind]) => kind), ["message", "objective"]);
+  assert.equal(result.objective.tasks.find((task) => task.capability === "codex.execute").baseCommit, EXECUTION_CONTRACT.baseCommit);
 });
 
 test("non-autonomous turns preserve existing message-only behavior", () => {
