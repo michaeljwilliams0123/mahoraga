@@ -749,6 +749,13 @@ export class RuntimeDatabase {
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
   }
 
+  hasActiveIntegrationLeaseTask(leaseId) {
+    bounded(leaseId, 128, "integration lease id");
+    return Boolean(this.db.prepare(
+      "SELECT 1 FROM tasks WHERE integration_lease_id=? AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user') LIMIT 1",
+    ).get(leaseId));
+  }
+
   hasActiveTask(capability) {
     validateCapability(capability);
     return Boolean(this.db.prepare(
