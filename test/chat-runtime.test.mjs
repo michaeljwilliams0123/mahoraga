@@ -43,4 +43,13 @@ test("unified chat intake separates questions from explicit actions", { concurre
   assert.equal(actBody.task, null);
   assert.equal(actBody.objective.tasks.length, 6);
   assert.deepEqual(actBody.objective.tasks.map((item) => item.definition.id).sort(), ["challenge", "implement", "integrate", "propose", "synthesize", "verify"]);
+  const codexDefinitions = actBody.objective.tasks.map((item) => item.definition).filter((item) => item.capability === "codex.execute");
+  assert.equal(codexDefinitions.length, 4);
+  for (const definition of codexDefinitions) {
+    assert.match(definition.baseCommit, /^[a-f0-9]{40,64}$/);
+    assert.equal(definition.allowedPaths.includes("cloud"), true);
+    assert.equal(definition.allowedPaths.includes("src"), true);
+    assert.equal(definition.allowedPaths.includes("test"), true);
+    assert.equal(Object.hasOwn(definition, "integrationLeaseId"), false);
+  }
 });
