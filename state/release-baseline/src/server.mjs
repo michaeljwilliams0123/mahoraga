@@ -57,7 +57,7 @@ export function createControlServer({
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
   const staticAssets = snapshotStaticAssets(webRoot);
   const autonomyPolicy = autonomyPolicySnapshot(manifest);
-  const relayHandlers = createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy });
+  const relayHandlers = createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy, repositoryHeadReader });
   const gateway = conversationGateway ?? createConversationGateway({
     database, manifest, supervisor, relayHandlers,
     capabilityResolver: () => {
@@ -452,12 +452,12 @@ export function coordinationPayload(manifest, database) {
   };
 }
 
-function createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy }) {
+function createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy, repositoryHeadReader }) {
   return Object.freeze({
     async chat(body, context) {
       if (Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
       const result = await executeChatTurn({
-        database, manifest, supervisor, artifactStore, autonomyPolicy,
+        database, manifest, supervisor, artifactStore, autonomyPolicy, repositoryHeadReader,
         body: { ...body, attachmentIds: [] },
         context: { source: "owner-paired-relay-chat", attendedSession: context.attendedSession },
       });
