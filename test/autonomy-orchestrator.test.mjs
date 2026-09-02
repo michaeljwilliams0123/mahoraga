@@ -67,3 +67,20 @@ test("non-autonomous turns preserve existing message-only behavior", () => {
   assert.equal(result.objective, null);
   assert.equal(objectives, 0);
 });
+
+test("a missing execution contract cannot persist an autonomous conversation turn", () => {
+  const calls = [];
+  const database = {
+    addConversationMessage(input) { calls.push(["message", input]); return { id: "msg-1", ...input }; },
+    createObjective(input) { calls.push(["objective", input]); return { id: "obj-1", ...input }; },
+  };
+
+  assert.throws(() => createAutonomousConversationTurn({
+    database,
+    policy: { conversationActivation: true },
+    conversationId: "con-1",
+    content: "Build autonomy from this conversation.",
+    requiresResponse: true,
+  }), /Autonomy execution contract is required/);
+  assert.deepEqual(calls, []);
+});
