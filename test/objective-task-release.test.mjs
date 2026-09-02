@@ -94,3 +94,23 @@ test("a competing Primary lease keeps Codex objective children planned without b
   assert.deepEqual(database.getObjective(objective.id).tasks.filter((task) => task.status === "planned").map((task) => task.id).sort(), ["challenge", "implement", "integrate", "propose", "synthesize", "verify"]);
   assert.equal(database.getIntegrationLease().controllerId, "primary-cloud-codex");
 });
+
+test("finishing the final Codex stage releases the objective lease before repository verification", async (t) => {
+  const database = await installedFixture(t);
+  const objective = database.createObjective(objectiveDefinition());
+  database.reconcileObjectives();
+
+  for (const expectedCodexTasks of [2, 1, 1]) {
+    for (let index = 0; index < expectedCodexTasks; index += 1) {
+      const claimed = database.claimNext({ workerId: "primary-codex-builder", capabilities: ["codex.execute"], leaseMs: 30_000 });
+      assert.ok(claimed);
+      database.finishTask(claimed.id, { status: "completed", resultSummary: "Verified bounded stage completion." });
+    }
+    database.reconcileObjectives();
+    database.reconcileObjectives();
+  }
+
+  const verify = database.getObjective(objective.id).tasks.find((task) => task.id === "verify");
+  assert.equal(verify.status, "released");
+  assert.equal(database.getIntegrationLease(), null);
+});
