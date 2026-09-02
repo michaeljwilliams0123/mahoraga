@@ -9,6 +9,10 @@ const RETURN_KEYS = new Set([
   "schemaVersion", "taskId", "idempotencyKey", "state", "issueNumber", "pullRequestNumber",
   "baseCommit", "headCommit", "changedFiles", "verification", "summary", "completedAt", "privacy",
 ]);
+const ACTIVATION_KEYS = new Set([
+  "schemaVersion", "taskId", "idempotencyKey", "taskFingerprintSha256", "taskBaseCommit",
+  "sourceTaskPath", "createdBy", "privacy",
+]);
 const PRIVACY_KEYS = new Set(["chatAccess", "conversationTranscriptIncluded", "credentialsIncluded", "contentBoundary"]);
 const TERMINAL_STATES = new Set(["completed", "blocked"]);
 const INTEGRATION_MODES = new Set(["pull-request", "merge-after-verify"]);
@@ -111,6 +115,34 @@ export function renderCodexCloudIssue(record) {
   });
 }
 
+export function createCodexCloudActivation(record) {
+  const task = validateCodexCloudTask(record);
+  const fingerprint = createHash("sha256").update(JSON.stringify(task)).digest("hex");
+  return validateCodexCloudActivation({
+    schemaVersion: 1,
+    taskId: task.taskId,
+    idempotencyKey: task.idempotencyKey,
+    taskFingerprintSha256: fingerprint,
+    taskBaseCommit: task.baseCommit,
+    sourceTaskPath: `coordination/cloud-tasks/${task.taskId}.json`,
+    createdBy: "github-actions",
+    privacy: { ...COORDINATION_PRIVACY },
+  });
+}
+
+export function validateCodexCloudActivation(record) {
+  exact(record, ACTIVATION_KEYS, "Codex cloud activation");
+  if (record.schemaVersion !== 1) throw new TypeError("Codex cloud activation schema version is invalid.");
+  taskId(record.taskId);
+  idempotencyKey(record.idempotencyKey);
+  if (typeof record.taskFingerprintSha256 !== "string" || !/^[a-f0-9]{64}$/.test(record.taskFingerprintSha256)) throw new TypeError("Codex cloud activation fingerprint is invalid.");
+  commit(record.taskBaseCommit, "activation task base commit");
+  if (record.sourceTaskPath !== `coordination/cloud-tasks/${record.taskId}.json`) throw new TypeError("Codex cloud activation source path is invalid.");
+  if (record.createdBy !== "github-actions") throw new TypeError("Codex cloud activation creator is invalid.");
+  privacy(record.privacy);
+  return Object.freeze({ ...record, privacy: Object.freeze({ ...record.privacy }) });
+}
+
 export function createCodexCloudDispatchBundle(records) {
   if (!Array.isArray(records)) throw new TypeError("Codex cloud dispatch records must be an array.");
   const taskIds = new Set();
@@ -124,6 +156,8 @@ export function createCodexCloudDispatchBundle(records) {
     return Object.freeze({
       taskId: task.taskId,
       idempotencyKey: task.idempotencyKey,
+      baseCommit: task.baseCommit,
+      activation: createCodexCloudActivation(task),
       issue: renderCodexCloudIssue(task),
     });
   });

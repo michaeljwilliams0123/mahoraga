@@ -34,12 +34,38 @@ test("UI uses real streaming chat, attachments, sources, and backend readiness",
   assert.match(source, /source-url/);
   assert.match(source, /\/api\/health/);
   assert.match(source, /MessageResponse/);
+  assert.match(source, /issues\/new\?template=codex-cloud-task\.yml/);
+  assert.doesNotMatch(source, /capabilities\.gitlab|capabilities\.github\b/);
 });
 
-test("server enforces bounded attachments and tool loops", async () => {
-  const source = await read("app/api/chat/route.ts");
+test("one Vercel workspace can route to an explicitly paired encrypted runtime", async () => {
+  const [workspace, relay, health] = await Promise.all([
+    read("components/workspace.tsx"),
+    read("lib/runtime-relay.ts"),
+    read("app/api/health/route.ts"),
+  ]);
+  assert.match(workspace, /Zero-Codex route/);
+  assert.match(workspace, /Pair runtime/);
+  assert.match(workspace, /conversationRoute/);
+  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /no paid fallback/i);
+  assert.match(workspace, /No verified zero-credit language provider is connected yet/);
+  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.match(relay, /ECDH/);
+  assert.match(relay, /HKDF/);
+  assert.match(relay, /AES-GCM/);
+  assert.match(relay, /relay-attachments-local-only/);
+  assert.match(health, /relaySeesPlaintext:\s*false/);
+  assert.match(health, /localExtensionRequired:\s*false/);
+});
+
+test("server enforces bounded attachments and deliberately compact cloud budgets", async () => {
+  const [source, health] = await Promise.all([read("app/api/chat/route.ts"), read("app/api/health/route.ts")]);
   assert.match(source, /MAX_TOTAL_FILE_BYTES/);
   assert.match(source, /status:\s*413/);
-  assert.match(source, /stepCountIs\(8\)/);
-  assert.match(source, /maxOutputTokens:\s*32_000/);
+  assert.match(source, /CLOUD_MAX_STEPS/);
+  assert.match(source, /CLOUD_MAX_OUTPUT_TOKENS/);
+  assert.match(source, /compactConversation/);
+  assert.match(health, /automaticPaidFallback:\s*false/);
+  assert.match(health, /cloudRequiresExplicitSelection:\s*true/);
 });

@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createCodexCloudDispatchBundle,
+  createCodexCloudActivation,
   createCodexCloudReturn,
   createCodexCloudTask,
   renderCodexCloudIssue,
   validateCodexCloudReturn,
   validateCodexCloudTask,
+  validateCodexCloudActivation,
 } from "../src/codex-cloud-contract.mjs";
 
 const task = (overrides = {}) => createCodexCloudTask({
@@ -55,8 +57,20 @@ test("dispatch bundles are deterministic and reject duplicate logical tasks", ()
   assert.equal(bundle.schemaVersion, 1);
   assert.equal(bundle.tasks.length, 2);
   assert.equal(bundle.tasks[0].issue.title, "[CODEX] Implement the bounded bridge");
+  assert.equal(bundle.tasks[0].activation.sourceTaskPath, `coordination/cloud-tasks/${first.taskId}.json`);
+  assert.equal(bundle.tasks[0].activation.taskFingerprintSha256, bundle.tasks[0].issue.fingerprint);
   assert.throws(() => createCodexCloudDispatchBundle([first, first]), /Duplicate Codex cloud task ID/);
   assert.throws(() => createCodexCloudDispatchBundle([first, { ...first, taskId: secondWithId.taskId }]), /Duplicate Codex cloud idempotency key/);
+});
+
+test("activation pointers are content-free and hash-bound to the exact task", () => {
+  const activation = createCodexCloudActivation(task());
+  assert.equal(validateCodexCloudActivation(activation).createdBy, "github-actions");
+  assert.match(activation.taskFingerprintSha256, /^[a-f0-9]{64}$/);
+  assert.equal("task" in activation, false);
+  assert.equal("title" in activation, false);
+  assert.equal("verification" in activation, false);
+  assert.throws(() => validateCodexCloudActivation({ ...activation, taskFingerprintSha256: "a" }), /fingerprint is invalid/);
 });
 
 test("known credential material is rejected before rendering", () => {

@@ -6,7 +6,7 @@ export function validateCloudBrowserConnection(config) {
   if (!config || typeof config !== "object" || Array.isArray(config)) throw new TypeError("cloud-browser-config-required");
   const allowed = new Set(["provider", "executionPlane", "dataClass", "isolated", "extensionsEnabled", "localFileAccess", "domains", "humanApproval"]);
   for (const key of Object.keys(config)) if (!allowed.has(key)) throw new TypeError("cloud-browser-config-field-invalid");
-  if (config.provider !== "openai-computer-use") throw new Error("cloud-browser-provider-invalid");
+  if (config.provider !== "bounded-cloud-browser-adapter") throw new Error("cloud-browser-provider-invalid");
   if (!KNOWN_DATA_CLASSES.has(config.dataClass)) throw new Error("cloud-browser-data-class-invalid");
   if (!CLOUD_DATA_CLASSES.has(config.dataClass)) throw new Error("cloud-browser-data-class-boundary");
   if (config.executionPlane !== "cloud" || config.isolated !== true) throw new Error("cloud-browser-isolation-required");

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { ROOT } from "./config.mjs";
@@ -32,6 +32,29 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     "blocking",
     missingGovernance.length ? `${missingGovernance.length} required governance file(s) are missing.` : "Repository governance files are present.",
     missingGovernance.length ? { files: missingGovernance } : undefined,
+  );
+
+  const canonicalWorkspaceFiles = [
+    "cloud-app/app/page.tsx",
+    "cloud-app/components/workspace.tsx",
+    "cloud-app/vercel.json",
+  ];
+  const retiredWorkspaceFiles = [
+    ".github/workflows/pages.yml",
+    "cloud/index.html",
+    "cloud/app.js",
+    "web/index.html",
+    "web/app.js",
+  ];
+  const missingWorkspaceFiles = canonicalWorkspaceFiles.filter((file) => !fileSet.has(file));
+  const retainedLegacyFiles = retiredWorkspaceFiles.filter((file) => fileSet.has(file));
+  const workspaceHealthy = missingWorkspaceFiles.length === 0 && retainedLegacyFiles.length === 0;
+  add(
+    "single-vercel-workspace",
+    workspaceHealthy,
+    "blocking",
+    workspaceHealthy ? "Vercel is the sole browser UI and legacy Pages or loopback entry points are absent." : "The single Vercel workspace contract is incomplete.",
+    workspaceHealthy ? undefined : { files: [...missingWorkspaceFiles, ...retainedLegacyFiles] },
   );
 
   const sensitivePaths = files.filter(isSensitiveRuntimePath);
@@ -242,7 +265,12 @@ export function renderGithubAuditMarkdown(report) {
 
 async function trackedFiles(root) {
   const { stdout } = await execFileAsync("git", ["-C", root, "ls-files", "-z", "--cached", "--others", "--exclude-standard"], { encoding: "buffer", maxBuffer: 4 * 1024 * 1024, windowsHide: true });
-  return stdout.toString("utf8").split("\u0000").filter(Boolean).map((file) => file.replaceAll("\\", "/"));
+  const candidates = stdout.toString("utf8").split("\u0000").filter(Boolean).map((file) => file.replaceAll("\\", "/"));
+  const present = await Promise.all(candidates.map(async (file) => {
+    try { await lstat(path.join(root, file)); return file; }
+    catch (error) { if (error?.code === "ENOENT") return null; throw error; }
+  }));
+  return present.filter(Boolean);
 }
 
 function isSensitiveRuntimePath(file) {

@@ -62,3 +62,28 @@ test("MCP host validates invocation input against the discovered schema", async 
   await assert.rejects(() => host.invoke("demo-mcp.health", { query: 42 }, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), /mcp-input-schema-invalid/);
   assert.deepEqual(await host.invoke("demo-mcp.health", { query: "status" }, { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" }), { status: "ok" });
 });
+
+test("MCP schemas enforce every accepted nested constraint", async () => {
+  const constrained = { ...declaration, toolAllowlist: ["health"], readinessProbe: "health", canary: "health" };
+  const schema = {
+    type: "object", required: ["mode", "items"], additionalProperties: false,
+    properties: {
+      mode: { type: "string", enum: ["audit", "repair"], pattern: "^[a-z]+$", maxLength: 8 },
+      items: { type: "array", minItems: 1, maxItems: 2, items: { type: "object", required: ["score"], additionalProperties: false, properties: { score: { type: "integer", minimum: 0, maximum: 10 } } } },
+    },
+  };
+  const host = createMcpHostManager({ declarations: [constrained], transports: { "local-process": { async discover() { return [{ id: "health", inputSchema: schema }]; }, async invoke() { return { status: "ok" }; } } } });
+  await host.refresh();
+  const context = { dataClass: "synthetic", permissionClass: "bounded-read", spendingClass: "deterministic" };
+  await assert.rejects(() => host.invoke("demo-mcp.health", { mode: "unknown", items: [{ score: 5 }] }, context), /mcp-input-schema-invalid/);
+  await assert.rejects(() => host.invoke("demo-mcp.health", { mode: "audit", items: [{ score: 11 }] }, context), /mcp-input-schema-invalid/);
+  assert.deepEqual(await host.invoke("demo-mcp.health", { mode: "repair", items: [{ score: 10 }] }, context), { status: "ok" });
+});
+
+test("MCP discovery rejects schema keywords the runtime does not enforce", async () => {
+  const constrained = { ...declaration, toolAllowlist: ["health"], readinessProbe: "health", canary: "health" };
+  const host = createMcpHostManager({ declarations: [constrained], transports: { "local-process": { async discover() { return [{ id: "health", inputSchema: { type: "object", properties: { query: { type: "string", format: "email" } }, additionalProperties: false } }]; }, async invoke() {} } } });
+  await host.refresh();
+  assert.equal(host.listTools()[0].schemaValid, false);
+  assert.equal(host.listTools()[0].routable, false);
+});

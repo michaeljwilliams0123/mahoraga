@@ -5,7 +5,7 @@ This record deliberately separates **repository truth**, **GitHub verification**
 ## Repository line
 
 - Repository candidate version: `7.0.0-alpha.1`
-- Runtime/API/Control Center declaration: `7.0.0-alpha.1`
+- Runtime/API protocol declaration: `7.0.0-alpha.1`; browser UI: unified Vercel workspace
 - Phase/environment: `alpha-candidate` / `candidate`
 - Canonical runtime boundary: `127.0.0.1:4782`
 - OpenAI Platform API provider: disabled by default
@@ -69,7 +69,11 @@ The planner foundation and read-only World-State Observer are implemented. Highe
 
 ## Browser and desktop truth
 
-The repository contains a bounded browser worker and a Windows Desktop Worker contract. Managed loopback Chrome observation is implemented. The Desktop Worker remains attended and allowlisted. These repository contracts do not prove a current attended Windows canary.
+The repository contains a bounded browser-health worker and a Windows Desktop
+Worker contract. The retired loopback UI observation path is absent; interactive
+browser work belongs to the isolated cloud browser in the unified Vercel
+workspace. The Desktop Worker remains attended and allowlisted. These repository
+contracts do not prove a current attended Windows canary.
 
 Canonical signed-in autonomous browser ownership remains separate from attended browser/application handoff. A live provider observation is required before signed-session work can be treated as routable.
 

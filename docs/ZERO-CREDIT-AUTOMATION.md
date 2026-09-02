@@ -17,9 +17,17 @@ whether work exists.
 | Cloud task intake and validation | Issue submission and owner review | No model; validates metadata and waits for an exact owner dispatch command |
 | Destiny relay envelope validation | `[DESTINY-CODEX]` pull request event | No model; trusted `main` validates the immutable envelope and changed paths |
 | Staged update packaging | Owner-started release workflow | Verification, archive, SHA-256 manifest, and provenance only |
+| Unified workspace ordinary route | Owner sends a turn through an explicitly paired runtime | Deterministic/local-model capability only; relay forces `zero-codex` and rejects a paid fallback |
 
 These paths use GitHub-hosted compute or local deterministic processes. They do
 not send a prompt to ChatGPT, Codex, Copilot, or an OpenAI Platform endpoint.
+
+The Vercel-hosted interface does not make inference free. General-language
+generation on the ordinary route is available only when a separately deployed
+open-weight provider has verified zero-credit billing evidence and a fresh
+capability canary. Without that evidence, Mahoraga reports
+`zero-credit-provider-unavailable`; it never substitutes the installed Codex CLI
+or AI Gateway. Deterministic registered capabilities remain usable.
 
 ## Explicit model-spend boundary
 
@@ -30,7 +38,8 @@ A model may run only after one of these deliberate actions:
 - the owner deliberately creates a Codex cloud task; or
 - the owner opens or updates a valid `[DESTINY-CODEX]` dispatch pull request; or
 - the owner posts an exact `/mahoraga dispatch codex` or registered desktop-lane command; or
-- the owner invokes another declared model-backed provider capability.
+- the owner invokes another declared model-backed provider capability; or
+- the owner selects **Cloud Pro · explicit** in the unified workspace.
 
 Idle polling, provider readiness checks, CI, security scanning, dependency
 updates, branch monitoring, and repository metadata synchronization never cross

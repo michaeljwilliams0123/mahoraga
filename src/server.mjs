@@ -1,7 +1,4 @@
 import { createServer } from "node:http";
-import { readFileSync } from "node:fs";
-import path from "node:path";
-import { ROOT } from "./config.mjs";
 import { capabilityIndex } from "./router.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
@@ -29,33 +26,25 @@ import { readRepositoryHead } from "./repository-worker.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 
-const WEB_ROOT = path.join(ROOT, "cloud");
-const STATIC = new Map([
-  ["/", ["index.html", "text/html; charset=utf-8"]],
-  ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
-  ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
-  ["/skills.css", ["skills.css", "text/css; charset=utf-8"]],
-  ["/mark.svg", ["mark.svg", "image/svg+xml"]],
-  ["/site.webmanifest", ["site.webmanifest", "application/manifest+json; charset=utf-8"]],
-]);
+export const DEFAULT_WORKSPACE_URL = "https://mahoraga-cloud-workspace.vercel.app/";
 
-export function snapshotStaticAssets(webRoot = WEB_ROOT) {
-  return new Map([...STATIC].map(([route, [file, contentType]]) => [route, {
-    body: readFileSync(path.join(webRoot, file)),
-    contentType,
-  }]));
+export function canonicalWorkspaceUrl(value = process.env.MAHORAGA_WORKSPACE_URL ?? DEFAULT_WORKSPACE_URL) {
+  let parsed;
+  try { parsed = new URL(value); } catch { throw new TypeError("canonical-workspace-url-invalid"); }
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") throw new TypeError("canonical-workspace-url-invalid");
+  return parsed.href;
 }
 
 export function createControlServer({
   manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
-  webRoot = WEB_ROOT, conversationGateway = null, mcpHost = null,
+  workspaceUrl = canonicalWorkspaceUrl(), conversationGateway = null, mcpHost = null,
   repositoryHeadReader = readRepositoryHead,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
-  const staticAssets = snapshotStaticAssets(webRoot);
+  const canonicalWorkspace = canonicalWorkspaceUrl(workspaceUrl);
   const autonomyPolicy = autonomyPolicySnapshot(manifest);
   const relayHandlers = createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy, repositoryHeadReader });
   const gateway = conversationGateway ?? createConversationGateway({
@@ -63,7 +52,7 @@ export function createControlServer({
     capabilityResolver: () => {
       const base = capabilityIndex(manifest, supervisor.status());
       const discovered = mcpHost?.listTools?.() ?? [];
-      return [...base, ...discovered.map((item) => ({ capability: item.capabilityId, routable: item.routable, workerIds: [item.providerId] }))];
+      return [...base, ...discovered.map((item) => ({ capability: item.capabilityId, routable: false, workerIds: [item.providerId] }))];
     },
     submitTask: (body, context) => submitTask(database, manifest, body, {
       source: "conversation-gateway", internal: false, attendedSession: context.attendedSession ?? null,
@@ -73,7 +62,7 @@ export function createControlServer({
     try {
       setHeaders(response, manifest);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
-      if (request.method === "GET" && staticAssets.has(url.pathname)) return staticFile(response, staticAssets.get(url.pathname));
+      if (request.method === "GET" && url.pathname === "/") return redirect(response, canonicalWorkspace);
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
       if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
@@ -334,7 +323,9 @@ export function statusPayload(manifest, database, supervisor) {
       runtimeVersion: manifest.version,
       controlCenterVersion: manifest.versions.controlCenter,
       assetSetId: `${manifest.version}:${manifest.versions.controlCenter}`,
-      staticAssetsSnapshotted: true,
+      staticAssetsSnapshotted: false,
+      interactionSurface: "vercel-workspace",
+      localUiRetired: true,
     },
     environment: manifest.environment, featureFlags: manifest.featureFlags, queue: manifest.queue,
     updateAuthority: manifest.updateAuthority, autonomyMode: manifest.defaultAutonomyMode, routingPolicy: manifest.routingPolicy,
@@ -458,7 +449,7 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       if (Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
       const result = await executeChatTurn({
         database, manifest, supervisor, artifactStore, autonomyPolicy, repositoryHeadReader,
-        body: { ...body, attachmentIds: [] },
+        body: { ...body, creditPolicy: "zero-codex", attachmentIds: [] },
         context: { source: "owner-paired-relay-chat", attendedSession: context.attendedSession },
       });
       if (result.status >= 400) throw relayError(result.value.error ?? "relay-chat-rejected");
@@ -500,10 +491,18 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
 }
 
 async function executeChatTurn({ database, manifest, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
+  const creditPolicy = chatCreditPolicy(body.creditPolicy);
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
   const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
   const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
   if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
+  if (creditPolicy === "zero-codex") {
+    if (decision.execution === "objective") return { status: 409, value: { error: "zero-credit-objective-provider-unavailable", decision } };
+    const eligible = manifest.workers.filter((worker) => worker.enabled && worker.capabilities.includes(decision.capability));
+    if (!eligible.some((worker) => new Set(["deterministic", "local-model"]).has(worker.costClass))) {
+      return { status: 409, value: { error: "zero-credit-provider-unavailable", decision } };
+    }
+  }
   const title = chatConversationTitle(body.content);
   if (decision.execution === "objective") {
     const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
@@ -538,6 +537,10 @@ async function resolveAutonomyExecutionContract(message, repositoryHeadReader) {
 
 function relayId(value, pattern, code) {
   if (typeof value !== "string" || !pattern.test(value)) throw relayError(code);
+  return value;
+}
+function chatCreditPolicy(value = "standard") {
+  if (!new Set(["standard", "zero-codex"]).has(value)) throw relayError("chat-credit-policy-invalid");
   return value;
 }
 function relayError(code) { const error = new TypeError(code); error.code = code; return error; }
@@ -578,7 +581,7 @@ function setHeaders(response, manifest) {
   response.setHeader("X-Mahoraga-Runtime-Version", manifest.version);
   response.setHeader("X-Mahoraga-Control-Center-Version", manifest.versions.controlCenter);
 }
-function staticFile(response, asset) { response.writeHead(200, { "Content-Type": asset.contentType }); response.end(asset.body); }
+function redirect(response, location) { response.writeHead(307, { Location: location }); response.end(); }
 function json(response, status, value) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify(value)); }
 function sse(response, events) {
   response.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", Connection: "close", "Cache-Control": "no-store" });

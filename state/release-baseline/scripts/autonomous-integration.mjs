@@ -16,7 +16,6 @@ if (process.env.GITHUB_OUTPUT) {
     `reason=${decision.reason}`,
     `pull_request=${decision.pullRequestNumber ?? ""}`,
     `head_sha=${decision.headSha ?? ""}`,
-    `deploy_pages=${decision.deployPages === true}`,
     "",
   ].join("\n"));
 }

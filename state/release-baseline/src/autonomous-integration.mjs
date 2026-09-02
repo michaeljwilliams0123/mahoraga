@@ -37,7 +37,6 @@ export function evaluateAutonomousIntegration(input, policy) {
     reason: "eligible",
     pullRequestNumber: pullRequest.number,
     headSha: pullRequest.headSha,
-    deployPages: pullRequest.changedFiles.some((changedPath) => changedPath === "cloud" || changedPath.startsWith("cloud/")),
   });
 }
 

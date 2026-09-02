@@ -64,7 +64,7 @@ test("assignment discourse persists and waiting tasks resume with user input", (
   const task = database.submitTask({ capability: "browser.status", dataClass: "synthetic", idempotencyKey: "discourse-task", conversationId: conversation.id });
   database.claimNext({ workerId: "browser", capabilities: ["browser.status"], leaseMs: 5000 });
   assert.equal(database.waitTaskForUser(task.id, "Which approved tab should I use?").status, "waiting_for_user");
-  assert.equal(database.resumeTaskWithInput(task.id, "Use the Control Center tab.").status, "queued");
+  assert.equal(database.resumeTaskWithInput(task.id, "Use the unified workspace tab.").status, "queued");
   const messages = database.listConversationMessages(conversation.id);
   assert.deepEqual(messages.map((item) => item.role), ["user", "worker", "user"]);
   assert.equal(messages[1].requiresResponse, true);

@@ -27,16 +27,16 @@ Secrets remain outside Git in the platform or operating-system secret store.
 An Alpic deployment key, GitHub credential, relay token, or local bearer token
 must never appear in an assignment, result, commit message, or issue.
 
-## Control Center visibility
+## Unified workspace visibility
 
-The localhost Control Center exposes a read-only, minimized Coordination view
-backed by the durable assignment table. It shows the mailbox lifecycle (`READY`,
-return detected, validating, `VALIDATED`, or `REJECTED`), assignment ID, task
-area, declared return branch, timestamps, and verification state. Full task text,
-allowed paths, commit identifiers, correlations, credentials, ChatGPT
-conversations, browser data, personal files, and model output are not returned.
-Assignment creation and controller intake remain behind the existing
-authenticated API and repository workflow.
+The single Vercel workspace is the only browser UI. Runtime and coordination
+state reaches it only through the explicitly paired encrypted relay. The
+loopback service remains an authenticated API/execution engine and its root
+redirects to the canonical Vercel URL; it does not serve another frontend.
+Bounded mailbox state may include lifecycle, assignment ID, task area, return
+branch, timestamps, and verification state. Full task text, allowed paths,
+commit identifiers, correlations, credentials, ChatGPT conversations, browser
+data, personal files, and model output are not exposed as coordination status.
 
 ## Equal primary controller workflow
 

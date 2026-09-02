@@ -59,8 +59,32 @@ function validateInvocation(tool, input, context) {
   if (keys !== "dataClass,permissionClass,spendingClass" || !provider.dataClasses.includes(context.dataClass) || context.permissionClass !== provider.permissionClass || context.spendingClass !== provider.spendingClass) fail("mcp-invocation-boundary-invalid");
   if (!matchesSchema(tool.inputSchema, input)) fail("mcp-input-schema-invalid");
 }
-function validObjectSchema(value) { return Boolean(value && typeof value === "object" && !Array.isArray(value) && value.type === "object" && value.properties && typeof value.properties === "object" && !Array.isArray(value.properties) && value.additionalProperties === false && (value.required === undefined || Array.isArray(value.required)) && Object.values(value.properties).every(validPropertySchema)); }
-function validPropertySchema(value) { return Boolean(value && typeof value === "object" && !Array.isArray(value) && new Set(["string", "number", "integer", "boolean", "object", "array"]).has(value.type)); }
+function validObjectSchema(value, depth = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || depth > 8) return false;
+  const keys = new Set(["type", "properties", "required", "additionalProperties", "minProperties", "maxProperties"]);
+  if (Object.keys(value).some((key) => !keys.has(key)) || value.type !== "object" || !value.properties || typeof value.properties !== "object" || Array.isArray(value.properties) || value.additionalProperties !== false) return false;
+  if (value.required !== undefined && (!Array.isArray(value.required) || new Set(value.required).size !== value.required.length || value.required.some((key) => !Object.hasOwn(value.properties, key)))) return false;
+  if (!optionalInteger(value.minProperties, 0) || !optionalInteger(value.maxProperties, 0) || (value.minProperties !== undefined && value.maxProperties !== undefined && value.minProperties > value.maxProperties)) return false;
+  return Object.values(value.properties).every((property) => validPropertySchema(property, depth + 1));
+}
+function validPropertySchema(value, depth = 0) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || depth > 8 || !new Set(["string", "number", "integer", "boolean", "object", "array"]).has(value.type)) return false;
+  const common = ["type", "enum"];
+  const allowed = value.type === "string" ? [...common, "pattern", "minLength", "maxLength"]
+    : new Set(["number", "integer"]).has(value.type) ? [...common, "minimum", "maximum"]
+      : value.type === "array" ? [...common, "items", "minItems", "maxItems"]
+        : value.type === "object" ? ["type", "properties", "required", "additionalProperties", "minProperties", "maxProperties"] : common;
+  if (Object.keys(value).some((key) => !allowed.includes(key))) return false;
+  if (value.enum !== undefined && (!Array.isArray(value.enum) || value.enum.length < 1 || value.enum.length > 100 || new Set(value.enum.map((item) => JSON.stringify(item))).size !== value.enum.length)) return false;
+  if (value.type === "string") {
+    if (!optionalInteger(value.minLength, 0) || !optionalInteger(value.maxLength, 0) || (value.minLength !== undefined && value.maxLength !== undefined && value.minLength > value.maxLength)) return false;
+    if (value.pattern !== undefined) { if (typeof value.pattern !== "string" || value.pattern.length > 256) return false; try { new RegExp(value.pattern, "u"); } catch { return false; } }
+  }
+  if (new Set(["number", "integer"]).has(value.type) && (![value.minimum, value.maximum].every((item) => item === undefined || (typeof item === "number" && Number.isFinite(item))) || (value.minimum !== undefined && value.maximum !== undefined && value.minimum > value.maximum))) return false;
+  if (value.type === "array" && (!validPropertySchema(value.items, depth + 1) || !optionalInteger(value.minItems, 0) || !optionalInteger(value.maxItems, 0) || (value.minItems !== undefined && value.maxItems !== undefined && value.minItems > value.maxItems))) return false;
+  if (value.type === "object" && !validObjectSchema(value, depth)) return false;
+  return true;
+}
 function matchesSchema(schema, value) {
   if (!validObjectSchema(schema) || !value || typeof value !== "object" || Array.isArray(value)) return false;
   const keys = Object.keys(value); const properties = schema.properties;
@@ -70,13 +94,16 @@ function matchesSchema(schema, value) {
 }
 function matchesProperty(schema, value) {
   if (!validPropertySchema(schema)) return false;
-  if (schema.type === "string") return typeof value === "string";
-  if (schema.type === "number") return typeof value === "number" && Number.isFinite(value);
-  if (schema.type === "integer") return Number.isSafeInteger(value);
+  if (schema.enum !== undefined && !schema.enum.some((item) => Object.is(item, value))) return false;
+  if (schema.type === "string") return typeof value === "string" && (schema.minLength === undefined || value.length >= schema.minLength) && (schema.maxLength === undefined || value.length <= schema.maxLength) && (schema.pattern === undefined || new RegExp(schema.pattern, "u").test(value));
+  if (schema.type === "number") return typeof value === "number" && Number.isFinite(value) && boundedNumber(schema, value);
+  if (schema.type === "integer") return Number.isSafeInteger(value) && boundedNumber(schema, value);
   if (schema.type === "boolean") return typeof value === "boolean";
-  if (schema.type === "array") return Array.isArray(value);
-  return value !== null && typeof value === "object" && !Array.isArray(value);
+  if (schema.type === "array") return Array.isArray(value) && (schema.minItems === undefined || value.length >= schema.minItems) && (schema.maxItems === undefined || value.length <= schema.maxItems) && value.every((item) => matchesProperty(schema.items, item));
+  return matchesSchema(schema, value) && (schema.minProperties === undefined || Object.keys(value).length >= schema.minProperties) && (schema.maxProperties === undefined || Object.keys(value).length <= schema.maxProperties);
 }
+function boundedNumber(schema, value) { return (schema.minimum === undefined || value >= schema.minimum) && (schema.maximum === undefined || value <= schema.maximum); }
+function optionalInteger(value, minimum) { return value === undefined || (Number.isSafeInteger(value) && value >= minimum); }
 function serializedBytes(value) { try { return Buffer.byteLength(JSON.stringify(value), "utf8"); } catch { return Number.POSITIVE_INFINITY; } }
 function providerProjection(value) { return Object.freeze({ id: value.id, transportKind: value.transportKind, executableIdentity: value.executableIdentity, credentialReference: value.credentialReference, resourceAllowlist: value.resourceAllowlist, maximumRequestBytes: value.maximumRequestBytes, maximumResponseBytes: value.maximumResponseBytes, timeoutMs: value.timeoutMs }); }
 function publicTool(value) { return Object.freeze({ providerId: value.provider.id, toolId: value.toolId, capabilityId: value.capabilityId, schemaValid: value.schemaValid, routable: value.routable, reasonCode: value.reasonCode }); }

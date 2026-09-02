@@ -28,7 +28,7 @@ function candidate(overrides = {}) {
       baseRepository: "michaeljwilliams0123/mahoraga",
       mergeable: true,
       headContainsMain: true,
-      changedFiles: ["web/app.js", "web/styles.css"],
+      changedFiles: ["cloud-app/components/workspace.tsx", "cloud-app/app/globals.css"],
       ...overrides,
     },
   };
@@ -50,7 +50,6 @@ test("exact successful same-repository heads outside protected roots are eligibl
     reason: "eligible",
     pullRequestNumber: 45,
     headSha: "abc123",
-    deployPages: false,
   });
 });
 
@@ -86,7 +85,7 @@ test("Destiny integration does not wait for an exact-head result after trusted c
 test("Destiny integration requires an implementation delta beyond its dispatch envelope", () => {
   const dispatch = "coordination/destiny-dispatches/dcx-3c11bb0e4a5d3b6329832b0a.json";
   assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch] }), policy).reason, "destiny-implementation-required");
-  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch, "web/app.js"] }), policy).eligible, true);
+  assert.equal(evaluateAutonomousIntegration(destinyCandidate({ changedFiles: [dispatch, "cloud-app/components/workspace.tsx"] }), policy).eligible, true);
 });
 
 test("the newest exact-head pull-request run is authoritative", () => {
@@ -116,11 +115,6 @@ test("the newest well-formed owner result for the exact head is authoritative", 
   assert.equal(latestExactDestinyResult([{ ...comment(5, "success"), body: `${comment(5, "success").body}\nstatus=\`blocked\`` }], { owner: "michaeljwilliams0123", headSha }), null);
 });
 
-test("only verified cloud changes request a post-merge Pages deployment", () => {
-  assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: ["cloud/app.js"] }), policy).deployPages, true);
-  assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: ["cloudish/app.js"] }), policy).deployPages, false);
-});
-
 test("workflow merges exact verified heads without waiting for Destiny comments", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "autonomous-integration.yml"), "utf8");
   assert.doesNotMatch(source, /issue_comment:/);
@@ -133,6 +127,5 @@ test("workflow merges exact verified heads without waiting for Destiny comments"
   assert.match(source, /freshDecision = evaluateAutonomousIntegration/);
   assert.match(source, /createWorkflowDispatch/);
   assert.match(source, /workflow_id: "verify\.yml"/);
-  assert.match(source, /workflow_id: "pages\.yml"/);
-  assert.match(source, /steps\.policy\.outputs\.deploy_pages/);
+  assert.doesNotMatch(source, /pages\.yml|deploy_pages/);
 });

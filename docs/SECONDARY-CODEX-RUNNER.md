@@ -32,9 +32,9 @@ analysis as long as the expected work and allowed paths are explicit.
   secondary machine's narrower-or-equal project allowlist before any push.
 - A local single-flight lock suppresses overlapping scheduled and manual runs.
   Only `secondary/<assignment-id>` may be pushed.
-- Every poll records a bounded timestamp and outcome in ignored local runtime
-  state. The Control Center Coordination view exposes only that sanitized
-  heartbeat, never the configured checkout path or a credential.
+- Every poll records a bounded timestamp and outcome in ignored runtime state.
+  The unified Vercel workspace may show only that sanitized heartbeat through
+  an explicitly paired relay, never the configured checkout path or a credential.
 - Idle polls do not invoke or health-check Codex. Each execution uses a unique
   isolated worktree path, so an interrupted clone cannot poison a later attempt.
   A failed first attempt remains paused until an operator explicitly re-arms it;

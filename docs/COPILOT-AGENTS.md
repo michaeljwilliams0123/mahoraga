@@ -9,7 +9,7 @@ authorities.
 | `mahoraga-coordinator` | Decompose bounded repository work and select specialists. | No overlapping edits, merge, release, visibility, or device activation. |
 | `mahoraga-relay` | Task protocol, idempotency, leases, fencing, and outbound runners. | No tunnels, public listeners, or persisted model content. |
 | `mahoraga-assurance` | Privacy, security, supply chain, recovery, and adversarial tests. | Emit paths, classes, counts, and hashes—not sensitive values. |
-| `mahoraga-experience` | Cloud workspace, accessibility, task visualization, and approvals. | GitHub Pages remains static and public-safe. |
+| `mahoraga-experience` | Unified Vercel workspace, accessibility, task visualization, and approvals. | Vercel is the only browser UI; local and Pages frontends stay retired. |
 
 All profiles require explicit selection and expose only repository read, search,
 edit, execution, and—in the coordinator's case—specialist delegation tools.

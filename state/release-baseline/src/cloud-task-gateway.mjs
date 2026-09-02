@@ -23,6 +23,7 @@ export async function dispatchCloudIssue({ event, baseCommit, root }) {
   if (!LANES.has(preferredLane)) throw new TypeError("cloud-gateway-execution-lane-invalid");
   if (input.command.mode === "codex" && preferredLane !== "Codex cloud") throw new TypeError("cloud-gateway-lane-command-mismatch");
   if (input.command.mode === "desktop" && preferredLane !== "Desktop Codex") throw new TypeError("cloud-gateway-lane-command-mismatch");
+  if (input.command.mode === "fallback" && preferredLane !== "Codex cloud") throw new TypeError("cloud-gateway-lane-command-mismatch");
 
   const task = requiredField(fields, "Bounded task");
   const acceptance = requiredField(fields, "Acceptance criteria");
@@ -41,10 +42,17 @@ export async function dispatchCloudIssue({ event, baseCommit, root }) {
   const title = boundedTitle(input.issue.title.replace(/^\[MAHORAGA\]\s*/i, ""));
   const source = `Source workspace issue: ${input.issue.html_url}. Repository-safe attachment references remain in that issue and are not copied into the coordination record.`;
   const expectedTask = `${task}\n\nAcceptance criteria:\n${acceptance}\n\nSkill profile: ${profile}.\n${source}`;
-  const idempotency = optionalField(fields, "Idempotency key") || `github-issue-${input.issue.number}-${input.command.mode}-v1`;
+  const suppliedIdempotency = optionalField(fields, "Idempotency key");
+  const idempotency = suppliedIdempotency || `github-issue-${input.issue.number}-${input.command.mode}-v1`;
   const output = input.command.mode === "codex"
     ? await writeCodexTask({ input, root, title, expectedTask, allowedPaths, verification, idempotency, fields })
-    : await writeDesktopTask({ input, root, title, expectedTask, allowedPaths, idempotency });
+    : input.command.mode === "fallback"
+      ? await writeFallbackTask({
+        input, root, title, expectedTask, allowedPaths, verification, fields,
+        primaryIdempotency: suppliedIdempotency || `github-issue-${input.issue.number}-codex-v1`,
+        fallbackIdempotency: suppliedIdempotency ? `fallback-${digest(`${suppliedIdempotency}:${input.command.taskArea}`)}` : idempotency,
+      })
+      : await writeDesktopTask({ input, root, title, expectedTask, allowedPaths, idempotency });
 
   return Object.freeze({
     schemaVersion: 1,
@@ -80,6 +88,8 @@ export function parseCommand(value) {
   if (command === "/mahoraga dispatch codex") return Object.freeze({ mode: "codex", taskArea: null });
   const desktop = command.match(/^\/mahoraga dispatch desktop ([a-z0-9][a-z0-9-]{0,63})$/);
   if (desktop) return Object.freeze({ mode: "desktop", taskArea: desktop[1] });
+  const fallback = command.match(/^\/mahoraga dispatch fallback ([a-z0-9][a-z0-9-]{0,63})$/);
+  if (fallback) return Object.freeze({ mode: "fallback", taskArea: fallback[1] });
   throw new TypeError("cloud-gateway-command-invalid");
 }
 
@@ -135,6 +145,14 @@ async function writeDesktopTask({ input, root, title, expectedTask, allowedPaths
     assignedTo: "secondary-codex",
   }, { assignmentId, now: existing?.createdAt ?? input.issue.created_at });
   return persistIdempotently(file, existing ? validateAssignmentRecord(existing) : null, candidate, { recordId: assignmentId, idempotencyKey: candidate.correlationId });
+}
+
+async function writeFallbackTask({ input, root, title, expectedTask, allowedPaths, verification, fields, primaryIdempotency, fallbackIdempotency }) {
+  const primary = await writeCodexTask({
+    input, root, title, expectedTask, allowedPaths, verification, idempotency: primaryIdempotency, fields,
+  });
+  if (primary.changed !== false) throw new TypeError("cloud-gateway-primary-required-before-fallback");
+  return writeDesktopTask({ input, root, title, expectedTask, allowedPaths, idempotency: fallbackIdempotency });
 }
 
 async function persistIdempotently(file, existing, candidate, identity) {

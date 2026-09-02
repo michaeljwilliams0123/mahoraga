@@ -1,50 +1,38 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "../src/config.mjs";
 
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
-test("cloud workspace is credential-free and uses only fixed direct or relay origins", async () => {
-  const [html, app, docs] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read("docs/CLOUD-WORKSPACE.md")]);
-  assert.match(html, /Content-Security-Policy/);
-  assert.match(html, /connect-src 'self' https:\/\/api\.github\.com https:\/\/relay\.mahoraga\.app wss:\/\/relay\.mahoraga\.app/);
-  assert.match(app, /https:\/\/api\.github\.com\/repos\//);
-  assert.doesNotMatch(`${html}\n${app}`, /localStorage|sessionStorage|Authorization|github_pat_|gh[pousr]_|OPENAI_API_KEY/);
-  assert.match(app, /class LoopbackTransport/);
-  assert.match(app, /class RelayTransport/);
-  assert.doesNotMatch(`${html}\n${app}`, /ngrok|0\.0\.0\.0|127\.0\.0\.1:4782|http:\/\/localhost/i);
-  assert.match(docs, /localhost runtime remains bound to `127\.0\.0\.1`/);
+test("the single workspace is Vercel-hosted, credential-free in the browser, and fixed-origin", async () => {
+  const [config, workspace, relay, docs] = await Promise.all([
+    read("cloud-app/next.config.ts"),
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/lib/runtime-relay.ts"),
+    read("docs/CLOUD-WORKSPACE.md"),
+  ]);
+  assert.match(config, /wss:\/\/relay\.mahoraga\.app/);
+  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.doesNotMatch(`${workspace}\n${relay}`, /github_pat_|gh[pousr]_|OPENAI_API_KEY|localStorage|sessionStorage/);
+  assert.match(workspace, /DefaultChatTransport/);
+  assert.match(workspace, /RuntimeRelay/);
+  assert.match(docs, /single Vercel-hosted workspace/i);
+  assert.match(docs, /No second local or Pages UI/i);
 });
 
-test("cloud workspace is conversation-first and contains no intake handoff", async () => {
-  const [html, app, docs] = await Promise.all([read("cloud/index.html"), read("cloud/app.js"), read("docs/CLOUD-WORKSPACE.md")]);
-  assert.match(html, /id="conversation-thread"/);
-  assert.match(html, /id="conversation-composer"/);
-  assert.match(html, /No skill, lane, or return fields/);
-  assert.match(app, /function classifyTask/);
-  assert.match(app, /function appendMessage/);
-  assert.match(app, /OfflinePreviewTransport/);
-  assert.match(docs, /conversation-first workspace/);
-  assert.match(docs, /has not been dispatched|offline preview/i);
-  assert.doesNotMatch(html, /id="(?:tool-profile|execution-lane|return-mode|handoff-dialog)"/);
-  assert.doesNotMatch(html, /Continue task in GitHub|Submission and file upload happen in GitHub|Bounded task field/);
-  assert.doesNotMatch(app, /navigator\.clipboard|ISSUE_TEMPLATE|prepareHandoff|openGithubTask/);
-  assert.doesNotMatch(app, /encodeURIComponent\(state\.draft\)/);
-});
-
-test("Pages deployment is least-privilege and immutable", async () => {
-  const workflow = await read(".github/workflows/pages.yml");
-  assert.match(workflow, /contents: read/);
-  assert.match(workflow, /pages: write/);
-  assert.match(workflow, /id-token: write/);
-  assert.match(workflow, /github\.event\.repository\.private == false/);
-  for (const action of ["actions/checkout", "actions/configure-pages", "actions/upload-pages-artifact", "actions/deploy-pages"]) {
-    assert.match(workflow, new RegExp(`${action.replace("/", "\\/")}@[a-f0-9]{40}`));
+test("legacy Pages, static cloud, and loopback UI entry points stay retired", async () => {
+  for (const relative of [".github/workflows/pages.yml", "cloud/index.html", "web/index.html"]) {
+    await assert.rejects(access(path.join(ROOT, relative)), { code: "ENOENT" });
   }
-  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\.|OPENAI_API_KEY/);
-  assert.match(workflow, /path: cloud/);
+  const [server, integration] = await Promise.all([
+    read("src/server.mjs"),
+    read(".github/workflows/autonomous-integration.yml"),
+  ]);
+  assert.match(server, /interactionSurface: "vercel-workspace"/);
+  assert.match(server, /localUiRetired: true/);
+  assert.doesNotMatch(integration, /pages\.yml|DEPLOY_PAGES/);
 });
 
 test("cloud gateway workflow is owner-only, event-file parsed, and model-free", async () => {

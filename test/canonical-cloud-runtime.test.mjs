@@ -1,42 +1,48 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "../src/config.mjs";
-import { snapshotStaticAssets } from "../src/server.mjs";
+import { canonicalWorkspaceUrl, DEFAULT_WORKSPACE_URL } from "../src/server.mjs";
 
-const digest = (value) => createHash("sha256").update(value).digest("hex");
+const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
-test("loopback snapshots the exact canonical cloud application", async () => {
-  const assets = snapshotStaticAssets();
-  for (const [route, file] of [["/", "index.html"], ["/app.js", "app.js"], ["/styles.css", "styles.css"], ["/skills.css", "skills.css"], ["/mark.svg", "mark.svg"], ["/site.webmanifest", "site.webmanifest"]]) {
-    assert.equal(digest(assets.get(route).body), digest(await readFile(path.join(ROOT, "cloud", file))), route);
+test("Vercel is the only Mahoraga browser interaction surface", async () => {
+  const [workspace, relay, docs] = await Promise.all([
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/lib/runtime-relay.ts"),
+    read("docs/CLOUD-WORKSPACE.md"),
+  ]);
+  assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
+  assert.match(workspace, /Unified workspace/);
+  assert.match(workspace, /Zero-Codex route/);
+  assert.match(workspace, /Pair runtime/);
+  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.match(docs, /single Vercel-hosted workspace/i);
+});
+
+test("retired static and loopback UI entry points are absent", async () => {
+  for (const relative of [
+    "cloud/index.html", "cloud/app.js", "cloud/styles.css",
+    "web/index.html", "web/app.js", "web/autonomy-workspace.html",
+    ".github/workflows/pages.yml",
+  ]) {
+    await assert.rejects(access(path.join(ROOT, relative)), { code: "ENOENT" });
   }
 });
 
-test("canonical browser transports are fixed, replayable, cancellable, and memory-only", async () => {
-  const [html, app] = await Promise.all([readFile(path.join(ROOT, "cloud", "index.html"), "utf8"), readFile(path.join(ROOT, "cloud", "app.js"), "utf8")]);
-  assert.match(html, /mahoraga-ui-version/);
-  assert.match(html, /id="session-select"/);
-  assert.match(html, /id="cancel-run"/);
-  assert.match(html, /id="pair-code"/);
-  assert.match(app, /class LoopbackTransport/);
-  assert.match(app, /class RelayTransport/);
-  assert.match(app, /class OfflinePreviewTransport/);
-  assert.match(app, /\/api\/v2\/runs/);
-  assert.match(app, /text\/event-stream|parseSse/);
-  assert.match(app, /async cancel/);
-  assert.match(app, /wss:\/\/relay\.mahoraga\.app/);
-  assert.doesNotMatch(app, /constructor\([^)]*(?:baseUrl|endpoint|host|port)/);
-  assert.doesNotMatch(`${html}\n${app}`, /localStorage|sessionStorage|indexedDB|document\.cookie/);
-});
-
-test("canonical rendering uses text nodes for remote event values", async () => {
-  const app = await readFile(path.join(ROOT, "cloud", "app.js"), "utf8");
-  assert.match(app, /textContent\s*=/);
-  assert.doesNotMatch(app, /innerHTML\s*=/);
-  assert.match(app, /renderRunEvent/);
-  assert.match(app, /getImprovement/);
-  assert.match(app, /capabilities/);
+test("runtime pairing is fixed-origin, encrypted, cancellable, and memory-only", async () => {
+  const [workspace, relay] = await Promise.all([
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/lib/runtime-relay.ts"),
+  ]);
+  assert.match(relay, /ECDH/);
+  assert.match(relay, /HKDF/);
+  assert.match(relay, /AES-GCM/);
+  assert.match(relay, /async taskAction/);
+  assert.match(relay, /async revoke/);
+  assert.match(workspace, /conversationRoute/);
+  assert.match(workspace, /runtimePollGeneration/);
+  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.doesNotMatch(`${workspace}\n${relay}`, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });

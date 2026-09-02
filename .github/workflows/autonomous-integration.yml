@@ -94,7 +94,6 @@ jobs:
         env:
           PULL_REQUEST: ${{ steps.policy.outputs.pull_request }}
           VERIFIED_HEAD: ${{ steps.policy.outputs.head_sha }}
-          DEPLOY_PAGES: ${{ steps.policy.outputs.deploy_pages }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
@@ -132,10 +131,6 @@ jobs:
             }, autonomyPolicySnapshot(manifest));
             if (!freshDecision.eligible) throw new Error(`policy-changed-before-merge:${freshDecision.reason}`);
             if (freshDecision.headSha !== expectedHead) throw new Error("verified-head-advanced");
-            if (`${freshDecision.deployPages === true}` !== process.env.DEPLOY_PAGES) throw new Error("deployment-scope-changed-before-merge");
             const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
             if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);
             await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: "verify.yml", ref: "main" });
-            if (freshDecision.deployPages === true) {
-              await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: "pages.yml", ref: "main" });
-            }
