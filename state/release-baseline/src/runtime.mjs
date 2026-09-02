@@ -11,7 +11,7 @@ import { createRelayRuntimePeer } from "./relay-runtime.mjs";
 import { createMcpHostManager } from "./mcp-host-manager.mjs";
 import { installObjectiveReleaseAuthority } from "./objective-release-authority.mjs";
 
-export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot, relay = null, mcpTransports = {} } = {}) {
+export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot, relay = null, mcpTransports = {}, repositoryHeadReader } = {}) {
   const manifest = await loadManifest();
   const resolvedDatabaseFile = databaseFile ?? path.join(ROOT, manifest.runtime.database);
   const stateRoot = path.dirname(resolvedDatabaseFile);
@@ -36,6 +36,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const server = createControlServer({
     manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault, controlSessions, mcpHost,
     controlOrigin: resolvedPort === 0 ? null : `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
+    ...(repositoryHeadReader ? { repositoryHeadReader } : {}),
   });
   await new Promise((resolve, reject) => {
     server.once("error", reject);
