@@ -24,6 +24,8 @@ import {
 import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "./task-policy.mjs";
 import { autonomyPolicySnapshot } from "./autonomy-policy.mjs";
 import { createAutonomousConversation, createAutonomousConversationTurn } from "./autonomy-orchestrator.mjs";
+import { autonomyAllowedPaths } from "./autonomy-execution-scope.mjs";
+import { readRepositoryHead } from "./repository-worker.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 
@@ -49,6 +51,7 @@ export function createControlServer({
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
   webRoot = WEB_ROOT, conversationGateway = null, mcpHost = null,
+  repositoryHeadReader = readRepositoryHead,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
@@ -210,7 +213,7 @@ export function createControlServer({
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/chat") {
         const body = await bodyJson(request);
-        const result = await executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, context: {
+        const result = await executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, repositoryHeadReader, context: {
           source: "control-center-chat",
           attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
         } });
@@ -219,15 +222,21 @@ export function createControlServer({
       if (request.method === "POST" && url.pathname === "/api/conversations") {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+        const initialMessage = body.initialMessage ?? null;
+        const requiresResponse = body.requiresResponse ?? false;
+        const executionContract = autonomyPolicy.conversationActivation === true && requiresResponse === true
+          ? await resolveAutonomyExecutionContract(initialMessage ?? "Attached file", repositoryHeadReader)
+          : null;
         const result = createAutonomousConversation({
           database,
           policy: autonomyPolicy,
           title: body.title,
-          initialMessage: body.initialMessage ?? null,
+          initialMessage,
           attachments,
-          requiresResponse: body.requiresResponse ?? false,
+          requiresResponse,
           requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode,
           taskArea: body.taskArea ?? "mahoraga-autonomy",
+          executionContract,
         });
         if (result.objective) return json(response, 202, result);
         return json(response, 201, { conversation: result.conversation });
@@ -237,17 +246,24 @@ export function createControlServer({
       if (request.method === "POST" && conversationMessages) {
         const body = await bodyJson(request);
         const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
+        const taskId = body.taskId ?? null;
+        const role = body.role ?? "user";
+        const requiresResponse = body.requiresResponse ?? false;
+        const executionContract = autonomyPolicy.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null
+          ? await resolveAutonomyExecutionContract(body.content, repositoryHeadReader)
+          : null;
         const turn = createAutonomousConversationTurn({
           database,
           policy: autonomyPolicy,
           conversationId: conversationMessages[1],
-          taskId: body.taskId ?? null,
-          role: body.role ?? "user",
+          taskId,
+          role,
           content: body.content,
           attachments,
-          requiresResponse: body.requiresResponse ?? false,
+          requiresResponse,
           requestedMode: body.requestedMode ?? manifest.defaultAutonomyMode,
           taskArea: body.taskArea ?? "mahoraga-autonomy",
+          executionContract,
         });
         if (turn.objective) return json(response, 202, turn);
         return json(response, 201, { message: turn.message });
@@ -483,16 +499,17 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
   });
 }
 
-async function executeChatTurn({ database, manifest, artifactStore, autonomyPolicy, body, context }) {
+async function executeChatTurn({ database, manifest, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
   const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
   const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
   if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
   const title = chatConversationTitle(body.content);
   if (decision.execution === "objective") {
+    const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
     const result = body.conversationId
-      ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind })
-      : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind });
+      ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract })
+      : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract });
     const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
     return { status: 202, value: { decision, conversation, task: null, objective: result.objective } };
   }
@@ -510,6 +527,13 @@ async function executeChatTurn({ database, manifest, artifactStore, autonomyPoli
     taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
   }, { source: context.source, internal: false, attendedSession: context.attendedSession ?? null });
   return { status: 202, value: { decision, conversation, task, objective: null } };
+}
+
+async function resolveAutonomyExecutionContract(message, repositoryHeadReader) {
+  if (typeof repositoryHeadReader !== "function") throw new TypeError("repository-head-reader-required");
+  const baseCommit = String(await repositoryHeadReader()).trim().toLowerCase();
+  if (!/^[a-f0-9]{40}$/.test(baseCommit)) throw new TypeError("autonomy-repository-head-invalid");
+  return Object.freeze({ baseCommit, allowedPaths: autonomyAllowedPaths(message) });
 }
 
 function relayId(value, pattern, code) {
