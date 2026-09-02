@@ -74,7 +74,7 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
 
 function prepareObjectiveLease(database, readyCodex) {
   let lease = database.getIntegrationLease();
-  if (lease?.controllerId === LOCAL_PRIMARY && lease.purpose.startsWith("objective:") && !hasActiveLeaseTasks(database, lease.leaseId)) {
+  if (lease?.controllerId === LOCAL_PRIMARY && lease.purpose.startsWith("objective:") && !database.hasActiveIntegrationLeaseTask(lease.leaseId)) {
     database.releaseIntegrationLease({ controllerId: LOCAL_PRIMARY, leaseId: lease.leaseId });
     lease = null;
   }
@@ -89,10 +89,6 @@ function prepareObjectiveLease(database, readyCodex) {
     lease = acquired.lease;
   }
   return lease;
-}
-
-function hasActiveLeaseTasks(database, leaseId) {
-  return database.listTasks(500).some((task) => task.integrationLeaseId === leaseId && ACTIVE_TASK_STATES.has(task.status));
 }
 
 function firstReadyCodexTask(objectives) {
