@@ -1,4 +1,3 @@
-import { currentAutonomyExecutionContract } from "./autonomy-execution-scope.mjs";
 import { AUTONOMY_OBJECTIVE_AUTHORITY } from "./objective-release-authority.mjs";
 
 const MAX_MESSAGE_LENGTH = 800;
@@ -75,7 +74,7 @@ export function buildAutonomyObjective({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
 }) {
-  const contract = executionContract(suppliedExecutionContract ?? currentAutonomyExecutionContract(message));
+  const contract = executionContract(suppliedExecutionContract);
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
   const context = `User request: ${request}`;
@@ -108,8 +107,9 @@ export function createAutonomousConversationTurn({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
 }) {
-  const message = database.addConversationMessage({ conversationId, taskId, role, content, attachments, requiresResponse });
   const shouldCreateObjective = policy?.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null;
+  const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
+  const message = database.addConversationMessage({ conversationId, taskId, role, content, attachments, requiresResponse });
   if (!shouldCreateObjective) return Object.freeze({ message, objective: null });
   const objective = database.createObjective(buildAutonomyObjective({
     conversationId,
@@ -117,7 +117,7 @@ export function createAutonomousConversationTurn({
     message: content,
     requestedMode,
     taskArea,
-    executionContract: suppliedExecutionContract,
+    executionContract: contract,
   }));
   return Object.freeze({ message, objective });
 }
@@ -133,10 +133,10 @@ export function createAutonomousConversation({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
 }) {
-  const conversation = database.createConversation({ title, initialMessage, attachments });
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
+  const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
+  const conversation = database.createConversation({ title, initialMessage, attachments });
   if (!shouldCreateObjective) return Object.freeze({ conversation, objective: null });
-  const contract = suppliedExecutionContract ?? currentAutonomyExecutionContract(initialMessage);
   const messages = database.listConversationMessages(conversation.id);
   const message = [...messages].reverse().find((item) => item.role === "user");
   if (!message) throw new TypeError("Initial conversation message is missing.");
