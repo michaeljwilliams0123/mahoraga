@@ -47,9 +47,9 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .welcome-mark { width: 48px; height: 48px; display: grid; place-items: center; margin: 0 auto 23px; border: 1px solid #3c3e42; border-radius: 15px; background: #1d1e20; box-shadow: 0 12px 40px rgba(0,0,0,.28); }
 .welcome h1 { margin: 0; font-size: clamp(28px,4vw,39px); font-weight: 550; letter-spacing: -.04em; }
 .welcome > p { max-width: 630px; margin: 12px auto 30px; color: #9fa1a6; font-size: 14px; line-height: 1.6; }
-.starter-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; text-align: left; }
+.starter-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 10px; text-align: left; }
 .starter-grid button { min-height: 112px; padding: 16px; border: 1px solid #303135; border-radius: 15px; background: #171819; cursor: pointer; transition: .15s ease; }
-.starter-grid button:hover { border-color: #494b50; background: #1c1d1f; transform: translateY(-1px); } .starter-grid svg { color: #a8e4c9; }
+.starter-grid button:hover { border-color: #494b50; background: #1c1d1f; transform: translateY(-1px); } .starter-grid button:focus-visible { outline: 2px solid #7ccaa7; outline-offset: 2px; } .starter-grid svg { color: #a8e4c9; }
 .starter-grid span, .starter-grid small { display: block; } .starter-grid span { margin-top: 13px; font-size: 13px; font-weight: 600; }
 .starter-grid small { margin-top: 6px; color: #85878c; font-size: 10px; line-height: 1.45; }
 

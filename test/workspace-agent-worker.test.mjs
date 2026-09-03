@@ -5,10 +5,10 @@ import { buildWorkspaceAgentEnvelope, executeWorkspaceAgentCapability } from "..
 
 const env = { AGENT_ACCESS_TOKEN: "wat_test_token_value_long_enough", WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123" };
 const task = {
-  assignmentId: "sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb",
+  assignmentId: "sec-ff6f8ad9e08d1e134a87386868388f2b",
   correlationId: "cor-cloud-trigger",
   expectedBaseCommit: "91b4888dbeef0000000000000000000000000000",
-  returnBranch: "secondary/sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb",
+  returnBranch: "secondary/sec-ff6f8ad9e08d1e134a87386868388f2b",
   allowedPaths: ["coordination/results"],
   requestedOutcome: "Return the bounded connectivity result.",
 };
@@ -21,8 +21,9 @@ test("Workspace Agent envelope is fixed to ChatGPT and the declared secondary br
   assert.match(envelope.endpoint, /^https:\/\/api\.chatgpt\.com\/v1\/workspace_agents\/agtch_/);
   assert.equal(envelope.body.conversation_key, task.assignmentId);
   assert.match(envelope.body.input, /task-scoped cloud Codex execution lane/);
+  assert.match(envelope.body.input, /docs\/GITHUB-CODEX-COORDINATION\.md/);
   assert.doesNotMatch(envelope.body.input, /subordinate/i);
-  assert.match(envelope.body.input, /Push only secondary\/sec-ac0c314a/);
+  assert.match(envelope.body.input, /Push only secondary\/sec-ff6f8ad9/);
   assert.match(envelope.body.input, /Do not access or export ChatGPT conversation history/);
   assert.equal(JSON.stringify(envelope).includes(env.AGENT_ACCESS_TOKEN), false);
 });

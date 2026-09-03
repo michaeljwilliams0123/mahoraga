@@ -22,7 +22,7 @@ if (command === "health") {
 }
 
 async function readAssignment(id) {
-  if (!/^sec-[0-9a-f-]{36}$/i.test(id)) throw new TypeError("Assignment ID is invalid.");
+  if (!/^sec-[0-9a-f-]{8,72}$/i.test(id)) throw new TypeError("Assignment ID is invalid.");
   const file = path.join(ROOT, "coordination", "assignments", `${id}.json`);
   return validateAssignmentRecord(JSON.parse(await readFile(file, "utf8")));
 }

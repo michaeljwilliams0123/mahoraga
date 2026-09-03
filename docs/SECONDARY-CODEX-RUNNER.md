@@ -58,6 +58,15 @@ ChatGPT subscription status, writes a local ignored configuration, registers a
 limited per-user scheduled task, and starts the first poll. It does not require
 an inbound listener or public tunnel.
 
+The installer defaults now register the canonical `mahoraga` task area and the
+bounded implementation roots `cloud-app`, `docs`, `evaluation`, `scripts`,
+`src`, `test`, and `coordination/results`. This matches assignments created by
+`/mahoraga dispatch desktop mahoraga`; every assignment's narrower `allowedPaths`
+still applies. Existing installations keep their ignored local configuration,
+so rerun the installer on the secondary PC once to migrate an older
+`secondary-connectivity`-only registration. This repository update never runs
+that installer or changes the current device.
+
 Completed or rejected bootstrap assignment IDs are historical evidence. Do not
 re-arm them. New work must use a new immutable assignment ID.
 

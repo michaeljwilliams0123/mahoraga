@@ -191,3 +191,21 @@ IDs, return branches, cloud-task idempotency keys, and existing-issue reuse rema
 the cross-run deduplication boundary. These controls do not transfer subscription
 credentials or credits between Codex instances; each model execution uses only
 the authenticated instance that accepted the bounded task.
+
+## Receiver choices
+
+The same immutable assignment has two explicit receiver implementations; enable
+only one for a task area:
+
+- Mike's subscription-authenticated Codex CLI uses the outbound Windows poller
+  installed by `scripts/install-secondary-codex-runner.ps1`. GitHub cannot host
+  or copy that ChatGPT sign-in.
+- A published ChatGPT Workspace Agent uses the read-only GitHub Actions receiver
+  in `.github/workflows/workspace-agent-receiver.yml` and separately provisioned
+  Workspace-Agent-scoped secrets. It is not an OpenAI Platform API-key lane.
+
+Both receivers validate the assignment, preserve its allowed paths and return
+branch, and stop before model execution when their required authentication is
+missing. Do not activate both against the same task area; provider idempotency
+limits duplicate cloud delivery, but a local and cloud worker remain distinct
+accounts and cannot share a lease automatically.

@@ -1,10 +1,10 @@
 [CmdletBinding()]
 param(
   [string]$RepositoryRoot = (Split-Path -Parent $PSScriptRoot),
-  [string]$TaskArea = 'secondary-connectivity',
+  [string]$TaskArea = 'mahoraga',
   [string]$TargetRepository = 'https://github.com/michaeljwilliams0123/mahoraga.git',
   [string]$TargetCheckout = $RepositoryRoot,
-  [string]$AllowedPaths = 'coordination/results',
+  [string]$AllowedPaths = 'cloud-app,docs,evaluation,scripts,src,test,coordination/results',
   [string]$DefaultBranch = 'main',
   [ValidateRange(5, 240)][int]$MaxRuntimeMinutes = 60,
   [ValidateRange(1, 5)][int]$MaxAttempts = 3

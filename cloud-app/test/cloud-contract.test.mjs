@@ -59,6 +59,18 @@ test("one Vercel workspace can route to an explicitly paired encrypted runtime",
   assert.match(health, /localExtensionRequired:\s*false/);
 });
 
+test("accessible task starters only prepare the composer and preserve Zero-Codex", async () => {
+  const source = await read("components/workspace.tsx");
+  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task"]) {
+    assert.match(source, new RegExp(`title: "${label}"`));
+  }
+  assert.match(source, /useState<RouteMode>\("efficient"\)/);
+  assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*composer\.current\?\.focus\(\);\s*\}/);
+  assert.match(source, /type="button"[\s\S]*aria-label=\{`Start: \$\{starter\.title\}`\}[\s\S]*onClick=\{\(\) => chooseStarter\(starter\.prompt\)\}/);
+  const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+  assert.doesNotMatch(handler, /submit|sendMessage|fetch|setRouteMode|setConversationRoute/);
+});
+
 test("server enforces bounded attachments and deliberately compact cloud budgets", async () => {
   const [source, health] = await Promise.all([read("app/api/chat/route.ts"), read("app/api/health/route.ts")]);
   assert.match(source, /MAX_TOTAL_FILE_BYTES/);

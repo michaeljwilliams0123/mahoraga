@@ -4,11 +4,17 @@
   "maxAttempts": 3,
   "projects": [
     {
-      "taskArea": "secondary-connectivity",
+      "taskArea": "mahoraga",
       "repository": "https://github.com/michaeljwilliams0123/mahoraga.git",
       "checkout": "C:\\Users\\User\\Documents\\mahoraga",
       "defaultBranch": "main",
       "allowedPaths": [
+        "cloud-app",
+        "docs",
+        "evaluation",
+        "scripts",
+        "src",
+        "test",
         "coordination/results"
       ],
       "maxRuntimeMinutes": 60,

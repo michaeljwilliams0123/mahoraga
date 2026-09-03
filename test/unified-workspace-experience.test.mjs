@@ -35,3 +35,12 @@ test("single workspace exposes route, pairing, cancellation, files, and live sta
     assert.match(source, new RegExp(marker));
   }
 });
+
+test("starter actions are keyboard controls that never auto-submit or change routes", async () => {
+  const source = await read("cloud-app/components/workspace.tsx");
+  assert.equal((source.match(/title: "(?:Analyze a dataset|Improve a repository|Approved browser task)"/g) ?? []).length, 3);
+  assert.match(source, /type="button"[\s\S]*onClick=\{\(\) => chooseStarter\(starter\.prompt\)\}/);
+  const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
+  assert.match(handler, /setInput\(prompt\)/);
+  assert.doesNotMatch(handler, /submit|sendMessage|fetch|setRouteMode|setConversationRoute/);
+});

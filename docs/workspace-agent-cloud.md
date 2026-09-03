@@ -21,6 +21,34 @@ content) as execution evidence, not as a coding
 result. Completion still requires the matching Git result record and repository
 validation because Workspace Agent response content is not retrievable by API.
 
+GitHub now has an actual cloud receiver at
+`.github/workflows/workspace-agent-receiver.yml`. A newly added, validated
+assignment on `main` invokes it automatically when the push is eligible to
+start workflows. The Cloud Task Gateway explicitly dispatches this receiver
+after publishing its assignment, because GitHub intentionally prevents a push
+made with the workflow `GITHUB_TOKEN` from recursively starting another
+workflow. The gateway never receives the Workspace Agent secrets and never
+invokes a model itself. An owner can retry delivery
+of one existing assignment from **Actions → Receive Workspace Agent Assignment**
+or with this exact issue command:
+
+```text
+/mahoraga receive workspace-agent sec-...
+```
+
+The receiver is read-only in GitHub, accepts no batch, validates the canonical
+repository and assignment record before delivery, skips an assignment whose
+result is already on `main`, and reuses the adapter's stable idempotency key.
+Untrusted issue comments and pull-request comments cannot activate it. If the
+two receiver secrets are absent, it records `unconfigured` without making a
+network or model request.
+
+Store `AGENT_ACCESS_TOKEN` and `WORKSPACE_AGENT_TRIGGER_ID` as GitHub Actions
+repository or environment secrets. Never put either value in an issue, commit,
+workflow input, Vercel variable exposed to the browser, or chat message. The
+published Workspace Agent must have its own bounded GitHub connection capable
+of returning only the declared `secondary/<assignment-id>` branch.
+
 Operator commands:
 
 ```powershell
@@ -29,7 +57,10 @@ node scripts/workspace-agent.mjs trigger --assignment-id <sec-id>
 node scripts/workspace-agent.mjs status --run-id <apirun-id>
 ```
 
-The adapter is disabled until both credential variables are stored securely.
+The general runtime router keeps this optional adapter disabled until both
+credential variables are stored securely. The dedicated receiver is separately
+fail-closed and can prove configuration without enabling paid fallback for
+ordinary conversation.
 Its task envelope contains only assignment metadata, declared repository paths,
 the bounded requested outcome, and the privacy prohibitions already enforced by
 `docs/github-codex-coordination.md`. It never imports ChatGPT conversations,

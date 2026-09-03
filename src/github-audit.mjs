@@ -143,6 +143,43 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     destinyMissing.length ? { files: destinyMissing } : undefined,
   );
 
+  const workspaceAgentReceiver = workflowSources.find(([file]) => file === ".github/workflows/workspace-agent-receiver.yml")?.[1] ?? "";
+  const cloudTaskGateway = workflowSources.find(([file]) => file === ".github/workflows/cloud-task-gateway.yml")?.[1] ?? "";
+  const workspaceAgentReceiverFiles = [
+    ".github/workflows/workspace-agent-receiver.yml",
+    "scripts/workspace-agent-receiver.mjs",
+    "scripts/workspace-agent.mjs",
+    "src/workspace-agent-worker.mjs",
+  ];
+  const workspaceAgentReceiverMissing = workspaceAgentReceiverFiles.filter((file) => !fileSet.has(file));
+  const workspaceAgentReceiverTrusted = workspaceAgentReceiverMissing.length === 0
+    && /push:\s*[\s\S]*branches:\s*\[main\][\s\S]*coordination\/assignments\/\*\.json/.test(workspaceAgentReceiver)
+    && /issue_comment:\s*[\s\S]*types:\s*\[created\]/.test(workspaceAgentReceiver)
+    && /github\.actor == github\.repository_owner/.test(workspaceAgentReceiver)
+    && /contents:\s*read/.test(workspaceAgentReceiver)
+    && !/contents:\s*write/.test(workspaceAgentReceiver)
+    && !/pull-requests:\s*write/.test(workspaceAgentReceiver)
+    && /AGENT_ACCESS_TOKEN:\s*\$\{\{ secrets\.AGENT_ACCESS_TOKEN \}\}/.test(workspaceAgentReceiver)
+    && /WORKSPACE_AGENT_TRIGGER_ID:\s*\$\{\{ secrets\.WORKSPACE_AGENT_TRIGGER_ID \}\}/.test(workspaceAgentReceiver)
+    && /node scripts\/workspace-agent-receiver\.mjs receive --event-file "\$GITHUB_EVENT_PATH"/.test(workspaceAgentReceiver)
+    && /actions:\s*write/.test(cloudTaskGateway)
+    && /actions\.createWorkflowDispatch/.test(cloudTaskGateway)
+    && /workflow_id:\s*"workspace-agent-receiver\.yml"/.test(cloudTaskGateway)
+    && /inputs:\s*\{ assignment_id: process\.env\.ASSIGNMENT_ID \}/.test(cloudTaskGateway)
+    && /steps\.gateway\.outputs\.mode == 'desktop'/.test(cloudTaskGateway)
+    && /continue-on-error:\s*true/.test(cloudTaskGateway)
+    && /steps\.workspace_receiver\.outcome == 'failure'/.test(cloudTaskGateway)
+    && !/secrets\.AGENT_ACCESS_TOKEN|secrets\.WORKSPACE_AGENT_TRIGGER_ID/.test(cloudTaskGateway);
+  add(
+    "workspace-agent-receiver",
+    workspaceAgentReceiverTrusted,
+    "blocking",
+    workspaceAgentReceiverTrusted
+      ? "Workspace Agent delivery is owner-bound, read-only in GitHub, assignment-scoped, and secret-backed."
+      : "The Workspace Agent receiver boundary is missing or broader than its trusted contract.",
+    workspaceAgentReceiverMissing.length ? { files: workspaceAgentReceiverMissing } : undefined,
+  );
+
   const actions = [];
   for (const [file, source] of workflowSources) {
     for (const match of source.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#.*)?\s*$/gm)) {
