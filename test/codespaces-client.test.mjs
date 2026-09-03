@@ -30,3 +30,26 @@ test("does not execute caller-selected commands", async () => {
 test("redacts tokens from errors", () => {
   assert.equal(redactError(new Error("Bearer ghp_secretvalue failed")).message.includes("ghp_secretvalue"), false);
 });
+
+test("stops the internally tracked started codespace without exposing its name in the receipt", async () => {
+  const calls = [];
+  const client = createCodespacesClient({
+    repositoryFullName: "owner/repo",
+    budgetEvaluator: okBudget,
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      if (init.method === "POST" && url.endsWith("/codespaces")) {
+        return { ok: true, status: 201, json: async () => ({ id: 123, name: "private-codespace-name" }) };
+      }
+      if (init.method === "POST" && url.endsWith("/stop")) {
+        return { ok: true, status: 204, json: async () => ({}) };
+      }
+      throw new Error(`unexpected request ${init.method} ${url}`);
+    },
+  });
+
+  const startReceipt = await client.start({ telemetry: {} });
+  assert.equal(Object.hasOwn(startReceipt, "codespaceName"), false);
+  await client.stopActive();
+  assert.equal(calls.at(-1).url.endsWith("/user/codespaces/private-codespace-name/stop"), true);
+});

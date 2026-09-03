@@ -13,9 +13,12 @@ test("waits fail-closed when no zero-credit generation provider is available", a
   assert.equal(result.providerDecision.providerId, "waiting-zero-credit-provider");
 });
 
-test("always stops a started codespace during cleanup", async () => {
+test("always stops a started codespace through the opaque client lifecycle handle", async () => {
   let stopped = false;
-  const client = { start: async () => ({ codespaceName: "abc" }), stop: async () => { stopped = true; } };
+  const client = {
+    start: async () => ({ action: "start", status: "ok", codespaceIdHash: "opaque" }),
+    stopActive: async () => { stopped = true; return { action: "stop", status: "ok" }; },
+  };
   const providerSelector = () => ({ status: "selected", providerId: "codespaces-open-weight", costClass: "cloud-open-weight" });
   const result = await runCloudCycle({ repositoryIdentity: "owner/repo", client, providerSelector, providers: [{ id: "codespaces-open-weight" }] });
   assert.equal(result.status, "candidate-ready");
