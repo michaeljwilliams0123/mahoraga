@@ -9,6 +9,7 @@ export function createCodespacesClient({ fetchImpl = globalThis.fetch, token = p
   if (!repositoryFullName || !repositoryFullName.includes("/")) throw new TypeError("repositoryFullName must be owner/repo.");
   const workflows = new Set(registeredWorkflowIds);
   const [owner, repo] = repositoryFullName.split("/");
+  let activeCodespaceName = null;
 
   async function inspect({ telemetry } = {}) {
     const budget = budgetEvaluator({ telemetry });
@@ -22,6 +23,7 @@ export function createCodespacesClient({ fetchImpl = globalThis.fetch, token = p
     if (!budget.ok) return receipt("start", "blocked", budget.reason);
     const body = Object.fromEntries(Object.entries({ machine, devcontainer_path: devcontainerPath }).filter(([, value]) => value));
     const data = await requestJson(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/codespaces`, { method: "POST", body });
+    activeCodespaceName = data.name ?? null;
     return receipt("start", "ok", null, { codespaceIdHash: hash(data.id ?? data.name ?? "created"), maximumActiveDurationMs: MAX_ACTIVE_DURATION_MS });
   }
 
@@ -36,7 +38,13 @@ export function createCodespacesClient({ fetchImpl = globalThis.fetch, token = p
   async function stop({ codespaceName } = {}) {
     if (!codespaceName) return receipt("stop", "blocked", "codespace-name-required");
     await requestJson(`/user/codespaces/${encodeURIComponent(codespaceName)}/stop`, { method: "POST" });
+    if (activeCodespaceName === codespaceName) activeCodespaceName = null;
     return receipt("stop", "ok", null, { codespaceNameHash: hash(codespaceName) });
+  }
+
+  async function stopActive() {
+    if (!activeCodespaceName) return receipt("stop", "blocked", "no-active-codespace");
+    return stop({ codespaceName: activeCodespaceName });
   }
 
   async function requestJson(path, { method = "GET", body } = {}) {
@@ -48,7 +56,7 @@ export function createCodespacesClient({ fetchImpl = globalThis.fetch, token = p
     if (!response.ok) throw redactError(new Error(`GitHub Codespaces request failed: ${response.status}`));
     return response.status === 204 ? {} : response.json();
   }
-  return Object.freeze({ inspect, start, executeRegisteredWorkflow, stop });
+  return Object.freeze({ inspect, start, executeRegisteredWorkflow, stop, stopActive });
 }
 
 export function redactError(error) {
