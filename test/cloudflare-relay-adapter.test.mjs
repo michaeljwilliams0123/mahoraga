@@ -4,7 +4,8 @@ import { createCloudflareRelayHandler, RelayDurableObject } from "../relay/cloud
 
 const env = {
   MAHORAGA_OWNER_IDENTITY: "owner@example.com",
-  MAHORAGA_PAGES_ORIGIN: "https://michaeljwilliams0123.github.io",
+  MAHORAGA_WORKSPACE_ORIGIN: "https://mahoraga-cloud-workspace.vercel.app",
+  MAHORAGA_LOCAL_RELAY_TOKEN: "l".repeat(48),
 };
 
 test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-WebSocket requests", async () => {
@@ -12,13 +13,15 @@ test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-We
   assert.equal((await handler.fetch(new Request("https://relay.example/pair"), env)).status, 403);
   const wrongOrigin = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: "https://evil.example", upgrade: "websocket" } });
   assert.equal((await handler.fetch(wrongOrigin, env)).status, 403);
-  const ordinaryHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_PAGES_ORIGIN } });
+  const ordinaryHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_WORKSPACE_ORIGIN } });
   assert.equal((await handler.fetch(ordinaryHttp, env)).status, 426);
+  const localWithoutToken = new Request("https://relay.example/pair/local", { headers: { upgrade: "websocket" } });
+  assert.equal((await handler.fetch(localWithoutToken, env)).status, 403);
 });
 
 test("Cloudflare relay adapter exposes no generic proxy route", async () => {
   const handler = createCloudflareRelayHandler();
-  const request = new Request("https://relay.example/proxy?url=http://127.0.0.1:4782", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_PAGES_ORIGIN, upgrade: "websocket" } });
+  const request = new Request("https://relay.example/proxy?url=http://127.0.0.1:4782", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_WORKSPACE_ORIGIN, upgrade: "websocket" } });
   assert.equal((await handler.fetch(request, env)).status, 404);
 });
 
@@ -43,9 +46,10 @@ test("Durable Object speaks one authenticated envelope and forwards only ciphert
   const storage = new Map();
   const state = { storage: { async get(key) { return storage.get(key) ?? null; }, async put(key, value) { storage.set(key, value); } } };
   const object = new RelayDurableObject(state, env);
-  const request = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_PAGES_ORIGIN, upgrade: "websocket" } });
+  const localRequest = new Request("https://relay.example/pair/local", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, "x-mahoraga-relay-role": "local", upgrade: "websocket", "sec-websocket-protocol": `mahoraga-local-v1, mahoraga-auth-${env.MAHORAGA_LOCAL_RELAY_TOKEN}` } });
+  const remoteRequest = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, "x-mahoraga-relay-role": "remote", origin: env.MAHORAGA_WORKSPACE_ORIGIN, upgrade: "websocket" } });
   try {
-    const localResponse = await object.fetch(request);
+    const localResponse = await object.fetch(localRequest);
     assert.equal(localResponse.status, 101);
     const local = latestPair[1];
     const localKey = { kty: "EC", crv: "P-256", x: "a".repeat(43), y: "b".repeat(43) };
@@ -53,7 +57,7 @@ test("Durable Object speaks one authenticated envelope and forwards only ciphert
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(local.messages.at(-1).type, "paired");
 
-    await object.fetch(request);
+    await object.fetch(remoteRequest);
     const remote = latestPair[1];
     const remoteKey = { kty: "EC", crv: "P-256", x: "c".repeat(43), y: "d".repeat(43) };
     remote.emit("message", { action: "pair-remote", pairingId: "pair-worker", code: "ABCD2345", devicePublicKey: remoteKey });

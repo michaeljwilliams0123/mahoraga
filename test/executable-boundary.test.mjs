@@ -14,8 +14,8 @@ test("runtime subprocess executables cannot be selected through environment inpu
     source("src/microsoft-queue-worker.mjs"),
     source("src/repository-worker.mjs"),
   ]);
-  assert.doesNotMatch(browser, /MAHORAGA_CHROME_PATH/);
-  assert.match(browser, /launch\(DEFAULT_CHROME,/);
+  assert.doesNotMatch(browser, /MAHORAGA_CHROME_PATH|child_process|spawn|chrome\.exe|remote-debugging/);
+  assert.match(browser, /interactionCapability: "cloud-browser-tool"/);
   assert.doesNotMatch(queue, /MAHORAGA_PYTHON_PATH/);
   assert.match(queue, /spawn\(DEFAULT_PYTHON,/);
   assert.doesNotMatch(repository, /MAHORAGA_GIT_EXECUTABLE/);

@@ -75,15 +75,13 @@ credential from the secondary user's computer is required.
 
 The target contract includes tabs, open, navigate, read, inspect, click, type,
 select, upload, download, wait, screenshot, network, console, and close. The
-current production local adapter implements isolated Chrome health, verified
-Control Center smoke, and `browser.observe` for the loopback Control Center only.
-That observation uses a Mahoraga-owned headless profile and CDP child, returns
-the DOM title only in the transient worker result, and persists only
-title/screenshot digests, dimensions, and bounded network/console counts. The
-worker rejects an unowned loopback CDP endpoint rather than attaching to an
-existing user browser. Screenshots live under local runtime state for at most 24
-hours. Signed-session Chrome and in-app-browser bindings remain disabled pending
-explicit one-time user approval; the normal Chrome profile and cookies are never
+secondary runtime adapter now implements isolated Chrome health only; its former
+loopback Control Center smoke and observation routes are retired with that UI.
+Interactive browser work belongs to the approval-gated isolated cloud browser
+in the unified Vercel workspace. The health worker rejects an unowned loopback
+CDP endpoint rather than attaching to an existing user browser. Signed-session
+Chrome and in-app-browser bindings remain disabled pending explicit one-time
+user approval; the normal Chrome profile and cookies are never
 copied or attached.
 
 ## Desktop hierarchy

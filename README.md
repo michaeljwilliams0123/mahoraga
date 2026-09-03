@@ -7,15 +7,15 @@ target remains `3.6.0` at commit
 inactive-runtime smoke, and rollback drill are recorded.
 
 The alpha preserves the Node.js supervisor, process-isolated workers, SQLite WAL
-ledger, loopback API, and browser Control Center while adding authenticated
+ledger, and loopback execution API while adding authenticated
 sensitive surfaces, server-derived authority, typed receipts, evidence-backed
 routing, isolated Codex worktrees, an encrypted local content vault, and
 incident-only repair records.
 
 ## Release truth
 
-- Installed candidate metadata: `7.0.0-alpha.1` / Control Center
-  `7.0.0-alpha.1` / API `7.0.0-alpha.1`.
+- Installed candidate metadata: runtime/API `7.0.0-alpha.1`; the only browser UI
+  is the independently deployed unified Vercel workspace.
 - Active production baseline: `3.6.0`; this document does not claim it has been
   replaced or restarted.
 - Verification state: implementation complete through the release-metadata
@@ -31,15 +31,15 @@ incident-only repair records.
 - Explainable capability registry and ranked routing using interface type, live
   availability, health, cost, permissions, reliability, latency, workload,
   execution type, attended-desktop requirements, and explicit fallback workers.
-- Localhost-only control server at `http://127.0.0.1:4782`.
+- Localhost-only execution API at `http://127.0.0.1:4782`; `/` redirects to the single Vercel workspace.
 - Permanent supervisor with worker heartbeats, crash restart, bounded retry, and
   durable task leases.
 - SQLite task, worker, event, and improvement state using the Node 24 runtime.
 - Isolated `local-core`, `repository`, `browser`, and `self-healer` worker processes.
-- A Mahoraga-owned headless Chrome process on loopback for deterministic browser
-  health and bounded Control Center observation receipts (DOM title hash,
-  screenshot digest/dimensions, network counts, and console counts). No public
-  debugging endpoint is exposed; an unowned loopback CDP endpoint is rejected.
+- A Mahoraga-owned headless Chrome process on the secondary runtime for a
+  bounded browser-health receipt only. Interactive UI work uses the isolated
+  cloud browser from the Vercel workspace; no public debugging endpoint or
+  local extension is exposed.
 - A bounded Repository Worker for status, inspection, recent history, and the
   repository's fixed verification command.
 - Ordinary response-requesting conversation turns create a durable autonomous
@@ -49,24 +49,16 @@ incident-only repair records.
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- Control Center 7.0 uses a ChatGPT-style chat-first workspace with conversation
-  history, automatic worker routing, durable message threads, worker receipts in
-  the conversation, and a bottom composer. Task, worker, connection, improvement,
-  and diagnostic controls remain available as compact workspace views. A
-  dedicated Coordination console now exposes Primary-led authority, the
-  assignment-and-return mailbox lifecycle, bounded Secondary branches,
-  deterministic validation, GitHub assurance cards, and a sanitized
-  outbound-runner heartbeat without exposing chats, credentials, local checkout
-  paths, or model output. Operations views are bookmarkable and background tabs
-  stop polling until visible again.
-- Cloud Workspace 2.0 adds a ChatGPT-style GitHub Pages launcher, installed
-  Skills catalog, approvals queue, release dashboard, and read-only activity
-  status. Authenticated task submission, image paste, and file
-  attachment use GitHub's own signed-in issue form; the page stores no token,
-  prompt, attachment, or chat history. An exact owner-authored gateway command
-  idempotently routes an approved issue to Codex cloud or the outbound desktop
-  poller. Deterministic Actions remain visibly separated from explicit model
-  work. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
+- One Vercel-hosted ChatGPT-style workspace combines Cloud Pro reasoning, files,
+  datasets, web research, the approval-gated isolated browser, and an explicitly
+  paired Mahoraga runtime. The loopback process remains an API and encrypted
+  execution service; GitHub Pages and the former local/static frontends are
+  retired. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
+- Its ordinary conversation route is forced to the paired runtime's
+  `zero-codex` policy and never falls through to a paid model. Cloud Pro is an
+  explicit selection with bounded context, output, search, and tool-step ceilings.
+  See [`docs/CLOUD-ONLY-DEPLOYMENT.md`](docs/CLOUD-ONLY-DEPLOYMENT.md) for the
+  remaining remote-runtime, relay, identity, and zero-credit provider inputs.
 - A successful exact-`main` verification automatically packages an immutable beta
   release with a strict SHA-256 manifest and GitHub provenance, without repeating
   the same full gate. Releases never install themselves; the local runtime may
@@ -88,22 +80,17 @@ incident-only repair records.
 - VS Code prompt files for health review, repository drift review, and tested
   improvement-candidate creation.
 
-## Choose the right UI
+## Use the workspace
 
-- **Operate Mahoraga on this Windows machine:** open
-  `http://127.0.0.1:4782`. This is the live Control Center for conversations,
-  workers, tasks, connections, improvements, diagnostics, and Primary/Secondary
-  coordination. Start the supervised runtime first if the page is unavailable.
+- **Open Mahoraga:** use
+  `https://mahoraga-cloud-workspace.vercel.app/`. This is the only browser UI.
+  Pair an explicitly chosen runtime from its Connections section when local
+  workers or task state are needed. No browser extension is installed.
 - **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
   select `mahoraga`, choose `main` as the base branch, and start with a
   read-only prompt such as `Inspect main and report current health; do not
   modify files or create a pull request.` Use an issue assigned to Copilot when
   a task should deliberately create a pull request.
-- **Use the Cloud Workspace launcher:** GitHub Pages is optional and public.
-  Mahoraga skips its Pages deployment while the repository is private. In
-  private mode, use GitHub's signed-in Agents, Issues, Pull requests, Actions,
-  and Deployments views instead; the private repository is not a secure
-  private-hosting mechanism for a personal-account Pages site.
 - **Call the Destiny-authenticated Codex:** open an owner-authored pull request
   to `main` with the exact title `[DESTINY-CODEX] <envelope title>` and one
   generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
@@ -117,9 +104,9 @@ Do not use `scripts/start-production.ps1` for this branch before release
 verification. Task 11 starts the candidate against a temporary state copy on
 alternate loopback port `4783`, leaving the `3.6.0` process and state untouched.
 
-After promotion, the production launcher remains the supported start path and
-verifies the declared runtime and Control Center versions before reporting
-readiness.
+After promotion, the production launcher remains the supported runtime start
+path and verifies the declared runtime/API protocol version before reporting
+readiness. `scripts/open-workspace.ps1` opens the canonical Vercel UI directly.
 
 ## Verify
 

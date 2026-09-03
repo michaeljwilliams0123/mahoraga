@@ -38,11 +38,20 @@ function validateExtensionManifest(value, language) {
 }
 
 function inspectJavaScript(source, reasons) {
+  source = foldConstantStrings(source);
   if (/\beval\s*\(|\b(?:new\s+)?Function\s*\(|\bWebAssembly\.(?:compile|instantiate)\s*\(/.test(source)) reasons.add("dynamic-evaluation");
   if (/node:(?:child_process|cluster|worker_threads)|\b(?:child_process|Bun\.spawn|Deno\.Command|process\s*(?:\.|\[\s*["'])(?:spawn|exec|fork|kill)|globalThis\s*(?:\.|\[\s*["'])\s*process\b)/.test(source)) reasons.add("process-access");
   if (/node:(?:net|tls|dgram|http|https|http2)|\b(?:WebSocket|EventSource|fetch)\s*\(/.test(source)) reasons.add("network-access");
   if (/\bprocess\s*\.\s*env\b|\bprocess\s*\[\s*["']env["']\s*\]|\bDeno\s*\.\s*env\b|\bimport\.meta\.env\b|\bglobalThis\s*(?:\.|\[\s*["'])\s*process\b/.test(source)) reasons.add("environment-access");
   if (/node:fs|\brequire\s*\(\s*["']fs["']|\b__import__\b|\bglobalThis\s*(?:\.|\[\s*["'])\s*(?:require|module|process)\b/.test(source)) reasons.add("unrestricted-filesystem");
+  if (/\b(?:require|import)\s*\(\s*(?!["'][^"']+["']\s*\))/.test(source)) reasons.add("dynamic-module-access");
+}
+
+function foldConstantStrings(source) {
+  const literal = /(["'])([^"'\\]*)\1\s*\+\s*(["'])([^"'\\]*)\3/g;
+  let prior;
+  do { prior = source; source = source.replace(literal, (_match, _leftQuote, left, _rightQuote, right) => JSON.stringify(`${left}${right}`)); } while (source !== prior);
+  return source;
 }
 
 function inspectPython(source, reasons) {

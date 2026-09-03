@@ -14,6 +14,8 @@ body:
         After submission, the owner uses exactly one audited command:
         - `/mahoraga dispatch codex`
         - `/mahoraga dispatch desktop mahoraga`
+
+        A Codex dispatch creates a deterministic draft pull request but still does not invoke a model. The owner starts the connected Primary Codex by placing the Codex mention and the validated task body in a new comment on that draft. If Primary returns a terminal blocker, the owner may use `/mahoraga dispatch fallback mahoraga` on this same issue to stage Secondary exactly once.
   - type: input
     id: idempotency_key
     attributes:
@@ -52,7 +54,7 @@ body:
     id: execution_lane
     attributes:
       label: Preferred execution lane
-      description: Select where approved work should run. Deterministic Actions use the Actions console instead of the model gateway.
+      description: Select where approved work should run. Codex cloud is Primary; Desktop Codex is the registered Secondary lane. Deterministic Actions use the Actions console and no model.
       options:
         - Codex cloud
         - Desktop Codex

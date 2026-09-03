@@ -50,3 +50,27 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: node scripts/github-audit.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+  workspace:
+    name: Verify unified Vercel workspace
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: cloud-app
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Use Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: cloud-app/package-lock.json
+
+      - name: Install locked workspace dependencies
+        run: npm ci
+
+      - name: Type-check, test, and build the single UI
+        run: npm run verify

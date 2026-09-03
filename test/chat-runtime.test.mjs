@@ -20,6 +20,25 @@ test("unified chat intake separates questions from explicit actions", { concurre
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
 
+  const zeroCredit = await fetch(`${base}/api/chat`, {
+    method: "POST",
+    headers: AUTH,
+    body: JSON.stringify({ mode: "auto", content: "Can you explain why it rains outside?", creditPolicy: "zero-codex", idempotencyKey: "chat-zero-runtime" }),
+  });
+  assert.equal(zeroCredit.status, 409);
+  assert.equal((await zeroCredit.json()).error, "zero-credit-provider-unavailable");
+  assert.equal(runtime.database.listConversations().length, 0);
+
+  const zeroCreditHealth = await fetch(`${base}/api/chat`, {
+    method: "POST",
+    headers: AUTH,
+    body: JSON.stringify({ mode: "auto", content: "Check the system health", creditPolicy: "zero-codex", idempotencyKey: "chat-zero-health-runtime" }),
+  });
+  assert.equal(zeroCreditHealth.status, 202);
+  const zeroCreditHealthBody = await zeroCreditHealth.json();
+  assert.equal(zeroCreditHealthBody.task.capability, "system.health");
+  assert.deepEqual(zeroCreditHealthBody.task.allowedWorkerIds, ["local-core"]);
+
   const asked = await fetch(`${base}/api/chat`, {
     method: "POST",
     headers: AUTH,
@@ -82,7 +101,7 @@ test("repository head failure leaves autonomous chat intake unpersisted", { conc
   assert.equal(runtime.database.listObjectives().length, 0);
 });
 
-test("owner-paired relay autonomous chat resolves the exact repository base", { concurrency: false }, async (t) => {
+test("owner-paired relay rejects Codex-backed autonomous chat without spending credits", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-relay-chat-runtime-"));
   const expectedHead = "d".repeat(40);
   const runtime = await startRuntime({
@@ -95,18 +114,11 @@ test("owner-paired relay autonomous chat resolves the exact repository base", { 
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
 
-  const result = await runtime.server.conversationGateway.chat({
-    mode: "act",
-    content: "Update the Mahoraga interface and apply the change",
-    idempotencyKey: "relay-chat-act-runtime",
+  await assert.rejects(runtime.server.conversationGateway.chat({
+    mode: "act", content: "Update the Mahoraga interface and apply the change", idempotencyKey: "relay-chat-act-runtime",
   }, {
-    mechanism: "owner-paired-relay",
-    attendedSession: { active: true, sessionId: "rls-00000000000000000000000000000000" },
-  });
-
-  assert.equal(result.decision.mode, "act");
-  assert.equal(result.objective.tasks.filter((task) => task.definition.capability === "codex.execute").length, 4);
-  for (const task of result.objective.tasks.filter((item) => item.definition.capability === "codex.execute")) {
-    assert.equal(task.definition.baseCommit, expectedHead);
-  }
+    mechanism: "owner-paired-relay", attendedSession: { active: true, sessionId: "rls-00000000000000000000000000000000" },
+  }), /zero-credit-objective-provider-unavailable/);
+  assert.equal(runtime.database.listConversations().length, 0);
+  assert.equal(runtime.database.listObjectives().length, 0);
 });

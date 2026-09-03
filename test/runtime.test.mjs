@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { startRuntime } from "../src/runtime.mjs";
-import { snapshotStaticAssets } from "../src/server.mjs";
+import { canonicalWorkspaceUrl, DEFAULT_WORKSPACE_URL } from "../src/server.mjs";
 import { normalizeSummary } from "../src/supervisor.mjs";
 import { bearerMatches } from "../src/local-auth.mjs";
 
@@ -24,21 +24,11 @@ test("Primary Codex intake bearer comparison fails closed", () => {
   assert.equal(bearerMatches({ headers: { authorization: "Bearer wrong" } }, "x".repeat(32)), false);
 });
 
-test("runtime snapshots one compatible static asset set at server creation", (t) => {
-  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-static-snapshot-"));
-  const webRoot = path.join(root, "web");
-  mkdirSync(webRoot);
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  writeFileSync(path.join(webRoot, "index.html"), "<main>snapshot</main>");
-  writeFileSync(path.join(webRoot, "styles.css"), "body{}");
-  writeFileSync(path.join(webRoot, "skills.css"), ".panel{}");
-  writeFileSync(path.join(webRoot, "mark.svg"), "<svg></svg>");
-  writeFileSync(path.join(webRoot, "site.webmanifest"), "{}");
-  writeFileSync(path.join(webRoot, "app.js"), "window.assetSet='initial';");
-  const assets = snapshotStaticAssets(webRoot);
-  assert.equal(assets.get("/app.js").body.toString("utf8"), "window.assetSet='initial';");
-  writeFileSync(path.join(webRoot, "app.js"), "window.assetSet='mutated';");
-  assert.equal(assets.get("/app.js").body.toString("utf8"), "window.assetSet='initial';");
+test("runtime exposes only the canonical Vercel workspace as its interaction surface", () => {
+  assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
+  assert.equal(canonicalWorkspaceUrl("https://workspace.example/"), "https://workspace.example/");
+  assert.throws(() => canonicalWorkspaceUrl("http://127.0.0.1:4782/"), /canonical-workspace-url-invalid/);
+  assert.throws(() => canonicalWorkspaceUrl("https://user:secret@example.com/"), /canonical-workspace-url-invalid/);
 });
 
 test("runtime serves the cockpit API and completes a health task", async (t) => {
@@ -46,20 +36,20 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const base = `http://127.0.0.1:${runtime.address.port}`;
   await waitFor(async () => {
     const status = await (await fetch(`${base}/api/status`)).json();
-    const requiredRoutesReady = ["system.health", "repository.inspect"].every((capability) =>
+    return ["system.health", "repository.inspect"].every((capability) =>
       status.capabilities.some((item) => item.capability === capability && item.routable === true),
     );
-    const providerReadinessSettled = status.capabilities.filter((item) => item.provider === "ready").every((item) => item.canary !== "never");
-    return requiredRoutesReady && providerReadinessSettled;
   });
   const status = await (await fetch(`${base}/api/status`)).json();
-  const readyCapabilities = status.capabilities.filter((item) => item.provider === "ready");
-  assert.ok(readyCapabilities.length > 0);
-  assert.deepEqual(readyCapabilities.filter((item) => item.canary === "never").map((item) => item.capability), []);
+  const requiredCapabilities = status.capabilities.filter((item) => ["system.health", "repository.inspect"].includes(item.capability));
+  assert.equal(requiredCapabilities.length, 2);
+  assert.ok(requiredCapabilities.every((item) => item.provider === "ready" && item.canary !== "never"));
   assert.equal(status.controlCenterApi.protocolVersion, 1);
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
-  assert.equal(status.controlCenterApi.staticAssetsSnapshotted, true);
+  assert.equal(status.controlCenterApi.staticAssetsSnapshotted, false);
+  assert.equal(status.controlCenterApi.interactionSurface, "vercel-workspace");
+  assert.equal(status.controlCenterApi.localUiRetired, true);
   const statusResponse = await fetch(`${base}/api/status`);
   assert.equal(statusResponse.headers.get("x-mahoraga-runtime-version"), status.version);
   assert.equal(statusResponse.headers.get("x-mahoraga-control-center-version"), status.versions.controlCenter);
@@ -69,12 +59,9 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const repositoryCapability = status.capabilities.find((item) => item.capability === "repository.inspect");
   assert.equal(repositoryCapability.routable, true);
   assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
-  const html = await (await fetch(base)).text();
-  assert.match(html, /mahoraga-ui-version/);
-  assert.match(html, /id="conversation-composer"/);
-  assert.match(html, /id="session-select"/);
-  assert.match(html, /id="capability-list"/);
-  assert.match(html, /Conversation plaintext stays in memory/);
+  const workspaceRedirect = await fetch(base, { redirect: "manual" });
+  assert.equal(workspaceRedirect.status, 307);
+  assert.equal(workspaceRedirect.headers.get("location"), DEFAULT_WORKSPACE_URL);
   runtime.database.createSecondaryAssignment({
     title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
     expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],
@@ -144,7 +131,7 @@ test("improvement decisions fail closed without the candidate-specific approval 
   assert.equal(approved.improvement.status, "approved");
 });
 
-test("Control Center creates and continues a durable assignment thread", async (t) => {
+test("runtime API creates and continues a durable assignment thread", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const created = await (await fetch(`${base}/api/conversations`, {

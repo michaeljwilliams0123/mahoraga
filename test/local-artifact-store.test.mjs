@@ -29,7 +29,7 @@ test("private local artifacts preserve integrity and support deterministic inspe
   assert.equal(stored.bytes.toString("utf8"), "Quarter,Amount\nQ1,100\n");
 });
 
-test("Control Center uploads, attaches, inspects, and protects a private artifact", { skip: process.platform !== "win32" && "DPAPI-backed worker vault requires Windows" }, async (t) => {
+test("runtime API uploads, attaches, inspects, and protects a private artifact", { skip: process.platform !== "win32" && "DPAPI-backed worker vault requires Windows" }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-artifact-runtime-"));
   const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), primaryCodexToken: PRIMARY_TOKEN, syncCoordinationMailbox: false });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });

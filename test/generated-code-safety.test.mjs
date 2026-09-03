@@ -55,6 +55,10 @@ test("generated extensions reject computed authority escapes", () => {
     ["const p = globalThis['process']; p.env.TOKEN", "environment-access"],
     ["const spawn = process['spawn']; spawn('sh')", "process-access"],
     ["const load = __import__; load('node:fs')", "unrestricted-filesystem"],
+    ["globalThis['pro' + 'cess']['e' + 'nv'].TOKEN", "environment-access"],
+    ["require('node:' + 'fs').readFileSync('secret')", "unrestricted-filesystem"],
+    ["import('child_' + 'process')", "process-access"],
+    ["const moduleName = input.name; require(moduleName)", "dynamic-module-access"],
   ];
   for (const [source, code] of cases) {
     const decision = inspectGeneratedExtension({ language: "javascript", source, manifest, candidateRoot: root });

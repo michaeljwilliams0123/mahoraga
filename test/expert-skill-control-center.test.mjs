@@ -12,7 +12,7 @@ const AUTH = { authorization: `Bearer ${PRIMARY_TOKEN}` };
 const TEST_VAULT_KEY = Buffer.alloc(32, 23);
 
 
-test("Control Center exposes evidence-led expert methods and deterministic selection", async (t) => {
+test("runtime API exposes evidence-led expert methods to the unified workspace", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-expert-control-"));
   const runtime = await startRuntime({
     port: 0,
@@ -39,8 +39,7 @@ test("Control Center exposes evidence-led expert methods and deterministic selec
   assert.equal(selection.matches[0].id, "internal-audit-cia");
   assert.equal(selection.enterprisePolicy.githubCoordinationContentAllowed, false);
 
-  const html = readFileSync(path.join(ROOT, "web", "index.html"), "utf8");
-  const app = readFileSync(path.join(ROOT, "web", "app.js"), "utf8");
-  assert.match(html, /id="expert-skill-list"/);
-  assert.match(app, /function renderExpertSkills\(\)/);
+  const workspace = readFileSync(path.join(ROOT, "cloud-app", "components", "workspace.tsx"), "utf8");
+  assert.match(workspace, /await transport\.capabilities\(\)/);
+  assert.match(workspace, /runtimeCapabilities\.filter\(\(item\) => item\.routable\)/);
 });

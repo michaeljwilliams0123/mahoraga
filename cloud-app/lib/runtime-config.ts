@@ -30,6 +30,13 @@ Be concise by default, but use enough structure to make complex findings auditab
 export const MAX_FILES = 3;
 export const MAX_FILE_BYTES = 2 * 1024 * 1024;
 export const MAX_TOTAL_FILE_BYTES = 4 * 1024 * 1024;
+export const MAX_INPUT_TEXT_CHARS = 12_000;
+export const CLOUD_MAX_CONTEXT_MESSAGES = 14;
+export const CLOUD_MAX_CONTEXT_TEXT_CHARS = 48_000;
+export const CLOUD_MAX_OUTPUT_TOKENS = 8_000;
+export const CLOUD_MAX_STEPS = 5;
+export const CLOUD_SEARCH_MAX_RESULTS = 5;
+export const CLOUD_SEARCH_MAX_TOKENS = 6_000;
 
 export function configuredDomains(value = process.env.BROWSER_ALLOWED_DOMAINS ?? "") {
   return value
@@ -47,7 +54,5 @@ export function connectionState(env: NodeJS.ProcessEnv = process.env) {
         env.BROWSER_ALLOWED_DOMAINS &&
         env.TOOL_APPROVAL_SECRET,
     ),
-    github: Boolean(env.GITHUB_TOKEN),
-    gitlab: Boolean(env.GITLAB_TOKEN),
   };
 }

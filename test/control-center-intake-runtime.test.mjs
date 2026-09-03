@@ -72,5 +72,5 @@ async function waitFor(check, timeoutMs = 8000) {
     if (value) return value;
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
-  throw new Error("Timed out waiting for Control Center intake state.");
+  throw new Error("Timed out waiting for runtime intake state.");
 }

@@ -12,7 +12,7 @@ test("one dual-primary integration lease persists, reports overlap, and enforces
   let database = new RuntimeDatabase(file, { allowLegacyPlaintextWrites: true });
   const local = database.acquireIntegrationLease({
     controllerId: "primary-local-codex", durationMs: 60_000,
-    purpose: "Integrate verified attachment support", paths: ["src", "web/app.js"],
+    purpose: "Integrate verified attachment support", paths: ["src", "cloud-app/components/workspace.tsx"],
   });
   assert.equal(local.acquired, true);
   const cloud = database.acquireIntegrationLease({

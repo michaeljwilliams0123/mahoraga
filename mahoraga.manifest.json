@@ -408,8 +408,8 @@
     },
     {
       "id": "browser",
-      "label": "Browser Worker",
-      "version": "3.2.0",
+      "label": "Browser Boundary Status",
+      "version": "4.0.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": [
@@ -417,9 +417,7 @@
         "personal"
       ],
       "capabilities": [
-        "browser.status",
-        "browser.smoke",
-        "browser.observe"
+        "browser.status"
       ],
       "acceptedTaskTypes": [
         "browser"
@@ -428,22 +426,18 @@
       "concurrency": 1,
       "healthProbe": "browser.status",
       "capabilityCanaries": {
-        "browser.status": "health",
-        "browser.smoke": "provider-derived",
-        "browser.observe": "provider-derived"
+        "browser.status": "health"
       },
-      "executionPlane": "local",
+      "executionPlane": "cloud-workspace",
       "routing": {
-        "interfaceType": "desktop-automation",
-        "permissionClass": "bounded-browser-session",
-        "reliability": 90,
+        "interfaceType": "native-api",
+        "permissionClass": "read-only-status",
+        "reliability": 100,
         "requiresAttendedDesktop": false,
-        "executionType": "isolated-process",
-        "latencyMs": 500,
+        "executionType": "deterministic-status",
+        "latencyMs": 0,
         "maximumWorkload": 1,
-        "fallbackWorkerIds": [
-          "desktop"
-        ]
+        "fallbackWorkerIds": []
       }
     },
     {
@@ -906,18 +900,16 @@
     },
     {
       "id": "chrome-devtools",
-      "state": "production-enabled-local-cdp",
-      "endpointClass": "localhost",
-      "authenticationState": "loopback-process-boundary",
+      "state": "retired-cloud-browser-only",
+      "endpointClass": "none",
+      "authenticationState": "not-applicable",
       "capabilities": [
-        "browser.status",
-        "browser.smoke",
-        "browser.observe"
+        "browser.status"
       ],
       "lastSuccessfulCheck": null,
       "latencyMs": null,
       "error": null,
-      "notes": "A Mahoraga-owned headless Chrome process is supervised on loopback for deterministic Control Center observation. It rejects an unowned debugging endpoint, retains screenshots for at most 24 hours, and does not expose a public debugging endpoint."
+      "notes": "Local Chrome launch and CDP attachment are retired. UI interaction exists only through the approval-gated isolated cloud browser in the unified Vercel workspace; no local extension, browser profile, or debugging endpoint is used."
     },
     {
       "id": "microsoft-task-queue",

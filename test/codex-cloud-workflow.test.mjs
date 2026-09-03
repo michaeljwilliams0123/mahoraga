@@ -10,7 +10,7 @@ async function workflow() {
   return (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
 }
 
-test("Codex cloud dispatch remains main-only and repository-scoped", async () => {
+test("Codex cloud dispatch remains main-only and stages one bounded draft PR", async () => {
   const source = await workflow();
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
   assert.match(source, /coordination\/cloud-tasks\/\*\.json/);
@@ -20,7 +20,15 @@ test("Codex cloud dispatch remains main-only and repository-scoped", async () =>
   const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(block, "permissions block missing");
   const permissions = block.trim().split(/\n/).map((line) => line.trim()).filter(Boolean).sort();
-  assert.deepEqual(permissions, ["contents: read", "issues: write"]);
+  assert.deepEqual(permissions, ["contents: write", "issues: write", "pull-requests: write"]);
+  assert.match(source, /const branch = `codex-dispatch\/\$\{task\.taskId\}`/);
+  assert.match(source, /const activationPath = `coordination\/codex-activations\/\$\{task\.taskId\}\.json`/);
+  assert.match(source, /draft: true/);
+  assert.match(source, /No model has been invoked/);
+  assert.match(source, /labelNames\.some\(\(name\) => name === "codex:done" \|\| name === "codex:blocked"\)/);
+  assert.match(source, /pulls\.data\.find\(\(candidate\) => candidate\.state === "open"\)/);
+  assert.match(source, /pulls\.data\.find\(\(candidate\) => Boolean\(candidate\.merged_at\)\)/);
+  assert.doesNotMatch(source, /if \(!labelNames\.includes\("codex:draft-required"\)\)/);
 });
 
 test("Codex cloud dispatch uses the validated bundle and stores no OpenAI credential", async () => {
@@ -29,6 +37,7 @@ test("Codex cloud dispatch uses the validated bundle and stores no OpenAI creden
   assert.match(source, /"dispatch-bundle"/);
   assert.match(source, /body: task\.issue\.body\.replace\(\/\^@codex\\s\*\/i, ""\)/);
   assert.match(source, /codex:pr-comment-required/);
+  assert.doesNotMatch(source, /body:\s*[`'"]@codex\b/i);
   assert.doesNotMatch(source, /OPENAI_API_KEY/);
   assert.doesNotMatch(source, /\$\{\{\s*secrets\./);
   assert.doesNotMatch(source, /api[_-]?key\s*:/i);

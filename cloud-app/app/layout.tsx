@@ -6,8 +6,8 @@ const sans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const mono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "Mahoraga Cloud Workspace",
-  description: "A cloud-only reasoning, analysis, research, and approved browser workspace.",
+  title: "Mahoraga Workspace",
+  description: "One reasoning and execution workspace for cloud intelligence and an owner-paired Mahoraga runtime.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

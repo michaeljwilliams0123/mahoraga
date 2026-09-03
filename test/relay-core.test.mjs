@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { createRelayBroker } from "../relay/core.mjs";
 
 const owner = "owner@example.com";
-const origin = "https://michaeljwilliams0123.github.io";
+const origin = "https://mahoraga-cloud-workspace.vercel.app";
 const frame = (sessionId, counter = 1) => ({ schemaVersion: 1, sessionId, direction: "ui-to-runtime", counter, iv: "a".repeat(16), ciphertext: "b".repeat(32) });
 
-test("relay binds pairing and ciphertext forwarding to the exact owner and Pages origin", () => {
+test("relay binds pairing and ciphertext forwarding to the exact owner and Vercel workspace origin", () => {
   const broker = createRelayBroker({ ownerIdentity: owner, allowedOrigin: origin, now: () => 0 });
   const local = broker.pairLocal({ owner, deviceId: "primary-windows", pairingId: "pair-123456" });
   assert.throws(() => broker.pairRemote({ owner: "other@example.com", origin, pairingId: "pair-123456" }), /relay-owner-required/);
@@ -51,4 +51,20 @@ test("relay snapshot restores bounded sessions and replay frames", () => {
   broker.forward({ owner, origin, sessionId: local.sessionId, from: "remote", frame: frame(local.sessionId) });
   const restored = createRelayBroker({ ownerIdentity: owner, allowedOrigin: origin, now: () => 1, initialState: broker.snapshot() });
   assert.deepEqual(restored.replay({ owner, origin, sessionId: local.sessionId, to: "local", afterCounter: 0 }), [frame(local.sessionId)]);
+});
+
+test("relay preserves the full reconnect window and reattaches the same local device", () => {
+  let current = 0;
+  const firstSocket = { closed: false, send() {}, close() { this.closed = true; } };
+  const broker = createRelayBroker({ ownerIdentity: owner, allowedOrigin: origin, now: () => current, limits: { maximumFramesPerMinute: 1, reconnectTtlMs: 300_000 } });
+  const local = broker.pairLocal({ owner, deviceId: "primary-windows", pairingId: "pair-reconnect", socket: firstSocket });
+  broker.pairRemote({ owner, origin, pairingId: "pair-reconnect" });
+  broker.forward({ owner, origin, sessionId: local.sessionId, from: "remote", frame: frame(local.sessionId, 1) });
+  current = 60_000;
+  broker.forward({ owner, origin, sessionId: local.sessionId, from: "remote", frame: frame(local.sessionId, 2) });
+  const restored = createRelayBroker({ ownerIdentity: owner, allowedOrigin: origin, now: () => current + 1, limits: { maximumFramesPerMinute: 1, reconnectTtlMs: 300_000 }, initialState: broker.snapshot() });
+  assert.deepEqual(restored.replay({ owner, origin, sessionId: local.sessionId, to: "local", afterCounter: 0 }), [frame(local.sessionId, 1), frame(local.sessionId, 2)]);
+  const replacement = { send() {}, close() {} };
+  assert.equal(restored.reattachLocal({ owner, deviceId: "primary-windows", sessionId: local.sessionId, socket: replacement }).sessionId, local.sessionId);
+  assert.throws(() => restored.reattachLocal({ owner, deviceId: "other-device", sessionId: local.sessionId, socket: replacement }), /relay-session-reattach-invalid/);
 });

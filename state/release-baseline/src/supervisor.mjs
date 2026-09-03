@@ -445,13 +445,14 @@ export class Supervisor extends EventEmitter {
   }
 
   #scheduleSecondaryMailboxMonitor() {
+    if (!this.syncCoordinationMailbox) return;
     if (!this.manifest.featureFlags?.secondaryCodexMailbox) return;
     const task = {
       capability: "repository.secondary-monitor", dataClass: "synthetic", requestedMode: "local",
       executionPlane: "local", taskType: "secondary-codex", priority: "background", maximumAttempts: 1,
     };
     if (!this.#canSchedule(task)) return;
-    try { if (this.syncCoordinationMailbox) syncCoordinationAssignments(this.database); }
+    try { syncCoordinationAssignments(this.database); }
     catch { return; }
     const bucket = Math.floor(Date.now() / 60000);
     if (bucket === this.lastSecondaryMailboxBucket) return;

@@ -7,6 +7,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
   const sessions = new Map();
   const pairingIndex = new Map();
   const sockets = new Map();
+  const maximumRetainedFrames = bounded.maximumFramesPerMinute * (Math.ceil(bounded.reconnectTtlMs / 60_000) + 1);
   restore(initialState);
 
   const prune = () => {
@@ -62,6 +63,14 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       return projection(session);
     },
 
+    reattachLocal(input) {
+      authorize(input); prune(); token(input.deviceId, "relay-device-invalid");
+      const session = sessionFor(input.sessionId);
+      if (session.deviceId !== input.deviceId || !session.localPaired) fail("relay-session-reattach-invalid");
+      if (input.socket) registerSocket({ owner: input.owner, origin: input.origin, sessionId: session.sessionId, side: "local", socket: input.socket });
+      return projection(session);
+    },
+
     registerSocket(input) {
       authorize(input, input.side === "remote");
       const session = sessionFor(input.sessionId); side(input.side);
@@ -90,6 +99,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       session.rate.count += 1;
       const stored = { from: input.from, frame: Object.freeze(structuredClone(input.frame)), expiresAt: current + bounded.reconnectTtlMs };
       session.frames.push(stored);
+      if (session.frames.length > maximumRetainedFrames) session.frames.splice(0, session.frames.length - maximumRetainedFrames);
       const target = sockets.get(session.sessionId)?.[opposite(input.from)];
       if (target) send(target, { type: "frame", sessionId: session.sessionId, frame: stored.frame });
       return { accepted: true, counter: input.frame.counter, delivered: Boolean(target) };
@@ -127,6 +137,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
     const session = sessionFor(input.sessionId); side(input.side);
     if (!input.socket || typeof input.socket.send !== "function") fail("relay-socket-invalid");
     const current = sockets.get(session.sessionId) ?? {};
+    if (current[input.side] && current[input.side] !== input.socket) closeSocket(current[input.side], 1000, "relay-replaced");
     current[input.side] = input.socket; sockets.set(session.sessionId, current);
   }
   function restore(value) {
@@ -146,7 +157,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       if (session.code !== null) pairingCode(session.code);
       if (session.localPublicKey !== null) session.localPublicKey = publicKey(session.localPublicKey, "relay-state-invalid");
       if (session.remotePublicKey !== null) session.remotePublicKey = publicKey(session.remotePublicKey, "relay-state-invalid");
-      if (!Array.isArray(session.frames) || session.frames.length > bounded.maximumFramesPerMinute) fail("relay-state-invalid");
+      if (!Array.isArray(session.frames) || session.frames.length > maximumRetainedFrames) fail("relay-state-invalid");
       for (const item of session.frames) {
         if (!item || !new Set(["local", "remote"]).has(item.from) || !Number.isFinite(Number(item.expiresAt))) fail("relay-state-invalid");
         validateFrame(item.frame, session.sessionId, bounded.maximumFrameBytes);

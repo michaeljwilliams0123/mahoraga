@@ -4,7 +4,7 @@ import { ROOT } from "./config.mjs";
 
 const execFileAsync = promisify(execFile);
 
-// Read-only reconciliation evidence for the planner and Control Center.
+// Read-only reconciliation evidence for the planner and unified workspace.
 export async function observeWorldState({ manifest, database, supervisor }) {
   const tasks = database.listTasks(500);
   const activeLeases = tasks.filter((task) => ["running", "verifying"].includes(task.status)).map((task) => ({ id: task.id, workerId: task.assignedWorker, leaseExpiresAt: task.leaseExpiresAt, taskArea: task.taskArea }));

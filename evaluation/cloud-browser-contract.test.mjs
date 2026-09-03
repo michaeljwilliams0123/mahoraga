@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateCloudBrowserConnection } from "./cloud-browser-contract.mjs";
 
 const safe = Object.freeze({
-  provider: "openai-computer-use",
+  provider: "bounded-cloud-browser-adapter",
   executionPlane: "cloud",
   dataClass: "synthetic",
   isolated: true,
@@ -15,7 +15,7 @@ const safe = Object.freeze({
 
 test("isolated cloud browser requires no local extension or device mutation", () => {
   assert.deepEqual(validateCloudBrowserConnection(safe), {
-    ready: true, provider: "openai-computer-use", executionPlane: "cloud", dataClass: "synthetic", domainCount: 2,
+    ready: true, provider: "bounded-cloud-browser-adapter", executionPlane: "cloud", dataClass: "synthetic", domainCount: 2,
     localExtensionRequired: false, localDeviceMutationAllowed: false, pageContentTrusted: false,
   });
 });
