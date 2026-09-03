@@ -44,9 +44,10 @@ export function validateDestinyTriggerTrustManifest(input) {
 
 export function evaluateDestinyTriggerReadiness(manifestInput, observationInput, { now = new Date().toISOString() } = {}) {
   const manifest = validateDestinyTriggerTrustManifest(manifestInput);
+  const observation = observationInput == null ? null : requireObject(observationInput, "destiny-trigger-readiness-invalid");
+  if (observation && (observation.schemaVersion !== 1 || !READY_STATES.has(observation.status) || !validDate(observation.observedAt))) throw new TypeError("destiny-trigger-readiness-invalid");
   if (manifest.receiptTrust.mode === "unconfigured") return frozen({ ready: false, reason: "destiny-trigger-identity-unconfigured", status: "not-configured" });
-  const observation = requireObject(observationInput, "destiny-trigger-readiness-invalid");
-  if (observation.schemaVersion !== 1 || !READY_STATES.has(observation.status) || !validDate(observation.observedAt)) throw new TypeError("destiny-trigger-readiness-invalid");
+  if (!observation) throw new TypeError("destiny-trigger-readiness-invalid");
   if (observation.triggerId !== manifest.triggerId) return frozen({ ready: false, reason: "destiny-trigger-id-mismatch", status: observation.status });
   if (observation.repository !== manifest.repository) return frozen({ ready: false, reason: "destiny-trigger-repository-mismatch", status: observation.status });
   if (observation.actorLogin !== manifest.receiptTrust.actorLogin) return frozen({ ready: false, reason: "destiny-trigger-actor-mismatch", status: observation.status });
@@ -148,6 +149,7 @@ export function summarizeDestinyTriggerHealth(manifestInput, readinessInput, lif
     actorLogin: readiness.actorLogin ?? (manifest.receiptTrust.mode === "dedicated-actor" ? manifest.receiptTrust.actorLogin : null),
     installationFingerprint: readiness.installationFingerprint ?? null,
     zeroCreditRequired: manifest.zeroCreditRequired,
+    zeroCreditEligible: readiness.zeroCreditEligible === true,
     lifecycleState: lifecycleInput?.state ?? "created",
     duplicatesSuppressed: Number.isSafeInteger(lifecycleInput?.duplicatesSuppressed) ? lifecycleInput.duplicatesSuppressed : 0,
     lastObservedAt: lifecycleInput?.lastObservedAt ?? null,
