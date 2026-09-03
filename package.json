@@ -37,6 +37,9 @@
     "verify:conversation-plane": "node --test --test-isolation=none test/run-event-contract.test.mjs test/conversation-gateway.test.mjs test/conversation-plane-smoke.test.mjs test/relay-client.test.mjs test/relay-core.test.mjs test/relay-runtime.test.mjs test/cloudflare-relay-adapter.test.mjs test/relay-deployment-contract.test.mjs test/evidence-compiler.test.mjs test/generated-code-safety.test.mjs test/evolution-controller.test.mjs test/evolution-receipt-smoke.test.mjs test/canonical-cloud-runtime.test.mjs",
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "test": "node --test --test-isolation=none",
-    "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node --test --test-isolation=none"
+    "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node --test --test-isolation=none",
+    "relay:package": "node scripts/package-destiny-relay.mjs",
+    "gitlab:assure": "node src/gitlab-assurance.mjs",
+    "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs"
   }
 }
