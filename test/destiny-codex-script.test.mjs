@@ -20,7 +20,7 @@ test("new Destiny dispatches require the versioned fail-closed readiness gate", 
   assert.match(source, /evaluateDestinyTriggerReadiness/);
   assert.match(source, /destiny-trigger-not-ready:/);
   const existingCheck = source.indexOf("if (await isFile(file))");
-  const readinessCheck = source.indexOf("evaluateDestinyTriggerReadiness");
+  const readinessCheck = source.indexOf("const readiness = evaluateDestinyTriggerReadiness");
   const write = source.indexOf("await writeFile(file");
   assert.ok(existingCheck >= 0 && readinessCheck > existingCheck && write > readinessCheck, "readiness must gate only new dispatch writes after idempotent existing-envelope inspection");
 });
