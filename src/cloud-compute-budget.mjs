@@ -15,7 +15,8 @@ export function evaluateCloudComputeBudget({ telemetry = {}, now = new Date(), t
   for (const field of ZERO_FIELDS) if (field in telemetry && Number(telemetry[field]) !== 0) return blocked(`cloud-budget-${field}-not-zero`, limits);
   if (hostedComputeSpendCeilingUsd !== 0) return blocked("cloud-budget-hosted-spend-ceiling-not-zero", limits);
   if (!telemetry.stopUsageEvidence || telemetry.stopUsageEvidence.active !== true) return blocked("cloud-budget-stop-usage-evidence-missing", limits);
-  if (!parseTime(telemetry.stopUsageEvidence.observedAt)) return blocked("cloud-budget-stop-usage-evidence-stale", limits);
+  const stopEvidenceObservedAt = parseTime(telemetry.stopUsageEvidence.observedAt);
+  if (!stopEvidenceObservedAt || nowMs - stopEvidenceObservedAt > telemetryMaxAgeMs) return blocked("cloud-budget-stop-usage-evidence-stale", limits);
   if (Number(telemetry.projectedCoreHours ?? 0) > softCoreHoursLimit) return blocked("cloud-budget-projected-core-hours-exceed-limit", limits);
   return Object.freeze({ ok: true, status: "admissible", reason: null, limits });
 }
