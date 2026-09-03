@@ -124,22 +124,45 @@ verification. See
 [`CODEX-CLOUD-BRIDGE.md`](CODEX-CLOUD-BRIDGE.md) for the contract, idempotency
 marker, connected-repository setup, and reciprocal review workflow.
 
-## Destiny Codex event lane
+## Destiny Event Dispatch Lane
 
-The Destiny-authenticated Codex is a distinct event-driven Primary lane. An
-owner-authored pull request with the exact `[DESTINY-CODEX] <envelope title>`
-title wakes the connected ChatGPT automation. A trusted-base workflow validates
+The **Destiny Event Dispatch Lane** is the GitHub pull-request/event path for the
+separately authenticated Destiny Codex automation. It is not the **Destiny Cipher
+Relay**: that name is reserved for the separate Cloudflare ciphertext
+browser-to-local transport.
+
+An owner-authored pull request with the exact `[DESTINY-CODEX] <envelope title>`
+title is the repository-side event surface. A trusted-base workflow validates
 the single hash-bound dispatch envelope, immutable merge base, allowed paths,
-fixed verification identifiers, and repository-only privacy declaration. A
-matching `[DESTINY-CODEX:ACK]` comment is the delivery receipt; the validation
-check alone does not prove that the event reached the model-backed task.
+fixed verification identifiers, and repository-only privacy declaration.
+Repository validation does not prove external delivery or execution.
+
+External trigger readiness is governed by `config/destiny-trigger-trust.json`.
+The checked-in identity is currently `unconfigured`, so new model-backed Destiny
+dispatch creation fails closed. Readiness may be admitted only after a separate,
+independently identifiable dedicated actor is versioned in that non-secret
+contract and a fresh zero-credit-eligible observation matches it. Owner-authored
+comments are not sufficient execution identity evidence.
+
+A trusted execution receipt must bind the repository, PR number, dispatch ID,
+full request SHA-256, exact head SHA, delivery ID, status, timestamp, and the
+configured dedicated actor. Duplicate identical receipts may be suppressed;
+conflicting, replayed, stale, out-of-order, or post-terminal receipts fail
+through the trust-plane lifecycle rules.
+
+`scripts/destiny-trigger-health.mjs` is a zero-model preflight: it reads local
+manifest/observation files only and performs no network or model invocation.
+Unknown, stale, degraded, mismatched, or non-zero-credit readiness remains
+not-ready; there is no paid fallback.
 
 This event lane neither polls the Windows computer nor opens an inbound tunnel.
 It does not transfer authentication, subscription credits, conversations, or
-personal context between accounts. Repeated events for an acknowledged dispatch
-ID and request hash are idempotent and must not execute the task again. See
-[`DESTINY-CODEX-RELAY.md`](DESTINY-CODEX-RELAY.md) for the exact trigger and
-failure contract.
+personal context between accounts. See
+[`DESTINY-EVENT-DISPATCH-LANE.md`](DESTINY-EVENT-DISPATCH-LANE.md) for the
+current identity/readiness/receipt contract. The separate
+[`DESTINY-CODEX-RELAY.md`](DESTINY-CODEX-RELAY.md) documents the Destiny Cipher
+Relay transport and must not be treated as proof that the Event Dispatch Lane
+received or executed a GitHub event.
 
 ## Validation
 
