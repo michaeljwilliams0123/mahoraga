@@ -11,8 +11,13 @@ import {
   validateDestinyDispatchPullRequest,
   validateDestinyDispatchRegistry,
 } from "../src/destiny-codex-dispatch.mjs";
+import {
+  evaluateDestinyTriggerReadiness,
+  validateDestinyTriggerTrustManifest,
+} from "../src/destiny-trigger-trust.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const TRUST_MANIFEST = path.join(ROOT, "config", "destiny-trigger-trust.json");
 const command = process.argv[2] ?? "help";
 const options = parseOptions(process.argv.slice(3));
 
@@ -21,7 +26,7 @@ else if (command === "validate") await validateRegistry();
 else if (command === "validate-pr") await validatePullRequest();
 else {
   console.log(`Usage:
-  node scripts/destiny-codex-dispatch.mjs create --idempotency-key <key> --base-commit <sha> --title <title> --task <task> --allowed-paths <csv> [--verification <csv>] [--maximum-attempts <1-3>]
+  node scripts/destiny-codex-dispatch.mjs create --idempotency-key <key> --base-commit <sha> --title <title> --task <task> --allowed-paths <csv> --readiness-file <path> [--verification <csv>] [--maximum-attempts <1-3>]
   node scripts/destiny-codex-dispatch.mjs validate
   node scripts/destiny-codex-dispatch.mjs validate-pr --root <candidate-checkout>`);
   if (command !== "help") process.exitCode = 2;
@@ -46,6 +51,19 @@ async function create() {
     if (existing.requestHash !== dispatch.requestHash) throw new Error("destiny-idempotency-conflict");
     return print({ created: false, path: relative(file), dispatchId: existing.dispatchId, requestHash: existing.requestHash });
   }
+
+  const readinessFile = options.get("readiness-file");
+  if (!readinessFile) throw new Error("destiny-trigger-not-ready:missing-readiness-file");
+  const manifest = validateDestinyTriggerTrustManifest(JSON.parse(await readFile(TRUST_MANIFEST, "utf8")));
+  let observation;
+  try {
+    observation = JSON.parse(await readFile(path.resolve(readinessFile), "utf8"));
+  } catch {
+    throw new Error("destiny-trigger-not-ready:readiness-file-unavailable");
+  }
+  const readiness = evaluateDestinyTriggerReadiness(manifest, observation);
+  if (!readiness.ready) throw new Error(`destiny-trigger-not-ready:${readiness.reason}`);
+
   await writeFile(file, `${JSON.stringify(dispatch, null, 2)}\n`, "utf8");
   print({ created: true, path: relative(file), dispatchId: dispatch.dispatchId, requestHash: dispatch.requestHash });
 }
