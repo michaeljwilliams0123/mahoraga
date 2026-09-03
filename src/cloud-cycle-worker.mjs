@@ -20,7 +20,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
   const windowStartUtc = getEightHourWindowStart(now);
   const cycleId = createCycleId({ repositoryIdentity, windowStartUtc });
   const events = [event("queued", cycleId, branch)];
-  let startedCodespaceName = null;
+  let startedCodespace = false;
   try {
     const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
     if (providerDecision.status === "waiting") {
@@ -30,7 +30,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     if (providerDecision.providerId === "codespaces-open-weight") {
       events.push(event("cloud-running", cycleId, branch));
       const startReceipt = client ? await client.start({ telemetry: providers.find((p) => p.id === "codespaces-open-weight") }) : { status: "prepared" };
-      startedCodespaceName = startReceipt.codespaceName ?? null;
+      startedCodespace = startReceipt.status === "ok";
     } else {
       events.push(event("local-running", cycleId, branch));
     }
@@ -41,7 +41,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     events.push(event("failed", cycleId, branch, error.code || "cloud-cycle-error"));
     return result("failed", cycleId, branch, events, null);
   } finally {
-    if (client && startedCodespaceName) await client.stop({ codespaceName: startedCodespaceName });
+    if (client && startedCodespace) await client.stopActive();
   }
 }
 
