@@ -49,10 +49,9 @@ const TERMINAL_TASK_STATES = new Set(["succeeded", "failed", "cancelled", "rejec
 const CLOUD_TRANSPORT = new DefaultChatTransport({ api: "/api/chat" });
 
 const starters = [
-  { icon: Database, title: "Analyze a complex dataset", prompt: "Analyze the attached dataset. Find material patterns, anomalies, competing explanations, data-quality limitations, and the three most important actions. Quantify every finding you can." },
-  { icon: Search, title: "Research and synthesize", prompt: "Research this question using current sources, reconcile disagreements, and give me a decision-ready conclusion with citations: " },
-  { icon: FileText, title: "Review a document", prompt: "Review the attached document as a senior analyst. Surface hidden obligations, contradictions, risks, missing evidence, and practical next steps." },
-  { icon: MonitorUp, title: "Run an approved browser task", prompt: "Use the isolated cloud browser, if connected, to complete this bounded task. Stop for approval before any action: " },
+  { icon: Database, title: "Analyze a dataset", prompt: "Analyze the attached dataset. Find material patterns, anomalies, competing explanations, data-quality limitations, and the three most important actions. Quantify every finding you can." },
+  { icon: Search, title: "Improve a repository", prompt: "Review the connected repository, identify the highest-impact verified improvement, implement it within the approved scope, run focused checks, and return the evidence." },
+  { icon: MonitorUp, title: "Approved browser task", prompt: "Use the isolated cloud browser, if connected, to complete this bounded task. Stop for approval before any external or consequential action: " },
 ];
 
 function readableBytes(bytes: number) {
@@ -85,6 +84,7 @@ export function Workspace() {
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
   const relay = useRef<RuntimeRelay | null>(null);
   const renderedRuntimeMessages = useRef(new Set<string>());
@@ -140,6 +140,11 @@ export function Workspace() {
   function appendMessage(role: "assistant" | "user", text: string, id = crypto.randomUUID()) {
     const message: UIMessage = { id, role, parts: [{ type: "text", text }] };
     setMessages((current) => [...current, message]);
+  }
+
+  function chooseStarter(prompt: string) {
+    setInput(prompt);
+    composer.current?.focus();
   }
 
   function addFiles(incoming: File[]) {
@@ -348,7 +353,7 @@ export function Workspace() {
               <p>One workspace, one conversation surface. Ordinary chat uses the paired zero-Codex route with no paid fallback; Cloud Pro runs only when you select it explicitly.</p>
               <div className="starter-grid">
                 {starters.map((starter) => (
-                  <button key={starter.title} onClick={() => { setInput(starter.prompt); document.querySelector<HTMLTextAreaElement>("#composer")?.focus(); }}>
+                  <button type="button" key={starter.title} aria-label={`Start: ${starter.title}`} onClick={() => chooseStarter(starter.prompt)}>
                     <starter.icon size={18} /><span>{starter.title}</span><small>{starter.prompt.slice(0, 72)}…</small>
                   </button>
                 ))}
@@ -397,7 +402,7 @@ export function Workspace() {
         <section className="composer-zone">
           <div className="composer-card">
             {files.length > 0 && <div className="attachment-row">{files.map((file, index) => <div className="attachment-chip" key={`${file.name}-${file.lastModified}`}><FileText size={15} /><span>{file.name}<small>{readableBytes(file.size)}</small></span><button onClick={() => setFiles(files.filter((_, i) => i !== index))} aria-label={`Remove ${file.name}`}><X size={14} /></button></div>)}</div>}
-            <textarea id="composer" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} placeholder={!routeReady ? routeMode === "efficient" ? "Pair a runtime to chat without Codex credits" : "Connect Cloud Pro" : `Message Mahoraga · ${routeLabel}`} maxLength={MAX_INPUT_TEXT_CHARS} rows={1} disabled={!routeReady} />
+            <textarea ref={composer} id="composer" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} placeholder={!routeReady ? routeMode === "efficient" ? "Pair a runtime to chat without Codex credits" : "Connect Cloud Pro" : `Message Mahoraga · ${routeLabel}`} maxLength={MAX_INPUT_TEXT_CHARS} rows={1} disabled={!routeReady} />
             <div className="composer-actions">
               <input ref={fileInput} type="file" multiple hidden accept=".csv,.tsv,.json,.txt,.md,.pdf,.xlsx,image/*" onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
               <button className="attach" onClick={() => fileInput.current?.click()} disabled={busy || files.length >= MAX_FILES || !attachmentsReady} aria-label="Attach files"><Paperclip size={18} /></button>

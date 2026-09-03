@@ -25,7 +25,7 @@ export function buildWorkspaceAgentEnvelope({ task, worker, env = process.env })
   const credentials = workspaceAgentCredentialState(worker, env);
   if (!credentials.ready) throw new Error("workspace-agent-credentials-missing");
   const assignmentId = bounded(task?.assignmentId, 80, "assignment ID");
-  if (!/^sec-[0-9a-f-]{36}$/i.test(assignmentId)) throw new TypeError("assignment ID is invalid");
+  if (!/^sec-[0-9a-f-]{8,72}$/i.test(assignmentId)) throw new TypeError("assignment ID is invalid");
   const returnBranch = bounded(task?.returnBranch, 128, "return branch");
   if (returnBranch !== `${adapter.branchPrefix}${assignmentId}`) throw new TypeError("return branch is invalid");
   const expectedBaseCommit = bounded(task?.expectedBaseCommit, 64, "expected base commit");
@@ -42,7 +42,7 @@ export function buildWorkspaceAgentEnvelope({ task, worker, env = process.env })
     `Expected base commit: ${expectedBaseCommit}`,
     `Return branch: ${returnBranch}`,
     `Allowed paths: ${allowedPaths.join(", ")}`,
-    "Fetch main and follow docs/github-codex-coordination.md. Read only the structured assignment and repository files needed for the task.",
+    "Fetch main and follow docs/GITHUB-CODEX-COORDINATION.md. Read only the structured assignment and repository files needed for the task.",
     "Do not access or export ChatGPT conversation history, private chats, credentials, browser history, personal files, or unrelated context.",
     `Push only ${returnBranch}; never push directly to main, force-push, or rewrite history.`,
     "Record the bounded result in coordination/results and run the assignment's relevant verification.",

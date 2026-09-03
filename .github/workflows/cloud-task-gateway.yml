@@ -5,6 +5,7 @@ on:
     types: [created]
 
 permissions:
+  actions: write
   contents: write
   issues: write
 
@@ -76,6 +77,25 @@ jobs:
           fi
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
+      - name: Dispatch desktop assignment to cloud receiver
+        id: workspace_receiver
+        if: steps.gateway.outputs.mode == 'desktop'
+        continue-on-error: true
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          ASSIGNMENT_ID: ${{ steps.gateway.outputs.recordId }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: "workspace-agent-receiver.yml",
+              ref: "main",
+              inputs: { assignment_id: process.env.ASSIGNMENT_ID },
+            });
+            core.setOutput("state", "dispatched");
+
       - name: Label and acknowledge accepted dispatch
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
@@ -85,6 +105,8 @@ jobs:
           CHANGED: ${{ steps.gateway.outputs.changed }}
           COMMIT: ${{ steps.publish.outputs.commit }}
           ATTACHMENT_COUNT: ${{ steps.gateway.outputs.attachmentReferenceCount }}
+          RECEIVER_STATE: ${{ steps.workspace_receiver.outputs.state }}
+          RECEIVER_OUTCOME: ${{ steps.workspace_receiver.outcome }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -107,11 +129,18 @@ jobs:
             const attachments = Number(process.env.ATTACHMENT_COUNT) > 0
               ? ` ${process.env.ATTACHMENT_COUNT} attachment reference(s) remain in this source issue and were not copied into the coordination record.`
               : "";
+            const allowedReceiverStates = new Set(["dispatched"]);
+            const receiverState = process.env.RECEIVER_OUTCOME === "failure"
+              ? "delivery-failed"
+              : allowedReceiverStates.has(process.env.RECEIVER_STATE)
+                ? process.env.RECEIVER_STATE
+                : "not-requested";
+            const receiver = mode === "desktop" ? ` Cloud receiver: **${receiverState}**.` : "";
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number: context.issue.number,
-              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
+              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${receiver}${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
             });
 
       - name: Report rejected dispatch without echoing issue content
@@ -126,3 +155,9 @@ jobs:
               issue_number: context.issue.number,
               body: `Mahoraga rejected this dispatch before model execution. No execution record was activated. Review the bounded workflow evidence: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             });
+
+      - name: Fail after reporting cloud receiver delivery error
+        if: steps.workspace_receiver.outcome == 'failure'
+        run: |
+          echo "Configured Workspace Agent receiver did not accept the bounded assignment." >&2
+          exit 1

@@ -24,6 +24,12 @@ runtime intentionally rejects relay attachments. The isolated browser is a
 cloud tool and remains unavailable until its provider variables are configured.
 It never controls the user's installed Chrome and no extension is used.
 
+The empty conversation presents three keyboard-accessible task starters:
+**Analyze a dataset**, **Improve a repository**, and **Approved browser task**.
+Choosing one only places a detailed prompt in the editable composer and moves
+focus there. It does not submit, call a provider, select Cloud Pro, or change the
+conversation route; the user remains in control of review and submission.
+
 Cloud Pro keeps the highest declared model but bounds each request to the latest
 14 messages, 48,000 retained text characters, 12,000 characters in a new turn,
 8,000 output tokens, five tool steps, and 6,000 search-tool tokens. These are ceilings, not a promise that every request

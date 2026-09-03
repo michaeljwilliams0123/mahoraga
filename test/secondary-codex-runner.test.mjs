@@ -45,6 +45,32 @@ test("runner configuration is strict and cannot contain credentials", () => {
   assert.throws(() => validateSecondaryRunnerConfig({ ...config(), githubToken: "secret" }), /field is not allowed/);
 });
 
+test("secondary installer defaults can receive canonical Mahoraga implementation assignments", async () => {
+  const [installer, templateSource] = await Promise.all([
+    readFile(new URL("../scripts/install-secondary-codex-runner.ps1", import.meta.url), "utf8"),
+    readFile(new URL("../coordination/templates/secondary-runner.example.json", import.meta.url), "utf8"),
+  ]);
+  const template = JSON.parse(templateSource);
+  assert.match(installer, /\[string\]\$TaskArea = 'mahoraga'/);
+  assert.match(installer, /\[string\]\$AllowedPaths = 'cloud-app,docs,evaluation,scripts,src,test,coordination\/results'/);
+  for (const root of ["cloud-app", "docs", "evaluation", "scripts", "src", "test", "coordination/results"]) {
+    assert.ok(template.projects[0].allowedPaths.includes(root));
+  }
+  assert.equal(template.projects[0].taskArea, "mahoraga");
+  assert.equal(projectForAssignment({
+    ...config(),
+    projects: [{
+      ...config().projects[0],
+      taskArea: "mahoraga",
+      repository: "https://github.com/michaeljwilliams0123/mahoraga.git",
+      allowedPaths: template.projects[0].allowedPaths,
+    }],
+  }, assignment({
+    taskArea: "mahoraga",
+    allowedPaths: ["cloud-app/components/workspace.tsx", "docs/CLOUD-WORKSPACE.md"],
+  }))?.taskArea, "mahoraga");
+});
+
 test("task areas map assignments to an explicitly scoped project", () => {
   assert.equal(projectForAssignment(config(), assignment()).repository, "https://github.com/example/side-project.git");
   assert.throws(() => projectForAssignment(config(), assignment({ allowedPaths: ["src", "secrets"] })), /exceeds project scope/);
