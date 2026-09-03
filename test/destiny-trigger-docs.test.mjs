@@ -10,7 +10,7 @@ test("Destiny documentation separates event dispatch from cipher relay and state
   const coordination = await readFile(COORDINATION_DOC, "utf8");
   for (const source of [eventDoc, coordination]) {
     assert.match(source, /Destiny Event Dispatch Lane/);
-    assert.match(source, /Destiny Cipher Relay/);
+    assert.match(source, /Destiny Cipher\s+Relay/);
   }
   assert.match(eventDoc, /repository validation does not prove external delivery/i);
   assert.match(eventDoc, /unconfigured/i);
