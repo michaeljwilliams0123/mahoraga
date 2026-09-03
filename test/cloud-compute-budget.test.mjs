@@ -18,6 +18,7 @@ test("blocks stale, unknown billing, spend, metered, and missing stop evidence",
     [{ ...readyTelemetry(), spendUsd: 0.01 }, "cloud-budget-spendUsd-not-zero"],
     [{ ...readyTelemetry(), metered: true }, "cloud-budget-metered-or-unknown"],
     [{ ...readyTelemetry(), stopUsageEvidence: null }, "cloud-budget-stop-usage-evidence-missing"],
+    [{ ...readyTelemetry(), stopUsageEvidence: { active: true, observedAt: "2026-09-02T19:00:00.000Z" } }, "cloud-budget-stop-usage-evidence-stale"],
     [{ ...readyTelemetry(), projectedCoreHours: 1 }, "cloud-budget-projected-core-hours-exceed-limit"],
   ];
   for (const [telemetry, reason] of cases) assert.equal(evaluateCloudComputeBudget({ telemetry, now }).reason, reason);
