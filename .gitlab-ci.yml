@@ -1,0 +1,23 @@
+stages:
+  - verify
+
+default:
+  image: node:24
+
+variables:
+  NODE_ENV: test
+
+verify:
+  stage: verify
+  script:
+    - npm ci
+    - npm run verify
+  rules:
+    - if: $CI_COMMIT_BRANCH
+  artifacts:
+    when: always
+    paths:
+      - coverage/
+    expire_in: 7 days
+  # No GitHub credentials. No write permissions.
+  # Content-free receipts only.
