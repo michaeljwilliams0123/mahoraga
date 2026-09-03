@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-ff6f8ad9e08d1e134a87386868388f2b",
+  "correlationId": "desktop-adaptive-task-starters-v1",
+  "title": "Add adaptive task starters to the unified workspace",
+  "taskArea": "mahoraga",
+  "expectedTask": "Add three accessible starter buttons to the sole Vercel workspace: Analyze a dataset, Improve a repository, and Approved browser task. Selecting one must only fill the editable composer; it must not submit, call a network/model, change routing, or select Cloud Pro. Keep Zero-Codex as the default. Change only allowed paths, run focused verification, and return the assignment branch for Primary review.\n\nAcceptance criteria:\nAll three starters are visible and keyboard accessible. Activation only fills the composer. Zero-Codex stays selected and Cloud Pro remains opt-in. Focused tests prove no auto-submit and all verification commands pass.\n\nSkill profile: UI and frontend.\nSource workspace issue: https://github.com/michaeljwilliams0123/mahoraga/issues/87. Repository-safe attachment references remain in that issue and are not copied into the coordination record.",
+  "expectedBaseCommit": "c7b03fa2f0336ad4d9123b6f7d821e05c5857bd7",
+  "returnBranch": "secondary/sec-ff6f8ad9e08d1e134a87386868388f2b",
+  "allowedPaths": [
+    "cloud-app/components/workspace.tsx",
+    "cloud-app/app/globals.css",
+    "cloud-app/test/cloud-contract.test.mjs",
+    "test/unified-workspace-experience.test.mjs",
+    "docs/CLOUD-WORKSPACE.md"
+  ],
+  "createdBy": "main-codex",
+  "assignedTo": "secondary-codex",
+  "createdAt": "2026-09-03T12:38:06Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
