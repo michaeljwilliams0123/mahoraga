@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "triggerId": "destiny-event-dispatch-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "owner": "michaeljwilliams0123",
+  "readinessMaxAgeMs": 300000,
+  "zeroCreditRequired": true,
+  "receiptTrust": {
+    "mode": "unconfigured"
+  }
+}
