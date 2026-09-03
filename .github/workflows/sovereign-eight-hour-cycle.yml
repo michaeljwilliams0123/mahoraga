@@ -1,0 +1,33 @@
+name: Sovereign Eight Hour Candidate Cycle
+
+on:
+  schedule:
+    - cron: '17 */8 * * *'
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Candidate branch to inspect
+        required: false
+        default: main
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  candidate-cycle:
+    if: github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123'
+    runs-on: ubuntu-latest
+    timeout-minutes: 110
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - name: Dry-run zero-credit candidate cycle
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node src/cloud-cycle-worker.mjs
