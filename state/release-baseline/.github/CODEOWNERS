@@ -1,1 +1,15 @@
+# Mahoraga area ownership. The repository owner remains authoritative; these
+# patterns make review responsibility explicit without broadening authority.
 * @michaeljwilliams0123
+/.github/ @michaeljwilliams0123
+/src/ @michaeljwilliams0123
+/scripts/ @michaeljwilliams0123
+/test/ @michaeljwilliams0123
+/web/ @michaeljwilliams0123
+/cloud/ @michaeljwilliams0123
+/relay/ @michaeljwilliams0123
+/docs/ @michaeljwilliams0123
+/state/release-baseline/ @michaeljwilliams0123
+/coordination/ @michaeljwilliams0123
+/mahoraga.manifest.json @michaeljwilliams0123
+/package.json @michaeljwilliams0123
