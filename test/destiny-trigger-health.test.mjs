@@ -4,12 +4,13 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const script = new URL("../scripts/destiny-trigger-health.mjs", import.meta.url);
+const script = fileURLToPath(new URL("../scripts/destiny-trigger-health.mjs", import.meta.url));
 const repository = "michaeljwilliams0123/mahoraga";
 
 function run(args = []) {
-  return spawnSync(process.execPath, [script.pathname, ...args], { encoding: "utf8" });
+  return spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
 }
 
 async function tempJson(value) {
