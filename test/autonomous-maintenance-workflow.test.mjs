@@ -15,7 +15,8 @@ test("scheduled candidate cycle preserves a four-hour durable cadence without in
   assert.match(source, /Publish Staged Mahoraga Update/);
   assert.match(source, /SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-/);
   assert.match(source, /SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-/);
-  assert.match(source, /permissions:\s*\n\s*contents: write/);
+  assert.match(source, /permissions:\s*\n\s*contents: read\s*\n\s*actions: read\s*\n\s*pull-requests: read/);
+  assert.match(source, /candidate-cycle:\s*\n\s*permissions:\s*\n\s*actions: write\s*\n\s*contents: write\s*\n\s*pull-requests: write/);
   assert.doesNotMatch(source, /\bnpm ci\b/);
   assert.match(source, /node src\/cloud-cycle-worker\.mjs/);
 });
