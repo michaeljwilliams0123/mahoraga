@@ -3,7 +3,7 @@ import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "no-candidate", "candidate-ready"]);
-export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v2";
+export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v1";
 
 export function getFourHourWindowStart(now = new Date(), anchorAtUtc = null) {
   if (anchorAtUtc) return getAnchoredFourHourWindowStart(now, anchorAtUtc);
