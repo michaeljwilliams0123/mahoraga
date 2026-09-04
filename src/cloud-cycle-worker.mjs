@@ -125,7 +125,12 @@ function result(status, cycleId, branch, events, providerDecision, { candidate =
 if (import.meta.url === `file://${process.argv[1]}`) {
   const repositoryIdentity = process.env.GITHUB_REPOSITORY || "unknown/repository";
   const anchorAtUtc = process.env.MAHORAGA_CYCLE_ANCHOR_UTC || null;
-  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc });
+  let candidateProducer = null;
+  if (process.env.MAHORAGA_CANDIDATE_PRODUCER === "github-native") {
+    const { createGitHubNativeCandidateProducer } = await import("./sovereign-candidate-producer.mjs");
+    candidateProducer = createGitHubNativeCandidateProducer();
+  }
+  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc, candidateProducer });
   console.log(JSON.stringify(output));
   if (output.status === "failed") process.exitCode = 1;
 }
