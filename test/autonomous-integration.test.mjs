@@ -121,7 +121,7 @@ test("workflow merges exact verified heads without waiting for Destiny comments"
   assert.doesNotMatch(source, /latestExactDestinyResult/);
   assert.match(source, /github\.event\.workflow_run\.event == 'pull_request'/);
   assert.match(source, /actions: write/);
-  assert.equal(source.match(/latestExactWorkflowRun/g)?.length, 6);
+  assert.equal(source.match(/latestExactWorkflowRun/g)?.length, 8);
   assert.match(source, /verify\?\.status === "completed" && verify\.conclusion === "success"/);
   assert.match(source, /relay\?\.status === "completed" && relay\.conclusion === "success"/);
   assert.match(source, /freshDecision = evaluateAutonomousIntegration/);
