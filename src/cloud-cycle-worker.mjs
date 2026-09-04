@@ -2,12 +2,12 @@ import crypto from "node:crypto";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "candidate-ready"]);
-export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-eight-hour-cycle/v1";
+export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v1";
 
-export function getEightHourWindowStart(now = new Date()) {
+export function getFourHourWindowStart(now = new Date()) {
   const date = new Date(now);
   date.setUTCMinutes(0, 0, 0);
-  date.setUTCHours(Math.floor(date.getUTCHours() / 8) * 8);
+  date.setUTCHours(Math.floor(date.getUTCHours() / 4) * 4);
   return date.toISOString();
 }
 
@@ -17,7 +17,7 @@ export function createCycleId({ repositoryIdentity, windowStartUtc, workflowVers
 }
 
 export async function runCloudCycle({ repositoryIdentity, branch = "main", providers = [], requiresGeneration = true, cloudModeEnabled = true, client, providerSelector = selectZeroCreditProvider, now = new Date() } = {}) {
-  const windowStartUtc = getEightHourWindowStart(now);
+  const windowStartUtc = getFourHourWindowStart(now);
   const cycleId = createCycleId({ repositoryIdentity, windowStartUtc });
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
