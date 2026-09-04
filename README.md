@@ -14,8 +14,9 @@ incident-only repair records.
 
 ## Release truth
 
-- Installed candidate metadata: runtime/API `7.0.0-alpha.1`; the only browser UI
-  is the independently deployed unified Vercel workspace.
+- Installed candidate metadata: runtime/API `7.0.0-alpha.1`. Two Vercel browser UIs:
+  the conversation workspace (`cloud-app/`) and the operator console (`operator-deck/`).
+  See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/VERSIONS.md`](operator-deck/VERSIONS.md).
 - Active production baseline: `3.6.0`; this document does not claim it has been
   replaced or restarted.
 - Verification state: implementation complete through the release-metadata
@@ -82,10 +83,13 @@ incident-only repair records.
 
 ## Use the workspace
 
-- **Open Mahoraga:** use
-  `https://mahoraga-cloud-workspace.vercel.app/`. This is the only browser UI.
-  Pair an explicitly chosen runtime from its Connections section when local
-  workers or task state are needed. No browser extension is installed.
+- **Talk to Mahoraga:** `https://mahoraga-cloud-workspace.vercel.app/` is the
+  ChatGPT-style conversation workspace (Cloud Pro lives there).
+- **Operate Mahoraga:** the operator console is the singular UI for inspect,
+  merge, comment, close, dispatch, and eligible deletes. Language lock is
+  TypeScript. Host is Vercel. See [`operator-deck/README.md`](operator-deck/README.md).
+- Pair an explicitly chosen runtime from the conversation workspace Connections
+  section when local workers or task state are needed. No browser extension is installed.
 - **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
   select `mahoraga`, choose `main` as the base branch, and start with a
   read-only prompt such as `Inspect main and report current health; do not

@@ -1,0 +1,77 @@
+import type { AgentDefinition, AgentId } from "./types";
+
+export const AGENTS: Record<AgentId, AgentDefinition> = {
+  coordinator: {
+    id: "coordinator",
+    label: "Coordinator",
+    mandate: "Decompose an operator directive into isolated cells and pick the narrowest owner. Never executes privileged work itself.",
+    owns: "Allocation, sequencing, overlap detection, receipts.",
+    cannot: "Merge, release, mutate devices, spend model credits, or open listeners.",
+    plane: "loopback",
+    credit: "deterministic",
+  },
+  scout: {
+    id: "scout",
+    label: "Scout",
+    mandate: "Outbound public-internet reads against an allowlist. Extracts titles, status, and bounded text. Never follows off-list redirects.",
+    owns: "HTTPS GET to approved public hosts.",
+    cannot: "POST, credentials, private IPs, device tunnels, or browsing your local Chrome.",
+    plane: "outbound-https",
+    credit: "deterministic",
+  },
+  admin: {
+    id: "admin",
+    label: "Admin",
+    mandate: "GitHub repository administration on the owner session: inspect, comment, close, merge when CLEAN, dispatch, delete eligible contained branches.",
+    owns: "Public GitHub metadata, issue assignment, and owner writes that respect Protect main.",
+    cannot: "Spend Destiny, activate Windows 7.0, or squash-merge a blocked PR past exact-head Verify.",
+    plane: "github-event",
+    credit: "deterministic",
+  },
+  assurance: {
+    id: "assurance",
+    label: "Assurance",
+    mandate: "Fail-closed security. Deny inbound tunnels, private-network probes, credential-shaped input, and authority expansion.",
+    owns: "Posture verdicts, deny receipts, isolation proofs.",
+    cannot: "Weaken the trust plane or print secrets.",
+    plane: "loopback",
+    credit: "deterministic",
+  },
+  relay: {
+    id: "relay",
+    label: "Relay",
+    mandate: "Outbound-only pairing. Models GitHub events and encrypted cloud↔runtime hops. Never publishes a local listener.",
+    owns: "Connection topology, lease fencing, idempotency.",
+    cannot: "ngrok, cloudflared, reverse SSH, or any inbound hole into a device.",
+    plane: "outbound-https",
+    credit: "deterministic",
+  },
+  repository: {
+    id: "repository",
+    label: "Repository",
+    mandate: "Inspect and verify source truth. Reads the live public tree, README, and head SHA. Does not activate code on a machine.",
+    owns: "Repo inspection, verification evidence, path scope.",
+    cannot: "Device activation, workflow authority, or unprotected-root edits.",
+    plane: "github-event",
+    credit: "deterministic",
+  },
+  repair: {
+    id: "repair",
+    label: "Repair",
+    mandate: "Incident-scoped recovery. Isolates a failing cell so it cannot stall the fleet.",
+    owns: "Incident receipts, rollback pointers, quarantine.",
+    cannot: "Silent retries that spend credits, or broad supervisor shells.",
+    plane: "loopback",
+    credit: "deterministic",
+  },
+};
+
+export const AGENT_ORDER: AgentId[] = [
+  "coordinator",
+  "scout",
+  "admin",
+  "assurance",
+  "relay",
+  "repository",
+  "repair",
+];
