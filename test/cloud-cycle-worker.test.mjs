@@ -14,14 +14,28 @@ test("waits fail-closed when no zero-credit generation provider is available", a
   assert.equal(result.providerDecision.providerId, "waiting-zero-credit-provider");
 });
 
-test("always stops a started codespace through the opaque client lifecycle handle", async () => {
+test("always stops a started codespace after producing a concrete candidate receipt", async () => {
   let stopped = false;
   const client = {
     start: async () => ({ action: "start", status: "ok", codespaceIdHash: "opaque" }),
     stopActive: async () => { stopped = true; return { action: "stop", status: "ok" }; },
   };
   const providerSelector = () => ({ status: "selected", providerId: "codespaces-open-weight", costClass: "cloud-open-weight" });
-  const result = await runCloudCycle({ repositoryIdentity: "owner/repo", client, providerSelector, providers: [{ id: "codespaces-open-weight" }] });
+  const candidate = {
+    baseSha: "a".repeat(40),
+    headSha: "b".repeat(40),
+    branch: "feature/mahoraga-auto-cycle",
+    pullRequestNumber: 91,
+    changedFilesDigest: "c".repeat(64),
+  };
+  const result = await runCloudCycle({
+    repositoryIdentity: "owner/repo",
+    client,
+    providerSelector,
+    providers: [{ id: "codespaces-open-weight" }],
+    candidateProducer: async () => candidate,
+  });
   assert.equal(result.status, "candidate-ready");
+  assert.deepEqual(result.candidate, candidate);
   assert.equal(stopped, true);
 });
