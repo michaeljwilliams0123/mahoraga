@@ -1,37 +1,167 @@
 name: Sovereign Four Hour Candidate Cycle
 
 on:
+  workflow_run:
+    workflows:
+      - Publish Staged Mahoraga Update
+    types:
+      - completed
   schedule:
-    - cron: '17 */4 * * *'
-    - cron: '47 */4 * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
     inputs:
       branch:
         description: Candidate branch to inspect
         required: false
         default: main
+      force:
+        description: Re-run the current anchored window even if it is already complete
+        required: false
+        default: false
+        type: boolean
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 concurrency:
   group: sovereign-four-hour-${{ github.repository }}
   cancel-in-progress: false
 
+env:
+  SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-
+  SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-
+
 jobs:
   candidate-cycle:
-    if: github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123'
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
-    timeout-minutes: 110
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check out trusted target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+          ref: ${{ github.event.inputs.branch || 'main' }}
+          fetch-depth: 0
+
+      - name: Use Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24'
-      - name: Dry-run zero-credit candidate cycle
+
+      - name: Resolve durable cadence anchor
+        id: cadence
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASED_AT: ${{ github.event.workflow_run.updated_at }}
+          RELEASED_SHA: ${{ github.event.workflow_run.head_sha }}
+          FORCE_RUN: ${{ github.event.inputs.force || 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune
+
+          current_main="$(git rev-parse origin/main)"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" && -n "${RELEASED_SHA:-}" && "${RELEASED_SHA}" != "${current_main}" ]]; then
+            echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; refusing to anchor stale production."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          anchor_tag="$(git tag --list "${SOVEREIGN_ANCHOR_PREFIX}*" --sort=-refname | head -n 1)"
+          created_anchor=false
+
+          if [[ -z "${anchor_tag}" ]]; then
+            if [[ "${GITHUB_EVENT_NAME}" != "workflow_run" || -z "${RELEASED_AT:-}" ]]; then
+              echo "No durable cadence anchor exists yet; heartbeat exits without work."
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            anchor_iso="$(node --input-type=module -e 'import { createDeploymentAnchor } from "./src/sovereign-cycle-clock.mjs"; console.log(createDeploymentAnchor(process.argv[1]));' "${RELEASED_AT}")"
+            anchor_epoch="$(node --input-type=module -e 'import { getAnchorEpoch } from "./src/sovereign-cycle-clock.mjs"; console.log(getAnchorEpoch(process.argv[1]));' "${anchor_iso}")"
+            anchor_tag="${SOVEREIGN_ANCHOR_PREFIX}${anchor_epoch}"
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+              -f ref="refs/tags/${anchor_tag}" \
+              -f sha="${current_main}"
+            created_anchor=true
+            echo "Created durable cadence anchor ${anchor_tag} at ${anchor_iso}."
+          else
+            anchor_epoch="${anchor_tag#${SOVEREIGN_ANCHOR_PREFIX}}"
+            anchor_iso="$(node --input-type=module -e 'import { fromEpochSeconds } from "./src/sovereign-cycle-clock.mjs"; console.log(fromEpochSeconds(process.argv[1]));' "${anchor_epoch}")"
+          fi
+
+          if [[ "${created_anchor}" == "true" ]]; then
+            now_epoch="$(date -u +%s)"
+            wait_seconds="$((anchor_epoch - now_epoch))"
+            if (( wait_seconds > 0 )); then
+              echo "Production cadence test will start in ${wait_seconds}s at ${anchor_iso}."
+              sleep "${wait_seconds}"
+            fi
+          fi
+
+          now_iso="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+          window_iso="$(node --input-type=module -e 'import { getAnchoredFourHourWindowStart } from "./src/sovereign-cycle-clock.mjs"; const value = getAnchoredFourHourWindowStart(process.argv[1], process.argv[2]); if (value) console.log(value);' "${now_iso}" "${anchor_iso}")"
+          if [[ -z "${window_iso}" ]]; then
+            echo "Cadence anchor ${anchor_iso} has not been reached."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          window_epoch="$(node --input-type=module -e 'import { getCycleWindowEpoch } from "./src/sovereign-cycle-clock.mjs"; console.log(getCycleWindowEpoch(process.argv[1]));' "${window_iso}")"
+          complete_tag="${SOVEREIGN_COMPLETE_PREFIX}${window_epoch}"
+          if git show-ref --tags --verify --quiet "refs/tags/${complete_tag}" && [[ "${FORCE_RUN}" != "true" ]]; then
+            echo "Window ${window_iso} already completed as ${complete_tag}; duplicate heartbeat suppressed."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "anchor_iso=${anchor_iso}" >> "$GITHUB_OUTPUT"
+          echo "window_iso=${window_iso}" >> "$GITHUB_OUTPUT"
+          echo "window_epoch=${window_epoch}" >> "$GITHUB_OUTPUT"
+          echo "complete_tag=${complete_tag}" >> "$GITHUB_OUTPUT"
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Run anchored zero-credit candidate cycle
+        id: cycle
+        if: steps.cadence.outputs.should_run == 'true'
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node src/cloud-cycle-worker.mjs
+          MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.cadence.outputs.anchor_iso }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(node src/cloud-cycle-worker.mjs)"
+          echo "${output}"
+          status="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.status);' "${output}")"
+          window="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.windowStartUtc || "");' "${output}")"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "window=${window}" >> "$GITHUB_OUTPUT"
+          if [[ "${status}" == "failed" ]]; then
+            exit 1
+          fi
+
+      - name: Mark durable window complete
+        if: >-
+          steps.cadence.outputs.should_run == 'true' &&
+          (steps.cycle.outputs.status == 'no-candidate' || steps.cycle.outputs.status == 'candidate-ready')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMPLETE_TAG: ${{ steps.cadence.outputs.complete_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          head_sha="$(git rev-parse HEAD)"
+          if git show-ref --tags --verify --quiet "refs/tags/${COMPLETE_TAG}"; then
+            echo "Completion tag ${COMPLETE_TAG} already exists."
+            exit 0
+          fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${COMPLETE_TAG}" \
+            -f sha="${head_sha}"
+          echo "Marked anchored window complete as ${COMPLETE_TAG}."
