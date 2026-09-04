@@ -74,3 +74,35 @@ jobs:
 
       - name: Type-check, test, and build the single UI
         run: npm run verify
+
+  dispatch-sovereign-integration:
+    needs: [verify, workspace]
+    if: >-
+      success() &&
+      github.event_name == 'workflow_dispatch' &&
+      startsWith(github.ref_name, 'feature/sovereign-')
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch exact sovereign head to trusted integration
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          CANDIDATE_HEAD_SHA: ${{ github.sha }}
+          CANDIDATE_HEAD_BRANCH: ${{ github.ref_name }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: "autonomous-integration.yml",
+              ref: "main",
+              inputs: {
+                candidate_head_sha: process.env.CANDIDATE_HEAD_SHA,
+                candidate_head_branch: process.env.CANDIDATE_HEAD_BRANCH,
+              },
+            });
