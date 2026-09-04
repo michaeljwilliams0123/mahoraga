@@ -52,9 +52,11 @@ test("autonomous integration keeps evaluation read-only and grants writes only t
   assert.match(source, /ref: main\s*\n\s*persist-credentials: false/);
 });
 
-test("automatic release accepts only push verification of still-current main", async () => {
+test("automatic release accepts only trusted verification of still-current main", async () => {
   const source = await workflow("release.yml");
   assert.match(source, /github\.event\.workflow_run\.event == 'push'/);
+  assert.match(source, /github\.event\.workflow_run\.event == 'workflow_dispatch'/);
+  assert.match(source, /github\.event\.workflow_run\.actor\.login == 'github-actions\[bot\]'/);
   assert.match(source, /name: Verify automatic release SHA is still current main/);
   assert.match(source, /git fetch origin main/);
   assert.match(source, /git rev-parse origin\/main/);
