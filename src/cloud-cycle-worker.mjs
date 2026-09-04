@@ -1,10 +1,12 @@
 import crypto from "node:crypto";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
+import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "no-candidate", "candidate-ready"]);
-export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v1";
+export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v2";
 
-export function getFourHourWindowStart(now = new Date()) {
+export function getFourHourWindowStart(now = new Date(), anchorAtUtc = null) {
+  if (anchorAtUtc) return getAnchoredFourHourWindowStart(now, anchorAtUtc);
   const date = new Date(now);
   date.setUTCMinutes(0, 0, 0);
   date.setUTCHours(Math.floor(date.getUTCHours() / 4) * 4);
@@ -31,8 +33,21 @@ export function validateCandidateReceipt(value) {
   return Object.freeze({ baseSha, headSha, branch, pullRequestNumber, changedFilesDigest });
 }
 
-export async function runCloudCycle({ repositoryIdentity, branch = "main", providers = [], requiresGeneration = true, cloudModeEnabled = true, client, providerSelector = selectZeroCreditProvider, candidateProducer = null, now = new Date() } = {}) {
-  const windowStartUtc = getFourHourWindowStart(now);
+export async function runCloudCycle({ repositoryIdentity, branch = "main", providers = [], requiresGeneration = true, cloudModeEnabled = true, client, providerSelector = selectZeroCreditProvider, candidateProducer = null, now = new Date(), anchorAtUtc = null } = {}) {
+  const windowStartUtc = getFourHourWindowStart(now, anchorAtUtc);
+  if (!windowStartUtc) {
+    return Object.freeze({
+      status: "waiting",
+      cycleId: null,
+      branch,
+      workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION,
+      events: [],
+      providerDecision: null,
+      candidate: null,
+      terminalReason: "cadence-anchor-not-reached",
+      windowStartUtc: null,
+    });
+  }
   const cycleId = createCycleId({ repositoryIdentity, windowStartUtc });
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
@@ -41,7 +56,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     if (providerDecision.status === "waiting") {
       const terminalReason = providerDecision.providerId ?? "provider-unavailable";
       events.push(event("waiting", cycleId, branch, terminalReason));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason });
+      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
     }
     if (providerDecision.providerId === "codespaces-open-weight") {
       events.push(event("cloud-running", cycleId, branch));
@@ -55,7 +70,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     if (candidateProducer === null) {
       const terminalReason = "candidate-producer-unavailable";
       events.push(event("no-candidate", cycleId, branch, terminalReason));
-      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason });
+      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
     }
     if (typeof candidateProducer !== "function") throw new TypeError("candidate producer is invalid");
 
@@ -69,17 +84,17 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     if (produced == null) {
       const terminalReason = "no-actionable-work";
       events.push(event("no-candidate", cycleId, branch, terminalReason));
-      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason });
+      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
     }
 
     const candidate = validateCandidateReceipt(produced);
     const terminalReason = "candidate-produced";
     events.push(event("candidate-ready", cycleId, branch, terminalReason));
-    return result("candidate-ready", cycleId, branch, events, providerDecision, { candidate, terminalReason });
+    return result("candidate-ready", cycleId, branch, events, providerDecision, { candidate, terminalReason, windowStartUtc });
   } catch (error) {
     const terminalReason = error.code || "cloud-cycle-error";
     events.push(event("failed", cycleId, branch, terminalReason));
-    return result("failed", cycleId, branch, events, null, { terminalReason });
+    return result("failed", cycleId, branch, events, null, { terminalReason, windowStartUtc });
   } finally {
     if (client && startedCodespace) await client.stopActive();
   }
@@ -103,12 +118,14 @@ function event(state, cycleId, branch, reason = null) {
   return Object.freeze({ state, cycleId, branch, reason, at: new Date().toISOString() });
 }
 
-function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null } = {}) {
-  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, terminalReason });
+function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null, windowStartUtc = null } = {}) {
+  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, terminalReason, windowStartUtc });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const repositoryIdentity = process.env.GITHUB_REPOSITORY || "unknown/repository";
-  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false });
+  const anchorAtUtc = process.env.MAHORAGA_CYCLE_ANCHOR_UTC || null;
+  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc });
   console.log(JSON.stringify(output));
+  if (output.status === "failed") process.exitCode = 1;
 }
