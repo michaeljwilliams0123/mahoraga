@@ -144,13 +144,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output="$(node src/cloud-cycle-worker.mjs)"
+          stderr_file="${RUNNER_TEMP}/cycle.stderr"
+          set +e
+          output="$(node src/cloud-cycle-worker.mjs 2>"${stderr_file}")"
+          node_rc=$?
+          set -e
+          if [[ -s "${stderr_file}" ]]; then
+            echo "Sovereign worker emitted stderr; safe terminal metadata is reported in the JSON receipt." >&2
+          fi
+          if [[ -z "${output}" ]]; then
+            echo "Sovereign worker exited without a JSON receipt (node_rc=${node_rc})." >&2
+            exit "${node_rc:-1}"
+          fi
           echo "${output}"
           status="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.status);' "${output}")"
           window="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.windowStartUtc || "");' "${output}")"
+          terminal_reason="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalReason || "");' "${output}")"
+          terminal_stage="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalStage || "");' "${output}")"
+          terminal_detail="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalDetail || "");' "${output}")"
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           echo "window=${window}" >> "$GITHUB_OUTPUT"
-          if [[ "${status}" == "failed" ]]; then
+          echo "terminal_reason=${terminal_reason}" >> "$GITHUB_OUTPUT"
+          echo "terminal_stage=${terminal_stage}" >> "$GITHUB_OUTPUT"
+          echo "terminal_detail=${terminal_detail}" >> "$GITHUB_OUTPUT"
+          if [[ "${node_rc}" -ne 0 || "${status}" == "failed" ]]; then
             exit 1
           fi
 
@@ -241,11 +258,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          output="$(node src/cloud-cycle-worker.mjs)"
+          stderr_file="${RUNNER_TEMP}/cycle.stderr"
+          set +e
+          output="$(node src/cloud-cycle-worker.mjs 2>"${stderr_file}")"
+          node_rc=$?
+          set -e
+          if [[ -s "${stderr_file}" ]]; then
+            echo "Sovereign worker emitted stderr; safe terminal metadata is reported in the JSON receipt." >&2
+          fi
+          if [[ -z "${output}" ]]; then
+            echo "Sovereign worker exited without a JSON receipt (node_rc=${node_rc})." >&2
+            exit "${node_rc:-1}"
+          fi
           echo "${output}"
           status="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.status);' "${output}")"
+          terminal_reason="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalReason || "");' "${output}")"
+          terminal_stage="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalStage || "");' "${output}")"
+          terminal_detail="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.terminalDetail || "");' "${output}")"
           echo "status=${status}" >> "$GITHUB_OUTPUT"
-          if [[ "${status}" == "failed" ]]; then
+          echo "terminal_reason=${terminal_reason}" >> "$GITHUB_OUTPUT"
+          echo "terminal_stage=${terminal_stage}" >> "$GITHUB_OUTPUT"
+          echo "terminal_detail=${terminal_detail}" >> "$GITHUB_OUTPUT"
+          if [[ "${node_rc}" -ne 0 || "${status}" == "failed" ]]; then
             exit 1
           fi
 
