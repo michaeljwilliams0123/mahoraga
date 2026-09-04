@@ -21,8 +21,9 @@ on:
         type: boolean
 
 permissions:
-  contents: write
+  contents: read
   actions: read
+  pull-requests: read
 
 concurrency:
   group: sovereign-four-hour-${{ github.repository }}
@@ -31,9 +32,14 @@ concurrency:
 env:
   SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-
   SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-
+  SOVEREIGN_PRODUCER_SMOKE_TAG: sovereign-producer-smoke-v1
 
 jobs:
   candidate-cycle:
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123') ||
@@ -131,8 +137,10 @@ jobs:
         id: cycle
         if: steps.cadence.outputs.should_run == 'true'
         env:
+          GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.cadence.outputs.anchor_iso }}
+          MAHORAGA_CANDIDATE_PRODUCER: github-native
         shell: bash
         run: |
           set -euo pipefail
@@ -156,7 +164,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          head_sha="$(git rev-parse HEAD)"
+          git fetch origin main --force
+          head_sha="$(git rev-parse origin/main)"
           if git show-ref --tags --verify --quiet "refs/tags/${COMPLETE_TAG}"; then
             echo "Completion tag ${COMPLETE_TAG} already exists."
             exit 0
@@ -165,3 +174,97 @@ jobs:
             -f ref="refs/tags/${COMPLETE_TAG}" \
             -f sha="${head_sha}"
           echo "Marked anchored window complete as ${COMPLETE_TAG}."
+
+  producer-smoke:
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out deployed main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Use Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+
+      - name: Arm one-time producer smoke ten minutes after deployment
+        id: smoke
+        env:
+          RELEASED_AT: ${{ github.event.workflow_run.updated_at }}
+          RELEASED_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force --prune
+          current_main="$(git rev-parse origin/main)"
+          if [[ "${RELEASED_SHA}" != "${current_main}" ]]; then
+            echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; smoke is stale."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git show-ref --tags --verify --quiet "refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}"; then
+            echo "Producer smoke already completed as ${SOVEREIGN_PRODUCER_SMOKE_TAG}."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          smoke_at="$(node --input-type=module -e 'import { createDeploymentAnchor } from "./src/sovereign-cycle-clock.mjs"; console.log(createDeploymentAnchor(process.argv[1]));' "${RELEASED_AT}")"
+          smoke_epoch="$(node --input-type=module -e 'import { getAnchorEpoch } from "./src/sovereign-cycle-clock.mjs"; console.log(getAnchorEpoch(process.argv[1]));' "${smoke_at}")"
+          now_epoch="$(date -u +%s)"
+          wait_seconds="$((smoke_epoch - now_epoch))"
+          if (( wait_seconds > 0 )); then
+            echo "Sovereign producer smoke will scan for an update/enhancement in ${wait_seconds}s at ${smoke_at}."
+            sleep "${wait_seconds}"
+          fi
+          echo "smoke_at=${smoke_at}" >> "$GITHUB_OUTPUT"
+          echo "released_sha=${RELEASED_SHA}" >> "$GITHUB_OUTPUT"
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+
+      - name: Scan and produce bounded enhancement candidate
+        id: producer
+        if: steps.smoke.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.smoke.outputs.smoke_at }}
+          MAHORAGA_CANDIDATE_PRODUCER: github-native
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(node src/cloud-cycle-worker.mjs)"
+          echo "${output}"
+          status="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.status);' "${output}")"
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          if [[ "${status}" == "failed" ]]; then
+            exit 1
+          fi
+
+      - name: Mark producer smoke complete
+        if: >-
+          steps.smoke.outputs.should_run == 'true' &&
+          (steps.producer.outputs.status == 'no-candidate' || steps.producer.outputs.status == 'candidate-ready')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASED_SHA: ${{ steps.smoke.outputs.released_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          if git show-ref --tags --verify --quiet "refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}"; then
+            echo "Producer smoke tag already exists."
+            exit 0
+          fi
+          gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}" \
+            -f sha="${RELEASED_SHA}"
+          echo "Marked producer smoke complete as ${SOVEREIGN_PRODUCER_SMOKE_TAG}."
