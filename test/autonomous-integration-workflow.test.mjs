@@ -41,3 +41,14 @@ test("successful verification without an open pull request is a clean no-op", as
   assert.match(workflow, /steps\.candidate\.outputs\.found == 'true'/);
   assert.doesNotMatch(workflow, /expected-one-open-main-pr/);
 });
+
+test("sovereign workflow-dispatch verification is admitted only for bounded same-repo producer branches", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/autonomous-integration.yml", import.meta.url), "utf8");
+  assert.match(workflow, /github\.event\.workflow_run\.event == 'pull_request'/);
+  assert.match(workflow, /github\.event\.workflow_run\.event == 'workflow_dispatch'/);
+  assert.match(workflow, /startsWith\(github\.event\.workflow_run\.head_branch, 'feature\/sovereign-'\)/);
+  assert.match(workflow, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.equal(isTrustedAutonomousIntegrationWorkflow(workflow), true);
+  const widened = workflow.replace("startsWith(github.event.workflow_run.head_branch, 'feature/sovereign-')", "true");
+  assert.equal(isTrustedAutonomousIntegrationWorkflow(widened), false);
+});
