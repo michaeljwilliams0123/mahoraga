@@ -84,21 +84,14 @@ test("successful sovereign verification explicitly dispatches trusted integratio
   assert.match(integration, /ignoredConclusions:\s*\["action_required"\]/);
 });
 
-test("successful automatic main verification explicitly dispatches an exact-SHA beta release", async () => {
+test("automatic main beta release stays on workflow_run, not a second verify dispatch", async () => {
   const verify = await readFile(new URL("../.github/workflows/verify.yml", import.meta.url), "utf8");
   const release = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
 
-  assert.match(verify, /dispatch-automatic-release:/);
-  assert.match(verify, /github\.ref_name == 'main'/);
-  assert.match(verify, /github\.actor == 'github-actions\[bot\]'/);
-  assert.match(verify, /workflow_id:\s*["']release\.yml["']/);
-  assert.match(verify, /verified_main_sha/);
-  assert.match(verify, /channel:\s*["']beta["']/);
-
-  assert.match(release, /verified_main_sha:/);
-  assert.match(release, /github\.actor == 'github-actions\[bot\]'/);
-  assert.match(release, /inputs\.verified_main_sha/);
-  assert.match(release, /AUTOMATIC_VERIFIED_SHA/);
+  assert.doesNotMatch(verify, /dispatch-automatic-release:/);
+  assert.match(release, /workflow_run:/);
+  assert.match(release, /head_branch == 'main'/);
+  assert.match(release, /github-actions\[bot\]/);
   assert.match(release, /current_main/);
   assert.match(release, /stale-verified-main/);
 });
