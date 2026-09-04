@@ -3,20 +3,20 @@ import assert from "node:assert/strict";
 
 const producerModule = await import("../src/sovereign-candidate-producer.mjs").catch(() => null);
 
-test("scan proposes a bounded operator scan enhancement when the command is missing", () => {
+test("scan proposes a bounded operator scan report when it is missing", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    packageJson: { scripts: { verify: "node test.mjs" } },
+    fileExists: () => false,
     gapAudit: { open: [] },
   });
-  assert.equal(enhancement.id, "operator-scan-command");
-  assert.deepEqual(enhancement.changedFiles, ["package.json"]);
+  assert.equal(enhancement.id, "operator-scan-report");
+  assert.deepEqual(enhancement.changedFiles, ["scripts/sovereign-scan-report.mjs"]);
 });
 
-test("scan returns no actionable work once the operator scan command exists", () => {
+test("scan returns no actionable work once the operator scan report exists", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    packageJson: { scripts: { "sovereign:scan": "node src/sovereign-candidate-producer.mjs --scan-only" } },
+    fileExists: (relative) => relative === "scripts/sovereign-scan-report.mjs",
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
@@ -32,16 +32,16 @@ test("producer refuses trust-plane changed paths", () => {
 
 test("changed-files digest is deterministic and order-independent", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
-  const first = producerModule.candidateChangedFilesDigest(["package.json", "README.md"]);
-  const second = producerModule.candidateChangedFilesDigest(["README.md", "package.json"]);
+  const first = producerModule.candidateChangedFilesDigest(["scripts/sovereign-scan-report.mjs", "README.md"]);
+  const second = producerModule.candidateChangedFilesDigest(["README.md", "scripts/sovereign-scan-report.mjs"]);
   assert.match(first, /^[a-f0-9]{64}$/);
   assert.equal(first, second);
 });
 
-test("package enhancement adds only the sovereign scan command", () => {
+test("operator scan report script is content-bounded and zero-credit", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
-  const before = { name: "project-mahoraga-v2", scripts: { verify: "npm test" } };
-  const after = producerModule.applyOperatorScanEnhancement(before);
-  assert.equal(after.scripts.verify, "npm test");
-  assert.equal(after.scripts["sovereign:scan"], "node src/sovereign-candidate-producer.mjs --scan-only");
+  const rendered = producerModule.renderOperatorScanReportScript();
+  assert.match(rendered, /buildGapAudit/);
+  assert.match(rendered, /blockedGapIds/);
+  assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx/);
 });
