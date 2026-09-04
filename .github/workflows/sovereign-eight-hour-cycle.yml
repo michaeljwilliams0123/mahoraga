@@ -1,8 +1,8 @@
-name: Sovereign Eight Hour Candidate Cycle
+name: Sovereign Four Hour Candidate Cycle
 
 on:
   schedule:
-    - cron: '17 */8 * * *'
+    - cron: '17 */4 * * *'
   workflow_dispatch:
     inputs:
       branch:
