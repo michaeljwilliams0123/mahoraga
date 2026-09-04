@@ -56,7 +56,8 @@ jobs:
         run: |
           set -euo pipefail
           base_version="$(node -p 'require("./mahoraga.manifest.json").version')"
-          if [ "$CHANNEL" = "stable" ]; then version="$base_version"; else version="${base_version}-beta.${GITHUB_RUN_NUMBER}"; fi
+          release_base="${base_version%%-*}"
+          if [ "$CHANNEL" = "stable" ]; then version="$base_version"; else version="${release_base}-beta.${GITHUB_RUN_NUMBER}"; fi
           tag="v${version}"
           commit="$(git rev-parse HEAD)"
           mkdir -p dist

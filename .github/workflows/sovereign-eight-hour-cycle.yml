@@ -26,7 +26,6 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24'
-      - run: npm ci
       - name: Dry-run zero-credit candidate cycle
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
