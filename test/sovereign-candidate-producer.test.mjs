@@ -16,10 +16,20 @@ test("scan proposes a bounded operator scan report when it is missing", () => {
   assert.deepEqual(enhancement.changedFiles, ["scripts/sovereign-scan-report.mjs"]);
 });
 
-test("scan returns no actionable work once the operator scan report exists", () => {
+test("scan proposes a scan-report test once the report exists", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
     fileExists: (relative) => relative === "scripts/sovereign-scan-report.mjs",
+    gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
+  });
+  assert.equal(enhancement.id, "operator-scan-report-test");
+  assert.deepEqual(enhancement.changedFiles, ["test/sovereign-scan-report.test.mjs"]);
+});
+
+test("scan returns no actionable work once the report and its test both exist", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => relative === "scripts/sovereign-scan-report.mjs" || relative === "test/sovereign-scan-report.test.mjs",
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
@@ -47,6 +57,16 @@ test("operator scan report script is content-bounded and zero-credit", () => {
   assert.match(rendered, /buildGapAudit/);
   assert.match(rendered, /blockedGapIds/);
   assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx/);
+});
+
+test("operator scan report test is content-bounded and zero-credit", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const rendered = producerModule.renderOperatorScanReportTest();
+  assert.match(rendered, /sovereign-scan-report\.mjs/);
+  assert.match(rendered, /schemaVersion/);
+  assert.match(rendered, /blockedGapIds/);
+  assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx/);
+  producerModule.assertSafeCandidatePaths(["test/sovereign-scan-report.test.mjs"]);
 });
 
 test("GitHub Actions PR policy denial is classified explicitly", () => {
