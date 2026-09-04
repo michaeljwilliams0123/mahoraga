@@ -2,6 +2,8 @@ const TRUSTED_REPOSITORY = "michaeljwilliams0123/mahoraga";
 const TRUSTED_WORKFLOW = "Verify Mahoraga";
 const DESTINY_RESULT_MARKER = "[DESTINY-CODEX:RESULT]";
 const DESTINY_DISPATCH_DIRECTORY = "coordination/destiny-dispatches";
+const ALLOWED_WORKFLOW_EVENTS = new Set(["pull_request", "workflow_dispatch"]);
+const ALLOWED_IGNORED_CONCLUSIONS = new Set(["action_required"]);
 
 function reject(reason) {
   return Object.freeze({ eligible: false, reason });
@@ -40,10 +42,17 @@ export function evaluateAutonomousIntegration(input, policy) {
   });
 }
 
-export function latestExactWorkflowRun(runs, { name, headSha } = {}) {
+export function latestExactWorkflowRun(
+  runs,
+  { name, headSha, events = ["pull_request"], ignoredConclusions = [] } = {},
+) {
   if (!Array.isArray(runs) || typeof name !== "string" || !/^[a-f0-9]{40}$/.test(headSha ?? "")) return null;
+  if (!Array.isArray(events) || events.length === 0 || events.some((event) => !ALLOWED_WORKFLOW_EVENTS.has(event))) return null;
+  if (!Array.isArray(ignoredConclusions) || ignoredConclusions.some((value) => !ALLOWED_IGNORED_CONCLUSIONS.has(value))) return null;
+  const eventSet = new Set(events);
+  const ignoredSet = new Set(ignoredConclusions);
   return [...runs]
-    .filter((run) => run?.name === name && run?.head_sha === headSha && run?.event === "pull_request")
+    .filter((run) => run?.name === name && run?.head_sha === headSha && eventSet.has(run?.event) && !ignoredSet.has(run?.conclusion))
     .sort(newestFirst)[0] ?? null;
 }
 
