@@ -26,6 +26,7 @@ const TRUST_PLANE_FILES = new Set([
 ]);
 
 export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(path.join(ROOT, relative)), gapAudit = { open: [] } } = {}) {
+  void gapAudit;
   if (!fileExists(OPERATOR_SCAN_REPORT)) {
     return Object.freeze({
       id: "operator-scan-report",
@@ -56,7 +57,30 @@ export function candidateChangedFilesDigest(paths) {
 }
 
 export function renderOperatorScanReportScript() {
-  return `import { loadManifest } from "../src/config.mjs";\nimport { buildGapAudit } from "../src/gap-audit.mjs";\n\nconst report = buildGapAudit(await loadManifest());\nconst blockedGapIds = report.open\n  .filter((item) => item.state === "blocked")\n  .map((item) => item.id)\n  .sort();\nconst actionableGapIds = report.open\n  .filter((item) => item.state === "open" || item.state === "unverified")\n  .map((item) => item.id)\n  .sort();\n\nprocess.stdout.write(\\`${"${JSON.stringify({"}\n  schemaVersion: 1,\n  product: report.product,\n  version: report.version,\n  counts: report.counts,\n  blockedGapIds,\n  actionableGapIds,\n}, null, 2)}\\n"}\\`);\n`;
+  return [
+    'import { loadManifest } from "../src/config.mjs";',
+    'import { buildGapAudit } from "../src/gap-audit.mjs";',
+    '',
+    'const report = buildGapAudit(await loadManifest());',
+    'const blockedGapIds = report.open',
+    '  .filter((item) => item.state === "blocked")',
+    '  .map((item) => item.id)',
+    '  .sort();',
+    'const actionableGapIds = report.open',
+    '  .filter((item) => item.state === "open" || item.state === "unverified")',
+    '  .map((item) => item.id)',
+    '  .sort();',
+    '',
+    'process.stdout.write(JSON.stringify({',
+    '  schemaVersion: 1,',
+    '  product: report.product,',
+    '  version: report.version,',
+    '  counts: report.counts,',
+    '  blockedGapIds,',
+    '  actionableGapIds,',
+    '}, null, 2) + "\\n");',
+    '',
+  ].join("\n");
 }
 
 export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = fixedCommand } = {}) {
@@ -80,7 +104,10 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
 
     const branchName = `feature/sovereign-${cycleId.slice(0, 12)}`;
     const existing = existingCandidate({ repositoryIdentity, branchName, baseSha, root, runCommand });
-    if (existing) return existing;
+    if (existing) {
+      command(runCommand, "gh", ["workflow", "run", "verify.yml", "--repo", repositoryIdentity, "--ref", branchName], root);
+      return existing;
+    }
 
     command(runCommand, "git", ["checkout", "-b", branchName, baseSha], root);
     if (enhancement.id === "operator-scan-report") {
