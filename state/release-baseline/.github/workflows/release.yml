@@ -15,7 +15,6 @@ on:
     workflows: ["Verify Mahoraga"]
     types: [completed]
 
-
 permissions:
   contents: write
   id-token: write
@@ -28,7 +27,14 @@ concurrency:
 jobs:
   release:
     name: Attest and publish exact verified update
-    if: (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.actor == github.repository_owner) ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       (github.event.workflow_run.event == 'push' ||
+        (github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.actor.login == 'github-actions[bot]')))
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -43,6 +49,21 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Verify automatic release SHA is still current main
+        if: github.event_name == 'workflow_run'
+        shell: bash
+        env:
+          VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --depth=1
+          checked_out="$(git rev-parse HEAD)"
+          current_main="$(git rev-parse origin/main)"
+          if [ "$checked_out" != "$VERIFIED_SHA" ] || [ "$current_main" != "$VERIFIED_SHA" ]; then
+            echo "::error::stale-verified-main checked_out=$checked_out current_main=$current_main verified=$VERIFIED_SHA"
+            exit 1
+          fi
 
       - name: Verify authoritative release source
         if: github.event_name == 'workflow_dispatch'

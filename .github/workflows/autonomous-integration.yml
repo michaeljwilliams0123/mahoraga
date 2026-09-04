@@ -6,22 +6,32 @@ on:
     types: [completed]
 
 permissions:
-  actions: write
-  contents: write
-  pull-requests: write
+  actions: read
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: mahoraga-autonomous-main-integration
   cancel-in-progress: false
 
 jobs:
-  integrate:
+  evaluate:
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: read
     if: >-
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
+    outputs:
+      found: ${{ steps.candidate.outputs.found }}
+      eligible: ${{ steps.policy.outputs.eligible }}
+      reason: ${{ steps.policy.outputs.reason }}
+      pull_request: ${{ steps.policy.outputs.pull_request }}
+      head_sha: ${{ steps.policy.outputs.head_sha }}
     steps:
       - name: Checkout trusted policy from main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -88,12 +98,31 @@ jobs:
         if: steps.candidate.outputs.found == 'true'
         run: node scripts/autonomous-integration.mjs --input state/autonomous-integration-input.json
 
+  merge:
+    needs: evaluate
+    if: needs.evaluate.outputs.found == 'true' && needs.evaluate.outputs.eligible == 'true'
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout trusted integration code from main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Use Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24
+
       - name: Revalidate and merge exact verified head
-        if: steps.candidate.outputs.found == 'true' && steps.policy.outputs.eligible == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
-          PULL_REQUEST: ${{ steps.policy.outputs.pull_request }}
-          VERIFIED_HEAD: ${{ steps.policy.outputs.head_sha }}
+          PULL_REQUEST: ${{ needs.evaluate.outputs.pull_request }}
+          VERIFIED_HEAD: ${{ needs.evaluate.outputs.head_sha }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
