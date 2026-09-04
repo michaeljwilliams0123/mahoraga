@@ -4,6 +4,16 @@ on:
   workflow_run:
     workflows: ["Verify Mahoraga", "Validate Destiny Codex Relay"]
     types: [completed]
+  workflow_dispatch:
+    inputs:
+      candidate_head_sha:
+        description: Exact verified sovereign candidate head SHA
+        required: true
+        type: string
+      candidate_head_branch:
+        description: Exact verified sovereign candidate branch
+        required: true
+        type: string
 
 permissions:
   actions: read
@@ -21,15 +31,22 @@ jobs:
       contents: read
       pull-requests: read
     if: >-
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
       (
-        github.event.workflow_run.event == 'pull_request' ||
+        github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
         (
-          github.event.workflow_run.event == 'workflow_dispatch' &&
-          startsWith(github.event.workflow_run.head_branch, 'feature/sovereign-')
+          github.event.workflow_run.event == 'pull_request' ||
+          (
+            github.event.workflow_run.event == 'workflow_dispatch' &&
+            startsWith(github.event.workflow_run.head_branch, 'feature/sovereign-')
+          )
         )
+      ) ||
+      (
+        github.event_name == 'workflow_dispatch' &&
+        inputs.candidate_head_sha != '' &&
+        startsWith(inputs.candidate_head_branch, 'feature/sovereign-')
       )
     runs-on: ubuntu-latest
     outputs:
@@ -60,9 +77,14 @@ jobs:
             const { pathToFileURL } = require("url");
             const { latestExactWorkflowRun } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "autonomous-integration.mjs")).href);
             const { owner, repo } = context.repo;
+            const dispatched = context.eventName === "workflow_dispatch";
             const run = context.payload.workflow_run;
+            const candidateHeadSha = dispatched ? context.payload.inputs?.candidate_head_sha : run?.head_sha;
+            const candidateHeadBranch = dispatched ? context.payload.inputs?.candidate_head_branch : run?.head_branch;
+            if (!/^[a-f0-9]{40}$/.test(candidateHeadSha ?? "")) throw new Error("candidate-head-sha-invalid");
+            if (dispatched && !candidateHeadBranch?.startsWith("feature/sovereign-")) throw new Error("candidate-head-branch-invalid");
             const associated = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
-              owner, repo, commit_sha: run.head_sha, per_page: 100,
+              owner, repo, commit_sha: candidateHeadSha, per_page: 100,
             });
             const candidates = associated.filter((item) => item.state === "open" && item.base.ref === "main");
             if (candidates.length === 0) {
@@ -72,13 +94,22 @@ jobs:
             }
             if (candidates.length > 1) throw new Error(`ambiguous-open-main-prs:${candidates.length}`);
             const detail = (await github.rest.pulls.get({ owner, repo, pull_number: candidates[0].number })).data;
+            if (dispatched && detail.head.sha !== candidateHeadSha) throw new Error("dispatched-head-sha-mismatch");
+            if (dispatched && detail.head.ref !== candidateHeadBranch) throw new Error("dispatched-head-branch-mismatch");
+            if (dispatched && detail.head.repo?.full_name !== `${owner}/${repo}`) throw new Error("dispatched-head-repository-mismatch");
             const main = (await github.rest.repos.getBranch({ owner, repo, branch: "main" })).data;
             const ancestry = await github.rest.repos.compareCommits({ owner, repo, base: main.commit.sha, head: detail.head.sha });
             const files = await github.paginate(github.rest.pulls.listFiles, { owner, repo, pull_number: detail.number, per_page: 100 });
             const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
               owner, repo, head_sha: detail.head.sha, per_page: 100,
             });
-            const verify = latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: detail.head.sha });
+            const sovereign = detail.head.ref.startsWith("feature/sovereign-");
+            const verify = latestExactWorkflowRun(runs, sovereign ? {
+              name: "Verify Mahoraga",
+              headSha: detail.head.sha,
+              events: ["pull_request", "workflow_dispatch"],
+              ignoredConclusions: ["action_required"],
+            } : { name: "Verify Mahoraga", headSha: detail.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: detail.head.sha });
             const verifySucceeded = verify?.status === "completed" && verify.conclusion === "success";
             const relaySucceeded = relay?.status === "completed" && relay.conclusion === "success";
@@ -149,7 +180,13 @@ jobs:
             const runs = await github.paginate(github.rest.actions.listWorkflowRunsForRepo, {
               owner, repo, head_sha: pr.head.sha, per_page: 100,
             });
-            const verify = latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: pr.head.sha });
+            const sovereign = pr.head.ref.startsWith("feature/sovereign-");
+            const verify = latestExactWorkflowRun(runs, sovereign ? {
+              name: "Verify Mahoraga",
+              headSha: pr.head.sha,
+              events: ["pull_request", "workflow_dispatch"],
+              ignoredConclusions: ["action_required"],
+            } : { name: "Verify Mahoraga", headSha: pr.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: pr.head.sha });
             const freshDecision = evaluateAutonomousIntegration({
               workflow: { name: "Verify Mahoraga", conclusion: verify?.status === "completed" && verify.conclusion === "success" ? "success" : "missing", headSha: pr.head.sha },
