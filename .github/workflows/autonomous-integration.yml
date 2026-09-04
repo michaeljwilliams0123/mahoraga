@@ -104,12 +104,14 @@ jobs:
               owner, repo, head_sha: detail.head.sha, per_page: 100,
             });
             const sovereign = detail.head.ref.startsWith("feature/sovereign-");
-            const verify = latestExactWorkflowRun(runs, sovereign ? {
-              name: "Verify Mahoraga",
-              headSha: detail.head.sha,
-              events: ["pull_request", "workflow_dispatch"],
-              ignoredConclusions: ["action_required"],
-            } : { name: "Verify Mahoraga", headSha: detail.head.sha });
+            const verify = sovereign
+              ? latestExactWorkflowRun(runs, {
+                  name: "Verify Mahoraga",
+                  headSha: detail.head.sha,
+                  events: ["pull_request", "workflow_dispatch"],
+                  ignoredConclusions: ["action_required"],
+                })
+              : latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: detail.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: detail.head.sha });
             const verifySucceeded = verify?.status === "completed" && verify.conclusion === "success";
             const relaySucceeded = relay?.status === "completed" && relay.conclusion === "success";
@@ -181,12 +183,14 @@ jobs:
               owner, repo, head_sha: pr.head.sha, per_page: 100,
             });
             const sovereign = pr.head.ref.startsWith("feature/sovereign-");
-            const verify = latestExactWorkflowRun(runs, sovereign ? {
-              name: "Verify Mahoraga",
-              headSha: pr.head.sha,
-              events: ["pull_request", "workflow_dispatch"],
-              ignoredConclusions: ["action_required"],
-            } : { name: "Verify Mahoraga", headSha: pr.head.sha });
+            const verify = sovereign
+              ? latestExactWorkflowRun(runs, {
+                  name: "Verify Mahoraga",
+                  headSha: pr.head.sha,
+                  events: ["pull_request", "workflow_dispatch"],
+                  ignoredConclusions: ["action_required"],
+                })
+              : latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: pr.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: pr.head.sha });
             const freshDecision = evaluateAutonomousIntegration({
               workflow: { name: "Verify Mahoraga", conclusion: verify?.status === "completed" && verify.conclusion === "success" ? "success" : "missing", headSha: pr.head.sha },
