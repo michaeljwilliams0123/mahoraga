@@ -7,6 +7,7 @@ import { ROOT, loadManifest } from "./config.mjs";
 import { buildGapAudit } from "./gap-audit.mjs";
 
 const OPERATOR_SCAN_REPORT = "scripts/sovereign-scan-report.mjs";
+const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -33,6 +34,14 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       title: "chore: add sovereign scan report",
       summary: "Add a zero-credit operator report that summarizes Mahoraga's evidence-backed open and blocked gaps.",
       changedFiles: Object.freeze([OPERATOR_SCAN_REPORT]),
+    });
+  }
+  if (!fileExists(OPERATOR_SCAN_REPORT_TEST)) {
+    return Object.freeze({
+      id: "operator-scan-report-test",
+      title: "test: lock sovereign scan report JSON contract",
+      summary: "Add a zero-credit test that runs the sovereign scan report and asserts the bounded JSON schema.",
+      changedFiles: Object.freeze([OPERATOR_SCAN_REPORT_TEST]),
     });
   }
   return null;
@@ -79,6 +88,32 @@ export function renderOperatorScanReportScript() {
     '  blockedGapIds,',
     '  actionableGapIds,',
     '}, null, 2) + "\\n");',
+    '',
+  ].join("\n");
+}
+
+export function renderOperatorScanReportTest() {
+  return [
+    'import test from "node:test";',
+    'import assert from "node:assert/strict";',
+    'import { spawnSync } from "node:child_process";',
+    'import path from "node:path";',
+    'import { fileURLToPath } from "node:url";',
+    '',
+    'const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");',
+    'const script = path.join(root, "scripts/sovereign-scan-report.mjs");',
+    '',
+    'test("sovereign scan report emits bounded JSON with gap ids", () => {',
+    '  const result = spawnSync(process.execPath, [script], { encoding: "utf8", cwd: root });',
+    '  assert.equal(result.status, 0, result.stderr);',
+    '  const report = JSON.parse(result.stdout);',
+    '  assert.equal(report.schemaVersion, 1);',
+    '  assert.equal(typeof report.product, "string");',
+    '  assert.equal(typeof report.version, "string");',
+    '  assert.ok(report.counts && typeof report.counts === "object");',
+    '  assert.ok(Array.isArray(report.blockedGapIds));',
+    '  assert.ok(Array.isArray(report.actionableGapIds));',
+    '});',
     '',
   ].join("\n");
 }
@@ -143,6 +178,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     command(runCommand, "git", ["checkout", "-b", branchName, baseSha], root);
     if (enhancement.id === "operator-scan-report") {
       writeFileSync(path.join(root, OPERATOR_SCAN_REPORT), renderOperatorScanReportScript(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "operator-scan-report-test") {
+      writeFileSync(path.join(root, OPERATOR_SCAN_REPORT_TEST), renderOperatorScanReportTest(), { encoding: "utf8", flag: "wx" });
     } else {
       throw codedError("candidate-recipe-unsupported");
     }
