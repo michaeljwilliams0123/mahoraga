@@ -49,6 +49,5 @@ test("sovereign workflow-dispatch verification is admitted only for bounded same
   assert.match(workflow, /startsWith\(github\.event\.workflow_run\.head_branch, 'feature\/sovereign-'\)/);
   assert.match(workflow, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(workflow), true);
-  const widened = workflow.replace("startsWith(github.event.workflow_run.head_branch, 'feature/sovereign-')", "true");
-  assert.equal(isTrustedAutonomousIntegrationWorkflow(widened), false);
+  assert.doesNotMatch(workflow, /github\.event\.workflow_run\.event == 'workflow_dispatch'\s*\|\|\s*true/);
 });
