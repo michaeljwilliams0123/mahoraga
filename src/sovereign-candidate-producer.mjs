@@ -8,6 +8,7 @@ import { buildGapAudit } from "./gap-audit.mjs";
 
 const OPERATOR_SCAN_REPORT = "scripts/sovereign-scan-report.mjs";
 const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
+const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -42,6 +43,14 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       title: "test: lock sovereign scan report JSON contract",
       summary: "Add a zero-credit test that runs the sovereign scan report and asserts the bounded JSON schema.",
       changedFiles: Object.freeze([OPERATOR_SCAN_REPORT_TEST]),
+    });
+  }
+  if (!fileExists(OPERATOR_STALE_BRANCH_REPORT)) {
+    return Object.freeze({
+      id: "operator-stale-branch-report",
+      title: "chore: add sovereign stale-branch report",
+      summary: "Add a zero-credit report of leftover feature/sovereign-* branches after squash-merge so the next window is not blocked by candidate-existing-base-drift.",
+      changedFiles: Object.freeze([OPERATOR_STALE_BRANCH_REPORT]),
     });
   }
   return null;
@@ -118,6 +127,29 @@ export function renderOperatorScanReportTest() {
   ].join("\n");
 }
 
+export function renderOperatorStaleBranchReportScript() {
+  return [
+    'import { execFileSync } from "node:child_process";',
+    '',
+    'const raw = execFileSync("git", ["ls-remote", "--heads", "origin"], { encoding: "utf8" });',
+    'const leftoverSovereignBranches = raw.split(/\\r?\\n/)',
+    '  .map((line) => line.trim())',
+    '  .filter(Boolean)',
+    '  .map((line) => {',
+    '    const [sha, ref] = line.split(/\\s+/);',
+    '    return { sha, name: String(ref ?? "").replace(/^refs\\/heads\\//, "") };',
+    '  })',
+    '  .filter((item) => item.name.startsWith("feature/sovereign-") && /^[a-f0-9]{40}$/.test(item.sha))',
+    '  .sort((left, right) => left.name.localeCompare(right.name));',
+    '',
+    'process.stdout.write(JSON.stringify({',
+    '  schemaVersion: 1,',
+    '  leftoverSovereignBranches,',
+    '}, null, 2) + "\\n");',
+    '',
+  ].join("\n");
+}
+
 export function classifyPullRequestCreationFailure(errorLike) {
   const text = diagnosticText(errorLike);
   if (/GitHub Actions is not permitted to create or approve pull requests/i.test(text)) {
@@ -146,6 +178,16 @@ export function decideExistingCandidateHandoff(prs) {
   if (prs.length === 0) return "create-pr";
   if (prs.length === 1) return "reuse-pr";
   throw codedError("candidate-existing-pr-invalid");
+}
+
+export function decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount } = {}) {
+  if (typeof mergeBase !== "string" || typeof baseSha !== "string" || !/^[a-f0-9]{40}$/.test(mergeBase) || !/^[a-f0-9]{40}$/.test(baseSha)) {
+    throw codedError("candidate-existing-base-drift");
+  }
+  if (!Number.isSafeInteger(openPrCount) || openPrCount < 0) throw codedError("candidate-existing-pr-invalid");
+  if (mergeBase === baseSha) return "reuse";
+  if (openPrCount > 0) throw codedError("candidate-existing-base-drift");
+  return "reclaim";
 }
 
 export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = fixedCommand } = {}) {
@@ -180,6 +222,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, OPERATOR_SCAN_REPORT), renderOperatorScanReportScript(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "operator-scan-report-test") {
       writeFileSync(path.join(root, OPERATOR_SCAN_REPORT_TEST), renderOperatorScanReportTest(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "operator-stale-branch-report") {
+      writeFileSync(path.join(root, OPERATOR_STALE_BRANCH_REPORT), renderOperatorStaleBranchReportScript(), { encoding: "utf8", flag: "wx" });
     } else {
       throw codedError("candidate-recipe-unsupported");
     }
@@ -211,12 +255,17 @@ function existingCandidateContext({ repositoryIdentity, branchName, baseSha, enh
   const headSha = command(runCommand, "git", ["rev-parse", `origin/${branchName}`], root);
   if (!/^[a-f0-9]{40}$/.test(headSha) || headSha === baseSha) throw codedError("candidate-existing-head-invalid");
   const mergeBase = command(runCommand, "git", ["merge-base", baseSha, headSha], root);
-  if (mergeBase !== baseSha) throw codedError("candidate-existing-base-drift");
+  const raw = command(runCommand, "gh", ["pr", "list", "--repo", repositoryIdentity, "--head", branchName, "--base", "main", "--state", "open", "--json", "number,headRefOid,baseRefOid,baseRefName,state"], root);
+  const prs = JSON.parse(raw);
+  if (!Array.isArray(prs)) throw codedError("candidate-existing-pr-invalid");
+  const stale = decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount: prs.length });
+  if (stale === "reclaim") {
+    command(runCommand, "git", ["push", "origin", "--delete", branchName], root);
+    return null;
+  }
   const changedFiles = splitLines(command(runCommand, "git", ["diff", "--name-only", `${baseSha}...${headSha}`], root));
   requireExactPaths(changedFiles, enhancement.changedFiles);
   assertSafeCandidatePaths(changedFiles);
-  const raw = command(runCommand, "gh", ["pr", "list", "--repo", repositoryIdentity, "--head", branchName, "--base", "main", "--state", "open", "--json", "number,headRefOid,baseRefOid,baseRefName,state"], root);
-  const prs = JSON.parse(raw);
   decideExistingCandidateHandoff(prs);
   return Object.freeze({ headSha, changedFiles, prs });
 }

@@ -26,10 +26,23 @@ test("scan proposes a scan-report test once the report exists", () => {
   assert.deepEqual(enhancement.changedFiles, ["test/sovereign-scan-report.test.mjs"]);
 });
 
-test("scan returns no actionable work once the report and its test both exist", () => {
+test("scan proposes a stale-branch report once the scan report and its test exist", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
     fileExists: (relative) => relative === "scripts/sovereign-scan-report.mjs" || relative === "test/sovereign-scan-report.test.mjs",
+    gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
+  });
+  assert.equal(enhancement.id, "operator-stale-branch-report");
+  assert.deepEqual(enhancement.changedFiles, ["scripts/sovereign-stale-branch-report.mjs"]);
+});
+
+test("scan returns no actionable work once report, test, and stale-branch report exist", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) =>
+      relative === "scripts/sovereign-scan-report.mjs" ||
+      relative === "test/sovereign-scan-report.test.mjs" ||
+      relative === "scripts/sovereign-stale-branch-report.mjs",
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
@@ -67,6 +80,28 @@ test("operator scan report test is content-bounded and zero-credit", () => {
   assert.match(rendered, /blockedGapIds/);
   assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx/);
   producerModule.assertSafeCandidatePaths(["test/sovereign-scan-report.test.mjs"]);
+});
+
+test("stale-branch report script is content-bounded and zero-credit", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const rendered = producerModule.renderOperatorStaleBranchReportScript();
+  assert.match(rendered, /leftoverSovereignBranches/);
+  assert.match(rendered, /feature\/sovereign-/);
+  assert.match(rendered, /ls-remote/);
+  assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx|git push/);
+  producerModule.assertSafeCandidatePaths(["scripts/sovereign-stale-branch-report.mjs"]);
+});
+
+test("stale leftover candidate branches without an open PR are reclaimable", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const base = "a".repeat(40);
+  const drifted = "b".repeat(40);
+  assert.equal(producerModule.decideStaleCandidateBranch({ mergeBase: base, baseSha: base, openPrCount: 1 }), "reuse");
+  assert.equal(producerModule.decideStaleCandidateBranch({ mergeBase: drifted, baseSha: base, openPrCount: 0 }), "reclaim");
+  assert.throws(
+    () => producerModule.decideStaleCandidateBranch({ mergeBase: drifted, baseSha: base, openPrCount: 1 }),
+    /candidate-existing-base-drift/,
+  );
 });
 
 test("GitHub Actions PR policy denial is classified explicitly", () => {
