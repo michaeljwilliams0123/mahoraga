@@ -45,6 +45,8 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
       providerDecision: null,
       candidate: null,
       terminalReason: "cadence-anchor-not-reached",
+      terminalStage: null,
+      terminalDetail: null,
       windowStartUtc: null,
     });
   }
@@ -92,9 +94,11 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     events.push(event("candidate-ready", cycleId, branch, terminalReason));
     return result("candidate-ready", cycleId, branch, events, providerDecision, { candidate, terminalReason, windowStartUtc });
   } catch (error) {
-    const terminalReason = error.code || "cloud-cycle-error";
+    const terminalReason = safeReason(error?.code) || "cloud-cycle-error";
+    const terminalStage = safeStage(error?.stage);
+    const terminalDetail = safeDetail(error?.publicDetail);
     events.push(event("failed", cycleId, branch, terminalReason));
-    return result("failed", cycleId, branch, events, null, { terminalReason, windowStartUtc });
+    return result("failed", cycleId, branch, events, null, { terminalReason, terminalStage, terminalDetail, windowStartUtc });
   } finally {
     if (client && startedCodespace) await client.stopActive();
   }
@@ -113,13 +117,27 @@ function boundedBranch(value) {
   return value;
 }
 
+function safeReason(value) {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,79}$/.test(value) ? value : null;
+}
+
+function safeStage(value) {
+  return typeof value === "string" && /^[a-z0-9][a-z0-9-]{0,79}$/.test(value) ? value : null;
+}
+
+function safeDetail(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.replace(/[\r\n\t]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  return normalized.length > 0 && normalized.length <= 400 ? normalized : null;
+}
+
 function event(state, cycleId, branch, reason = null) {
   if (!CLOUD_CYCLE_STATES.includes(state)) throw new Error(`Invalid cloud cycle state: ${state}`);
   return Object.freeze({ state, cycleId, branch, reason, at: new Date().toISOString() });
 }
 
-function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null, windowStartUtc = null } = {}) {
-  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, terminalReason, windowStartUtc });
+function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null, terminalStage = null, terminalDetail = null, windowStartUtc = null } = {}) {
+  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, terminalReason, terminalStage, terminalDetail, windowStartUtc });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
