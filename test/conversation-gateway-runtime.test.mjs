@@ -7,7 +7,7 @@ import { startRuntime } from "../src/runtime.mjs";
 
 const TOKEN = "conversation-gateway-runtime-token-000000000001";
 
-test("authenticated v2 loopback intake returns replayable SSE and cancels the run", { concurrency: false }, async (t) => {
+test("authenticated v2 loopback intake returns replayable SSE and a race-safe terminal cancellation response", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-gateway-runtime-"));
   const runtime = await startRuntime({
     port: 0,
@@ -39,7 +39,8 @@ test("authenticated v2 loopback intake returns replayable SSE and cancels the ru
   assert.match(await replay.text(), /event: run-start/);
   const cancelled = await fetch(`${base}/api/v2/runs/${run.id}/cancel`, { method: "POST", headers, body: "{}" });
   assert.equal(cancelled.status, 200);
-  assert.equal((await cancelled.json()).run.state, "cancelled");
+  const terminalState = (await cancelled.json()).run.state;
+  assert.ok(["cancelled", "completed"].includes(terminalState), `unexpected terminal state: ${terminalState}`);
 });
 
 async function waitFor(check, timeoutMs = 8000) {

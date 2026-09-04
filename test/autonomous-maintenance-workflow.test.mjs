@@ -8,8 +8,10 @@ async function workflow(name) {
   return readFile(path.join(ROOT, ".github", "workflows", name), "utf8");
 }
 
-test("scheduled candidate cycle runs the dependency-free worker without npm install", async () => {
+test("scheduled candidate cycle runs every four hours without installing root dependencies", async () => {
   const source = await workflow("sovereign-eight-hour-cycle.yml");
+  assert.match(source, /name: Sovereign Four Hour Candidate Cycle/);
+  assert.match(source, /cron: '17 \*\/4 \* \* \*'/);
   assert.match(source, /permissions:\s*\n\s*contents: read/);
   assert.doesNotMatch(source, /\bnpm ci\b/);
   assert.match(source, /run: node src\/cloud-cycle-worker\.mjs/);
