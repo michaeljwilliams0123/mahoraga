@@ -31,6 +31,10 @@ export function correctRoutine(routine, correction, { learnedAt = new Date().toI
   if (!correction || typeof correction !== 'object' || Array.isArray(correction)) fail('routine-correction-invalid');
   const correctedAt = timestamp(learnedAt, 'routine-correction-time-invalid');
   const nextSteps = steps(correction.steps);
+  const successEvidence = [...new Set([
+    ...current.successEvidence,
+    ...nextSteps.flatMap((step) => step.evidence),
+  ])].sort();
   const history = [...current.corrections, deepFreeze({
     reason: text(correction.reason, 1000, 'routine-correction-reason-invalid'),
     fromRoutineId: current.routineId,
@@ -45,7 +49,7 @@ export function correctRoutine(routine, correction, { learnedAt = new Date().toI
     parameters: current.parameters,
     surfaces: current.surfaces,
     steps: nextSteps,
-    successEvidence: current.successEvidence,
+    successEvidence,
     confidence: Math.min(current.confidence, 0.75),
     successes: 0,
     failures: 0,
@@ -89,6 +93,10 @@ export function validateRoutine(value) {
   count(value.failures, 'routine-failure-count-invalid');
   timestamp(value.learnedAt, 'routine-learned-at-invalid');
   corrections(value.corrections);
+  const core = structuredClone(value);
+  delete core.schemaVersion;
+  delete core.routineId;
+  if (value.routineId !== idFor(core)) fail('routine-id-invalid');
   return deepFreeze(structuredClone(value));
 }
 
