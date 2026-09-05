@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "assignmentId": "sec-cdff3005-5c36-4e37-9628-49fb223810ea",
+  "correlationId": "destiny-production-review-canary-20260905",
+  "title": "Production Mahoraga repository audit canary",
+  "taskArea": "repository-audit",
+  "expectedTask": "Production connectivity test from main-codex to secondary-codex (Destiny). Review the current Mahoraga repository in deep detail without modifying source, workflows, configuration, or production state. Inspect architecture, runtime/autonomy logic, agent routing/coordination, Destiny and secondary lanes, CI/release controls, repair/baseline behavior, tests, repository hygiene, stale/superseded paths, contradictions, reliability risks, and prioritized enhancements. Write findings only to reports/destiny-production-repo-review-2026-09-05.txt with an executive summary, severity-ranked findings, evidence paths, root causes, recommended fixes, and a final connectivity statement confirming whether this assignment was received and executed by Destiny's Codex. Do not create a GitHub Codex code review, do not post PR comments, do not use Vercel as a gate, and do not merge.",
+  "expectedBaseCommit": "c208114ab0cbb19e95639f7ffa760b7cd52031a1",
+  "returnBranch": "secondary/sec-cdff3005-5c36-4e37-9628-49fb223810ea",
+  "allowedPaths": [
+    "reports/destiny-production-repo-review-2026-09-05.txt"
+  ],
+  "createdBy": "main-codex",
+  "assignedTo": "secondary-codex",
+  "createdAt": "2026-09-05T09:52:00Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
