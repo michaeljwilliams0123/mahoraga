@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { validateAutonomyPolicy } from "./autonomy-policy.mjs";
+import { loadProductIdentity } from "./product-identity.mjs";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MANIFEST_PATH = path.join(ROOT, "mahoraga.manifest.json");
@@ -15,13 +16,14 @@ export async function loadManifest(file = MANIFEST_PATH) {
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
   if (!canonical) return validateManifest(JSON.parse(await readFile(file, "utf8")));
 
+  const identity = await loadProductIdentity();
   let manifest;
   try {
     const source = await readFile(file, "utf8");
-    manifest = validateManifest(JSON.parse(source));
+    manifest = applyProductIdentity(validateManifest(JSON.parse(source)), identity);
   } catch (error) {
     const backupSource = await readFile(MANIFEST_BACKUP_PATH, "utf8");
-    const backup = validateManifest(JSON.parse(backupSource));
+    const backup = applyProductIdentity(validateManifest(JSON.parse(backupSource)), identity);
     await stageManifestRecoveryCandidate(error);
     return backup;
   }
@@ -33,6 +35,18 @@ export async function loadManifest(file = MANIFEST_PATH) {
     // A valid live manifest remains authoritative when operational backup storage is unavailable.
   }
   return manifest;
+}
+
+function applyProductIdentity(manifest, identity) {
+  const next = structuredClone(manifest);
+  next.product = identity.product;
+  next.version = identity.version;
+  if (isRecord(next.versions)) {
+    for (const key of ["runtime", "controlCenter", "api"]) {
+      if (Object.hasOwn(next.versions, key)) next.versions[key] = identity.version;
+    }
+  }
+  return Object.freeze(next);
 }
 
 async function stageManifestRecoveryCandidate(error) {
