@@ -5,8 +5,9 @@ import { startRuntime } from "./runtime.mjs";
 import { deriveTaskPolicy, policyTaskInput } from "./task-policy.mjs";
 import { createContentVault } from "./content-vault.mjs";
 import { createPairingOffer } from "./relay-client.mjs";
+import { parseCliArguments } from "./cli-arguments.mjs";
 
-const [command = "start", argument] = process.argv.slice(2);
+const { command, argument, port } = parseCliArguments(process.argv.slice(2), process.env);
 
 if (command === "validate") {
   const manifest = await loadManifest();
@@ -16,8 +17,8 @@ if (command === "validate") {
   if (localAccessToken !== null && !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) throw new TypeError("relay-runtime-access-token-invalid");
   const pairing = localAccessToken ? await createPairingOffer() : null;
   if (pairing) console.log(`Mahoraga relay pairing offer: ${Buffer.from(JSON.stringify(pairing.publicOffer)).toString("base64url")}`);
-  const runtime = await startRuntime({ relay: pairing ? { pairing, localAccessToken } : null });
-  console.log(`Mahoraga ${runtime.manifest.version} is ready at http://${runtime.address.address}:${runtime.address.port}`);
+  const runtime = await startRuntime({ relay: pairing ? { pairing, localAccessToken } : null, ...(port !== null ? { port } : {}) });
+  console.log(`Mahoraga ${runtime.manifest.version} is ready at http://${runtime.address.address}:${runtime.address.port}${runtime.uccp ? " [UCCP candidate isolated]" : ""}`);
   const shutdown = async () => { await runtime.stop(); process.exit(0); };
   process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 } else if (command === "status" || command === "submit") {
@@ -35,6 +36,6 @@ if (command === "validate") {
     }
   } finally { database.close(); }
 } else {
-  console.error("Usage: node src/cli.mjs [start|validate|status|submit <capability>]");
+  console.error("Usage: node src/cli.mjs [start [--port 4783]|validate|status|submit <capability>]");
   process.exitCode = 2;
 }
