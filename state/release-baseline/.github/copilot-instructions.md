@@ -21,6 +21,13 @@ Read `docs/ECOSYSTEM-LOCK.md` and `AGENTS.md` before the first edit.
 - Do not merge, force-push, bypass Protect main, fire Destiny, or spend
   Cloud Pro / metered OpenAI from this session.
 
+## Review transport policy
+
+- Codex is not a code-review path for Mahoraga. It may execute explicitly assigned implementation work only where repository policy otherwise permits it.
+- Do not request, retry, or purchase Codex code review. Do not add credits or generate additional review traffic to recover from a review quota condition.
+- Codex quota or usage-limit messages are non-blocking infrastructure signals. They are not code defects, merge findings, or reasons to retry a review.
+- Use deterministic exact-head GitHub verification and zero-credit repository evidence instead of an unavailable review bot.
+
 ## Guardrails
 
 Safety refusals stay in force. They are **local to the disallowed
