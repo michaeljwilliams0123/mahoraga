@@ -447,6 +447,19 @@ async function runHeartbeatCli() {
   } catch {
     memory = null;
   }
+  let generationAdmit = null;
+  try {
+    const { decideUnattendedGeneration, envGenerationExplicit } = await import("./unattended-generation-admit.mjs");
+    generationAdmit = decideUnattendedGeneration({
+      explicit: envGenerationExplicit(process.env.MAHORAGA_REQUIRES_GENERATION),
+      probe,
+      spendGrantUsd: runtime.spendGrantUsd,
+      platformApiKeyPresent: runtime.platformApiKeyPresent,
+      allowPaidFallback: runtime.allowPaidFallback,
+    });
+  } catch {
+    generationAdmit = null;
+  }
   const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
@@ -456,7 +469,7 @@ async function runHeartbeatCli() {
     invoke,
     foundryRegistry,
     priorReceipts: memory?.receipts ?? [],
-    requiresGeneration: envFlag(process.env.MAHORAGA_REQUIRES_GENERATION),
+    requiresGeneration: generationAdmit?.requiresGeneration === true,
   });
   const resolved = asHeartbeatCliReceipt(await Promise.resolve(cycle));
   let persisted = null;
@@ -477,6 +490,7 @@ async function runHeartbeatCli() {
     unattended: Object.freeze({
       ...resolved.unattended,
       memory: persisted,
+      generationAdmit,
     }),
   });
 }

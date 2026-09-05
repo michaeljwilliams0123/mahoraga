@@ -93,6 +93,10 @@ test("heartbeat CLI exits cleanly without an unsettled top-level-await cycle", (
   assert.equal(receipt.creditCost, 0);
   assert.equal(receipt.paidFallback, false);
   assert.equal(receipt.unattended.kind, "unattended-credit-free-cycle");
+  assert.equal(receipt.unattended.generationAdmit.kind, "unattended-generation-admit");
+  assert.equal(receipt.unattended.generationAdmit.requiresGeneration, false);
+  assert.equal(receipt.unattended.generationAdmit.creditCost, 0);
+  assert.equal(receipt.unattended.generationAdmit.paidFallback, false);
 });
 
 test("a real invoke may verify generation without persisting content", () => {

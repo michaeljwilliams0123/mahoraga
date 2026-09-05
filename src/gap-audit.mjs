@@ -117,6 +117,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Four-hour cycle restores and saves content-free cycle memory through Actions cache so compounding survives ephemeral runners without writing Git.",
   });
+  record(closed, has("src/unattended-generation-admit.mjs") && has("test/unattended-generation-admit.test.mjs"), {
+    id: "unattended-generation-admit",
+    priority: "high",
+    summary: "Unattended generation arms only when a live loopback reasoner is verified or an explicit flag is set; the four-hour Actions cycle stays inspect-only.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

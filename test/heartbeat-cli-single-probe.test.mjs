@@ -13,4 +13,7 @@ test("heartbeat CLI reuses one local-reasoner probe result instead of probing lo
   assert.doesNotMatch(cliSource, /observeLocalReasonerReady/);
   assert.match(cliSource, /probe\s*=\s*await probeLocalReasoner\(\{ timeoutMs: 750 \}\)/);
   assert.match(cliSource, /localReasonerReady\s*=\s*probe\?\.verified\s*===\s*true/);
+  assert.match(cliSource, /decideUnattendedGeneration/);
+  assert.match(cliSource, /envGenerationExplicit\(process\.env\.MAHORAGA_REQUIRES_GENERATION\)/);
+  assert.match(cliSource, /requiresGeneration: generationAdmit\?\.requiresGeneration === true/);
 });

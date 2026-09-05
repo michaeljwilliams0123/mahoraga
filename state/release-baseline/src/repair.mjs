@@ -53,6 +53,7 @@ export const ESSENTIAL_FILES = [
   "src/unattended-foundry-admit.mjs",
   "src/unattended-credit-free-cycle.mjs",
   "src/unattended-cycle-memory.mjs",
+  "src/unattended-generation-admit.mjs",
   "src/heartbeat-ledger.mjs",
   "src/objective-release-authority.mjs",
   "src/autonomous-integration.mjs",
