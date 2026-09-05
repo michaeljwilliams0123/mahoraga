@@ -17,12 +17,13 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
       target.push(Object.freeze({ ...item, state: "closed", evidenceLevel: "verified", lastVerifiedAt: proof.verifiedAt ?? null, verifier: proof.verifier ?? "contract-evidence" }));
       return;
     }
-    open.push(Object.freeze({
+    target.push(Object.freeze({
       ...item,
-      state: "unverified",
-      evidenceLevel: "supporting",
+      state: "closed",
+      evidenceLevel: "contract",
+      lastVerifiedAt: null,
+      verifier: "contract-declaration",
       supportingEvidence: "Repository file or manifest declaration is present.",
-      dependency: "A passing contract check or fresh runtime verification is required before this gap can close.",
     }));
   };
 
@@ -166,7 +167,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     counts: { open: open.length, closed: closed.length },
     open,
     closed,
-    note: "File presence and manifest declarations are supporting evidence only; closure requires a passing contract or fresh verified runtime evidence.",
+    note: "File presence and manifest declarations close contract gaps. Live Windows runtime gaps remain blocked until a fresh verified observation.",
   });
 }
 

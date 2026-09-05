@@ -9,6 +9,7 @@ import { buildGapAudit } from "./gap-audit.mjs";
 const OPERATOR_SCAN_REPORT = "scripts/sovereign-scan-report.mjs";
 const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
 const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs";
+const ZERO_CREDIT_BOUNDARY_TEST = "test/zero-credit-boundary.test.mjs";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -51,6 +52,14 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       title: "chore: add sovereign stale-branch report",
       summary: "Add a zero-credit report of leftover feature/sovereign-* branches after squash-merge so the next window is not blocked by candidate-existing-base-drift.",
       changedFiles: Object.freeze([OPERATOR_STALE_BRANCH_REPORT]),
+    });
+  }
+  if (!fileExists(ZERO_CREDIT_BOUNDARY_TEST)) {
+    return Object.freeze({
+      id: "zero-credit-boundary-test",
+      title: "test: lock zero-credit cycle boundary",
+      summary: "Add a zero-credit test that the four-hour cycle stays on deterministic-only with empty providers, disabled OpenAI, and no generation.",
+      changedFiles: Object.freeze([ZERO_CREDIT_BOUNDARY_TEST]),
     });
   }
   return null;
@@ -150,6 +159,46 @@ export function renderOperatorStaleBranchReportScript() {
   ].join("\n");
 }
 
+export function renderZeroCreditBoundaryTest() {
+  return [
+    'import test from "node:test";',
+    'import assert from "node:assert/strict";',
+    'import { readFile } from "node:fs/promises";',
+    'import path from "node:path";',
+    'import { fileURLToPath } from "node:url";',
+    'import { loadManifest } from "../src/config.mjs";',
+    'import { selectZeroCreditProvider } from "../src/zero-credit-provider-selector.mjs";',
+    '',
+    'const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");',
+    '',
+    'test("four-hour cycle stays deterministic with empty providers and no generation", async () => {',
+    '  const workerSource = await readFile(path.join(root, "src/cloud-cycle-worker.mjs"), "utf8");',
+    '  assert.match(workerSource, /providers: \\[\\]/);',
+    '  assert.match(workerSource, /requiresGeneration: false/);',
+    '  assert.match(workerSource, /cloudModeEnabled: false/);',
+    '  assert.match(workerSource, /MAHORAGA_CANDIDATE_PRODUCER === "github-native"/);',
+    '  assert.doesNotMatch(workerSource, /process\\.env\\.OPENAI/);',
+    '',
+    '  const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");',
+    '  assert.match(workflow, /MAHORAGA_CANDIDATE_PRODUCER:\\s*github-native/);',
+    '  assert.doesNotMatch(workflow, /openai\\.com/);',
+    '',
+    '  const manifest = await loadManifest();',
+    '  assert.equal(manifest.featureFlags.openAIProvider, false);',
+    '',
+    '  const decision = selectZeroCreditProvider({ providers: [], requiresGeneration: false, cloudModeEnabled: false });',
+    '  assert.equal(decision.status, "selected");',
+    '  assert.equal(decision.providerId, "deterministic-only");',
+    '  assert.equal(decision.costClass, "deterministic");',
+    '',
+    '  const waiting = selectZeroCreditProvider({ providers: [], requiresGeneration: true, cloudModeEnabled: true });',
+    '  assert.equal(waiting.status, "waiting");',
+    '  assert.equal(waiting.providerId, "waiting-zero-credit-provider");',
+    '});',
+    '',
+  ].join("\n");
+}
+
 export function classifyPullRequestCreationFailure(errorLike) {
   const text = diagnosticText(errorLike);
   if (/GitHub Actions is not permitted to create or approve pull requests/i.test(text)) {
@@ -224,6 +273,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, OPERATOR_SCAN_REPORT_TEST), renderOperatorScanReportTest(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "operator-stale-branch-report") {
       writeFileSync(path.join(root, OPERATOR_STALE_BRANCH_REPORT), renderOperatorStaleBranchReportScript(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "zero-credit-boundary-test") {
+      writeFileSync(path.join(root, ZERO_CREDIT_BOUNDARY_TEST), renderZeroCreditBoundaryTest(), { encoding: "utf8", flag: "wx" });
     } else {
       throw codedError("candidate-recipe-unsupported");
     }
