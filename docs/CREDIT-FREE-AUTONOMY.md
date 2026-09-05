@@ -183,6 +183,17 @@ Applied now:
   Self-healer restore now covers the trust module, health script,
   Event Dispatch Lane docs, and trust config so a missing file cannot
   drop fail-closed Destiny admission.
+- Destiny event delivery matrix (`src/destiny-event-delivery.mjs`): owner-opened
+  PRs schedule validation; GitHub App-created PRs fail closed to
+  `workflow_dispatch` / owner-authored envelopes. Duplicate deliveries cannot
+  execute twice. Retry is bounded; expiry and the app-created path restriction
+  dead-letter at `$0`.
+- Destiny trigger metrics (`src/destiny-trigger-metrics.mjs`): content-free
+  aggregates for dispatch, validation, ACK/result latency, duplicates, and
+  expiry. Unknown readiness remains unknown; no paid health probe.
+- Branch cleanup ledger (`src/branch-cleanup-ledger.mjs`): Wave A deletion
+  requires a fresh `ahead_by=0` comparison, no open PR, and a non-protected
+  ref. Wave B stays reconcile-only.
 - Hosted “free” inference brands (Groq, Gemini, Hugging Face, OpenRouter,
   Together, Fireworks) classify as metered. `llama-cpp` / `jan` / `gpt4all`
   / `localai` / `mlx` classify as local-reasoner; the live probe remains
