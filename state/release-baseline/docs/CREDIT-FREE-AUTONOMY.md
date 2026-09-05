@@ -193,8 +193,13 @@ Applied now:
   aggregates for dispatch, validation, ACK/result latency, duplicates, and
   expiry. Unknown readiness remains unknown; no paid health probe.
 - Branch cleanup ledger (`src/branch-cleanup-ledger.mjs`): Wave A deletion
-  requires a fresh `ahead_by=0` comparison, no open PR, and a non-protected
-  ref. Wave B stays reconcile-only.
+  requires a fresh comparison, no open PR, and a non-protected ref.
+  `ahead_by=0` remains sufficient. Squash/merge/rebase leftover unique SHAs
+  with a merged PR number are also delete-eligible — GitHub rewrote the
+  commit on `main`, so `ahead_by>0` is a ghost object, not unrebased work.
+  Wave B stays reconcile-only even with merge evidence. This unsticks the
+  2026-09-05 leftover-wave stall (47 Wave A refs, `ahead_by=0`: 0) without
+  buying storage or a review bot.
 - Hosted “free” inference brands (Groq, Gemini, Hugging Face, OpenRouter,
   Together, Fireworks) classify as metered. `llama-cpp` / `jan` / `gpt4all`
   / `localai` / `mlx` classify as local-reasoner; the live probe remains
