@@ -77,6 +77,13 @@ test("generation heartbeats keep containment and record a steward gap until a lo
   });
   assert.equal(ready.stewardGap, null);
   assert.equal(ready.nextAction, "dispatch-credit-free");
+  assert.equal(ready.resultChannel.persistence, "memory-only");
+  assert.equal(ready.resultChannel.promptPersistenceAllowed, false);
+  assert.equal(ready.localReasonerExecution.executionEnabled, true);
+  assert.equal(ready.localReasonerExecution.reason, "transient-result-channel-open");
+  assert.equal(ready.localReasonerExecution.creditCost, 0);
+  assert.equal(waiting.resultChannel, null);
+  assert.equal(waiting.localReasonerExecution.executionEnabled, false);
 });
 
 test("compounded learning stores method identifiers and counts, never prompts", () => {

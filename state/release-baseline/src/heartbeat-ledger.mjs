@@ -1,4 +1,5 @@
 import { compoundCreditFreeLearning, validateHeartbeatReceipt } from "./autonomy-heartbeat.mjs";
+import { compoundCreditFreeSkills } from "./credit-free-skill-compound.mjs";
 
 export const HEARTBEAT_LEDGER_KIND = "credit-free-heartbeat-ledger";
 export const HEARTBEAT_LEDGER_SCHEMA_VERSION = 1;
@@ -29,12 +30,15 @@ export function reduceHeartbeatLedger(records = []) {
   const ledger = createHeartbeatLedger(records);
   return Object.freeze({
     ...ledger,
-    learning: compoundCreditFreeLearning(ledger.receipts),
+    learning: ledger.learning,
+    skills: ledger.skills,
   });
 }
 
 function freezeLedger(receipts, duplicatesSuppressed) {
   const learning = compoundCreditFreeLearning(receipts);
+  const learnedAt = learning.lastObservedAt ?? "2026-09-05T00:00:00.000Z";
+  const skills = compoundCreditFreeSkills({ learning, learnedAt });
   return Object.freeze({
     schemaVersion: HEARTBEAT_LEDGER_SCHEMA_VERSION,
     kind: HEARTBEAT_LEDGER_KIND,
@@ -46,6 +50,7 @@ function freezeLedger(receipts, duplicatesSuppressed) {
     creditCost: 0,
     paidFallback: false,
     learning,
+    skills,
   });
 }
 
