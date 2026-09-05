@@ -36,6 +36,8 @@ export function correctRoutine(routine, correction, { learnedAt = new Date().toI
     fromRoutineId: current.routineId,
     correctedAt,
   })];
+  const correctionEvidence = nextSteps.flatMap((step) => step.evidence);
+  const successEvidence = [...new Set([...current.successEvidence, ...correctionEvidence])].sort();
   const core = {
     parentRoutineId: current.routineId,
     agentId: current.agentId,
@@ -45,7 +47,7 @@ export function correctRoutine(routine, correction, { learnedAt = new Date().toI
     parameters: current.parameters,
     surfaces: current.surfaces,
     steps: nextSteps,
-    successEvidence: current.successEvidence,
+    successEvidence,
     confidence: Math.min(current.confidence, 0.75),
     successes: 0,
     failures: 0,
@@ -76,19 +78,23 @@ export function validateRoutine(value) {
   if (value.schemaVersion !== 1) fail('routine-schema-invalid');
   if (typeof value.routineId !== 'string' || !/^routine-[a-f0-9]{24}$/.test(value.routineId)) fail('routine-id-invalid');
   if (value.parentRoutineId !== null && (typeof value.parentRoutineId !== 'string' || !/^routine-[a-f0-9]{24}$/.test(value.parentRoutineId))) fail('routine-parent-id-invalid');
-  slug(value.agentId, 'routine-agent-id-invalid');
-  slug(value.capability, 'routine-capability-invalid');
-  text(value.intent, 1200, 'routine-intent-invalid');
-  if (!Number.isSafeInteger(value.version) || value.version < 1 || value.version > 1_000_000) fail('routine-version-invalid');
-  parameters(value.parameters);
-  slugList(value.surfaces, 16, 'routine-surfaces-invalid', true);
-  steps(value.steps);
-  textList(value.successEvidence, 32, 240, 'routine-success-evidence-invalid', true);
-  probability(value.confidence, 'routine-confidence-invalid');
-  count(value.successes, 'routine-success-count-invalid');
-  count(value.failures, 'routine-failure-count-invalid');
-  timestamp(value.learnedAt, 'routine-learned-at-invalid');
-  corrections(value.corrections);
+  const core = {
+    parentRoutineId: value.parentRoutineId,
+    agentId: slug(value.agentId, 'routine-agent-id-invalid'),
+    capability: slug(value.capability, 'routine-capability-invalid'),
+    intent: text(value.intent, 1200, 'routine-intent-invalid'),
+    version: routineVersion(value.version),
+    parameters: parameters(value.parameters),
+    surfaces: slugList(value.surfaces, 16, 'routine-surfaces-invalid', true),
+    steps: steps(value.steps),
+    successEvidence: textList(value.successEvidence, 32, 240, 'routine-success-evidence-invalid', true),
+    confidence: probability(value.confidence, 'routine-confidence-invalid'),
+    successes: count(value.successes, 'routine-success-count-invalid'),
+    failures: count(value.failures, 'routine-failure-count-invalid'),
+    learnedAt: timestamp(value.learnedAt, 'routine-learned-at-invalid'),
+    corrections: corrections(value.corrections),
+  };
+  if (value.routineId !== idFor(core)) fail('routine-id-invalid');
   return deepFreeze(structuredClone(value));
 }
 
@@ -114,12 +120,13 @@ function corrections(value) {
   if (!Array.isArray(value) || value.length > 256) fail('routine-corrections-invalid');
   return value.map((item) => {
     exact(item, CORRECTION_KEYS, 'routine-correction-invalid');
-    text(item.reason, 1000, 'routine-correction-reason-invalid');
+    const reason = text(item.reason, 1000, 'routine-correction-reason-invalid');
     if (typeof item.fromRoutineId !== 'string' || !/^routine-[a-f0-9]{24}$/.test(item.fromRoutineId)) fail('routine-correction-source-invalid');
-    timestamp(item.correctedAt, 'routine-correction-time-invalid');
-    return deepFreeze(structuredClone(item));
+    const correctedAt = timestamp(item.correctedAt, 'routine-correction-time-invalid');
+    return deepFreeze({ reason, fromRoutineId: item.fromRoutineId, correctedAt });
   });
 }
+function routineVersion(value) { if (!Number.isSafeInteger(value) || value < 1 || value > 1_000_000) fail('routine-version-invalid'); return value; }
 function idFor(core) { return `routine-${crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex').slice(0,24)}`; }
 function score(routine) { return routine.confidence * 100 + Math.min(routine.successes, 100) * 2 - Math.min(routine.failures, 100) * 8; }
 function probability(value, code) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) fail(code); return value; }
