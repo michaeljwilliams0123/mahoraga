@@ -387,9 +387,16 @@ function envIntegerOrNull(value) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const receipt = await runHeartbeatCli();
-  console.log(JSON.stringify(receipt));
-  if (receipt.nextAction === "refuse-paid-route") process.exitCode = 1;
+  runHeartbeatCli()
+    .then((receipt) => {
+      console.log(JSON.stringify(receipt));
+      if (receipt.nextAction === "refuse-paid-route") process.exitCode = 1;
+    })
+    .catch((error) => {
+      const message = typeof error?.message === "string" ? error.message.slice(0, 80) : "heartbeat-cli-failed";
+      console.error(message);
+      process.exitCode = 1;
+    });
 }
 
 async function runHeartbeatCli() {
