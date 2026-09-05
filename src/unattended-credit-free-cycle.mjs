@@ -93,6 +93,7 @@ function assembleCycle({ heartbeat, generation, priorReceipts, parentAgentId, ex
     generation,
     improvement: summarizeImprovement(improvement),
     fleet: admission.fleet,
+    registry: admission.registry,
     ledger: summarizeLedger(ledger),
     creditCost: 0,
     paidFallback: false,

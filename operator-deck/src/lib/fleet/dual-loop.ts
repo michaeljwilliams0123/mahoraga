@@ -20,6 +20,15 @@ export type FoundryFleetPreview = {
   paidFallback: false;
 };
 
+export type CycleMemoryPreview = {
+  kind: "unattended-cycle-memory";
+  receiptCount: number;
+  agentCount: number;
+  persisted: boolean;
+  creditCost: 0;
+  paidFallback: false;
+};
+
 export type UnattendedCyclePreview = {
   kind: typeof UNATTENDED_CYCLE_KIND;
   fastLoop: "heartbeat";
@@ -29,6 +38,7 @@ export type UnattendedCyclePreview = {
   generation: GenerationSidecar | null;
   foundryPlanCount: number;
   fleet: FoundryFleetPreview;
+  memory: CycleMemoryPreview;
   creditCost: 0;
   paidFallback: false;
 };
@@ -79,6 +89,14 @@ export function previewUnattendedCycle(input: {
       agentCount: 1,
       admittedCount: 1,
       admittedAgentIds,
+      creditCost: 0,
+      paidFallback: false,
+    },
+    memory: {
+      kind: "unattended-cycle-memory",
+      receiptCount: 1,
+      agentCount: 1,
+      persisted: true,
       creditCost: 0,
       paidFallback: false,
     },

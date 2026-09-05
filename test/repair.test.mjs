@@ -36,6 +36,7 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "src/agent-foundry.mjs",
     "src/unattended-foundry-admit.mjs",
     "src/unattended-credit-free-cycle.mjs",
+    "src/unattended-cycle-memory.mjs",
     "src/heartbeat-ledger.mjs",
     "src/autonomous-integration.mjs",
     "scripts/github-audit.mjs",

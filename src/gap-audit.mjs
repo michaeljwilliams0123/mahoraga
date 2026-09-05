@@ -107,6 +107,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "medium",
     summary: "Append-only content-free heartbeat ledger compounds method identifiers and Destiny unreadiness at $0.",
   });
+  record(closed, has("src/unattended-cycle-memory.mjs") && has("test/unattended-cycle-memory.test.mjs"), {
+    id: "unattended-cycle-memory",
+    priority: "high",
+    summary: "File-backed content-free cycle memory persists receipts and admitted specialists outside Git so unattended compounding survives process restart.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

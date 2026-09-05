@@ -87,6 +87,15 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
       foundryRegistry: creditFree.foundryRegistry ?? null,
       localReasonerReady: creditFree.localReasonerReady === true || probe?.verified === true,
     }));
+    if (creditFree.persistMemory === true) {
+      try {
+        const { loadUnattendedCycleMemory, rememberUnattendedCycle, saveUnattendedCycleMemory } = await import("./unattended-cycle-memory.mjs");
+        const memory = creditFree._cycleMemory ?? await loadUnattendedCycleMemory();
+        await saveUnattendedCycleMemory(rememberUnattendedCycle(memory?.receipts?.length ? memory : null, cycle));
+      } catch {
+        /* file-backed memory is best-effort; the in-process receipt still stands */
+      }
+    }
     const heartbeat = cycle.heartbeat;
     const unattended = Object.freeze({
       kind: cycle.kind,
@@ -222,6 +231,26 @@ if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(pro
     creditFree.destinyManifest = JSON.parse(await readFile(path.join(ROOT, "config", "destiny-trigger-trust.json"), "utf8"));
   } catch {
     creditFree.destinyManifest = null;
+  }
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { ROOT } = await import("./config.mjs");
+    const { applyAgentFoundryPlans } = await import("./agent-foundry.mjs");
+    const raw = JSON.parse(await readFile(path.join(ROOT, "coordination", "agent-factory", "registry.json"), "utf8"));
+    creditFree.foundryRegistry = applyAgentFoundryPlans(raw, []);
+  } catch {
+    creditFree.foundryRegistry = null;
+  }
+  try {
+    const { loadUnattendedCycleMemory, mergeFoundryCoverage } = await import("./unattended-cycle-memory.mjs");
+    const memory = await loadUnattendedCycleMemory();
+    creditFree.foundryRegistry = mergeFoundryCoverage(creditFree.foundryRegistry ?? null, memory);
+    creditFree.priorReceipts = memory.receipts;
+    creditFree.persistMemory = true;
+    creditFree._cycleMemory = memory;
+  } catch {
+    /* in-process cycle still runs without durable memory */
   }
   const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc, candidateProducer, creditFree });
   console.log(JSON.stringify(output));
