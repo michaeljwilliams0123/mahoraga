@@ -1,3 +1,5 @@
+import { validateSovereignEvolutionReceipt } from "./sovereign-evolution.mjs";
+
 const TRUSTED_REPOSITORY = "michaeljwilliams0123/mahoraga";
 const TRUSTED_WORKFLOW = "Verify Mahoraga";
 const DESTINY_RESULT_MARKER = "[DESTINY-CODEX:RESULT]";
@@ -29,14 +31,26 @@ export function evaluateAutonomousIntegration(input, policy) {
   if (pullRequest.mergeable !== true) return reject("merge-conflict");
   if (!Array.isArray(policy.eligibleBranchPrefixes) || !policy.eligibleBranchPrefixes.some((prefix) => pullRequest.headRef?.startsWith(prefix))) return reject("branch-not-eligible");
   if (!Array.isArray(pullRequest.changedFiles) || pullRequest.changedFiles.length < 1 || pullRequest.changedFiles.length > 256) return reject("changed-files-invalid");
-  if (pullRequest.changedFiles.some((changedPath) => policy.protectedPaths.some((protectedPath) => pathIsProtected(changedPath, protectedPath)))) return reject("protected-path");
+
+  const protectedChange = pullRequest.changedFiles.some((changedPath) => policy.protectedPaths.some((protectedPath) => pathIsProtected(changedPath, protectedPath)));
+  let sovereignEligible = false;
+  if (protectedChange) {
+    if (!pullRequest.sovereignEvolution || !pullRequest.trustedEpochId) return reject("protected-path");
+    const sovereign = validateSovereignEvolutionReceipt(pullRequest.sovereignEvolution, {
+      headSha: pullRequest.headSha,
+      trustedEpochId: pullRequest.trustedEpochId,
+    });
+    if (!sovereign.valid) return reject(sovereign.reason);
+    sovereignEligible = true;
+  }
+
   if (pullRequest.headRef.startsWith("destiny/")) {
     if (pullRequest.destinyRelayVerified !== true) return reject("destiny-relay-verification-required");
     if (!pullRequest.changedFiles.some((changedPath) => !pathIsProtected(changedPath, DESTINY_DISPATCH_DIRECTORY))) return reject("destiny-implementation-required");
   }
   return Object.freeze({
     eligible: true,
-    reason: "eligible",
+    reason: sovereignEligible ? "sovereign-eligible" : "eligible",
     pullRequestNumber: pullRequest.number,
     headSha: pullRequest.headSha,
   });

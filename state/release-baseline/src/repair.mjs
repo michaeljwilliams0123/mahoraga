@@ -15,7 +15,6 @@ export const ESSENTIAL_FILES = [
   ".github/copilot-instructions.md",
   ".github/instructions/typescript-ui.instructions.md",
   ".github/workflows/autonomous-integration.yml",
-  ".github/workflows/chromebook-control-plane.yml",
   ".github/workflows/codex-cloud-dispatch.yml",
   ".github/workflows/cloud-task-gateway.yml",
   ".github/workflows/destiny-codex-relay.yml",
