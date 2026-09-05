@@ -2,16 +2,28 @@ const CREDIT_FREE_PROVIDERS = Object.freeze(["repository", "local-core", "self-h
 const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = Object.freeze(["primary-codex-builder"]);
 const METERED_PROVIDERS = Object.freeze(["openai-platform", "github-copilot", "workspace-agent-cloud", "codex-cloud"]);
+const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|publish|repair|restart|update|write)\b/i;
+const INSPECT_WORDS = /\b(?:inspect|review|examine|status|health|observe)\b/i;
+const REPAIR_WORDS = /\b(?:repair|heal|restore|rollback)\b/i;
 
 export const CREDIT_FREE_PROTOCOL_STEPS = Object.freeze(["observe", "decide", "act", "verify", "repair", "report"]);
+export const CREDIT_FREE_NEXT_ACTIONS = Object.freeze(["dispatch-credit-free", "hold-planned", "wait-for-local-reasoner", "refuse-paid-route"]);
 
-export const CREDIT_FREE_GRAPH = Object.freeze([
-  Object.freeze({ id: "observe", provider: "repository", capability: "repository.status", dependsOn: Object.freeze([]), completionCriteria: "worker-verified" }),
-  Object.freeze({ id: "decide", provider: "local-core", capability: "system.health", dependsOn: Object.freeze(["observe"]), completionCriteria: "worker-verified" }),
-  Object.freeze({ id: "act", provider: "self-healer", capability: "repair.scan", dependsOn: Object.freeze(["decide"]), completionCriteria: "worker-verified" }),
-  Object.freeze({ id: "verify", provider: "repository", capability: "repository.verify", dependsOn: Object.freeze(["act"]), completionCriteria: "worker-verified" }),
-  Object.freeze({ id: "repair", provider: "self-healer", capability: "repair.apply", dependsOn: Object.freeze(["verify"]), completionCriteria: "worker-verified" }),
-  Object.freeze({ id: "report", provider: "repository", capability: "repository.verify", dependsOn: Object.freeze(["repair"]), completionCriteria: "merge-after-verify" }),
+const NODE = {
+  observe: Object.freeze({ id: "observe", provider: "repository", capability: "repository.status", dependsOn: Object.freeze([]), completionCriteria: "worker-verified" }),
+  decide: Object.freeze({ id: "decide", provider: "local-core", capability: "system.health", dependsOn: Object.freeze(["observe"]), completionCriteria: "worker-verified" }),
+  act: Object.freeze({ id: "act", provider: "self-healer", capability: "repair.scan", dependsOn: Object.freeze(["decide"]), completionCriteria: "worker-verified" }),
+  verify: Object.freeze({ id: "verify", provider: "repository", capability: "repository.verify", dependsOn: Object.freeze(["act"]), completionCriteria: "worker-verified" }),
+  repair: Object.freeze({ id: "repair", provider: "self-healer", capability: "repair.apply", dependsOn: Object.freeze(["verify"]), completionCriteria: "worker-verified" }),
+  report: Object.freeze({ id: "report", provider: "repository", capability: "repository.verify", dependsOn: Object.freeze(["repair"]), completionCriteria: "merge-after-verify" }),
+};
+
+export const CREDIT_FREE_GRAPH = Object.freeze([NODE.observe, NODE.decide, NODE.act, NODE.verify, NODE.repair, NODE.report]);
+
+const INSPECT_GRAPH = Object.freeze([
+  NODE.observe,
+  Object.freeze({ ...NODE.decide, dependsOn: Object.freeze(["observe"]) }),
+  Object.freeze({ id: "report", provider: "repository", capability: "repository.status", dependsOn: Object.freeze(["decide"]), completionCriteria: "worker-verified" }),
 ]);
 
 export function classifyAutonomyProvider(provider) {
@@ -83,6 +95,34 @@ export function attestZeroCreditHealth({
   return health("healthy", "zero-credit-attested", { cloudBudgetAdmissible: true });
 }
 
+export function attestHostedComputeBudget({
+  vercelDeploymentsToday = 0,
+  vercelDailyCap = 100,
+  extraVercelProjects = 0,
+} = {}) {
+  const used = Number(vercelDeploymentsToday);
+  const cap = Number(vercelDailyCap);
+  const extras = Number(extraVercelProjects);
+  if (!Number.isFinite(used) || used < 0 || !Number.isFinite(cap) || cap < 1) {
+    return Object.freeze({ ok: false, status: "unhealthy", reason: "hosted-compute-budget-invalid", creditCost: 0, paidFallback: false });
+  }
+  if (used >= cap) {
+    return Object.freeze({ ok: false, status: "unhealthy", reason: "hosted-deploy-cap-exhausted", creditCost: 0, paidFallback: false, used, cap });
+  }
+  if (extras > 1) {
+    return Object.freeze({ ok: true, status: "degraded", reason: "duplicate-vercel-projects-burn-quota", creditCost: 0, paidFallback: false, used, cap, extras });
+  }
+  return Object.freeze({ ok: true, status: "healthy", reason: "hosted-compute-admissible", creditCost: 0, paidFallback: false, used, cap });
+}
+
+export function resolveCreditFreeNextAction({ health, plane, hostedCompute = null } = {}) {
+  if (hostedCompute && hostedCompute.ok === false) return "hold-planned";
+  if (!health?.ok) return health?.status === "degraded" ? "hold-planned" : "refuse-paid-route";
+  if (plane?.ok) return "dispatch-credit-free";
+  if (plane?.reason === "local-reasoner-not-ready") return "wait-for-local-reasoner";
+  return "refuse-paid-route";
+}
+
 export function assertCreditFreeDispatch(input) {
   const decision = selectCreditFreeExecutionPlane(input);
   if (!decision.ok) throw Object.assign(new Error(decision.reason), { code: decision.reason, decision });
@@ -93,6 +133,73 @@ export function isCreditFreeWorkerId(workerId) {
   return classifyAutonomyProvider(workerId) === "credit-free";
 }
 
+export function classifyCreditFreeIntent(message) {
+  const text = String(message ?? "");
+  if (REPAIR_WORDS.test(text)) return "repair";
+  if (INSPECT_WORDS.test(text) && !MUTATION_WORDS.test(text)) return "inspect";
+  if (MUTATION_WORDS.test(text)) return "autonomous-action";
+  return "autonomous-action";
+}
+
+export function selectCreditFreeGraph(intentKind = "autonomous-action") {
+  if (intentKind === "inspect") return INSPECT_GRAPH;
+  return CREDIT_FREE_GRAPH;
+}
+
+export function planCreditFreeWork({
+  message = "",
+  localReasonerReady = false,
+  spendGrantUsd = 0,
+  platformApiKeyPresent = false,
+  allowPaidFallback = false,
+  providers = ["repository", "local-core", "self-healer"],
+  requestedProvider = "repository",
+  vercelDeploymentsToday = 0,
+  vercelDailyCap = 100,
+  extraVercelProjects = 0,
+  now = new Date(),
+} = {}) {
+  const intentKind = classifyCreditFreeIntent(message);
+  const maintenance = maintainCreditFreeAutonomy({
+    spendGrantUsd,
+    platformApiKeyPresent,
+    allowPaidFallback,
+    providers,
+    localReasonerReady,
+    requestedProvider,
+    vercelDeploymentsToday,
+    vercelDailyCap,
+    extraVercelProjects,
+    now,
+  });
+  const graph = selectCreditFreeGraph(intentKind);
+  const mutation = MUTATION_WORDS.test(String(message ?? ""));
+  const stewardGap = mutation && localReasonerReady !== true
+    ? Object.freeze({
+      id: "credit-free-deferred-implementation",
+      state: "hold-planned",
+      priority: "p1",
+      summary: "Containment ran at $0. Model-backed source edits wait for a live local reasoner or an owner-authorized dispatch.",
+      dependency: "ollama-or-owner-dispatch",
+      creditCost: 0,
+      paidFallback: false,
+    })
+    : null;
+  return Object.freeze({
+    schemaVersion: 1,
+    intentKind,
+    nextAction: maintenance.nextAction,
+    health: maintenance.health,
+    plane: maintenance.plane,
+    hostedCompute: maintenance.hostedCompute,
+    graph,
+    stewardGap,
+    creditCost: 0,
+    paidFallback: false,
+    observedAt: maintenance.observedAt,
+  });
+}
+
 export function maintainCreditFreeAutonomy({
   spendGrantUsd = 0,
   platformApiKeyPresent = false,
@@ -101,6 +208,9 @@ export function maintainCreditFreeAutonomy({
   localReasonerReady = false,
   cloudBudgetAdmissible = false,
   requestedProvider = "repository",
+  vercelDeploymentsToday = 0,
+  vercelDailyCap = 100,
+  extraVercelProjects = 0,
   now = new Date(),
 } = {}) {
   const healthAttestation = attestZeroCreditHealth({
@@ -118,16 +228,14 @@ export function maintainCreditFreeAutonomy({
     localReasonerReady,
     cloudBudgetAdmissible,
   });
-  const nextAction = !healthAttestation.ok
-    ? (healthAttestation.status === "degraded" ? "hold-planned" : "refuse-paid-route")
-    : plane.ok
-      ? "dispatch-credit-free"
-      : "wait-for-local-reasoner";
+  const hostedCompute = attestHostedComputeBudget({ vercelDeploymentsToday, vercelDailyCap, extraVercelProjects });
+  const nextAction = resolveCreditFreeNextAction({ health: healthAttestation, plane, hostedCompute });
   return Object.freeze({
     schemaVersion: 1,
     observedAt: canonicalNow(now),
     health: healthAttestation,
     plane,
+    hostedCompute,
     nextAction,
     protocol: CREDIT_FREE_PROTOCOL_STEPS,
     creditCost: 0,
@@ -135,8 +243,8 @@ export function maintainCreditFreeAutonomy({
   });
 }
 
-export function creditFreeGraphNodes() {
-  return CREDIT_FREE_GRAPH.map((node) => {
+export function creditFreeGraphNodes(graph = CREDIT_FREE_GRAPH) {
+  return [...graph].map((node) => {
     const decision = assertCreditFreeDispatch({ requestedProvider: node.provider });
     return Object.freeze({
       ...node,

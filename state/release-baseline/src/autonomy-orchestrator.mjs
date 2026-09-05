@@ -1,5 +1,5 @@
 import { AUTONOMY_OBJECTIVE_AUTHORITY } from "./objective-release-authority.mjs";
-import { CREDIT_FREE_GRAPH, assertCreditFreeDispatch } from "./credit-free-autonomy.mjs";
+import { CREDIT_FREE_GRAPH, assertCreditFreeDispatch, planCreditFreeWork } from "./credit-free-autonomy.mjs";
 
 const MAX_MESSAGE_LENGTH = 800;
 
@@ -27,7 +27,7 @@ function creditFreeRequested({ creditFreeRequired, requestedMode }) {
 
 function taskTypeForProvider(provider) {
   if (provider === "self-healer") return "repair";
-  if (provider === "local-core") return "local";
+  if (provider === "local-core" || provider === "steward-learning") return "local";
   return "repository";
 }
 
@@ -108,8 +108,10 @@ function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, comp
 }
 
 function buildCreditFreeObjective({ conversationId, messageId, request, area, contract }) {
+  const plan = planCreditFreeWork({ message: request });
+  const graph = plan.graph ?? CREDIT_FREE_GRAPH;
   const context = `User request: ${request}`;
-  const tasks = CREDIT_FREE_GRAPH.map((node) => creditFreeTask({
+  const tasks = graph.map((node) => creditFreeTask({
     node,
     outcome: `${node.id} the bounded credit-free protocol for ${context}`,
     conversationId,
@@ -123,6 +125,9 @@ function buildCreditFreeObjective({ conversationId, messageId, request, area, co
     creditFreeRequired: true,
     creditCost: 0,
     paidFallback: false,
+    intentKind: plan.intentKind,
+    nextAction: plan.nextAction,
+    stewardGap: plan.stewardGap,
     tasks: Object.freeze(tasks.map((task) => Object.freeze(task))),
   });
 }
