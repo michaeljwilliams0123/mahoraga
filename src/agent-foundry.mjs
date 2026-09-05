@@ -73,10 +73,16 @@ export function applyAgentFoundryPlans(registry, plans = []) {
     const manifest = validateChildAgentManifest(plan.manifest);
     if (manifest.parentAgentId !== registry.parentAgentId) fail('agent-registry-parent-mismatch');
     const current = agents.get(manifest.agentId);
-    if (current && JSON.stringify(current) !== JSON.stringify(manifest)) fail('agent-registry-conflict');
+    if (current && !sameAgentDefinition(current, manifest)) fail('agent-registry-conflict');
     if (!current) agents.set(manifest.agentId, manifest);
   }
   return deepFreeze({ schemaVersion: 1, parentAgentId: registry.parentAgentId, agents: [...agents.values()].sort((a, b) => a.agentId.localeCompare(b.agentId)) });
+}
+
+function sameAgentDefinition(left, right) {
+  const { createdAt: leftCreatedAt, ...leftDefinition } = left;
+  const { createdAt: rightCreatedAt, ...rightDefinition } = right;
+  return JSON.stringify(leftDefinition) === JSON.stringify(rightDefinition);
 }
 
 function validateGap(value) {
