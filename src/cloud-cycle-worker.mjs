@@ -219,8 +219,9 @@ if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(pro
   }
   const creditFree = { ...readCreditFreeRuntime() };
   try {
-    const { observeLocalReasonerReady } = await import("./local-reasoner-provider.mjs");
-    creditFree.localReasonerReady = await observeLocalReasonerReady({ timeoutMs: 1500 });
+    const { probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
+    creditFree.probe = await probeLocalReasoner({ timeoutMs: 750 });
+    creditFree.localReasonerReady = creditFree.probe?.verified === true;
   } catch {
     /* env/runtime default stands */
   }

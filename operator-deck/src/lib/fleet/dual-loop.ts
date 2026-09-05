@@ -36,6 +36,15 @@ export type CycleMemoryPreview = {
   paidFallback: false;
 };
 
+export type GenerationAdmitPreview = {
+  kind: "unattended-generation-admit";
+  requiresGeneration: boolean;
+  armed: boolean;
+  reason: string;
+  creditCost: 0;
+  paidFallback: false;
+};
+
 export type UnattendedCyclePreview = {
   kind: typeof UNATTENDED_CYCLE_KIND;
   fastLoop: "heartbeat";
@@ -46,6 +55,7 @@ export type UnattendedCyclePreview = {
   foundryPlanCount: number;
   fleet: FoundryFleetPreview;
   memory: CycleMemoryPreview;
+  generationAdmit: GenerationAdmitPreview;
   creditCost: 0;
   paidFallback: false;
 };
@@ -64,8 +74,18 @@ export function previewUnattendedCycle(input: {
 }): UnattendedCyclePreview {
   const heartbeat = previewCreditFreeHeartbeat(input);
   const inspectOnly = input.inspectOnly !== false;
+  let generationAdmit: GenerationAdmitPreview;
+  if (input.cloudTagged === true) {
+    generationAdmit = admitPreview(false, "ollama-cloud-not-credit-free");
+  } else if (inspectOnly === true) {
+    generationAdmit = admitPreview(false, "inspect-only-explicit");
+  } else if (input.localReasonerReady === true) {
+    generationAdmit = admitPreview(true, "loopback-reasoner-live");
+  } else {
+    generationAdmit = admitPreview(false, "wait-for-local-reasoner");
+  }
   let generation: GenerationSidecar | null = null;
-  if (inspectOnly !== true) {
+  if (generationAdmit.requiresGeneration === true) {
     if (input.cloudTagged === true) {
       generation = sidecar("refused", "ollama-cloud-not-credit-free");
     } else if (input.localReasonerReady !== true) {
@@ -114,6 +134,7 @@ export function previewUnattendedCycle(input: {
       creditCost: 0,
       paidFallback: false,
     },
+    generationAdmit,
     creditCost: 0,
     paidFallback: false,
   };
@@ -125,4 +146,15 @@ export function dualLoopMethodIds(): typeof CREDIT_FREE_PROTOCOL_STEPS {
 
 function sidecar(status: GenerationSidecar["status"], reason: string): GenerationSidecar {
   return { status, reason, creditCost: 0, paidFallback: false };
+}
+
+function admitPreview(requiresGeneration: boolean, reason: string): GenerationAdmitPreview {
+  return {
+    kind: "unattended-generation-admit",
+    requiresGeneration,
+    armed: requiresGeneration,
+    reason,
+    creditCost: 0,
+    paidFallback: false,
+  };
 }
