@@ -24,7 +24,6 @@ function ruleset(overrides = {}) {
           required_status_checks: [
             { context: "Verify (ubuntu-latest)" },
             { context: "Verify (windows-latest)" },
-            { context: "Verify unified Vercel workspace" },
           ],
         },
       },
@@ -63,7 +62,6 @@ test("tracked contract is the canonical exact-head Verify set", () => {
   assert.deepEqual(contract.requiredContexts, [
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)",
-    "Verify unified Vercel workspace",
   ]);
   assert.equal(contract.strictExactHead, true);
   assert.equal(contract.deletionAllowed, false);
