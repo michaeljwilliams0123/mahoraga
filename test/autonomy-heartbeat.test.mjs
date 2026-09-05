@@ -32,6 +32,13 @@ test("unattended heartbeat runs the inspect protocol at $0 without a user prompt
   assert.equal(validateHeartbeatReceipt(receipt), receipt);
 });
 
+test("Destiny-enhanced heartbeat receipts preserve exact zero-paid semantics and canonical timestamps", () => {
+  const receipt = runCreditFreeHeartbeat({ now: NOW, world: { openIssues: 2 } });
+  assert.throws(() => validateHeartbeatReceipt({ ...receipt, paidFallback: null }), /heartbeat-paid-contamination/);
+  assert.throws(() => validateHeartbeatReceipt({ ...receipt, paidFallback: "false" }), /heartbeat-paid-contamination/);
+  assert.throws(() => validateHeartbeatReceipt({ ...receipt, observedAt: "2026-09-05T08:00:00Z" }), /heartbeat-observed-at-invalid/);
+});
+
 test("heartbeat never recovers through paid, metered, or key-backed routes", () => {
   const refused = runCreditFreeHeartbeat({ now: NOW, allowPaidFallback: true });
   assert.equal(refused.nextAction, "refuse-paid-route");
@@ -83,6 +90,14 @@ test("compounded learning stores method identifiers and counts, never prompts", 
   assert.equal(JSON.stringify(learning).includes("Update the"), false);
   assert.equal(learning.creditCost, 0);
   assert.throws(() => compoundCreditFreeLearning([{ ...first, creditCost: 1 }]), /heartbeat-paid-contamination/);
+});
+
+test("Destiny-enhanced compounded learning derives latest timestamps chronologically", () => {
+  const newer = runCreditFreeHeartbeat({ now: new Date("2026-09-05T09:00:00.000Z"), world: { openIssues: 1 } });
+  const older = runCreditFreeHeartbeat({ now: new Date("2026-09-05T08:00:00.000Z"), world: { openIssues: 2 } });
+  const learning = compoundCreditFreeLearning([newer, older]);
+  assert.equal(learning.lastObservedAt, "2026-09-05T09:00:00.000Z");
+  assert.equal(learning.lastHealthyAt, "2026-09-05T09:00:00.000Z");
 });
 
 test("credit-free objectives honor live local-reasoner evidence instead of defaulting to a steward gap", () => {
