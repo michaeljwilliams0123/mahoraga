@@ -150,6 +150,10 @@ Applied now:
   fires. Git remains read-only. Prompts and model output never enter the file.
   This is the Voyager skill-library hop: compounding survives process restart
   without dirtying `main`.
+- The four-hour GitHub Actions scheduler restores and saves that same snapshot
+  through `actions/cache` (`unattended-cycle-memory-v1`). Runners are ephemeral;
+  a cache miss is empty memory, not a spend grant. Cache eviction is a legal
+  wait. Buying object storage is not. Git stays read-only.
 - Transient result channel so a live Ollama/LM Studio can execute without
   persisting prompts or buying a cloud key. Verified (or held) generate results
   are stored as status + SHA-256 on that channel.
@@ -196,7 +200,7 @@ The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into ev
 
 ## Durable ledger
 
-`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git at `state/heartbeat-ledger.json`. Actions step summaries remain the CI-visible `$0` ledger. `src/unattended-cycle-memory.mjs` is the durable Voyager library: it loads prior receipts and admitted specialists, merges Git coverage without writing Git, and saves the next snapshot after every unattended fire.
+`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git at `state/heartbeat-ledger.json`. Actions step summaries remain the CI-visible `$0` ledger. `src/unattended-cycle-memory.mjs` is the durable Voyager library: it loads prior receipts and admitted specialists, merges Git coverage without writing Git, and saves the next snapshot after every unattended fire. The four-hour workflow restores and saves those files through Actions cache so compounding survives ephemeral runners.
 
 ## Contract
 

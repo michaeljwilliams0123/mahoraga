@@ -241,6 +241,9 @@ test("four-hour cycle workflow runs the credit-free heartbeat before candidate p
   assert.match(source, /api-deployments-free-per-day/);
   assert.match(source, /steps\.heartbeat\.outputs\.next_action != 'hold-planned'/);
   assert.match(source, /MAHORAGA_HOSTED_LEDGER_TEXT/);
+  assert.match(source, /Restore unattended cycle memory/);
+  assert.match(source, /actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/);
+  assert.match(source, /state\/unattended-cycle-memory\.json/);
 });
 
 test("unattended heartbeat observes hosted-compute exhaustion from the GitHub ledger instead of defaulting to dispatch", () => {

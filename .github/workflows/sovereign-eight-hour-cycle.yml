@@ -60,6 +60,16 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Restore unattended cycle memory
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            state/unattended-cycle-memory.json
+            state/heartbeat-ledger.json
+          key: unattended-cycle-memory-v1-${{ runner.os }}-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            unattended-cycle-memory-v1-${{ runner.os }}-${{ github.repository }}-
+
       - name: Resolve durable cadence anchor
         id: cadence
         env:
@@ -263,6 +273,16 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24'
+
+      - name: Restore unattended cycle memory
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            state/unattended-cycle-memory.json
+            state/heartbeat-ledger.json
+          key: unattended-cycle-memory-v1-${{ runner.os }}-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: |
+            unattended-cycle-memory-v1-${{ runner.os }}-${{ github.repository }}-
 
       - name: Arm one-time producer smoke ten minutes after deployment
         id: smoke

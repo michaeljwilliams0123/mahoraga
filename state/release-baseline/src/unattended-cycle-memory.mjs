@@ -9,6 +9,19 @@ export const UNATTENDED_CYCLE_MEMORY_KIND = "unattended-cycle-memory";
 export const UNATTENDED_CYCLE_MEMORY_SCHEMA_VERSION = 1;
 export const UNATTENDED_CYCLE_MEMORY_RELATIVE = "state/unattended-cycle-memory.json";
 export const HEARTBEAT_LEDGER_RELATIVE = "state/heartbeat-ledger.json";
+export const UNATTENDED_CYCLE_MEMORY_CACHE = Object.freeze({
+  kind: "unattended-cycle-memory-cache",
+  schemaVersion: 1,
+  action: "actions/cache",
+  pin: "55cc8345863c7cc4c66a329aec7e433d2d1c52a9",
+  version: "v6.1.0",
+  keyPrefix: "unattended-cycle-memory-v1",
+  restoreStepName: "Restore unattended cycle memory",
+  paths: Object.freeze([UNATTENDED_CYCLE_MEMORY_RELATIVE, HEARTBEAT_LEDGER_RELATIVE]),
+  creditCost: 0,
+  paidFallback: false,
+  gitWrite: false,
+});
 const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
 
 const FORBIDDEN_CONTENT_KEYS = new Set(["prompt", "response", "content", "messages", "chat"]);
@@ -130,6 +143,20 @@ export async function saveUnattendedCycleMemory(memory, { root = ROOT, env = pro
   const ledgerFile = resolveHeartbeatLedgerPath({ root, env });
   await writeAtomicJson(ledgerFile, createHeartbeatLedger(current.receipts));
   return summarizeUnattendedCycleMemory(current, { persisted: true });
+}
+
+export function workflowWiresSchedulerMemoryCache(source) {
+  if (typeof source !== "string" || source.length === 0) return false;
+  const cache = UNATTENDED_CYCLE_MEMORY_CACHE;
+  if (cache.creditCost !== 0 || cache.paidFallback !== false || cache.gitWrite !== false) return false;
+  const restoreCount = source.split(cache.restoreStepName).length - 1;
+  return source.includes(`actions/cache@${cache.pin}`)
+    && source.includes(`# ${cache.version}`)
+    && source.includes(cache.keyPrefix)
+    && source.includes("github.run_id")
+    && source.includes("restore-keys:")
+    && cache.paths.every((relative) => source.includes(relative))
+    && restoreCount >= 2;
 }
 
 function normalizeRegistry(registry, parentAgentId) {

@@ -12,8 +12,10 @@ import {
   rememberUnattendedCycle,
   saveUnattendedCycleMemory,
   summarizeUnattendedCycleMemory,
+  UNATTENDED_CYCLE_MEMORY_CACHE,
   UNATTENDED_CYCLE_MEMORY_KIND,
   validateUnattendedCycleMemory,
+  workflowWiresSchedulerMemoryCache,
 } from "../src/unattended-cycle-memory.mjs";
 
 const NOW = new Date("2026-09-05T15:00:00.000Z");
@@ -118,4 +120,26 @@ test("paid contamination and prompt keys fail closed", () => {
   assert.throws(() => validateUnattendedCycleMemory({ ...memory, prompt: "secret" }), /unattended-memory-content-forbidden/);
   assert.throws(() => rememberUnattendedCycle(memory, { ...cycle, paidFallback: true }), /unattended-paid-contamination/);
   assert.equal(summarizeUnattendedCycleMemory(memory).receiptCount, 1);
+});
+
+test("scheduler cache contract stays content-free and refuses Git writes", () => {
+  assert.equal(UNATTENDED_CYCLE_MEMORY_CACHE.creditCost, 0);
+  assert.equal(UNATTENDED_CYCLE_MEMORY_CACHE.paidFallback, false);
+  assert.equal(UNATTENDED_CYCLE_MEMORY_CACHE.gitWrite, false);
+  assert.equal(UNATTENDED_CYCLE_MEMORY_CACHE.action, "actions/cache");
+  assert.ok(UNATTENDED_CYCLE_MEMORY_CACHE.paths.includes("state/unattended-cycle-memory.json"));
+  assert.ok(UNATTENDED_CYCLE_MEMORY_CACHE.paths.includes("state/heartbeat-ledger.json"));
+  assert.equal(workflowWiresSchedulerMemoryCache(""), false);
+  assert.equal(workflowWiresSchedulerMemoryCache("actions/cache@v4"), false);
+});
+
+test("four-hour cycle restores cycle memory from Actions cache on both jobs", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const { ROOT } = await import("../src/config.mjs");
+  const source = await readFile(path.join(ROOT, ".github", "workflows", "sovereign-eight-hour-cycle.yml"), "utf8");
+  assert.equal(workflowWiresSchedulerMemoryCache(source), true);
+  assert.match(source, /unattended-cycle-memory-v1-\$\{\{ runner\.os \}\}-\$\{\{ github\.repository \}\}-\$\{\{ github\.run_id \}\}/);
+  assert.doesNotMatch(source, /paidFallback:\s*true/);
+  assert.doesNotMatch(source, /git add state\/unattended-cycle-memory\.json/);
 });
