@@ -61,7 +61,7 @@ function readableBytes(bytes: number) {
 function runtimeErrorMessage(code: string) {
   const messages: Record<string, string> = {
     "zero-credit-provider-unavailable": "No verified zero-credit language provider is connected yet. Deterministic runtime capabilities remain available, or you can deliberately select Cloud Pro.",
-    "zero-credit-objective-provider-unavailable": "This change needs a model-backed coding objective. Stage it through the GitHub Primary Codex lane, or select Cloud Pro deliberately; the zero-credit route will not spend credits automatically.",
+    "zero-credit-objective-provider-unavailable": "Older paired runtimes rejected model-backed objectives. Current zero-credit autonomy runs observe, decide, act, verify, repair, and report on local workers instead of spending credits.",
     "relay-not-paired": "The paired runtime is no longer connected. Pair it again to continue on the zero-credit route.",
     "relay-disconnected": "The encrypted runtime connection closed. This conversation was not sent to Cloud Pro.",
     "relay-request-timeout": "The paired runtime did not answer before the bounded timeout. No paid fallback was attempted.",

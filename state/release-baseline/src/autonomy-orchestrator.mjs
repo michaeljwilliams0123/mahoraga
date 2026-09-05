@@ -1,4 +1,5 @@
 import { AUTONOMY_OBJECTIVE_AUTHORITY } from "./objective-release-authority.mjs";
+import { CREDIT_FREE_GRAPH, assertCreditFreeDispatch } from "./credit-free-autonomy.mjs";
 
 const MAX_MESSAGE_LENGTH = 800;
 
@@ -18,6 +19,46 @@ function executionContract(value) {
   }))].sort();
   if (paths.length !== value.allowedPaths.length) throw new TypeError("Autonomy allowed paths must be unique.");
   return Object.freeze({ baseCommit, allowedPaths: Object.freeze(paths) });
+}
+
+function creditFreeRequested({ creditFreeRequired, requestedMode }) {
+  return creditFreeRequired === true || requestedMode === "credit-free";
+}
+
+function taskTypeForProvider(provider) {
+  if (provider === "self-healer") return "repair";
+  if (provider === "local-core") return "local";
+  return "repository";
+}
+
+function creditFreeTask({ node, outcome, conversationId, taskArea, contract }) {
+  const decision = assertCreditFreeDispatch({ requestedProvider: node.provider });
+  return {
+    id: node.id,
+    authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY,
+    capability: node.capability,
+    dataClass: "synthetic",
+    taskType: taskTypeForProvider(node.provider),
+    requestedMode: "automatic",
+    executionPlane: "local",
+    priority: "high",
+    maximumAttempts: 1,
+    conversationId,
+    taskArea,
+    owner: "mahoraga",
+    provider: node.provider,
+    retryPolicy: "bounded",
+    completionCriteria: node.completionCriteria,
+    requestedOutcome: outcome,
+    baseCommit: contract.baseCommit,
+    allowedPaths: [...contract.allowedPaths],
+    dependsOn: [...node.dependsOn],
+    creditFreeRequired: true,
+    creditCost: decision.creditCost,
+    paidFallback: decision.paidFallback,
+    plane: decision.plane,
+    className: decision.className,
+  };
 }
 
 function codexTask({ id, dependsOn, outcome, conversationId, requestedMode, taskArea, contract }) {
@@ -66,6 +107,26 @@ function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, comp
   };
 }
 
+function buildCreditFreeObjective({ conversationId, messageId, request, area, contract }) {
+  const context = `User request: ${request}`;
+  const tasks = CREDIT_FREE_GRAPH.map((node) => creditFreeTask({
+    node,
+    outcome: `${node.id} the bounded credit-free protocol for ${context}`,
+    conversationId,
+    taskArea: area,
+    contract,
+  }));
+  return Object.freeze({
+    title: `Credit-free autonomous: ${request}`.slice(0, 240),
+    correlationId: `aut-${messageId}`.slice(0, 240),
+    maximumReplans: 2,
+    creditFreeRequired: true,
+    creditCost: 0,
+    paidFallback: false,
+    tasks: Object.freeze(tasks.map((task) => Object.freeze(task))),
+  });
+}
+
 export function buildAutonomyObjective({
   conversationId,
   messageId,
@@ -73,10 +134,14 @@ export function buildAutonomyObjective({
   requestedMode = "hybrid",
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
+  creditFreeRequired = false,
 }) {
   const contract = executionContract(suppliedExecutionContract);
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
+  if (creditFreeRequested({ creditFreeRequired, requestedMode })) {
+    return buildCreditFreeObjective({ conversationId, messageId, request, area, contract });
+  }
   const context = `User request: ${request}`;
   const tasks = [
     codexTask({ id: "propose", dependsOn: [], outcome: `Propose a concrete implementation for ${context}`, conversationId, requestedMode, taskArea: area, contract }),
@@ -106,6 +171,7 @@ export function createAutonomousConversationTurn({
   requestedMode = "hybrid",
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
+  creditFreeRequired = false,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -118,6 +184,7 @@ export function createAutonomousConversationTurn({
     requestedMode,
     taskArea,
     executionContract: contract,
+    creditFreeRequired,
   }));
   return Object.freeze({ message, objective });
 }
@@ -132,6 +199,7 @@ export function createAutonomousConversation({
   requestedMode = "hybrid",
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
+  creditFreeRequired = false,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -147,6 +215,7 @@ export function createAutonomousConversation({
     requestedMode,
     taskArea,
     executionContract: contract,
+    creditFreeRequired,
   }));
   return Object.freeze({ conversation, objective });
 }
