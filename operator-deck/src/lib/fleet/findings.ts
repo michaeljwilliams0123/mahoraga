@@ -199,7 +199,7 @@ export function liveFindings(snapshot: GithubSnapshot | null): ReviewFinding[] {
         ? "Issue #78 is still open — Protect main is already settings-enforced"
         : "Issue #78 is closed or not in the open set",
       detail: open78
-        ? "Ruleset 22284961 (Protect main) is active with required Verify checks. The settings write is done. Close #78 from the write plane after posting evidence."
+        ? "Ruleset 22327855 (Protect main — exact-head Verify) is active with required Verify checks. The settings write is done. Close #128 from the write plane after posting evidence."
         : "Main-protection issue is not currently open on the public snapshot.",
       owner: "admin",
     },

@@ -15,6 +15,8 @@ steps:
   - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
     with:\n      script: |\n        const verify = latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: detail.head.sha });\n        const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: detail.head.sha });\n        const verifySucceeded = verify?.status === "completed" && verify.conclusion === "success";\n        const relaySucceeded = relay?.status === "completed" && relay.conclusion === "success";\n        const freshDecision = evaluateAutonomousIntegration({ pullRequest: { headContainsMain: ancestry.data.behind_by === 0 } }, policy);\n        if (!freshDecision.eligible) throw new Error(\`policy-changed-before-merge:\${freshDecision.reason}\`);\n        if (freshDecision.headSha !== expectedHead) throw new Error("verified-head-advanced");\n        github.rest.pulls.merge({ sha: expectedHead, merge_method: "squash" });
         github.rest.actions.createWorkflowDispatch({ workflow_id: "verify.yml", ref: "main" });
+        const trustedEpoch = parseIncumbentTrustEpoch(fs.readFileSync("state/incumbent-trust-epoch.json", "utf8"));
+        const sovereignEvolution = null;
 `;
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted), true);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted.replace("ref: main", "ref: ${{ github.event.workflow_run.head_sha }}")), false);

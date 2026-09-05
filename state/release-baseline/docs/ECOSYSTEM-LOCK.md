@@ -38,7 +38,7 @@ Canonical machine-readable copies:
 7. **Do not spend your way around the lock.** No Destiny fire, Cloud Pro
    spend, or metered OpenAI API from an agent session in order to rebuild
    the stack.
-8. **Protect main.** Ruleset `22284961`. Required checks: Verify
+8. **Protect main.** Ruleset `22327855`. Required checks: Verify
    (ubuntu-latest), Verify (windows-latest), Verify unified Vercel
    workspace. Never squash-merge a blocked PR.
 9. **Keep public exposure bounded.** Persistent, unbounded public exposure

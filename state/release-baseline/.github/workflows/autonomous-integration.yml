@@ -76,6 +76,7 @@ jobs:
             const path = require("path");
             const { pathToFileURL } = require("url");
             const { latestExactWorkflowRun } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "autonomous-integration.mjs")).href);
+            const { parseIncumbentTrustEpoch, selectSovereignReceiptPath } = await import(pathToFileURL(path.join(process.env.GITHUB_WORKSPACE, "src", "incumbent-trust-epoch.mjs")).href);
             const { owner, repo } = context.repo;
             const dispatched = context.eventName === "workflow_dispatch";
             const run = context.payload.workflow_run;
@@ -115,6 +116,20 @@ jobs:
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: detail.head.sha });
             const verifySucceeded = verify?.status === "completed" && verify.conclusion === "success";
             const relaySucceeded = relay?.status === "completed" && relay.conclusion === "success";
+            let trustedEpoch = null;
+            try {
+              trustedEpoch = parseIncumbentTrustEpoch(fs.readFileSync("state/incumbent-trust-epoch.json", "utf8"));
+            } catch {
+              trustedEpoch = null;
+            }
+            const receiptPath = selectSovereignReceiptPath(files.map((item) => item.filename));
+            let sovereignEvolution = null;
+            if (receiptPath) {
+              const blob = await github.rest.repos.getContent({ owner, repo, path: receiptPath, ref: detail.head.sha });
+              if (blob.data?.type === "file" && typeof blob.data.content === "string") {
+                sovereignEvolution = JSON.parse(Buffer.from(blob.data.content.replaceAll("\n", ""), "base64").toString("utf8"));
+              }
+            }
 
             fs.mkdirSync("state", { recursive: true });
             fs.writeFileSync("state/autonomous-integration-input.json", JSON.stringify({
@@ -128,6 +143,8 @@ jobs:
                 headContainsMain: ancestry.data.behind_by === 0,
                 changedFiles: files.slice(0, 257).map((item) => item.filename),
                 destinyRelayVerified: relaySucceeded,
+                trustedEpoch,
+                sovereignEvolution,
               },
             }));
             core.setOutput("found", "true");
@@ -171,6 +188,7 @@ jobs:
             const workspace = process.env.GITHUB_WORKSPACE;
             const { autonomyPolicySnapshot } = await import(pathToFileURL(path.join(workspace, "src", "autonomy-policy.mjs")).href);
             const { evaluateAutonomousIntegration, latestExactWorkflowRun } = await import(pathToFileURL(path.join(workspace, "src", "autonomous-integration.mjs")).href);
+            const { parseIncumbentTrustEpoch, selectSovereignReceiptPath } = await import(pathToFileURL(path.join(workspace, "src", "incumbent-trust-epoch.mjs")).href);
             const manifest = JSON.parse(fs.readFileSync(path.join(workspace, "mahoraga.manifest.json"), "utf8"));
             const { owner, repo } = context.repo;
             const pull_number = Number(process.env.PULL_REQUEST);
@@ -192,6 +210,20 @@ jobs:
                 })
               : latestExactWorkflowRun(runs, { name: "Verify Mahoraga", headSha: pr.head.sha });
             const relay = latestExactWorkflowRun(runs, { name: "Validate Destiny Codex Relay", headSha: pr.head.sha });
+            let trustedEpoch = null;
+            try {
+              trustedEpoch = parseIncumbentTrustEpoch(fs.readFileSync(path.join(workspace, "state", "incumbent-trust-epoch.json"), "utf8"));
+            } catch {
+              trustedEpoch = null;
+            }
+            const receiptPath = selectSovereignReceiptPath(files.map((item) => item.filename));
+            let sovereignEvolution = null;
+            if (receiptPath) {
+              const blob = await github.rest.repos.getContent({ owner, repo, path: receiptPath, ref: pr.head.sha });
+              if (blob.data?.type === "file" && typeof blob.data.content === "string") {
+                sovereignEvolution = JSON.parse(Buffer.from(blob.data.content.replaceAll("\n", ""), "base64").toString("utf8"));
+              }
+            }
             const freshDecision = evaluateAutonomousIntegration({
               workflow: { name: "Verify Mahoraga", conclusion: verify?.status === "completed" && verify.conclusion === "success" ? "success" : "missing", headSha: pr.head.sha },
               pullRequest: {
@@ -203,6 +235,8 @@ jobs:
                 headContainsMain: ancestry.data.behind_by === 0,
                 changedFiles: files.slice(0, 257).map((item) => item.filename),
                 destinyRelayVerified: relay?.status === "completed" && relay.conclusion === "success",
+                trustedEpoch,
+                sovereignEvolution,
               },
             }, autonomyPolicySnapshot(manifest));
             if (!freshDecision.eligible) throw new Error(`policy-changed-before-merge:${freshDecision.reason}`);

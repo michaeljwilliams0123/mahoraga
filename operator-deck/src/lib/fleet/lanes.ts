@@ -26,7 +26,7 @@ export const ISSUE_LANES: Record<number, IssueLane> = {
   },
   78: {
     fence: "GitHub branch protection (settings, not files)",
-    next: "Ruleset 22284961 Protect main is active. Inspect, comment, then close #78.",
+    next: "Ruleset 22327855 Protect main is active. Inspect, comment, then close #128.",
   },
   83: {
     fence: "contained-branch deletion + reconciliation ledger",

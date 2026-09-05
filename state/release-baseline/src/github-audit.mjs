@@ -110,6 +110,8 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     "scripts/autonomous-integration.mjs",
     "src/autonomous-integration.mjs",
     "src/autonomy-policy.mjs",
+    "src/incumbent-trust-epoch.mjs",
+    "state/incumbent-trust-epoch.json",
   ];
   const autonomousMissing = autonomousFiles.filter((file) => !fileSet.has(file));
   const autonomousTrusted = autonomousMissing.length === 0 && isTrustedAutonomousIntegrationWorkflow(autonomousWorkflow);
@@ -117,8 +119,52 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     "autonomous-integration",
     autonomousTrusted,
     "blocking",
-    autonomousTrusted ? "Automatic integration is bound to trusted main policy, exact verified heads, and current base." : "Automatic integration authority is missing or broader than the trusted contract.",
+    autonomousTrusted ? "Automatic integration is bound to trusted main policy, exact verified heads, incumbent epoch transport, and current base." : "Automatic integration authority is missing or broader than the trusted contract.",
     autonomousMissing.length ? { files: autonomousMissing } : undefined,
+  );
+
+  let incumbentEpochHealthy = false;
+  let incumbentEpochSummary = "The incumbent trust epoch is missing or invalid.";
+  try {
+    const { parseIncumbentTrustEpoch } = await import("./incumbent-trust-epoch.mjs");
+    const epoch = parseIncumbentTrustEpoch(await readFile(path.join(root, "state/incumbent-trust-epoch.json"), "utf8"));
+    incumbentEpochHealthy = epoch.trustedCommit.length === 40;
+    incumbentEpochSummary = incumbentEpochHealthy
+      ? "Incumbent trust epoch is present, schema-valid, and bound to a full commit SHA."
+      : incumbentEpochSummary;
+  } catch {
+    incumbentEpochHealthy = false;
+  }
+  add(
+    "incumbent-trust-epoch",
+    incumbentEpochHealthy,
+    "blocking",
+    incumbentEpochSummary,
+  );
+
+  const liveProtectionFiles = [
+    "config/main-protection.contract.json",
+    "src/github-live-protection.mjs",
+    "scripts/github-live-protection.mjs",
+  ];
+  const liveProtectionMissing = liveProtectionFiles.filter((file) => !fileSet.has(file));
+  const packageSource = await readFile(path.join(root, "package.json"), "utf8");
+  let liveContractHealthy = false;
+  try {
+    const { parseMainProtectionContract, LIVE_PROTECTION_PROBE } = await import("./github-live-protection.mjs");
+    parseMainProtectionContract(await readFile(path.join(root, "config/main-protection.contract.json"), "utf8"));
+    liveContractHealthy = liveProtectionMissing.length === 0 && packageSource.includes(LIVE_PROTECTION_PROBE);
+  } catch {
+    liveContractHealthy = false;
+  }
+  add(
+    "live-main-protection-contract",
+    liveContractHealthy,
+    "blocking",
+    liveContractHealthy
+      ? "Live main-protection contract, evaluator, and zero-credit probe are present."
+      : "Live main-protection contract is missing or is not wired into verify.",
+    liveProtectionMissing.length ? { files: liveProtectionMissing } : undefined,
   );
 
   const destinyWorkflow = workflowSources.find(([file]) => file === ".github/workflows/destiny-codex-relay.yml")?.[1] ?? "";
@@ -270,7 +316,10 @@ export function isTrustedAutonomousIntegrationWorkflow(source) {
     && /headContainsMain:\s*ancestry\.data\.behind_by === 0/.test(source)
     && /freshDecision\.headSha !== expectedHead/.test(source)
     && /pulls\.merge\(\{[\s\S]*sha:\s*expectedHead[\s\S]*merge_method:\s*"squash"/.test(source)
-    && /actions\.createWorkflowDispatch\(\{[\s\S]*workflow_id:\s*"verify\.yml"[\s\S]*ref:\s*"main"/.test(source);
+    && /actions\.createWorkflowDispatch\(\{[\s\S]*workflow_id:\s*"verify\.yml"[\s\S]*ref:\s*"main"/.test(source)
+    && /incumbent-trust-epoch\.json/.test(source)
+    && /trustedEpoch/.test(source)
+    && /sovereignEvolution/.test(source);
 }
 
 export function isDeterministicDependency(specification) {

@@ -58,6 +58,26 @@ The four-hour candidate cycle runs this heartbeat as a preflight. The unattended
 10. Keep a live local reasoner for source mutations. Probe Ollama at `127.0.0.1:11434` and LM Studio at `127.0.0.1:1234`. Either unmetered loopback is enough. Deterministic inspect/repair continues without a model. Paid fallback is never the missing-model recovery path.
 11. Obtain autonomy by keeping GitHub public-repo Actions, deterministic workers, and one local open-weight server. Maintain it by never adding extra Vercel projects, never enabling the Platform API, and never treating Copilot review credits as a heartbeat. The Vercel free cap (`api-deployments-free-per-day`) is a legal `hold-planned`, not a spend grant.
 
+## 2026 research applied
+
+Current local-first agent practice (Ollama / LM Studio / open-weight Codespaces,
+GitHub Actions as the scheduler, inference as optional) is already Mahoraga's
+selector. This research does **not** authorize a stack replacement.
+
+Applied now:
+
+- Keep the durable loop at `$0`. Chat is not the scheduler.
+- Dual-probe Ollama and LM Studio; either live unmetered loopback is enough.
+- GitHub-native `main` protection and the incumbent epoch are credit-free
+  containment, not a model. They fail closed without paid review bots.
+- Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,
+  extra Vercel projects, or Copilot review is not a recovery path.
+- Compound identifier-only learning. Do not store prompts or chats to "get
+  smarter."
+
+Not applied: cloud API fallbacks, Hugging Face free-tier as a guaranteed route,
+or a JavaScript rewrite of this repository.
+
 ## 2026 local-first constraints
 
 Applied from current local-first agent practice. These are constraints, not a stack replacement.
