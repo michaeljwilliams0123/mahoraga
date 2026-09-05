@@ -3,7 +3,8 @@
   "targetRef": "refs/heads/main",
   "requiredContexts": [
     "Verify (ubuntu-latest)",
-    "Verify (windows-latest)"
+    "Verify (windows-latest)",
+    "Verify unified Vercel workspace"
   ],
   "strictExactHead": true,
   "deletionAllowed": false,

@@ -24,6 +24,7 @@ function ruleset(overrides = {}) {
           required_status_checks: [
             { context: "Verify (ubuntu-latest)" },
             { context: "Verify (windows-latest)" },
+            { context: "Verify unified Vercel workspace" },
           ],
         },
       },
@@ -58,10 +59,34 @@ test("live main protection fails closed without rulesets, force-push, or missing
   }).reason, "main-required-checks-missing");
 });
 
+test("live main protection requires unified Vercel workspace with Ubuntu and Windows", () => {
+  const report = evaluateLiveMainProtection({
+    rulesets: [ruleset({ rules: [
+      { type: "deletion" },
+      { type: "non_fast_forward" },
+      { type: "pull_request" },
+      {
+        type: "required_status_checks",
+        parameters: {
+          strict_required_status_checks_policy: true,
+          required_status_checks: [
+            { context: "Verify (ubuntu-latest)" },
+            { context: "Verify (windows-latest)" },
+          ],
+        },
+      },
+    ] })],
+    contract,
+  });
+  assert.equal(report.reason, "main-required-checks-missing");
+  assert.deepEqual(report.missing, ["Verify unified Vercel workspace"]);
+});
+
 test("tracked contract is the canonical exact-head Verify set", () => {
   assert.deepEqual(contract.requiredContexts, [
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)",
+    "Verify unified Vercel workspace",
   ]);
   assert.equal(contract.strictExactHead, true);
   assert.equal(contract.deletionAllowed, false);
