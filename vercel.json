@@ -1,0 +1,6 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "installCommand": "npm ci --prefix cloud-app",
+  "buildCommand": "npm run build --prefix cloud-app"
+}
