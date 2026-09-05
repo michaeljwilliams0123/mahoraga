@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadManifest } from "../src/config.mjs";
 import { loadProductIdentity, assertProductIdentityMirrors } from "../src/product-identity.mjs";
 
@@ -31,10 +31,5 @@ async function main() {
   console.log(`Product identity valid: ${result.identity.product} ${result.identity.version}`);
 }
 
-const invoked = process.argv[1] ? pathToFileURLSafe(process.argv[1]) : null;
+const invoked = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
 if (invoked === import.meta.url) await main();
-
-function pathToFileURLSafe(value) {
-  const absolute = path.resolve(value).replace(/\\/g, "/");
-  return `file://${absolute.startsWith("/") ? "" : "/"}${absolute}`;
-}
