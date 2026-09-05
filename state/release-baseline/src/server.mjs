@@ -496,14 +496,21 @@ async function executeChatTurn({ database, manifest, artifactStore, autonomyPoli
   const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
   const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
   if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
+  const title = chatConversationTitle(body.content);
   if (creditPolicy === "zero-codex") {
-    if (decision.execution === "objective") return { status: 409, value: { error: "zero-credit-objective-provider-unavailable", decision } };
+    if (decision.execution === "objective") {
+      const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
+      const result = body.conversationId
+        ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: "credit-free", taskArea: decision.intentKind, executionContract, creditFreeRequired: true })
+        : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: "credit-free", taskArea: decision.intentKind, executionContract, creditFreeRequired: true });
+      const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
+      return { status: 202, value: { decision, conversation, task: null, objective: result.objective, creditFreeRequired: true, creditCost: 0, paidFallback: false } };
+    }
     const eligible = manifest.workers.filter((worker) => worker.enabled && worker.capabilities.includes(decision.capability));
     if (!eligible.some((worker) => new Set(["deterministic", "local-model"]).has(worker.costClass))) {
       return { status: 409, value: { error: "zero-credit-provider-unavailable", decision } };
     }
   }
-  const title = chatConversationTitle(body.content);
   if (decision.execution === "objective") {
     const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
     const result = body.conversationId

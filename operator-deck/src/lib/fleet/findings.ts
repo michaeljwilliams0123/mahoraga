@@ -36,6 +36,14 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
     owner: "assurance",
   },
   {
+    id: "credit-free-protocol-graph",
+    severity: "ok",
+    title: "Zero-codex conversation now runs a local protocol graph",
+    detail:
+      "Paired-runtime Act no longer 409s for want of Codex. Observe-decide-act-verify-repair-report leases repository, local-core, and self-healer at $0. Hybrid chat still uses the Codex debate DAG. Paid fallback remains forbidden.",
+    owner: "assurance",
+  },
+  {
     id: "tunnel-posture",
     severity: "ok",
     title: "No inbound tunnels — keep it that way",

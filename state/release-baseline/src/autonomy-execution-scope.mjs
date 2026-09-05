@@ -1,7 +1,7 @@
 const DEFAULT_PATHS = Object.freeze(["src", "test"]);
 
 const GROUPS = Object.freeze([
-  Object.freeze({ pattern: /\b(interface|ui|frontend|control\s+center|workspace|page|layout|design|accessib)/i, paths: Object.freeze(["cloud"]) }),
+  Object.freeze({ pattern: /\b(interface|ui|frontend|control\s+center|workspace|page|layout|design|accessib|operator)/i, paths: Object.freeze(["cloud-app", "operator-deck"]) }),
   Object.freeze({ pattern: /\b(doc|docs|documentation|readme|document)/i, paths: Object.freeze(["docs"]) }),
   Object.freeze({ pattern: /\b(manifest|provider)/i, paths: Object.freeze(["mahoraga.manifest.json"]) }),
   Object.freeze({ pattern: /\b(package|packages|dependency|dependencies)/i, paths: Object.freeze(["package.json"]) }),

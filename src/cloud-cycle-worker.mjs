@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
+import { attestZeroCreditHealth } from "./credit-free-autonomy.mjs";
 import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "no-candidate", "candidate-ready"]);
@@ -59,6 +60,20 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
       const terminalReason = providerDecision.providerId ?? "provider-unavailable";
       events.push(event("waiting", cycleId, branch, terminalReason));
       return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
+    }
+    if (requiresGeneration !== true) {
+      const health = attestZeroCreditHealth({
+        providers: ["repository", "local-core", "self-healer"],
+        spendGrantUsd: 0,
+        allowPaidFallback: false,
+        platformApiKeyPresent: false,
+        cloudBudgetAdmissible: false,
+      });
+      if (!health.ok) {
+        const terminalReason = health.reason ?? "credit-free-health-unhealthy";
+        events.push(event("waiting", cycleId, branch, terminalReason));
+        return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
+      }
     }
     if (providerDecision.providerId === "codespaces-open-weight") {
       events.push(event("cloud-running", cycleId, branch));

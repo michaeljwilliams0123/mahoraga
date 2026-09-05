@@ -34,6 +34,20 @@ test("conversation autonomy builds two independent debate lanes before synthesis
   assert.equal(objective.tasks.find((task) => task.id === "integrate").completionCriteria, "merge-after-verify");
 });
 
+test("credit-free mode uses the protocol graph instead of Codex debate lanes", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000000",
+    message: "Upgrade the routing nodes and links, then verify the result.",
+    requestedMode: "credit-free",
+    creditFreeRequired: true,
+    executionContract: EXECUTION_CONTRACT,
+  });
+  assert.deepEqual(objective.tasks.map((task) => task.id), ["observe", "decide", "act", "verify", "repair", "report"]);
+  assert.equal(objective.tasks.every((task) => task.provider !== "primary-codex-builder"), true);
+  assert.equal(objective.tasks.find((task) => task.id === "report").completionCriteria, "merge-after-verify");
+});
+
 test("a response-requesting user turn persists once and creates one objective", () => {
   const calls = [];
   const database = {

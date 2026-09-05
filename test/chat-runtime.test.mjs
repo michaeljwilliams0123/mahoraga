@@ -66,7 +66,8 @@ test("unified chat intake separates questions from explicit actions", { concurre
   assert.equal(codexDefinitions.length, 4);
   for (const definition of codexDefinitions) {
     assert.match(definition.baseCommit, /^[a-f0-9]{40,64}$/);
-    assert.equal(definition.allowedPaths.includes("cloud"), true);
+    assert.equal(definition.allowedPaths.includes("cloud-app"), true);
+    assert.equal(definition.allowedPaths.includes("operator-deck"), true);
     assert.equal(definition.allowedPaths.includes("src"), true);
     assert.equal(definition.allowedPaths.includes("test"), true);
     assert.equal(Object.hasOwn(definition, "integrationLeaseId"), false);
@@ -101,7 +102,7 @@ test("repository head failure leaves autonomous chat intake unpersisted", { conc
   assert.equal(runtime.database.listObjectives().length, 0);
 });
 
-test("owner-paired relay rejects Codex-backed autonomous chat without spending credits", { concurrency: false }, async (t) => {
+test("owner-paired relay starts a credit-free protocol objective without spending credits", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-relay-chat-runtime-"));
   const expectedHead = "d".repeat(40);
   const runtime = await startRuntime({
@@ -114,11 +115,16 @@ test("owner-paired relay rejects Codex-backed autonomous chat without spending c
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
 
-  await assert.rejects(runtime.server.conversationGateway.chat({
+  const result = await runtime.server.conversationGateway.chat({
     mode: "act", content: "Update the Mahoraga interface and apply the change", idempotencyKey: "relay-chat-act-runtime",
   }, {
     mechanism: "owner-paired-relay", attendedSession: { active: true, sessionId: "rls-00000000000000000000000000000000" },
-  }), /zero-credit-objective-provider-unavailable/);
-  assert.equal(runtime.database.listConversations().length, 0);
-  assert.equal(runtime.database.listObjectives().length, 0);
+  });
+  assert.equal(result.creditFreeRequired, true);
+  assert.equal(result.creditCost, 0);
+  assert.equal(result.paidFallback, false);
+  assert.deepEqual(result.objective.tasks.map((item) => item.definition.id).sort(), ["act", "decide", "observe", "repair", "report", "verify"]);
+  assert.equal(result.objective.tasks.some((item) => item.definition.capability === "codex.execute"), false);
+  assert.equal(runtime.database.listConversations().length, 1);
+  assert.equal(runtime.database.listObjectives().length, 1);
 });
