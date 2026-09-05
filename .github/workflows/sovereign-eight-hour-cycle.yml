@@ -133,6 +133,30 @@ jobs:
           echo "complete_tag=${complete_tag}" >> "$GITHUB_OUTPUT"
           echo "should_run=true" >> "$GITHUB_OUTPUT"
 
+      - name: Credit-free heartbeat preflight
+        if: steps.cadence.outputs.should_run == 'true'
+        id: heartbeat
+        shell: bash
+        run: |
+          set -euo pipefail
+          output="$(node src/autonomy-heartbeat.mjs)"
+          echo "${output}"
+          action="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.nextAction);' "${output}")"
+          cost="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.creditCost));' "${output}")"
+          paid="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.paidFallback));' "${output}")"
+          echo "next_action=${action}" >> "$GITHUB_OUTPUT"
+          if [[ "${cost}" != "0" || "${paid}" != "false" ]]; then
+            echo "Heartbeat contaminated a paid route; refusing." >&2
+            exit 1
+          fi
+          if [[ "${action}" == "refuse-paid-route" ]]; then
+            echo "Credit-free heartbeat refused a paid route." >&2
+            exit 1
+          fi
+          if [[ "${action}" == "hold-planned" ]]; then
+            echo "Credit-free heartbeat held planned; cycle will not buy a route."
+          fi
+
       - name: Run anchored zero-credit candidate cycle
         id: cycle
         if: steps.cadence.outputs.should_run == 'true'
