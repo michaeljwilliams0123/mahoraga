@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import {
   CREDIT_FREE_NEXT_ACTIONS,
   CREDIT_FREE_PROTOCOL_STEPS,
@@ -386,10 +387,17 @@ function envIntegerOrNull(value) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const receipt = await runHeartbeatCli();
-  console.log(JSON.stringify(receipt));
-  if (receipt.nextAction === "refuse-paid-route") process.exitCode = 1;
+if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  runHeartbeatCli()
+    .then((receipt) => {
+      console.log(JSON.stringify(receipt));
+      if (receipt.nextAction === "refuse-paid-route") process.exitCode = 1;
+    })
+    .catch((error) => {
+      const message = typeof error?.message === "string" ? error.message.slice(0, 80) : "heartbeat-cli-failed";
+      console.error(message);
+      process.exitCode = 1;
+    });
 }
 
 async function runHeartbeatCli() {
