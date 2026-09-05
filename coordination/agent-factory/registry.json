@@ -103,14 +103,16 @@
       "agentId": "mahoraga-self-extension-builder",
       "parentAgentId": "mahoraga-steward",
       "role": "self-extension-builder",
-      "mission": "Additively extend Mahoraga with bounded tests, patches, agent replication, and self-enhancement without deleting or renaming baseline files.",
+      "mission": "Additively extend Mahoraga with bounded artifacts, tests, patches, agent replication, and self-enhancement without deleting or renaming baseline files.",
       "capabilities": [
+        "artifact-create",
         "code-create-test",
         "self-patch",
         "agent-replicate",
         "self-enhance"
       ],
       "privileges": [
+        "artifact-write",
         "github-actions-dispatch",
         "github-contents-write",
         "github-pr-write",
