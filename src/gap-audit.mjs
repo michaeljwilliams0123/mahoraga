@@ -112,6 +112,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "File-backed content-free cycle memory persists receipts and admitted specialists outside Git so unattended compounding survives process restart.",
   });
+  record(closed, has("src/unattended-cycle-memory.mjs") && has("test/unattended-cycle-memory.test.mjs") && has(".github/workflows/sovereign-eight-hour-cycle.yml"), {
+    id: "unattended-scheduler-memory",
+    priority: "high",
+    summary: "Four-hour cycle restores and saves content-free cycle memory through Actions cache so compounding survives ephemeral runners without writing Git.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

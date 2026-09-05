@@ -25,6 +25,13 @@ export type CycleMemoryPreview = {
   receiptCount: number;
   agentCount: number;
   persisted: boolean;
+  scheduler: {
+    kind: "unattended-cycle-memory-cache";
+    backend: "actions-cache";
+    gitWrite: false;
+    creditCost: 0;
+    paidFallback: false;
+  };
   creditCost: 0;
   paidFallback: false;
 };
@@ -97,6 +104,13 @@ export function previewUnattendedCycle(input: {
       receiptCount: 1,
       agentCount: 1,
       persisted: true,
+      scheduler: {
+        kind: "unattended-cycle-memory-cache",
+        backend: "actions-cache",
+        gitWrite: false,
+        creditCost: 0,
+        paidFallback: false,
+      },
       creditCost: 0,
       paidFallback: false,
     },
