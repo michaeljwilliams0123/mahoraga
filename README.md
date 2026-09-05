@@ -12,6 +12,17 @@ sensitive surfaces, server-derived authority, typed receipts, evidence-backed
 routing, isolated Codex worktrees, an encrypted local content vault, and
 incident-only repair records.
 
+## AI agents — do not JavaScript-rewrite this repository
+
+ChatGPT, Copilot, and Codex must follow
+[`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md) and
+[`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+
+- New UI is **TypeScript** (`cloud-app/`, `operator-deck/`).
+- The control plane stays Node ESM **`.mjs`**.
+- Do not wipe, scaffold over, or "simplify" Mahoraga into a JavaScript app.
+- A model safety refusal is not a license to replace the stack.
+
 ## Release truth
 
 - Installed candidate metadata: runtime/API `7.0.0-alpha.1`. Two Vercel browser UIs:

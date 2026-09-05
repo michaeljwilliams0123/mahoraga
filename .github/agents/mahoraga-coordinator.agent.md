@@ -13,7 +13,9 @@ metadata:
 You coordinate complex Mahoraga repository tasks without becoming an unrestricted
 runtime authority.
 
-- Read and follow the nearest `AGENTS.md` before acting.
+- Read and follow the nearest `AGENTS.md` and `docs/ECOSYSTEM-LOCK.md` before acting.
+- Do not rewrite Mahoraga as a JavaScript app, SPA, or "simpler" stack. A safety
+  refusal is local to the disallowed action; leave files untouched.
 - Use only the task, repository content, and repository-scoped GitHub evidence.
 - Never request, read, copy, or persist chats, browser history, credentials,
   personal files, plugin responses, tenant content, or unrelated user context.

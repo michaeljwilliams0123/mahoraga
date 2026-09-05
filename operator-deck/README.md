@@ -16,9 +16,10 @@ Operators should work **here** for GitHub and fleet commands, talk in Cloud, and
 
 ## Language and host
 
-- **TypeScript** locked. Never Java unless a Java service is started on purpose.
+- **TypeScript** locked. Never JavaScript for new UI. Never Java unless a Java service is started on purpose.
 - **Vercel** is the app host. Google Workspace is not.
 - Auth stays off on this console. Writes use the owner `gh` session and fail closed without it. Tokens are never rendered.
+- ChatGPT / Copilot must not delete this console or rewrite it as JS. See [../docs/ECOSYSTEM-LOCK.md](../docs/ECOSYSTEM-LOCK.md).
 
 ## What this console will not do
 
@@ -30,6 +31,8 @@ Operators should work **here** for GitHub and fleet commands, talk in Cloud, and
 ## Related docs
 
 - [../docs/OPERATOR-CONSOLE.md](../docs/OPERATOR-CONSOLE.md)
+- [../docs/ECOSYSTEM-LOCK.md](../docs/ECOSYSTEM-LOCK.md)
+- [../.github/copilot-instructions.md](../.github/copilot-instructions.md)
 - [../.github/ai-instructions.md](../.github/ai-instructions.md)
 - [../docs/UPDATE-CHANNEL.md](../docs/UPDATE-CHANNEL.md)
 - [../docs/CLOUD-WORKSPACE.md](../docs/CLOUD-WORKSPACE.md)
