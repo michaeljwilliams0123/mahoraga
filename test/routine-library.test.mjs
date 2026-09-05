@@ -31,6 +31,14 @@ test('a semantic demonstration compiles without storing secret parameter values'
   assert.equal(routine.corrections.length, 0);
 });
 
+test('routine identifiers are bound to the routine contents', () => {
+  const routine = subject.compileRoutineDemonstration(demo({ parameters: [] }), { learnedAt: '2026-09-05T08:00:00.000Z' });
+  assert.throws(
+    () => subject.validateRoutine({ ...routine, intent: 'A materially different intent.' }),
+    /routine-id-invalid/,
+  );
+});
+
 test('a correction creates a new immutable version and does not mutate the prior routine', () => {
   const base = subject.compileRoutineDemonstration(demo({ parameters: [] }), { learnedAt: '2026-09-05T08:00:00.000Z' });
   const corrected = subject.correctRoutine(base, {
@@ -45,6 +53,20 @@ test('a correction creates a new immutable version and does not mutate the prior
   assert.equal(corrected.version, 2);
   assert.equal(corrected.parentRoutineId, base.routineId);
   assert.equal(corrected.corrections.length, 1);
+});
+
+test('corrected routines require evidence introduced by the correction', () => {
+  const base = subject.compileRoutineDemonstration(demo({ parameters: [] }), { learnedAt: '2026-09-05T08:00:00.000Z' });
+  const corrected = subject.correctRoutine(base, {
+    reason: 'Verify account before download.',
+    steps: [
+      { action: 'verify-account-match', evidence: ['account-match'], sideEffect: 'none' },
+      { action: 'download-invoice-pdf', evidence: ['invoice-file-present'], sideEffect: 'download' },
+    ],
+  }, { learnedAt: '2026-09-05T09:00:00.000Z' });
+  assert.deepEqual(corrected.successEvidence, ['account-match', 'invoice-file-present']);
+  assert.deepEqual(subject.verifyRoutineReplay(corrected, { evidence: ['invoice-file-present'] }), { verified: false, reason: 'success-evidence-missing' });
+  assert.deepEqual(subject.verifyRoutineReplay(corrected, { evidence: ['account-match', 'invoice-file-present'] }), { verified: true, reason: 'verified' });
 });
 
 test('replay verification requires the routine declared success evidence', () => {
