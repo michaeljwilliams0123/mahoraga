@@ -4,7 +4,7 @@ import { loadManifest, validateManifest } from "../src/config.mjs";
 
 test("canonical manifest defines verified automatic update authority and localhost runtime", async () => {
   const manifest = await loadManifest();
-  assert.equal(manifest.version, "7.0.0-alpha.1");
+  assert.equal(manifest.version, "7.0.0-alpha.2");
   assert.equal(manifest.versions.runtime, manifest.version);
   assert.equal(manifest.versions.controlCenter, manifest.version);
   assert.equal(manifest.updateAuthority, "mahoraga-verified-automatic");
