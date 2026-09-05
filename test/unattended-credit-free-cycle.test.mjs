@@ -81,3 +81,16 @@ test("a real invoke may verify generation without persisting content", () => {
   assert.equal(cycle.generation.reason, "loopback-generate-verified");
   assert.equal(JSON.stringify(cycle.generation).includes("prompt"), false);
 });
+
+test("async invoke is awaited without fabricating an ok result", async () => {
+  const cycle = await runUnattendedCreditFreeCycle({
+    now: NOW,
+    requiresGeneration: true,
+    localReasonerReady: true,
+    probe: { verified: true },
+    invoke: async ({ worldDigest }) => ({ status: "ok", resultSha256: worldDigest }),
+    message: "Update the Mahoraga interface",
+  });
+  assert.equal(cycle.generation.status, "ok");
+  assert.equal(cycle.generation.paidFallback, false);
+});

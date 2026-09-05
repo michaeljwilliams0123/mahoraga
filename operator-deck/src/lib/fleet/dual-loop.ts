@@ -32,6 +32,7 @@ export function previewUnattendedCycle(input: {
   localReasonerReady?: boolean;
   invokePresent?: boolean;
   cloudTagged?: boolean;
+  loopbackReachable?: boolean;
 }): UnattendedCyclePreview {
   const heartbeat = previewCreditFreeHeartbeat(input);
   const inspectOnly = input.inspectOnly !== false;
@@ -43,13 +44,15 @@ export function previewUnattendedCycle(input: {
       generation = sidecar("hold", "local-reasoner-not-ready");
     } else if (input.invokePresent !== true) {
       generation = sidecar("hold", "generation-invoke-required");
+    } else if (input.loopbackReachable === false) {
+      generation = sidecar("hold", "loopback-generate-unavailable");
     } else if (heartbeat.nextAction !== "dispatch-credit-free") {
       generation = sidecar(heartbeat.nextAction === "refuse-paid-route" ? "refused" : "hold", heartbeat.nextAction);
     } else {
       generation = sidecar("ok", "loopback-generate-verified");
     }
   }
-  const foundryPlanCount = heartbeat.nextAction === "dispatch-credit-free" && inspectOnly ? 0 : 1;
+  const foundryPlanCount = 1;
   return {
     kind: UNATTENDED_CYCLE_KIND,
     fastLoop: "heartbeat",

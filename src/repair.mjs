@@ -47,6 +47,7 @@ export const ESSENTIAL_FILES = [
   "src/local-reasoner-provider.mjs",
   "src/local-reasoner-channel.mjs",
   "src/local-reasoner-generate.mjs",
+  "src/local-reasoner-loopback-invoke.mjs",
   "src/credit-free-skill-compound.mjs",
   "src/unattended-credit-free-cycle.mjs",
   "src/heartbeat-ledger.mjs",

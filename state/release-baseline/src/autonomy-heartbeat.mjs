@@ -413,12 +413,21 @@ async function runHeartbeatCli() {
     localReasonerReady = runtime.localReasonerReady;
   }
   const { asHeartbeatCliReceipt, runUnattendedCreditFreeCycle } = await import("./unattended-credit-free-cycle.mjs");
+  let invoke = null;
+  try {
+    const { createLoopbackGenerateInvoke } = await import("./local-reasoner-loopback-invoke.mjs");
+    invoke = createLoopbackGenerateInvoke({ probe, timeoutMs: 1500 });
+  } catch {
+    invoke = null;
+  }
   const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
     localReasonerReady,
     destinyManifest,
     probe,
+    invoke,
+    requiresGeneration: envFlag(process.env.MAHORAGA_REQUIRES_GENERATION),
   });
-  return asHeartbeatCliReceipt(cycle);
+  return asHeartbeatCliReceipt(await Promise.resolve(cycle));
 }

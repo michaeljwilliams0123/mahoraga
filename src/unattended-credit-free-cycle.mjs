@@ -1,7 +1,8 @@
 import { runCreditFreeHeartbeat } from "./autonomy-heartbeat.mjs";
 import { reduceHeartbeatLedger } from "./heartbeat-ledger.mjs";
 import { runCreditFreeImprovementLoop } from "./credit-free-skill-compound.mjs";
-import { applyLocalReasonerGenerate, createLocalReasonerGenerate } from "./local-reasoner-generate.mjs";
+import { applyLocalReasonerGenerate, createLocalReasonerGenerate, thenable } from "./local-reasoner-generate.mjs";
+import { putTransientResult } from "./local-reasoner-channel.mjs";
 
 export const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
 export const UNATTENDED_CYCLE_SCHEMA_VERSION = 1;
@@ -28,6 +29,32 @@ export function runUnattendedCreditFreeCycle({
     })
     : null;
 
+  return thenable(generation, (resolved) => assembleCycle({
+    heartbeat,
+    generation: persistGeneration(heartbeat, resolved, heartbeatOptions.now),
+    priorReceipts,
+  }));
+}
+
+export function asHeartbeatCliReceipt(cycle) {
+  if (!cycle || cycle.kind !== UNATTENDED_CYCLE_KIND) fail("unattended-cycle-invalid");
+  return Object.freeze({
+    ...cycle.heartbeat,
+    unattended: Object.freeze({
+      kind: cycle.kind,
+      schemaVersion: cycle.schemaVersion,
+      fastLoop: cycle.fastLoop,
+      slowLoop: cycle.slowLoop,
+      generation: cycle.generation,
+      improvement: cycle.improvement,
+      ledger: cycle.ledger,
+      creditCost: 0,
+      paidFallback: false,
+    }),
+  });
+}
+
+function assembleCycle({ heartbeat, generation, priorReceipts }) {
   if (heartbeat.creditCost !== 0 || heartbeat.paidFallback !== false) fail("unattended-paid-contamination");
   if (generation && (generation.creditCost !== 0 || generation.paidFallback !== false)) fail("unattended-paid-contamination");
 
@@ -53,22 +80,19 @@ export function runUnattendedCreditFreeCycle({
   });
 }
 
-export function asHeartbeatCliReceipt(cycle) {
-  if (!cycle || cycle.kind !== UNATTENDED_CYCLE_KIND) fail("unattended-cycle-invalid");
-  return Object.freeze({
-    ...cycle.heartbeat,
-    unattended: Object.freeze({
-      kind: cycle.kind,
-      schemaVersion: cycle.schemaVersion,
-      fastLoop: cycle.fastLoop,
-      slowLoop: cycle.slowLoop,
-      generation: cycle.generation,
-      improvement: cycle.improvement,
-      ledger: cycle.ledger,
-      creditCost: 0,
-      paidFallback: false,
-    }),
-  });
+function persistGeneration(heartbeat, generation, now) {
+  if (!generation) return null;
+  const channel = heartbeat.resultChannel ?? null;
+  if (!channel) return generation;
+  try {
+    putTransientResult(channel, {
+      status: generation.status,
+      resultSha256: generation.resultSha256,
+    }, { now });
+  } catch {
+    return generation;
+  }
+  return generation;
 }
 
 function summarizeImprovement(improvement) {
