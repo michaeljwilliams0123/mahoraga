@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
-import { runCreditFreeHeartbeat, readCreditFreeRuntime } from "./autonomy-heartbeat.mjs";
+import { readCreditFreeRuntime } from "./autonomy-heartbeat.mjs";
+import { runUnattendedCreditFreeCycle } from "./unattended-credit-free-cycle.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "no-candidate", "candidate-ready"]);
 export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v1";
@@ -56,32 +57,41 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
   try {
-    const heartbeat = runCreditFreeHeartbeat({
+    const cycle = runUnattendedCreditFreeCycle({
       now,
       providers: ["repository", "local-core", "self-healer"],
       requestedProvider: "repository",
       requiresGeneration: requiresGeneration === true,
       ...creditFree,
     });
+    const heartbeat = cycle.heartbeat;
+    const unattended = Object.freeze({
+      kind: cycle.kind,
+      slowLoop: cycle.slowLoop,
+      generation: cycle.generation,
+      foundryPlanCount: cycle.improvement.foundryPlanCount,
+      creditCost: 0,
+      paidFallback: false,
+    });
     if (heartbeat.nextAction === "refuse-paid-route" || heartbeat.nextAction === "hold-planned") {
       events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, null, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, null, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat, unattended });
     }
     if (heartbeat.health?.ok !== true) {
       const terminalReason = heartbeat.health?.reason ?? "credit-free-health-unhealthy";
       events.push(event("waiting", cycleId, branch, terminalReason));
-      return result("waiting", cycleId, branch, events, null, { terminalReason, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, null, { terminalReason, windowStartUtc, heartbeat, unattended });
     }
 
     const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
     if (providerDecision.status === "waiting") {
       const terminalReason = providerDecision.providerId ?? "provider-unavailable";
       events.push(event("waiting", cycleId, branch, terminalReason));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat, unattended });
     }
     if (requiresGeneration === true && heartbeat.nextAction === "wait-for-local-reasoner") {
       events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat, unattended });
     }
     if (providerDecision.providerId === "codespaces-open-weight") {
       events.push(event("cloud-running", cycleId, branch));
@@ -95,7 +105,7 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     if (candidateProducer === null) {
       const terminalReason = "candidate-producer-unavailable";
       events.push(event("no-candidate", cycleId, branch, terminalReason));
-      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat });
+      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat, unattended });
     }
     if (typeof candidateProducer !== "function") throw new TypeError("candidate producer is invalid");
 
@@ -106,17 +116,18 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
       windowStartUtc,
       providerDecision,
       heartbeat,
+      unattended,
     }));
     if (produced == null) {
       const terminalReason = "no-actionable-work";
       events.push(event("no-candidate", cycleId, branch, terminalReason));
-      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat });
+      return result("no-candidate", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat, unattended });
     }
 
     const candidate = validateCandidateReceipt(produced);
     const terminalReason = "candidate-produced";
     events.push(event("candidate-ready", cycleId, branch, terminalReason));
-    return result("candidate-ready", cycleId, branch, events, providerDecision, { candidate, terminalReason, windowStartUtc, heartbeat });
+    return result("candidate-ready", cycleId, branch, events, providerDecision, { candidate, terminalReason, windowStartUtc, heartbeat, unattended });
   } catch (error) {
     const terminalReason = safeReason(error?.code) || "cloud-cycle-error";
     const terminalStage = safeStage(error?.stage);
@@ -160,8 +171,8 @@ function event(state, cycleId, branch, reason = null) {
   return Object.freeze({ state, cycleId, branch, reason, at: new Date().toISOString() });
 }
 
-function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null, terminalStage = null, terminalDetail = null, windowStartUtc = null, heartbeat = null } = {}) {
-  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, heartbeat, terminalReason, terminalStage, terminalDetail, windowStartUtc });
+function result(status, cycleId, branch, events, providerDecision, { candidate = null, terminalReason = null, terminalStage = null, terminalDetail = null, windowStartUtc = null, heartbeat = null, unattended = null } = {}) {
+  return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, heartbeat, unattended, terminalReason, terminalStage, terminalDetail, windowStartUtc });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

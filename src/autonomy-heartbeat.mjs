@@ -404,16 +404,21 @@ async function runHeartbeatCli() {
     destinyManifest = null;
   }
   let localReasonerReady = runtime.localReasonerReady;
+  let probe = null;
   try {
-    const { observeLocalReasonerReady } = await import("./local-reasoner-provider.mjs");
+    const { observeLocalReasonerReady, probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
+    probe = await probeLocalReasoner({ timeoutMs: 750 });
     localReasonerReady = await observeLocalReasonerReady({ timeoutMs: 750 });
   } catch {
     localReasonerReady = runtime.localReasonerReady;
   }
-  return runCreditFreeHeartbeat({
+  const { asHeartbeatCliReceipt, runUnattendedCreditFreeCycle } = await import("./unattended-credit-free-cycle.mjs");
+  const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
     localReasonerReady,
     destinyManifest,
+    probe,
   });
+  return asHeartbeatCliReceipt(cycle);
 }
