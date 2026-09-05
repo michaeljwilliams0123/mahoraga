@@ -7,12 +7,13 @@ const CONTRACT_IDS = [
   "localhost-runtime-boundary", "verified-automatic-update-authority", "browser-worker-baseline", "repository-worker-baseline",
   "automatic-operational-repair", "chromebook-control-plane", "cross-platform-ci",
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
+  "credit-free-heartbeat",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
   "chromebook-control-plane", "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
-  "local-provider-readiness-probe", "local-reasoner-health-contract", "owner-approved-cloud-gateway", "verified-attested-update-channel",
+  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const RUNTIME_BLOCKED_IDS = ["signed-browser-session", "microsoft-durable-queue", "local-reasoner"];
