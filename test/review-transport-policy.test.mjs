@@ -28,7 +28,9 @@ test("agent instructions consistently prohibit Codex review traffic", async () =
 test("AI instructions identify the live ruleset and distinguish provider status from repository verification", async () => {
   const text = await readFile(new URL("../.github/ai-instructions.md", import.meta.url), "utf8");
   assert.match(text, /ruleset `22327855` is active/);
+  assert.match(text, /Required repository checks are Verify \(ubuntu-latest\) and Verify \(windows-latest\)/);
   assert.match(text, /Vercel provider or deployment status is not a PR completion gate/);
-  assert.match(text, /repository-local workspace verification remains required while the live ruleset requires that check/);
+  assert.match(text, /Verify unified Vercel workspace` may run as an observational job and must not gate merge/);
   assert.doesNotMatch(text, /ruleset `22284961` is active/);
+  assert.doesNotMatch(text, /repository-local workspace verification remains required while the live ruleset requires that check/);
 });

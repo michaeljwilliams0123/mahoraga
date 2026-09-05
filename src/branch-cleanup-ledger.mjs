@@ -1,5 +1,28 @@
 const DEFAULT_BRANCH = "main";
 
+export const WAVE_B_BRANCHES = Object.freeze([
+  "agent/target-state-capability-router",
+  "alert-autofix-37",
+  "alert-autofix-52",
+  "codex/repair-destiny-dispatch-69",
+  "destiny/live-connection-probe-20260829",
+  "destiny/public-next-ui-20260830",
+  "destiny/ultron-ui-20260830",
+  "feature/chatgpt-grade-ui",
+  "feature/first-valid-fix-automerge",
+  "feature/github-realtime-destiny-trigger-20260826",
+  "feature/mahoraga-4-foundation-20260824",
+  "primary-cloud/dual-primary-controller-20260824",
+  "secondary/sec-ae4135e2-a201-4467-b59e-8d16ed9e784a",
+  "upgrade/conversation-workspace-wave2-20260830",
+  "upgrade/desktop-provider-contract-20260823",
+  "upgrade/destiny-result-gate-20260830",
+  "upgrade/execution-plane-wave1-20260830",
+  "upgrade/gap-closure-wave-1-20260823",
+  "upgrade/microsoft-queue-readiness-20260823",
+  "upgrade/ultron-autonomy-baseline-20260830",
+]);
+
 function frozen(value) {
   return Object.freeze(value);
 }
@@ -13,6 +36,11 @@ function fail(code) {
 function requireObject(value, code) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail(code);
   return value;
+}
+
+export function classifyLeftoverWave(name) {
+  if (typeof name !== "string" || name.length < 1) fail("cleanup-branch-name-invalid");
+  return WAVE_B_BRANCHES.includes(name) ? "B" : "A";
 }
 
 export function classifyCleanupBranch(input = {}) {
@@ -32,7 +60,7 @@ export function classifyCleanupBranch(input = {}) {
   }
   const aheadBy = branch.aheadBy;
   if (!Number.isSafeInteger(aheadBy) || aheadBy < 0) fail("cleanup-branch-ahead-invalid");
-  const wave = branch.wave === "B" ? "B" : "A";
+  const wave = branch.wave === "A" || branch.wave === "B" ? branch.wave : classifyLeftoverWave(name);
   if (wave === "B") {
     return frozen({
       name,

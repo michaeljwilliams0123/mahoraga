@@ -145,7 +145,12 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/github-live-protection.mjs") && has("config/main-protection.contract.json") && has("test/github-live-protection.test.mjs"), {
     id: "github-live-main-protection",
     priority: "high",
-    summary: "Live main-protection contract requires exact-head Ubuntu, Windows, and unified Vercel workspace Verify. File presence is not enforcement.",
+    summary: "Live main-protection contract requires exact-head Ubuntu and Windows Verify. Extra required checks, including observational Vercel, fail closed. File presence is not enforcement.",
+  });
+  record(closed, has("src/stale-pr-ledger.mjs") && has("test/stale-pr-ledger.test.mjs") && has("src/sovereign-candidate-producer.mjs"), {
+    id: "sovereign-cycle-hold-noop",
+    priority: "high",
+    summary: "CycleId-only sovereign ledger pulses hold at $0 instead of opening a PR. Stale ledger-only PRs are close-eligible. The Actions step summary is the pulse.",
   });
   record(closed, has("src/destiny-trigger-trust.mjs") && has("src/destiny-event-delivery.mjs") && has("test/destiny-event-delivery.test.mjs"), {
     id: "destiny-event-delivery-matrix",

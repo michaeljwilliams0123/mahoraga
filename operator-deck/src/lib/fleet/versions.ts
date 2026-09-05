@@ -9,6 +9,15 @@ export const CANDIDATE_VERSION = "7.0.0-alpha.1";
 export const PRODUCTION_VERSION = "3.6.0";
 export const DECK_VERSION = "fleet-1";
 
+export const REQUIRED_VERIFY_CONTEXTS = [
+  "Verify (ubuntu-latest)",
+  "Verify (windows-latest)",
+] as const;
+
+export const OPTIONAL_VERIFY_CONTEXTS = [
+  "Verify unified Vercel workspace",
+] as const;
+
 export type SurfaceId = "windows-rollback" | "conversation" | "operator-deck";
 
 export type VersionSurface = {

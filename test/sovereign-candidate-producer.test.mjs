@@ -70,16 +70,51 @@ test("scan proposes a cycle outcome ledger once one-shot recipes exist", () => {
   producerModule.assertSafeCandidatePaths([LEDGER]);
 });
 
-test("scan refreshes the ledger when cycleId advanced", () => {
+test("scan holds when cycleId advanced but gap composition is unchanged", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
+  assert.equal(producerModule.cycleLedgerPulseAction({
+    recordedRaw: JSON.stringify({
+      schemaVersion: 1,
+      cycleId: CYCLE_A,
+      counts: { open: 0, blocked: 0, actionable: 0 },
+      blockedGapIds: [],
+      actionableGapIds: [],
+    }),
+    cycleId: CYCLE_B,
+    gapAudit: { open: [] },
+  }), "hold");
   const enhancement = producerModule.scanForSafeEnhancement({
     fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
-    readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
+    readFile: () => JSON.stringify({
+      schemaVersion: 1,
+      cycleId: CYCLE_A,
+      counts: { open: 0, blocked: 0, actionable: 0 },
+      blockedGapIds: [],
+      actionableGapIds: [],
+    }),
     cycleId: CYCLE_B,
     gapAudit: { open: [] },
   });
+  assert.equal(enhancement, null);
+});
+
+test("scan refreshes the ledger when cycleId advanced and gaps changed", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    readFile: () => JSON.stringify({
+      schemaVersion: 1,
+      cycleId: CYCLE_A,
+      counts: { open: 0, blocked: 0, actionable: 0 },
+      blockedGapIds: [],
+      actionableGapIds: [],
+    }),
+    cycleId: CYCLE_B,
+    gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
+  });
   assert.equal(enhancement.id, "cycle-outcome-ledger");
   assert.match(enhancement.title, /refresh/);
+  assert.match(enhancement.summary, /gap composition changed/i);
 });
 
 test("scan returns no actionable work when ledger already records this cycleId", () => {

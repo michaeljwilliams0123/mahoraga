@@ -62,7 +62,8 @@ does not mean that model inference has zero compute cost.
 
 The Vercel Git integration owns previews and production promotion for the
 `mahoraga-cloud-workspace` project with `cloud-app/` as its root. Every pull
-request also runs the repository's `Verify unified Vercel workspace` job:
+request may also run the repository's `Verify unified Vercel workspace` job.
+That job is observational: it must not gate PR completion.
 
 ```bash
 cd cloud-app

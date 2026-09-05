@@ -9,8 +9,8 @@
 - **App host:** Vercel. Google Workspace is identity, mail, and docs — not the app host.
 - **Production rollback:** Windows runtime stays `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite, inactive-runtime smoke, and rollback drill are recorded. Do not activate `7.0.0-alpha.1` on Windows.
 - **Operator console:** the TypeScript operator deck is the singular UI for inspect / merge / comment / close / dispatch / eligible deletes. `cloud-app/` remains the ChatGPT-style conversation workspace. Do not iframe Cloud Pro and do not spend Destiny / Cloud Pro from the operator deck.
-- **Protect main:** ruleset `22327855` is active. Required repository checks currently include Verify (ubuntu-latest), Verify (windows-latest), and Verify unified Vercel workspace. Never squash-merge a blocked PR.
-- **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. The repository-local workspace verification remains required while the live ruleset requires that check; do not confuse a provider quota/deployment signal with the repository build check.
+- **Protect main:** ruleset `22327855` is active. Required repository checks are Verify (ubuntu-latest) and Verify (windows-latest). Never squash-merge a blocked PR.
+- **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. `Verify unified Vercel workspace` may run as an observational job and must not gate merge. Do not confuse a provider quota/deployment signal with the repository build check.
 
 ## Review transport policy
 

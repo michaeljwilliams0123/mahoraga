@@ -39,6 +39,40 @@ export function recordedLedgerCycleId(raw) {
   }
 }
 
+function gapSignature(gapAudit = { open: [] }) {
+  const open = Array.isArray(gapAudit.open) ? gapAudit.open : [];
+  const blockedGapIds = open.filter((item) => item.state === "blocked").map((item) => item.id).filter(Boolean).sort();
+  const actionableGapIds = open.filter((item) => item.state === "open" || item.state === "unverified").map((item) => item.id).filter(Boolean).sort();
+  return JSON.stringify({
+    open: open.length,
+    blocked: blockedGapIds.length,
+    actionable: actionableGapIds.length,
+    blockedGapIds,
+    actionableGapIds,
+  });
+}
+
+export function cycleLedgerPulseAction({ recordedRaw, cycleId, gapAudit = { open: [] } } = {}) {
+  if (typeof cycleId !== "string" || !/^[a-f0-9]{64}$/.test(cycleId)) return "invalid";
+  if (typeof recordedRaw !== "string" || !recordedRaw.trim()) return "create";
+  let parsed;
+  try {
+    parsed = JSON.parse(recordedRaw);
+  } catch {
+    return "create";
+  }
+  if (parsed?.cycleId === cycleId) return "hold";
+  const recordedSignature = JSON.stringify({
+    open: Number(parsed?.counts?.open) || 0,
+    blocked: Number(parsed?.counts?.blocked) || 0,
+    actionable: Number(parsed?.counts?.actionable) || 0,
+    blockedGapIds: Array.isArray(parsed?.blockedGapIds) ? [...parsed.blockedGapIds].sort() : [],
+    actionableGapIds: Array.isArray(parsed?.actionableGapIds) ? [...parsed.actionableGapIds].sort() : [],
+  });
+  if (recordedSignature === gapSignature(gapAudit)) return "hold";
+  return "refresh";
+}
+
 export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(path.join(ROOT, relative)), readFile = null, cycleId = "", gapAudit = { open: [] } } = {}) {
   void gapAudit;
   if (!fileExists(OPERATOR_SCAN_REPORT)) {
@@ -82,12 +116,18 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
     });
   }
   if (typeof cycleId === "string" && /^[a-f0-9]{64}$/.test(cycleId) && typeof readFile === "function") {
-    const recorded = recordedLedgerCycleId(readFile(CYCLE_OUTCOME_LEDGER));
-    if (recorded !== cycleId) {
+    const pulse = cycleLedgerPulseAction({
+      recordedRaw: readFile(CYCLE_OUTCOME_LEDGER),
+      cycleId,
+      gapAudit,
+    });
+    if (pulse === "refresh" || pulse === "create") {
       return Object.freeze({
         id: "cycle-outcome-ledger",
-        title: "chore: refresh sovereign cycle outcome ledger",
-        summary: "Refresh the zero-credit cycle outcome ledger for this cycleId so the window is not a silent no-op.",
+        title: pulse === "create" ? "chore: add sovereign cycle outcome ledger" : "chore: refresh sovereign cycle outcome ledger",
+        summary: pulse === "create"
+          ? "Add a zero-credit cycle outcome ledger so each four-hour window still produces a candidate after the one-shot recipes are exhausted."
+          : "Refresh the zero-credit cycle outcome ledger because gap composition changed. CycleId-only stamps are a hold, not a PR.",
         changedFiles: Object.freeze([CYCLE_OUTCOME_LEDGER]),
       });
     }

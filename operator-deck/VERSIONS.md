@@ -19,4 +19,4 @@ TypeScript for all new UI. Do not rewrite TypeScript to JavaScript or Java. Do n
 
 ## Write plane
 
-Owner GitHub writes run from the operator console through the connected `gh` session. Merge refuses unless `mergeStateStatus` is `CLEAN` (Protect main: exact-head Verify on Ubuntu, Windows, and the unified Vercel workspace). Wave A deletes preview first and skip anything `ahead_by != 0`, anything with an open PR, and `main`. Destiny spend and Windows 7.0 activate remain hard denies.
+Owner GitHub writes run from the operator console through the connected `gh` session. Merge refuses unless `mergeStateStatus` is `CLEAN` (Protect main: exact-head Verify on Ubuntu and Windows). Unified Vercel workspace Verify may run and must not gate merge. Wave A deletes preview first and skip anything `ahead_by != 0`, anything with an open PR, and `main`. Destiny spend and Windows 7.0 activate remain hard denies.

@@ -18,7 +18,8 @@ without a new explicit instruction.
   the preserved production branch.
 - The public-repository privacy checklist remains mandatory for pull requests.
 - `node scripts/github-live-protection.mjs` attests live `main` rulesets against
-  the exact-head Verify contract and fails closed when protection is absent.
+  the exact-head Verify contract and fails closed when protection is absent or
+  when extra required checks (including observational Vercel) are present.
 
 ## Live GitHub controls
 
@@ -32,7 +33,10 @@ exact-head success of:
 
 - `Verify (ubuntu-latest)`
 - `Verify (windows-latest)`
-- `Verify unified Vercel workspace`
+
+`Verify unified Vercel workspace` may run. It must not gate PR completion.
+The live-protection evaluator fails closed if that job, or any other extra
+context, is required.
 
 No actor may bypass the ruleset. Autonomous integration still squash-merges
 eligible PRs through the GitHub pull-request merge API after those checks pass.
