@@ -20,10 +20,10 @@ These are candidate-producing powers. They do not grant direct writes to protect
 
 ## Operator surface
 
-Use:
+Requests are accepted through standard input only so untrusted request data never becomes a filesystem path:
 
 ```text
-node scripts/mahoraga-self-extension.mjs <capability> <request.json|->
+node scripts/mahoraga-self-extension.mjs <capability> < request.json
 ```
 
 Supported capabilities are `artifact.create`, `code.create-test`, `self.patch`, `agent.replicate`, `self.enhance`, and `baseline.check`.
