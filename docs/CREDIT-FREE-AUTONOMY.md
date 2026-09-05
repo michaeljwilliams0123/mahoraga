@@ -55,8 +55,9 @@ The four-hour candidate cycle runs this heartbeat as a preflight. A refused paid
 7. Do not burn hosted free quotas. Extra Vercel projects multiply deploys; the free cap is 100/day. Codex code-review credits are not autonomy — use Verify, not paid review bots.
 8. Compound knowledge in steward-learning and heartbeat receipts at `$0`. Never spend to “check if work exists.”
 9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
-10. Keep a live local reasoner for source mutations. Deterministic inspect/repair continues without it. Paid fallback is never the missing-model recovery path.
+10. Keep a live local reasoner for source mutations. Probe Ollama at `127.0.0.1:11434` and LM Studio at `127.0.0.1:1234`. Either unmetered loopback is enough. Deterministic inspect/repair continues without a model. Paid fallback is never the missing-model recovery path.
+11. Obtain autonomy by keeping GitHub public-repo Actions, deterministic workers, and one local open-weight server. Maintain it by never adding extra Vercel projects, never enabling the Platform API, and never treating Copilot review credits as a heartbeat.
 
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.

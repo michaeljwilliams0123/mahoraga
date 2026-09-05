@@ -95,7 +95,12 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/local-reasoner-provider.mjs") && has("test/local-reasoner-provider.test.mjs"), {
     id: "local-reasoner-health-contract",
     priority: "medium",
-    summary: "LM Studio readiness is probed only on loopback and returns model counts without model identifiers or generated content.",
+    summary: "Ollama and LM Studio readiness are probed only on loopback and return model counts without model identifiers or generated content.",
+  });
+  record(closed, has("src/autonomy-heartbeat.mjs") && has("test/autonomy-heartbeat.test.mjs") && has("src/credit-free-autonomy.mjs"), {
+    id: "credit-free-heartbeat",
+    priority: "high",
+    summary: "Unattended credit-free heartbeat refuses paid fallback and holds planned when hosted compute is exhausted.",
   });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
@@ -129,7 +134,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "medium",
     state: "blocked",
     summary: "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
-    dependency: "Run npm run providers:probe on the live Windows host to prove LM Studio/model availability. Functional reasoning still requires a transient result channel that does not persist prompts or model responses before the worker can be activated.",
+    dependency: "Run npm run providers:probe on the live Windows host to prove Ollama or LM Studio model availability. Functional reasoning still requires a transient result channel that does not persist prompts or model responses before the worker can be activated.",
   });
   gap(open, manifest.featureFlags?.primaryCodexBuilder !== true || worker("primary-codex-builder")?.adapter?.directExecutionEnabled !== true, {
     id: "primary-codex-builder",

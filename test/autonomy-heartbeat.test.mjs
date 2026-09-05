@@ -143,3 +143,41 @@ test("four-hour cycle workflow runs the credit-free heartbeat before candidate p
   assert.match(source, /refuse-paid-route/);
   assert.match(source, /node src\/cloud-cycle-worker\.mjs/);
 });
+
+test("loopback local-reasoner endpoints stay credit-free and never leak model identifiers", async () => {
+  const { localReasonerLoopbackEndpoints, probeLocalReasoner } = await import("../src/local-reasoner-provider.mjs");
+  const endpoints = localReasonerLoopbackEndpoints();
+  assert.equal(endpoints.every((endpoint) => endpoint.url.startsWith("http://127.0.0.1:")), true);
+  const receipt = await probeLocalReasoner({
+    fetchImpl: async (url) => {
+      if (String(url).includes(":11434")) {
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-weights" }] }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: [] }) };
+    },
+  });
+  assert.equal(receipt.verified, true);
+  assert.equal(receipt.providerHealth.executionEnabled, false);
+  assert.equal(JSON.stringify(receipt).includes("secret-weights"), false);
+  const heartbeat = runCreditFreeHeartbeat({
+    now: NOW,
+    localReasonerReady: receipt.verified,
+    requestedProvider: "ollama",
+    requiresGeneration: true,
+  });
+  assert.equal(heartbeat.nextAction, "dispatch-credit-free");
+  assert.equal(heartbeat.paidFallback, false);
+  assert.equal(heartbeat.creditCost, 0);
+});
+
+test("unattended heartbeat and cycle CLIs observe live loopback reasoners instead of defaulting them off", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const path = await import("node:path");
+  const { ROOT } = await import("../src/config.mjs");
+  const heartbeatCli = await readFile(path.join(ROOT, "src", "autonomy-heartbeat.mjs"), "utf8");
+  const cycleCli = await readFile(path.join(ROOT, "src", "cloud-cycle-worker.mjs"), "utf8");
+  assert.match(heartbeatCli, /observeLocalReasonerReady/);
+  assert.match(cycleCli, /observeLocalReasonerReady/);
+  assert.match(heartbeatCli, /localReasonerReady/);
+  assert.doesNotMatch(heartbeatCli, /secret-weights|openai\.com|api\.openai/);
+});

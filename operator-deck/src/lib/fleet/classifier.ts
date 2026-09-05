@@ -48,7 +48,7 @@ const WORKFLOW_MAP: Array<{ test: RegExp; file: string }> = [
   { test: /\bcloud task gateway\b/i, file: "cloud-task-gateway.yml" },
   { test: /\bcodex cloud\b/i, file: "codex-cloud-dispatch.yml" },
   { test: /\bworkspace agent receiver\b/i, file: "workspace-agent-receiver.yml" },
-  { test: /\bchromebook control plane\b/i, file: "chromebook-control-plane.yml" },
+  { test: /\bsteward( two-hour)? learning\b/i, file: "steward-two-hour-learning.yml" },
 ];
 
 function classifyWrite(text: string, lower: string, issueNumber: number | null): Classification | null {
