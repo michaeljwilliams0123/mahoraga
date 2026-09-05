@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 1,
+  "parentAgentId": "mahoraga-steward",
+  "agents": [
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-agent-foundry",
+      "parentAgentId": "mahoraga-steward",
+      "role": "agent-foundry",
+      "mission": "Detect actionable capability gaps and create permanent self-updating zero-credit child-agent manifests that share the feat ledger.",
+      "capabilities": [
+        "agent-factory",
+        "child-agent-lifecycle"
+      ],
+      "privileges": [
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:02:41.454Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-code-guardian",
+      "parentAgentId": "mahoraga-steward",
+      "role": "code-guardian",
+      "mission": "Inspect Mahoraga code logic, detect regressions, and pursue bounded verified repairs through zero-credit execution paths.",
+      "capabilities": [
+        "code-review",
+        "regression-repair"
+      ],
+      "privileges": [
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:02:25.590Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-github-operator",
+      "parentAgentId": "mahoraga-steward",
+      "role": "github-operator",
+      "mission": "Operate repository maintenance, CI, branches, commits, pull requests, releases, and bounded inter-agent handoffs.",
+      "capabilities": [
+        "ci-observation",
+        "github-operations",
+        "pull-request-operations"
+      ],
+      "privileges": [
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:02:30.053Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-primary-codex-builder-specialist",
+      "parentAgentId": "mahoraga-steward",
+      "role": "primary-codex-builder-specialist",
+      "mission": "Maintain and verify the Primary Codex Builder subscription-authenticated local execution contract, bounded task preparation, and zero-credit feat publication.",
+      "capabilities": [
+        "primary-codex-builder"
+      ],
+      "privileges": [
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:17:37.271Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-state-learner",
+      "parentAgentId": "mahoraga-steward",
+      "role": "state-learner",
+      "mission": "Refresh durable Mahoraga operational state every two hours without paid inference and publish reusable learning state.",
+      "capabilities": [
+        "state-learning",
+        "two-hour-learning"
+      ],
+      "privileges": [
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:02:34.995Z"
+    }
+  ]
+}
