@@ -11,10 +11,16 @@ async function loadStoreModule() {
   return import(modulePath.href);
 }
 
+function closeThenRemove(t, root, stores) {
+  t.after(() => {
+    for (const store of stores) store?.close?.();
+    rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+  });
+}
+
 test("UCCP state uses WAL and persists bounded lease summaries across reopen", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-uccp-state-"));
   const file = path.join(root, "uccp.sqlite");
-  t.after(() => rmSync(root, { recursive: true, force: true }));
 
   const { openUccpStateStore } = await loadStoreModule();
   const first = openUccpStateStore({ file, now: () => 1_000 });
@@ -38,7 +44,7 @@ test("UCCP state uses WAL and persists bounded lease summaries across reopen", a
   first.close();
 
   const reopened = openUccpStateStore({ file, now: () => 2_000 });
-  t.after(() => reopened.close());
+  closeThenRemove(t, root, [reopened]);
   assert.equal(reopened.latestLease().correlationId, "corr-1");
   assert.equal(reopened.listActiveLeases().length, 1);
 });
@@ -46,11 +52,10 @@ test("UCCP state uses WAL and persists bounded lease summaries across reopen", a
 test("UCCP state excludes expired leases", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-uccp-expiry-"));
   const file = path.join(root, "uccp.sqlite");
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   let now = 5_000;
   const { openUccpStateStore } = await loadStoreModule();
   const store = openUccpStateStore({ file, now: () => now });
-  t.after(() => store.close());
+  closeThenRemove(t, root, [store]);
   store.recordLease({
     leaseId: "lease-expiring",
     correlationId: "corr-expiring",
@@ -67,10 +72,9 @@ test("UCCP state excludes expired leases", async (t) => {
 test("UCCP state rejects raw reasoning fields", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-uccp-private-"));
   const file = path.join(root, "uccp.sqlite");
-  t.after(() => rmSync(root, { recursive: true, force: true }));
   const { openUccpStateStore } = await loadStoreModule();
   const store = openUccpStateStore({ file });
-  t.after(() => store.close());
+  closeThenRemove(t, root, [store]);
 
   for (const forbidden of [
     { thought: "private" },
