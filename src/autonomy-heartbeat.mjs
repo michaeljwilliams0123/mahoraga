@@ -414,9 +414,9 @@ async function runHeartbeatCli() {
   let localReasonerReady = runtime.localReasonerReady;
   let probe = null;
   try {
-    const { observeLocalReasonerReady, probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
+    const { probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
     probe = await probeLocalReasoner({ timeoutMs: 750 });
-    localReasonerReady = await observeLocalReasonerReady({ timeoutMs: 750 });
+    localReasonerReady = probe?.verified === true;
   } catch {
     localReasonerReady = runtime.localReasonerReady;
   }
