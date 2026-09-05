@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { createChildAgentManifest } from '../src/agent-foundry.mjs';
 import { createAgentFeat } from '../src/agent-feat-ledger.mjs';
+import { normalizeStewardFoundryReport } from '../src/steward-foundry-report.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -33,7 +34,37 @@ test('learning script writes stable state, feat, and foundry reports from determ
   assert.equal(second.status, 0, second.stderr);
   assert.equal(readFileSync(outputPath, 'utf8'), firstState);
   assert.equal(JSON.parse(readFileSync(featOutputPath, 'utf8')).feats.length, 1);
-  assert.equal(JSON.parse(readFileSync(foundryOutputPath, 'utf8')).plannedCount, 0);
+  const foundryReport = JSON.parse(readFileSync(foundryOutputPath, 'utf8'));
+  assert.equal(foundryReport.plannedCount, 0);
+  assert.equal(foundryReport.schemaVersion, 1);
+  assert.equal(normalizeStewardFoundryReport(foundryReport).nextAction, 'hold-planned');
+});
+
+test('learning foundry report is a valid input to the foundry script (production two-hour hop)', () => {
+  const learning = path.join(root, 'scripts/steward-learning-cycle.mjs');
+  const foundry = path.join(root, 'scripts/steward-agent-foundry.mjs');
+  const dir = mkdtempSync(path.join(tmpdir(), 'mahoraga-two-hour-'));
+  const inputPath = path.join(dir, 'input.json');
+  const outputPath = path.join(dir, 'state.json');
+  const featOutputPath = path.join(dir, 'feats.json');
+  const foundryOutputPath = path.join(dir, 'foundry.json');
+  const registryPath = path.join(dir, 'registry.json');
+  const appliedPath = path.join(dir, 'applied.json');
+  const child = createChildAgentManifest({
+    agentId: 'mahoraga-code-guardian', parentAgentId: 'mahoraga-steward', role: 'code-guardian', mission: 'Repair code.', capabilities: ['regression-repair'], privileges: ['github-read'],
+  }, { createdAt: '2026-09-05T06:00:00.000Z' });
+  writeFileSync(inputPath, JSON.stringify({ parentAgentId: 'mahoraga-steward', agents: [child], feats: [], gaps: [] }));
+  writeFileSync(registryPath, JSON.stringify({ schemaVersion: 1, parentAgentId: 'mahoraga-steward', agents: [child] }));
+  const learned = spawnSync(process.execPath, [learning, '--input', inputPath, '--output', outputPath, '--feat-output', featOutputPath, '--foundry-output', foundryOutputPath], { encoding: 'utf8', cwd: root });
+  assert.equal(learned.status, 0, learned.stderr);
+  const applied = spawnSync(process.execPath, [foundry, '--registry', registryPath, '--plans', foundryOutputPath, '--applied-output', appliedPath], { encoding: 'utf8', cwd: root });
+  assert.equal(applied.status, 0, applied.stderr);
+  const receipt = JSON.parse(applied.stdout);
+  assert.equal(receipt.nextAction, 'hold-planned');
+  assert.equal(receipt.createdCount, 0);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+  assert.equal(existsSync(appliedPath), false);
 });
 
 test('two-hour workflow exists, is deterministic, and never references a metered OpenAI route', () => {

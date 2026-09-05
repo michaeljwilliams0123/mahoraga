@@ -122,6 +122,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Unattended generation arms only when a live loopback reasoner is verified or an explicit flag is set; the four-hour Actions cycle stays inspect-only.",
   });
+  record(closed, has(".github/workflows/steward-two-hour-learning.yml") && has("scripts/steward-learning-cycle.mjs") && has("scripts/steward-agent-foundry.mjs") && has("src/steward-learning-state.mjs") && has("src/steward-foundry-report.mjs"), {
+    id: "steward-two-hour-learning",
+    priority: "high",
+    summary: "Two-hour steward foundry report carries schemaVersion 1 so empty plans hold at $0 instead of crashing the scheduler.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

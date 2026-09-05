@@ -29,6 +29,7 @@ test('agent foundry script permanently applies planned children without duplicat
   const args = [script, '--registry', registryPath, '--plans', plansPath, '--applied-output', appliedPath];
   const first = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: root });
   assert.equal(first.status, 0, first.stderr);
+  assert.equal(JSON.parse(first.stdout).nextAction, 'apply-foundry');
   assert.equal(JSON.parse(readFileSync(registryPath, 'utf8')).agents.length, 2);
   assert.equal(JSON.parse(readFileSync(appliedPath, 'utf8')).createdAgentIds[0], 'mahoraga-primary-codex-builder-specialist');
   const second = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: root });

@@ -45,6 +45,15 @@ export type GenerationAdmitPreview = {
   paidFallback: false;
 };
 
+export type StewardLearningPreview = {
+  kind: "steward-two-hour-learning";
+  foundryReportSchemaVersion: 1;
+  plannedCount: number;
+  nextAction: "hold-planned" | "apply-foundry";
+  creditCost: 0;
+  paidFallback: false;
+};
+
 export type UnattendedCyclePreview = {
   kind: typeof UNATTENDED_CYCLE_KIND;
   fastLoop: "heartbeat";
@@ -56,6 +65,7 @@ export type UnattendedCyclePreview = {
   fleet: FoundryFleetPreview;
   memory: CycleMemoryPreview;
   generationAdmit: GenerationAdmitPreview;
+  steward: StewardLearningPreview;
   creditCost: 0;
   paidFallback: false;
 };
@@ -135,6 +145,14 @@ export function previewUnattendedCycle(input: {
       paidFallback: false,
     },
     generationAdmit,
+    steward: {
+      kind: "steward-two-hour-learning",
+      foundryReportSchemaVersion: 1,
+      plannedCount: 0,
+      nextAction: "hold-planned",
+      creditCost: 0,
+      paidFallback: false,
+    },
     creditCost: 0,
     paidFallback: false,
   };
