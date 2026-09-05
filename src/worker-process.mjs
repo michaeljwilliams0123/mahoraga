@@ -6,8 +6,6 @@ import { executeRepositoryCapability } from "./repository-worker.mjs";
 import { executeMicrosoftQueueCapability } from "./microsoft-queue-worker.mjs";
 import { executeCopilotCapability } from "./copilot-worker.mjs";
 import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
-import { executeArtifactAuthoringCapability } from "./artifact-authoring.mjs";
-import { executeSelfExtensionCapability } from "./self-extension-worker.mjs";
 import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
 import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
@@ -97,8 +95,6 @@ async function execute(capability, task) {
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
   if (capability.startsWith("copilot.")) return executeCopilotCapability(capability, task, worker);
   if (capability.startsWith("codex.")) return executeCodexBuilderCapability(capability, task, worker);
-  if (capability === "artifact.create") return executeArtifactAuthoringCapability(capability, task, { store: await artifactStoreForWorker() });
-  if (capability === "code.create-test" || capability === "self.patch" || capability === "self.enhance" || capability === "agent.replicate") return executeSelfExtensionCapability(capability, task, worker);
   if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
   if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
   if (capability.startsWith("m365.")) return executeMicrosoft365Capability(capability, task, worker);

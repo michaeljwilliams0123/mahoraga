@@ -1,1 +1,973 @@
-{"schemaVersion":2,"product":"Mahoraga","version":"7.0.0-alpha.1","phase":"alpha-candidate","environment":"candidate","versions":{"runtime":"7.0.0-alpha.1","controlCenter":"7.0.0-alpha.1","api":"7.0.0-alpha.1","cloudControlPlane":"3.2.0","cloudWorkspace":"2.0.0","capabilityRegistry":"1.0.0","taskSchema":"3","workerContract":"2"},"updateAuthority":"mahoraga-verified-automatic","defaultAutonomyMode":"hybrid","autonomy":{"baseline":"ultron","conversationActivation":true,"structuredDebate":true,"automaticIntegration":true,"maximumImplementationLanes":2,"eligibleBranchPrefixes":["codex/","destiny/","feature/","upgrade/"],"protectedPaths":[".github/workflows","AGENTS.md","scripts/autonomous-integration.mjs","src/autonomy-policy.mjs","src/autonomous-integration.mjs","src/config.mjs","src/github-audit.mjs","src/update-contract.mjs"],"requiredVerification":"npm run verify","automaticRelease":true,"canaryRequired":true,"rollbackRequired":true},"runtime":{"host":"127.0.0.1","port":4782,"database":"state/mahoraga.sqlite","heartbeatIntervalMs":3000,"heartbeatTimeoutMs":12000,"taskLeaseMs":30000,"maximumWorkerRestarts":5,"workerQuarantineMs":60000},"queue":{"provider":"dataverse","state":"environment-and-mhg-publisher-confirmed-awaiting-authentication","environmentName":"Vaco (default) (Upgrade)","environmentId":"Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d","environmentUrl":"https://org9aade5b6.crm.dynamics.com/","solutionName":"MahoragaPlatform","pollIntervalMs":5000,"leaseMs":60000,"maximumAttempts":3,"relayId":"primary-windows","outboundOnly":true,"exactlyOnce":true},"featureFlags":{"browserWorker":true,"repositoryWorker":true,"githubCopilotWorker":false,"primaryCodexBuilder":true,"secondaryCodexMailbox":true,"workspaceAgentCloud":false,"desktopWorker":true,"microsoftQueueWorker":false,"authenticatedExecutionPlane":true,"openAIProvider":false,"a2aFederation":false,"persistentDiscourse":true,"humanWaitState":true},"repair":{"enabled":true,"automaticRiskClasses":["operational","core"],"scanIntervalMs":30000,"baselineDirectory":"state/release-baseline","coreUpdateAuthority":"mahoraga-verified-automatic"},"truthContracts":{"controlSession":{"idleTtlMs":28800000,"bootstrapNonceTtlMs":30000},"capabilityReadiness":{"deterministicReadCanaryTtlMs":86400000,"writeCanaryTtlMs":900000},"contentVault":{"root":"state/content-vault"},"executionCells":{"root":"state/execution-cells/codex"},"receipts":{"schemaVersion":1}},"browser":{"controlCenterUrl":"http://127.0.0.1:4782/","profileDirectory":"state/browser-profile","artifactDirectory":"state/browser-artifacts","artifactRetentionMs":86400000,"signedSessionEnabled":false},"mcpProviders":[{"id":"openclaw","enabled":false,"transportKind":"local-process","executableIdentity":"openclaw-mcp-host","toolAllowlist":["health","conversation"],"resourceAllowlist":[],"dataClasses":["synthetic","personal","local-only"],"permissionClass":"bounded-provider","spendingClass":"licensed-cloud","credentialReference":"env:OPENCLAW_API_TOKEN","readinessProbe":"health","canary":"health","maximumRequestBytes":65536,"maximumResponseBytes":262144,"timeoutMs":120000}],"executionBudgets":{"maximumDepth":4,"maximumChildWorkers":2,"maximumCycles":12,"maximumTokens":64000,"spendingClass":"licensed-cloud","inheritedDenyRules":["network.socket","process.spawn"],"childAllowRules":["repository.read","repository.write"]},"observationMemory":{"rawTurnLimit":24,"observationLimit":200,"maximumBytes":262144},"routingPolicy":{"interfaceOrder":["native-api","connector","mcp-cli","application-extension","deterministic-worker","desktop-automation","vision-automation"],"availabilityOrder":["healthy","busy","starting","configured","disabled","stale","offline","unhealthy","unavailable"],"minimumReliability":60},"costModes":{"local":["deterministic","local-model"],"hybrid":["deterministic","local-model","licensed-cloud"],"maximum":["deterministic","local-model","licensed-cloud","metered-cloud"]},"workers":[{"id":"local-core","label":"Local Core","version":"3.2.0","enabled":true,"costClass":"deterministic","dataClasses":["synthetic","personal","enterprise","local-only"],"capabilities":["provider.gap","artifact.inspect","system.health","manifest.validate","artifact.create"],"acceptedTaskTypes":["assistant","provider-gap","artifact","health","manifest"],"timeoutMs":15000,"concurrency":1,"healthProbe":"system.health","capabilityCanaries":{"provider.gap":"direct","artifact.inspect":"direct","system.health":"health","manifest.validate":"direct","artifact.create":"provider-derived"},"executionPlane":"local","routing":{"interfaceType":"deterministic-worker","permissionClass":"bounded-local","reliability":99,"requiresAttendedDesktop":false,"executionType":"isolated-process","latencyMs":25,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"question-model","label":"Mahoraga Question Model","version":"cli-adapter-1","enabled":true,"costClass":"licensed-cloud","dataClasses":["synthetic","personal","local-only"],"capabilities":["assistant.health","assistant.respond"],"acceptedTaskTypes":["assistant"],"timeoutMs":120000,"concurrency":1,"healthProbe":"assistant.health","capabilityCanaries":{"assistant.health":"health","assistant.respond":"provider-derived"},"executionPlane":"licensed-cloud","routing":{"interfaceType":"mcp-cli","permissionClass":"transient-question-model","reliability":94,"requiresAttendedDesktop":false,"executionType":"transient-read-only","latencyMs":2500,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"repository","label":"Repository Worker","version":"3.2.0","enabled":true,"costClass":"deterministic","dataClasses":["synthetic","personal","local-only"],"capabilities":["repository.status","repository.inspect","repository.history","repository.remote","repository.verify","repository.secondary-monitor"],"acceptedTaskTypes":["repository","secondary-codex"],"timeoutMs":120000,"concurrency":1,"healthProbe":"repository.status","capabilityCanaries":{"repository.status":"health","repository.inspect":"direct","repository.history":"provider-derived","repository.remote":"provider-derived","repository.verify":"provider-derived","repository.secondary-monitor":"provider-derived"},"executionPlane":"local","routing":{"interfaceType":"mcp-cli","permissionClass":"bounded-repository","reliability":98,"requiresAttendedDesktop":false,"executionType":"isolated-process","latencyMs":100,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"self-healer","label":"Offline Self-Healer","version":"3.2.0","enabled":true,"costClass":"deterministic","dataClasses":["synthetic","personal","enterprise","local-only"],"capabilities":["repair.scan","repair.apply"],"acceptedTaskTypes":["recovery"],"timeoutMs":60000,"concurrency":1,"healthProbe":"repair.scan","capabilityCanaries":{"repair.scan":"health","repair.apply":"provider-derived"},"executionPlane":"local","routing":{"interfaceType":"deterministic-worker","permissionClass":"operational-repair-only","reliability":99,"requiresAttendedDesktop":false,"executionType":"isolated-process","latencyMs":100,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"local-reasoner","label":"LM Studio Reasoner","version":"3.2.0","enabled":false,"costClass":"local-model","dataClasses":["synthetic","personal","local-only"],"capabilities":["reason.local"],"acceptedTaskTypes":["reasoning"],"timeoutMs":120000,"concurrency":1,"healthProbe":"reason.local","executionPlane":"local-model","routing":{"interfaceType":"native-api","permissionClass":"bounded-local-model","reliability":80,"requiresAttendedDesktop":false,"executionType":"local-provider","latencyMs":500,"maximumWorkload":1,"fallbackWorkerIds":["lenovo-ai"]}},{"id":"browser","label":"Browser Boundary Status","version":"4.0.0","enabled":true,"costClass":"deterministic","dataClasses":["synthetic","personal"],"capabilities":["browser.status"],"acceptedTaskTypes":["browser"],"timeoutMs":45000,"concurrency":1,"healthProbe":"browser.status","capabilityCanaries":{"browser.status":"health"},"executionPlane":"cloud-workspace","routing":{"interfaceType":"native-api","permissionClass":"read-only-status","reliability":100,"requiresAttendedDesktop":false,"executionType":"deterministic-status","latencyMs":0,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"primary-codex-builder","label":"Primary Codex Builder","version":"cli-adapter-2","enabled":true,"costClass":"licensed-cloud","dataClasses":["synthetic","local-only"],"capabilities":["codex.health","codex.execute","code.create-test","self.patch","agent.replicate","self.enhance"],"acceptedTaskTypes":["codex-builder","self-extension"],"timeoutMs":300000,"concurrency":1,"healthProbe":"codex.health","capabilityCanaries":{"codex.health":"health","codex.execute":"provider-derived","code.create-test":"provider-derived","self.patch":"provider-derived","agent.replicate":"provider-derived","self.enhance":"provider-derived"},"executionPlane":"candidate-worktree","routing":{"interfaceType":"mcp-cli","permissionClass":"task-scoped-codex-builder","reliability":94,"requiresAttendedDesktop":false,"executionType":"task-scoped-provider","latencyMs":2500,"maximumWorkload":1,"fallbackWorkerIds":[]},"adapter":{"kind":"codex-cli-builder","executable":"user-codex-cli","workingDirectory":"candidate-worktree","taskScoped":true,"interactiveAuthority":false,"directExecutionEnabled":true,"apiKeyRequired":false,"sandbox":"workspace-write","approvalPolicy":"never","networkAccess":false,"ephemeral":true,"ignoreUserConfig":true,"maximumPromptBytes":16384,"maximumEventBytes":524288,"executionTimeoutMs":300000}},{"id":"github-copilot","label":"GitHub Copilot CLI","version":"1.0.80","enabled":false,"costClass":"licensed-cloud","dataClasses":["synthetic"],"capabilities":["copilot.health","copilot.execute"],"acceptedTaskTypes":["copilot"],"timeoutMs":300000,"concurrency":1,"healthProbe":"copilot.health","executionPlane":"licensed-cloud","routing":{"interfaceType":"mcp-cli","permissionClass":"bounded-copilot-cli","reliability":85,"requiresAttendedDesktop":false,"executionType":"isolated-process","latencyMs":1000,"maximumWorkload":1,"fallbackWorkerIds":[]},"adapter":{"kind":"github-copilot-cli","executable":"copilot","workingDirectory":".","allowedPaths":["src","test","docs","scripts","package.json","mahoraga.manifest.json"],"allowedTools":["read","search","write","shell(git status)","shell(git diff)","shell(npm run verify)","shell(npm test)"],"remoteSession":false,"remoteExport":false,"disableBuiltinMcps":true,"disallowTempDir":true,"maxOutputBytes":32768}},{"id":"workspace-agent-cloud","label":"ChatGPT Workspace Agent Cloud","version":"api-trigger-1","enabled":false,"costClass":"licensed-cloud","dataClasses":["synthetic"],"capabilities":["workspace-agent.health","workspace-agent.trigger","workspace-agent.status"],"acceptedTaskTypes":["secondary-codex"],"timeoutMs":120000,"concurrency":2,"healthProbe":"workspace-agent.health","executionPlane":"chatgpt-workspace-agent-cloud","routing":{"interfaceType":"native-api","permissionClass":"bounded-workspace-agent-trigger","reliability":80,"requiresAttendedDesktop":false,"executionType":"cloud-provider","latencyMs":1000,"maximumWorkload":2,"fallbackWorkerIds":[]},"adapter":{"kind":"chatgpt-workspace-agent","apiOrigin":"https://api.chatgpt.com","credentialClass":"workspace-agent-access-token","platformApiKeyAccepted":false,"chatGptSubscriptionAuthenticationAccepted":false,"accessTokenEnvironmentVariable":"AGENT_ACCESS_TOKEN","triggerIdEnvironmentVariable":"WORKSPACE_AGENT_TRIGGER_ID","repository":"https://github.com/michaeljwilliams0123/mahoraga.git","assignmentDirectory":"coordination/assignments","resultDirectory":"coordination/results","branchPrefix":"secondary/","responseRetrieval":false,"runStatusBeta":true,"statusMetadataOnly":true,"maximumInputBytes":8192,"requestTimeoutMs":30000}},{"id":"desktop","label":"Desktop Worker","version":"1.1.0","enabled":true,"costClass":"deterministic","dataClasses":["synthetic","personal","local-only","enterprise"],"capabilities":["desktop.inspect","desktop.interact"],"acceptedTaskTypes":["desktop"],"timeoutMs":60000,"concurrency":1,"healthProbe":"desktop.inspect","capabilityCanaries":{"desktop.inspect":"health","desktop.interact":"provider-derived"},"executionPlane":"local","routing":{"interfaceType":"desktop-automation","permissionClass":"interactive-desktop","reliability":75,"requiresAttendedDesktop":true,"executionType":"interactive-session","latencyMs":1000,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"microsoft365","label":"Microsoft 365 Worker","version":"signed-app-1.0","enabled":true,"costClass":"licensed-cloud","dataClasses":["enterprise"],"capabilities":["m365.reason","m365.health","m365.open","m365.dataverse-status"],"acceptedTaskTypes":["microsoft"],"timeoutMs":120000,"concurrency":1,"healthProbe":"m365.health","capabilityCanaries":{"m365.reason":"provider-derived","m365.health":"health","m365.open":"provider-derived","m365.dataverse-status":"provider-derived"},"executionPlane":"local-attended","routing":{"interfaceType":"desktop-automation","permissionClass":"attended-microsoft365-session","reliability":88,"requiresAttendedDesktop":true,"executionType":"interactive-session","latencyMs":1000,"maximumWorkload":1,"fallbackWorkerIds":["desktop"]},"adapter":{"kind":"microsoft365-signed-app","attendedSessionRequired":true,"directGraphAuthentication":false,"allowedHostSuffixes":["sharepoint.com","microsoft365.com","office.com","outlook.office.com","teams.microsoft.com","onedrive.live.com","1drv.ms"]}},{"id":"microsoft-queue","label":"Microsoft Queue Worker","version":"3.2.0","enabled":false,"costClass":"licensed-cloud","dataClasses":["enterprise"],"capabilities":["queue.status","queue.poll"],"acceptedTaskTypes":["microsoft-queue"],"timeoutMs":60000,"concurrency":1,"healthProbe":"queue.status","executionPlane":"licensed-cloud","routing":{"interfaceType":"connector","permissionClass":"microsoft-tenant-queue","reliability":96,"requiresAttendedDesktop":false,"executionType":"cloud-provider","latencyMs":500,"maximumWorkload":1,"fallbackWorkerIds":[]}},{"id":"copilot-studio","label":"Copilot Studio Agent","version":"3.2.0","enabled":false,"costClass":"licensed-cloud","dataClasses":["enterprise"],"capabilities":["studio.delegate"],"acceptedTaskTypes":["microsoft-agent"],"timeoutMs":180000,"concurrency":2,"healthProbe":"studio.delegate","executionPlane":"licensed-cloud","routing":{"interfaceType":"connector","permissionClass":"microsoft-connected-agent","reliability":70,"requiresAttendedDesktop":false,"executionType":"cloud-provider","latencyMs":2000,"maximumWorkload":2,"fallbackWorkerIds":["microsoft365"]}},{"id":"lenovo-ai","label":"Lenovo AI Now Adapter","version":"3.2.0","enabled":false,"costClass":"deterministic","dataClasses":["synthetic","local-only"],"capabilities":["lenovo.preview","lenovo.execute"],"acceptedTaskTypes":["local-ai"],"timeoutMs":120000,"concurrency":1,"healthProbe":"lenovo.preview","executionPlane":"local","routing":{"interfaceType":"application-extension","permissionClass":"device-local","reliability":65,"requiresAttendedDesktop":true,"executionType":"interactive-session","latencyMs":1000,"maximumWorkload":1,"fallbackWorkerIds":["local-reasoner"]}}],"connections":[{"id":"lm-studio","state":"production-standby","endpointClass":"localhost","authenticationState":"not-required-loopback","capabilities":["reason.local"],"lastSuccessfulCheck":null,"latencyMs":null,"error":"runtime-probe-required","notes":"Fixed local Responses endpoint; enable its worker only after a successful runtime probe."},{"id":"copilot-studio","state":"production-published-mixed-health","endpointClass":"microsoft-tenant","authenticationState":"authenticated","capabilities":["studio.delegate","health.read"],"lastSuccessfulCheck":"2026-08-13T05:07:32.619Z","latencyMs":380,"error":"Researcher-and-App-Builder-http-404","notes":"General Mahoraga is published. Mahorago Tenant Health Reader and Mahorago Enterprise Core were upgraded, connected to the production read-only MCP, acceptance-tested, and force-published on 2026-08-13. Researcher and App Builder remain isolated failures with confirmed HTTP 404 responses in the Microsoft-connected-agent path."},{"id":"mahoraga-cloud-control-plane","state":"production-deployed-alpic-read-only-verified-execution-readiness-pending","endpointClass":"public-mcp","authenticationState":"public-read-only","capabilities":["health.read","agent-health.read","workspace.read","execution-readiness.read"],"lastSuccessfulCheck":"2026-08-23T07:13:01.355Z","latencyMs":9000,"error":null,"notes":"Mahoraga Cloud Control Plane 3.0.2 adds explicit cloud-execution readiness diagnostics while retaining the public read-only boundary. Public mutations, inbound desktop tunnels, arbitrary execution, and unauthenticated relay controls are not exposed."},{"id":"lenovo-ai-now","state":"bounded-adapter-available","endpointClass":"local-application","authenticationState":"unknown","capabilities":["lenovo.preview"],"lastSuccessfulCheck":null,"latencyMs":null,"error":"no-supported-programmatic-interface-verified","notes":"The supplied Lenovo link is a device user guide, not a supported AI automation API."},{"id":"github-copilot-cli","state":"installed-auth-unverified-quota-exhausted","endpointClass":"local-cli-provider","authenticationState":"unverified","capabilities":["copilot.health","copilot.execute"],"lastSuccessfulCheck":null,"latencyMs":null,"error":"live-ai-request-not-performed-monthly-quota-exhausted","notes":"The bounded CLI adapter is disabled until an operator verifies authentication and quota with an approved live task. It fixes the repository working directory, disables remote session/export and built-in MCPs, disallows temporary directories, and uses an explicit tool allowlist."},{"id":"primary-codex-builder","state":"production-enabled-account-authenticated-cli","endpointClass":"local-cli-provider","authenticationState":"saved-codex-account-authentication","capabilities":["codex.health","codex.execute"],"lastSuccessfulCheck":"2026-08-25T05:20:00.087Z","latencyMs":10764,"error":null,"notes":"The task-scoped Builder uses the existing user-level Codex CLI in ephemeral workspace-write mode and saved Codex account authentication. It does not require an OpenAI API key and never stores the final model response in runtime state."},{"id":"secondary-codex-mailbox","state":"production-first-return-validated-cloud-trigger-staged","endpointClass":"repository-mailbox","authenticationState":"separate-human-authorized-account-required","capabilities":["repository.secondary-monitor","repository.verify"],"lastSuccessfulCheck":"2026-08-23T05:30:56.669Z","latencyMs":null,"error":"workspace-agent-credentials-not-configured","notes":"The first separate-instance heartbeat return was validated and integrated. Mahoraga prepares concise READY assignments and monitors only expected return branches; automatic cloud triggering is staged behind Workspace Agent credentials."},{"id":"workspace-agent-cloud","state":"adapter-staged-awaiting-secure-credentials","endpointClass":"chatgpt-workspace-agent-api","authenticationState":"access-token-and-trigger-id-not-configured","capabilities":["workspace-agent.health","workspace-agent.trigger","workspace-agent.status"],"lastSuccessfulCheck":null,"latencyMs":null,"error":"AGENT_ACCESS_TOKEN-and-WORKSPACE_AGENT_TRIGGER_ID-required","notes":"Cloud-only secondary execution adapter is fixed to api.chatgpt.com and the GitHub mailbox. It requires a Workspace-Agent-scoped token provisioned through a ChatGPT workspace admin; it rejects OpenAI Platform API keys and is not the ChatGPT Plus/Codex subscription-authentication lane."},{"id":"chrome-devtools","state":"retired-cloud-browser-only","endpointClass":"none","authenticationState":"not-applicable","capabilities":["browser.status"],"lastSuccessfulCheck":null,"latencyMs":null,"error":null,"notes":"Local Chrome launch and CDP attachment are retired. UI interaction exists only through the approval-gated isolated cloud browser in the unified Vercel workspace; no local extension, browser profile, or debugging endpoint is used."},{"id":"microsoft-task-queue","state":"environment-and-mhg-publisher-confirmed-awaiting-authentication","endpointClass":"dataverse","authenticationState":"not-configured","capabilities":["queue.submit","queue.claim","queue.complete","queue.status"],"lastSuccessfulCheck":null,"latencyMs":null,"error":"reusable-dataverse-authentication-pending","notes":"The configured Dataverse environment, MahoragaPlatform solution, and permanent mhg_ publisher prefix are recorded as deployment metadata. Reusable authentication remains pending; credentials are never stored in the repository."},{"id":"chatgpt-browser-surface","state":"production-signed-session-handoff","endpointClass":"local-application-provider","authenticationState":"inherits-approved-browser-session","capabilities":["browser.tabs","browser.open","browser.navigate","browser.read","browser.inspect","browser.click","browser.type","browser.select","browser.upload","browser.download","browser.wait","browser.screenshot","browser.network","browser.console","browser.close"],"lastSuccessfulCheck":"2026-08-25T05:19:35.093Z","latencyMs":null,"error":null,"notes":"Microsoft 365 and Desktop workers can hand approved HTTPS targets to the existing attended browser session and verify a visible browser. This proves signed-application dispatch, not document-content access or Graph authorization."},{"id":"windows-computer-use","state":"production-enabled-attended-session","endpointClass":"local-windows-automation","authenticationState":"interactive-user-session-required","capabilities":["desktop.apps","desktop.inspect","desktop.interact"],"lastSuccessfulCheck":"2026-08-25T05:19:35.093Z","latencyMs":null,"error":null,"notes":"The enabled Desktop Worker follows unique-window selection, point-in-time observation, one action, immediate re-observation, and verified completion across allowlisted browser and Microsoft 365 applications."}]}
+{
+  "schemaVersion": 2,
+  "product": "Mahoraga",
+  "version": "7.0.0-alpha.1",
+  "phase": "alpha-candidate",
+  "environment": "candidate",
+  "versions": {
+    "runtime": "7.0.0-alpha.1",
+    "controlCenter": "7.0.0-alpha.1",
+    "api": "7.0.0-alpha.1",
+    "cloudControlPlane": "3.2.0",
+    "cloudWorkspace": "2.0.0",
+    "capabilityRegistry": "1.0.0",
+    "taskSchema": "3",
+    "workerContract": "2"
+  },
+  "updateAuthority": "mahoraga-verified-automatic",
+  "defaultAutonomyMode": "hybrid",
+  "autonomy": {
+    "baseline": "ultron",
+    "conversationActivation": true,
+    "structuredDebate": true,
+    "automaticIntegration": true,
+    "maximumImplementationLanes": 2,
+    "eligibleBranchPrefixes": [
+      "codex/",
+      "destiny/",
+      "feature/",
+      "upgrade/"
+    ],
+    "protectedPaths": [
+      ".github/workflows",
+      "AGENTS.md",
+      "scripts/autonomous-integration.mjs",
+      "src/autonomy-policy.mjs",
+      "src/autonomous-integration.mjs",
+      "src/config.mjs",
+      "src/github-audit.mjs",
+      "src/update-contract.mjs"
+    ],
+    "requiredVerification": "npm run verify",
+    "automaticRelease": true,
+    "canaryRequired": true,
+    "rollbackRequired": true
+  },
+  "runtime": {
+    "host": "127.0.0.1",
+    "port": 4782,
+    "database": "state/mahoraga.sqlite",
+    "heartbeatIntervalMs": 3000,
+    "heartbeatTimeoutMs": 12000,
+    "taskLeaseMs": 30000,
+    "maximumWorkerRestarts": 5,
+    "workerQuarantineMs": 60000
+  },
+  "queue": {
+    "provider": "dataverse",
+    "state": "environment-and-mhg-publisher-confirmed-awaiting-authentication",
+    "environmentName": "Vaco (default) (Upgrade)",
+    "environmentId": "Default-120aeae9-286f-438a-bbf3-de3ab96fcf5d",
+    "environmentUrl": "https://org9aade5b6.crm.dynamics.com/",
+    "solutionName": "MahoragaPlatform",
+    "pollIntervalMs": 5000,
+    "leaseMs": 60000,
+    "maximumAttempts": 3,
+    "relayId": "primary-windows",
+    "outboundOnly": true,
+    "exactlyOnce": true
+  },
+  "featureFlags": {
+    "browserWorker": true,
+    "repositoryWorker": true,
+    "githubCopilotWorker": false,
+    "primaryCodexBuilder": true,
+    "secondaryCodexMailbox": true,
+    "workspaceAgentCloud": false,
+    "desktopWorker": true,
+    "microsoftQueueWorker": false,
+    "authenticatedExecutionPlane": true,
+    "openAIProvider": false,
+    "a2aFederation": false,
+    "persistentDiscourse": true,
+    "humanWaitState": true
+  },
+  "repair": {
+    "enabled": true,
+    "automaticRiskClasses": [
+      "operational",
+      "core"
+    ],
+    "scanIntervalMs": 30000,
+    "baselineDirectory": "state/release-baseline",
+    "coreUpdateAuthority": "mahoraga-verified-automatic"
+  },
+  "truthContracts": {
+    "controlSession": {
+      "idleTtlMs": 28800000,
+      "bootstrapNonceTtlMs": 30000
+    },
+    "capabilityReadiness": {
+      "deterministicReadCanaryTtlMs": 86400000,
+      "writeCanaryTtlMs": 900000
+    },
+    "contentVault": {
+      "root": "state/content-vault"
+    },
+    "executionCells": {
+      "root": "state/execution-cells/codex"
+    },
+    "receipts": {
+      "schemaVersion": 1
+    }
+  },
+  "browser": {
+    "controlCenterUrl": "http://127.0.0.1:4782/",
+    "profileDirectory": "state/browser-profile",
+    "artifactDirectory": "state/browser-artifacts",
+    "artifactRetentionMs": 86400000,
+    "signedSessionEnabled": false
+  },
+  "mcpProviders": [
+    {
+      "id": "openclaw",
+      "enabled": false,
+      "transportKind": "local-process",
+      "executableIdentity": "openclaw-mcp-host",
+      "toolAllowlist": [
+        "health",
+        "conversation"
+      ],
+      "resourceAllowlist": [],
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "permissionClass": "bounded-provider",
+      "spendingClass": "licensed-cloud",
+      "credentialReference": "env:OPENCLAW_API_TOKEN",
+      "readinessProbe": "health",
+      "canary": "health",
+      "maximumRequestBytes": 65536,
+      "maximumResponseBytes": 262144,
+      "timeoutMs": 120000
+    }
+  ],
+  "executionBudgets": {
+    "maximumDepth": 4,
+    "maximumChildWorkers": 2,
+    "maximumCycles": 12,
+    "maximumTokens": 64000,
+    "spendingClass": "licensed-cloud",
+    "inheritedDenyRules": [
+      "network.socket",
+      "process.spawn"
+    ],
+    "childAllowRules": [
+      "repository.read",
+      "repository.write"
+    ]
+  },
+  "observationMemory": {
+    "rawTurnLimit": 24,
+    "observationLimit": 200,
+    "maximumBytes": 262144
+  },
+  "routingPolicy": {
+    "interfaceOrder": [
+      "native-api",
+      "connector",
+      "mcp-cli",
+      "application-extension",
+      "deterministic-worker",
+      "desktop-automation",
+      "vision-automation"
+    ],
+    "availabilityOrder": [
+      "healthy",
+      "busy",
+      "starting",
+      "configured",
+      "disabled",
+      "stale",
+      "offline",
+      "unhealthy",
+      "unavailable"
+    ],
+    "minimumReliability": 60
+  },
+  "costModes": {
+    "local": [
+      "deterministic",
+      "local-model"
+    ],
+    "hybrid": [
+      "deterministic",
+      "local-model",
+      "licensed-cloud"
+    ],
+    "maximum": [
+      "deterministic",
+      "local-model",
+      "licensed-cloud",
+      "metered-cloud"
+    ]
+  },
+  "workers": [
+    {
+      "id": "local-core",
+      "label": "Local Core",
+      "version": "3.2.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "enterprise",
+        "local-only"
+      ],
+      "capabilities": [
+        "provider.gap",
+        "artifact.inspect",
+        "system.health",
+        "manifest.validate"
+      ],
+      "acceptedTaskTypes": [
+        "assistant",
+        "provider-gap",
+        "artifact",
+        "health",
+        "manifest"
+      ],
+      "timeoutMs": 15000,
+      "concurrency": 1,
+      "healthProbe": "system.health",
+      "capabilityCanaries": {
+        "provider.gap": "direct",
+        "artifact.inspect": "direct",
+        "system.health": "health",
+        "manifest.validate": "direct"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "deterministic-worker",
+        "permissionClass": "bounded-local",
+        "reliability": 99,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 25,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "question-model",
+      "label": "Mahoraga Question Model",
+      "version": "cli-adapter-1",
+      "enabled": true,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "assistant.health",
+        "assistant.respond"
+      ],
+      "acceptedTaskTypes": [
+        "assistant"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "assistant.health",
+      "capabilityCanaries": {
+        "assistant.health": "health",
+        "assistant.respond": "provider-derived"
+      },
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "transient-question-model",
+        "reliability": 94,
+        "requiresAttendedDesktop": false,
+        "executionType": "transient-read-only",
+        "latencyMs": 2500,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "repository",
+      "label": "Repository Worker",
+      "version": "3.2.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "repository.status",
+        "repository.inspect",
+        "repository.history",
+        "repository.remote",
+        "repository.verify",
+        "repository.secondary-monitor"
+      ],
+      "acceptedTaskTypes": [
+        "repository",
+        "secondary-codex"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "repository.status",
+      "capabilityCanaries": {
+        "repository.status": "health",
+        "repository.inspect": "direct",
+        "repository.history": "provider-derived",
+        "repository.remote": "provider-derived",
+        "repository.verify": "provider-derived",
+        "repository.secondary-monitor": "provider-derived"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "bounded-repository",
+        "reliability": 98,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 100,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "self-healer",
+      "label": "Offline Self-Healer",
+      "version": "3.2.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "enterprise",
+        "local-only"
+      ],
+      "capabilities": [
+        "repair.scan",
+        "repair.apply"
+      ],
+      "acceptedTaskTypes": [
+        "recovery"
+      ],
+      "timeoutMs": 60000,
+      "concurrency": 1,
+      "healthProbe": "repair.scan",
+      "capabilityCanaries": {
+        "repair.scan": "health",
+        "repair.apply": "provider-derived"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "deterministic-worker",
+        "permissionClass": "operational-repair-only",
+        "reliability": 99,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 100,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "local-reasoner",
+      "label": "LM Studio Reasoner",
+      "version": "3.2.0",
+      "enabled": false,
+      "costClass": "local-model",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only"
+      ],
+      "capabilities": [
+        "reason.local"
+      ],
+      "acceptedTaskTypes": [
+        "reasoning"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "reason.local",
+      "executionPlane": "local-model",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "bounded-local-model",
+        "reliability": 80,
+        "requiresAttendedDesktop": false,
+        "executionType": "local-provider",
+        "latencyMs": 500,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": [
+          "lenovo-ai"
+        ]
+      }
+    },
+    {
+      "id": "browser",
+      "label": "Browser Boundary Status",
+      "version": "4.0.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal"
+      ],
+      "capabilities": [
+        "browser.status"
+      ],
+      "acceptedTaskTypes": [
+        "browser"
+      ],
+      "timeoutMs": 45000,
+      "concurrency": 1,
+      "healthProbe": "browser.status",
+      "capabilityCanaries": {
+        "browser.status": "health"
+      },
+      "executionPlane": "cloud-workspace",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "read-only-status",
+        "reliability": 100,
+        "requiresAttendedDesktop": false,
+        "executionType": "deterministic-status",
+        "latencyMs": 0,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "primary-codex-builder",
+      "label": "Primary Codex Builder",
+      "version": "cli-adapter-2",
+      "enabled": true,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "synthetic",
+        "local-only"
+      ],
+      "capabilities": [
+        "codex.health",
+        "codex.execute"
+      ],
+      "acceptedTaskTypes": [
+        "codex-builder"
+      ],
+      "timeoutMs": 300000,
+      "concurrency": 1,
+      "healthProbe": "codex.health",
+      "capabilityCanaries": {
+        "codex.health": "health",
+        "codex.execute": "provider-derived"
+      },
+      "executionPlane": "candidate-worktree",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "task-scoped-codex-builder",
+        "reliability": 94,
+        "requiresAttendedDesktop": false,
+        "executionType": "task-scoped-provider",
+        "latencyMs": 2500,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "codex-cli-builder",
+        "executable": "user-codex-cli",
+        "workingDirectory": "candidate-worktree",
+        "taskScoped": true,
+        "interactiveAuthority": false,
+        "directExecutionEnabled": true,
+        "apiKeyRequired": false,
+        "sandbox": "workspace-write",
+        "approvalPolicy": "never",
+        "networkAccess": false,
+        "ephemeral": true,
+        "ignoreUserConfig": true,
+        "maximumPromptBytes": 16384,
+        "maximumEventBytes": 524288,
+        "executionTimeoutMs": 300000
+      }
+    },
+    {
+      "id": "github-copilot",
+      "label": "GitHub Copilot CLI",
+      "version": "1.0.80",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "synthetic"
+      ],
+      "capabilities": [
+        "copilot.health",
+        "copilot.execute"
+      ],
+      "acceptedTaskTypes": [
+        "copilot"
+      ],
+      "timeoutMs": 300000,
+      "concurrency": 1,
+      "healthProbe": "copilot.health",
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "bounded-copilot-cli",
+        "reliability": 85,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "github-copilot-cli",
+        "executable": "copilot",
+        "workingDirectory": ".",
+        "allowedPaths": [
+          "src",
+          "test",
+          "docs",
+          "scripts",
+          "package.json",
+          "mahoraga.manifest.json"
+        ],
+        "allowedTools": [
+          "read",
+          "search",
+          "write",
+          "shell(git status)",
+          "shell(git diff)",
+          "shell(npm run verify)",
+          "shell(npm test)"
+        ],
+        "remoteSession": false,
+        "remoteExport": false,
+        "disableBuiltinMcps": true,
+        "disallowTempDir": true,
+        "maxOutputBytes": 32768
+      }
+    },
+    {
+      "id": "workspace-agent-cloud",
+      "label": "ChatGPT Workspace Agent Cloud",
+      "version": "api-trigger-1",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": ["synthetic"],
+      "capabilities": ["workspace-agent.health", "workspace-agent.trigger", "workspace-agent.status"],
+      "acceptedTaskTypes": ["secondary-codex"],
+      "timeoutMs": 120000,
+      "concurrency": 2,
+      "healthProbe": "workspace-agent.health",
+      "executionPlane": "chatgpt-workspace-agent-cloud",
+      "routing": {
+        "interfaceType": "native-api",
+        "permissionClass": "bounded-workspace-agent-trigger",
+        "reliability": 80,
+        "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 1000,
+        "maximumWorkload": 2,
+        "fallbackWorkerIds": []
+      },
+      "adapter": {
+        "kind": "chatgpt-workspace-agent",
+        "apiOrigin": "https://api.chatgpt.com",
+        "credentialClass": "workspace-agent-access-token",
+        "platformApiKeyAccepted": false,
+        "chatGptSubscriptionAuthenticationAccepted": false,
+        "accessTokenEnvironmentVariable": "AGENT_ACCESS_TOKEN",
+        "triggerIdEnvironmentVariable": "WORKSPACE_AGENT_TRIGGER_ID",
+        "repository": "https://github.com/michaeljwilliams0123/mahoraga.git",
+        "assignmentDirectory": "coordination/assignments",
+        "resultDirectory": "coordination/results",
+        "branchPrefix": "secondary/",
+        "responseRetrieval": false,
+        "runStatusBeta": true,
+        "statusMetadataOnly": true,
+        "maximumInputBytes": 8192,
+        "requestTimeoutMs": 30000
+      }
+    },
+    {
+      "id": "desktop",
+      "label": "Desktop Worker",
+      "version": "1.1.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "local-only",
+        "enterprise"
+      ],
+      "capabilities": [
+        "desktop.inspect",
+        "desktop.interact"
+      ],
+      "acceptedTaskTypes": [
+        "desktop"
+      ],
+      "timeoutMs": 60000,
+      "concurrency": 1,
+      "healthProbe": "desktop.inspect",
+      "capabilityCanaries": {
+        "desktop.inspect": "health",
+        "desktop.interact": "provider-derived"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "desktop-automation",
+        "permissionClass": "interactive-desktop",
+        "reliability": 75,
+        "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "microsoft365",
+      "label": "Microsoft 365 Worker",
+      "version": "signed-app-1.0",
+      "enabled": true,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "m365.reason",
+        "m365.health",
+        "m365.open",
+        "m365.dataverse-status"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "m365.health",
+      "capabilityCanaries": {
+        "m365.reason": "provider-derived",
+        "m365.health": "health",
+        "m365.open": "provider-derived",
+        "m365.dataverse-status": "provider-derived"
+      },
+      "executionPlane": "local-attended",
+      "routing": {
+        "interfaceType": "desktop-automation",
+        "permissionClass": "attended-microsoft365-session",
+        "reliability": 88,
+        "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": [
+          "desktop"
+        ]
+      },
+      "adapter": {
+        "kind": "microsoft365-signed-app",
+        "attendedSessionRequired": true,
+        "directGraphAuthentication": false,
+        "allowedHostSuffixes": [
+          "sharepoint.com",
+          "microsoft365.com",
+          "office.com",
+          "outlook.office.com",
+          "teams.microsoft.com",
+          "onedrive.live.com",
+          "1drv.ms"
+        ]
+      }
+    },
+    {
+      "id": "microsoft-queue",
+      "label": "Microsoft Queue Worker",
+      "version": "3.2.0",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "queue.status",
+        "queue.poll"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft-queue"
+      ],
+      "timeoutMs": 60000,
+      "concurrency": 1,
+      "healthProbe": "queue.status",
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "connector",
+        "permissionClass": "microsoft-tenant-queue",
+        "reliability": 96,
+        "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 500,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
+      "id": "copilot-studio",
+      "label": "Copilot Studio Agent",
+      "version": "3.2.0",
+      "enabled": false,
+      "costClass": "licensed-cloud",
+      "dataClasses": [
+        "enterprise"
+      ],
+      "capabilities": [
+        "studio.delegate"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft-agent"
+      ],
+      "timeoutMs": 180000,
+      "concurrency": 2,
+      "healthProbe": "studio.delegate",
+      "executionPlane": "licensed-cloud",
+      "routing": {
+        "interfaceType": "connector",
+        "permissionClass": "microsoft-connected-agent",
+        "reliability": 70,
+        "requiresAttendedDesktop": false,
+        "executionType": "cloud-provider",
+        "latencyMs": 2000,
+        "maximumWorkload": 2,
+        "fallbackWorkerIds": [
+          "microsoft365"
+        ]
+      }
+    },
+    {
+      "id": "lenovo-ai",
+      "label": "Lenovo AI Now Adapter",
+      "version": "3.2.0",
+      "enabled": false,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "local-only"
+      ],
+      "capabilities": [
+        "lenovo.preview",
+        "lenovo.execute"
+      ],
+      "acceptedTaskTypes": [
+        "local-ai"
+      ],
+      "timeoutMs": 120000,
+      "concurrency": 1,
+      "healthProbe": "lenovo.preview",
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "application-extension",
+        "permissionClass": "device-local",
+        "reliability": 65,
+        "requiresAttendedDesktop": true,
+        "executionType": "interactive-session",
+        "latencyMs": 1000,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": [
+          "local-reasoner"
+        ]
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "lm-studio",
+      "state": "production-standby",
+      "endpointClass": "localhost",
+      "authenticationState": "not-required-loopback",
+      "capabilities": [
+        "reason.local"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "runtime-probe-required",
+      "notes": "Fixed local Responses endpoint; enable its worker only after a successful runtime probe."
+    },
+    {
+      "id": "copilot-studio",
+      "state": "production-published-mixed-health",
+      "endpointClass": "microsoft-tenant",
+      "authenticationState": "authenticated",
+      "capabilities": [
+        "studio.delegate",
+        "health.read"
+      ],
+      "lastSuccessfulCheck": "2026-08-13T05:07:32.619Z",
+      "latencyMs": 380,
+      "error": "Researcher-and-App-Builder-http-404",
+      "notes": "General Mahoraga is published. Mahorago Tenant Health Reader and Mahorago Enterprise Core were upgraded, connected to the production read-only MCP, acceptance-tested, and force-published on 2026-08-13. Researcher and App Builder remain isolated failures with confirmed HTTP 404 responses in the Microsoft-connected-agent path."
+    },
+    {
+      "id": "mahoraga-cloud-control-plane",
+      "state": "production-deployed-alpic-read-only-verified-execution-readiness-pending",
+      "endpointClass": "public-mcp",
+      "authenticationState": "public-read-only",
+      "capabilities": [
+        "health.read",
+        "agent-health.read",
+        "workspace.read",
+        "execution-readiness.read"
+      ],
+      "lastSuccessfulCheck": "2026-08-23T07:13:01.355Z",
+      "latencyMs": 9000,
+      "error": null,
+      "notes": "Mahoraga Cloud Control Plane 3.0.2 adds explicit cloud-execution readiness diagnostics while retaining the public read-only boundary. Public mutations, inbound desktop tunnels, arbitrary execution, and unauthenticated relay controls are not exposed."
+    },
+    {
+      "id": "lenovo-ai-now",
+      "state": "bounded-adapter-available",
+      "endpointClass": "local-application",
+      "authenticationState": "unknown",
+      "capabilities": [
+        "lenovo.preview"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "no-supported-programmatic-interface-verified",
+      "notes": "The supplied Lenovo link is a device user guide, not a supported AI automation API."
+    },
+    {
+      "id": "github-copilot-cli",
+      "state": "installed-auth-unverified-quota-exhausted",
+      "endpointClass": "local-cli-provider",
+      "authenticationState": "unverified",
+      "capabilities": [
+        "copilot.health",
+        "copilot.execute"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "live-ai-request-not-performed-monthly-quota-exhausted",
+      "notes": "The bounded CLI adapter is disabled until an operator verifies authentication and quota with an approved live task. It fixes the repository working directory, disables remote session/export and built-in MCPs, disallows temporary directories, and uses an explicit tool allowlist."
+    },
+    {
+      "id": "primary-codex-builder",
+      "state": "production-enabled-account-authenticated-cli",
+      "endpointClass": "local-cli-provider",
+      "authenticationState": "saved-codex-account-authentication",
+      "capabilities": [
+        "codex.health",
+        "codex.execute"
+      ],
+      "lastSuccessfulCheck": "2026-08-25T05:20:00.087Z",
+      "latencyMs": 10764,
+      "error": null,
+      "notes": "The task-scoped Builder uses the existing user-level Codex CLI in ephemeral workspace-write mode and saved Codex account authentication. It does not require an OpenAI API key and never stores the final model response in runtime state."
+    },
+    {
+      "id": "secondary-codex-mailbox",
+      "state": "production-first-return-validated-cloud-trigger-staged",
+      "endpointClass": "repository-mailbox",
+      "authenticationState": "separate-human-authorized-account-required",
+      "capabilities": [
+        "repository.secondary-monitor",
+        "repository.verify"
+      ],
+      "lastSuccessfulCheck": "2026-08-23T05:30:56.669Z",
+      "latencyMs": null,
+      "error": "workspace-agent-credentials-not-configured",
+      "notes": "The first separate-instance heartbeat return was validated and integrated. Mahoraga prepares concise READY assignments and monitors only expected return branches; automatic cloud triggering is staged behind Workspace Agent credentials."
+    },
+    {
+      "id": "workspace-agent-cloud",
+      "state": "adapter-staged-awaiting-secure-credentials",
+      "endpointClass": "chatgpt-workspace-agent-api",
+      "authenticationState": "access-token-and-trigger-id-not-configured",
+      "capabilities": [
+        "workspace-agent.health",
+        "workspace-agent.trigger",
+        "workspace-agent.status"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "AGENT_ACCESS_TOKEN-and-WORKSPACE_AGENT_TRIGGER_ID-required",
+      "notes": "Cloud-only secondary execution adapter is fixed to api.chatgpt.com and the GitHub mailbox. It requires a Workspace-Agent-scoped token provisioned through a ChatGPT workspace admin; it rejects OpenAI Platform API keys and is not the ChatGPT Plus/Codex subscription-authentication lane."
+    },
+    {
+      "id": "chrome-devtools",
+      "state": "retired-cloud-browser-only",
+      "endpointClass": "none",
+      "authenticationState": "not-applicable",
+      "capabilities": [
+        "browser.status"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": null,
+      "notes": "Local Chrome launch and CDP attachment are retired. UI interaction exists only through the approval-gated isolated cloud browser in the unified Vercel workspace; no local extension, browser profile, or debugging endpoint is used."
+    },
+    {
+      "id": "microsoft-task-queue",
+      "state": "environment-and-mhg-publisher-confirmed-awaiting-authentication",
+      "endpointClass": "dataverse",
+      "authenticationState": "not-configured",
+      "capabilities": [
+        "queue.submit",
+        "queue.claim",
+        "queue.complete",
+        "queue.status"
+      ],
+      "lastSuccessfulCheck": null,
+      "latencyMs": null,
+      "error": "reusable-dataverse-authentication-pending",
+      "notes": "The configured Dataverse environment, MahoragaPlatform solution, and permanent mhg_ publisher prefix are recorded as deployment metadata. Reusable authentication remains pending; credentials are never stored in the repository."
+    },
+    {
+      "id": "chatgpt-browser-surface",
+      "state": "production-signed-session-handoff",
+      "endpointClass": "local-application-provider",
+      "authenticationState": "inherits-approved-browser-session",
+      "capabilities": [
+        "browser.tabs",
+        "browser.open",
+        "browser.navigate",
+        "browser.read",
+        "browser.inspect",
+        "browser.click",
+        "browser.type",
+        "browser.select",
+        "browser.upload",
+        "browser.download",
+        "browser.wait",
+        "browser.screenshot",
+        "browser.network",
+        "browser.console",
+        "browser.close"
+      ],
+      "lastSuccessfulCheck": "2026-08-25T05:19:35.093Z",
+      "latencyMs": null,
+      "error": null,
+      "notes": "Microsoft 365 and Desktop workers can hand approved HTTPS targets to the existing attended browser session and verify a visible browser. This proves signed-application dispatch, not document-content access or Graph authorization."
+    },
+    {
+      "id": "windows-computer-use",
+      "state": "production-enabled-attended-session",
+      "endpointClass": "local-windows-automation",
+      "authenticationState": "interactive-user-session-required",
+      "capabilities": [
+        "desktop.apps",
+        "desktop.inspect",
+        "desktop.interact"
+      ],
+      "lastSuccessfulCheck": "2026-08-25T05:19:35.093Z",
+      "latencyMs": null,
+      "error": null,
+      "notes": "The enabled Desktop Worker follows unique-window selection, point-in-time observation, one action, immediate re-observation, and verified completion across allowlisted browser and Microsoft 365 applications."
+    }
+  ]
+}
