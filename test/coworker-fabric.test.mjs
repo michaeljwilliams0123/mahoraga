@@ -38,6 +38,24 @@ test('handoffs are deterministic and idempotent in a coworker inbox', () => {
   assert.deepEqual(twice, once);
 });
 
+test('handoff identifiers are bound to the envelope contents', () => {
+  const handoff = subject.createHandoffEnvelope({
+    fromAgentId: 'mahoraga-steward',
+    toAgentId: 'mahoraga-browser-specialist',
+    objectiveId: 'objective-42',
+    capability: 'signed-browser-session',
+    task: 'Verify the signed browser session.',
+    inputs: ['artifact:session'],
+    expectedOutputs: ['receipt:browser-verification'],
+    urgency: 'normal',
+    mayDelegate: true,
+  }, { createdAt: '2026-09-05T08:01:00.000Z' });
+  assert.throws(
+    () => subject.validateHandoffEnvelope({ ...handoff, task: 'Perform a different task.' }),
+    /coworker-handoff-id-invalid/,
+  );
+});
+
 test('coworker outcomes update scorecard without changing identity', () => {
   const state = subject.createCoworkerState({ agentId: 'mahoraga-browser-specialist' }, { at: '2026-09-05T08:00:00.000Z' });
   const next = subject.recordCoworkerOutcome(state, { outcome: 'success', objectiveId: 'objective-42', reusableFeatIds: ['feat-aaaaaaaaaaaaaaaaaaaaaaaa'] }, { at: '2026-09-05T08:30:00.000Z' });
@@ -45,6 +63,24 @@ test('coworker outcomes update scorecard without changing identity', () => {
   assert.equal(next.scorecard.successes, 1);
   assert.deepEqual(next.reusableFeatIds, ['feat-aaaaaaaaaaaaaaaaaaaaaaaa']);
   assert.equal(next.lastSuccessfulActivityAt, '2026-09-05T08:30:00.000Z');
+});
+
+test('failed and blocked outcomes do not promote reusable feats', () => {
+  const state = subject.createCoworkerState({ agentId: 'mahoraga-browser-specialist' }, { at: '2026-09-05T08:00:00.000Z' });
+  const failed = subject.recordCoworkerOutcome(state, {
+    outcome: 'failure',
+    objectiveId: 'objective-42',
+    reusableFeatIds: ['feat-aaaaaaaaaaaaaaaaaaaaaaaa'],
+  }, { at: '2026-09-05T08:10:00.000Z' });
+  const blocked = subject.recordCoworkerOutcome(failed, {
+    outcome: 'blocked',
+    objectiveId: 'objective-43',
+    reusableFeatIds: ['feat-bbbbbbbbbbbbbbbbbbbbbbbb'],
+  }, { at: '2026-09-05T08:20:00.000Z' });
+  assert.deepEqual(failed.reusableFeatIds, []);
+  assert.deepEqual(blocked.reusableFeatIds, []);
+  assert.equal(blocked.scorecard.failures, 1);
+  assert.equal(blocked.scorecard.blocked, 1);
 });
 
 test('handoffs cannot be delivered to the wrong coworker', () => {
