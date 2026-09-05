@@ -66,6 +66,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
       port: 4783,
       stateStore,
       telemetryRegistry: pgaTelemetryRegistry,
+      contentVault,
       snapshot: async () => {
         const workers = database.listWorkerState();
         const tasks = database.listTasks(50);
