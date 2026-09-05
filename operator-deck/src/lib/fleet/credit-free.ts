@@ -31,7 +31,7 @@ const CREDIT_FREE_PROVIDERS = new Set([
   "desktop",
 ]);
 
-const LOCAL_REASONER_PROVIDERS = new Set(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all"]);
+const LOCAL_REASONER_PROVIDERS = new Set(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all", "localai", "mlx"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = new Set(["primary-codex-builder"]);
 const METERED_PROVIDERS = new Set([
   "openai-platform",

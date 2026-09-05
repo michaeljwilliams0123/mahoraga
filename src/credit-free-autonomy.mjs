@@ -1,5 +1,5 @@
 const CREDIT_FREE_PROVIDERS = Object.freeze(["repository", "local-core", "self-healer", "steward-learning", "browser", "desktop"]);
-const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all"]);
+const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all", "localai", "mlx"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = Object.freeze(["primary-codex-builder"]);
 const METERED_PROVIDERS = Object.freeze([
   "openai-platform",

@@ -21,6 +21,7 @@ export type DestinyTriggerPreview = {
   status: "ready" | "not-configured" | "auth-stale" | "delivery-degraded" | "unknown";
   reason: string;
   zeroCreditEligible: boolean;
+  receiptTrustMode: "unconfigured" | "dedicated-actor" | "signed-receipt";
 };
 
 export type HeartbeatPreview = {
@@ -63,7 +64,7 @@ export function previewCreditFreeHeartbeat(input: {
     const className = classifyAutonomyProvider(node.provider);
     return {
       ...node,
-      status: className === "credit-free" && nextAction === "dispatch-credit-free" ? "admissible" : nextAction === "dispatch-credit-free" ? "admissible" : "blocked",
+      status: (className === "credit-free" && nextAction === "dispatch-credit-free" ? "admissible" : "blocked") as HeartbeatStep["status"],
       creditCost: 0 as const,
       paidFallback: false as const,
     };
@@ -79,6 +80,7 @@ export function previewCreditFreeHeartbeat(input: {
       status: "not-configured",
       reason: "destiny-trigger-identity-unconfigured",
       zeroCreditEligible: false,
+      receiptTrustMode: "unconfigured",
     },
     creditCost: 0,
     paidFallback: false,

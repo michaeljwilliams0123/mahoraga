@@ -10,7 +10,7 @@ Credit-free autonomy is fail-closed.
 - Local reasoners (`ollama`, `lm-studio`, `local-reasoner`) are admissible only when live-ready and unmetered.
 - Subscription-local Codex Builder is not treated as credit-free. It may exist, but this selector will not dispatch it.
 - Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`) are forbidden. Hosted “free” keys are contamination, not a recovery path.
-- Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `local-reasoner`) are local-reasoner planes. Execution still requires a live loopback probe (Ollama `11434` or LM Studio `1234`) and a transient result channel. Classifying `llama-cpp` does not add a third HTTP probe.
+- Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `localai`, `mlx`, `local-reasoner`) are local-reasoner planes. Execution still requires a live loopback probe (Ollama `11434` or LM Studio `1234`) and a transient result channel. Classifying `llama-cpp`, `localai`, or `mlx` does not add a third HTTP probe.
 - Paid fallback is never a recovery path.
 - A non-zero spend grant or Platform API key blocks dispatch.
 - Hosted free-tier compute (Vercel daily deploy cap, duplicate projects, Codex review quotas) is not a spend grant, but exhausting it still forces `hold-planned`. Buying a higher tier is not a recovery path.
@@ -178,13 +178,15 @@ Applied now:
 - Destiny signed-receipt trust (`src/destiny-trigger-trust.mjs`): issue #85 P0
   alternative to a dedicated GitHub App. Ed25519 public-key fingerprint lives
   in Git; the private key never does. Owner-authored ACK/RESULT comments cannot
-  prove execution. Self-healer restore now covers the trust module, health
-  script, Event Dispatch Lane docs, and trust config so a missing file cannot
+  prove execution. Signatures must decode to 64 bytes and round-trip as
+  canonical base64url — last-character padding mutations are not evidence.
+  Self-healer restore now covers the trust module, health script,
+  Event Dispatch Lane docs, and trust config so a missing file cannot
   drop fail-closed Destiny admission.
 - Hosted “free” inference brands (Groq, Gemini, Hugging Face, OpenRouter,
   Together, Fireworks) classify as metered. `llama-cpp` / `jan` / `gpt4all`
-  classify as local-reasoner; the live probe remains Ollama `11434` and
-  LM Studio `1234` only. No third HTTP probe. No cloud key.
+  / `localai` / `mlx` classify as local-reasoner; the live probe remains
+  Ollama `11434` and LM Studio `1234` only. No third HTTP probe. No cloud key.
 - Transient result channel so a live Ollama/LM Studio can execute without
   persisting prompts or buying a cloud key. Verified (or held) generate results
   are stored as status + SHA-256 on that channel.
