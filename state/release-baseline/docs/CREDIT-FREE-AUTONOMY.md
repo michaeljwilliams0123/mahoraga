@@ -96,17 +96,19 @@ loops on every unattended fire:
    fleet snapshot via `admitUnattendedFoundry` (`applyAgentFoundryPlans`).
    Covered capabilities are not re-admitted. The Git registry is read, never
    written, by the unattended heartbeat — a Voyager-style skill library grows
-   in the receipt, not by dirtying `main`.
+   in the file-backed cycle memory (`state/unattended-cycle-memory.json`),
+   not by dirtying `main`.
 
 The heartbeat CLI still prints a credit-free heartbeat at the root so GitHub
 Actions can read `nextAction`. The dual-loop summary is nested under
-`unattended`, including `fleet.admittedAgentIds`. The four-hour cycle now
-carries that summary on every receipt.
+`unattended`, including `fleet.admittedAgentIds` and `memory`. The four-hour
+cycle now carries that summary on every receipt and persists the same
+content-free memory.
 
 Self-healer restore includes the channel, skill-compound, generate adapter,
-loopback invoke, agent foundry, foundry admitter, and unattended cycle so a
-missing file cannot silently drop the slow loop, the $0 generate path, or
-fleet admission.
+loopback invoke, agent foundry, foundry admitter, unattended cycle, and
+cycle memory so a missing file cannot silently drop the slow loop, the $0
+generate path, fleet admission, or cross-fire compounding.
 
 ## How to obtain and keep it
 
@@ -141,7 +143,13 @@ Applied now:
   model names. Wired into the unattended CLI and four-hour cycle.
 - Self-healer restore covers `local-reasoner-channel`, `credit-free-skill-compound`,
   `local-reasoner-generate`, `local-reasoner-loopback-invoke`, `agent-foundry`,
-  `unattended-foundry-admit`, and `unattended-credit-free-cycle`.
+  `unattended-foundry-admit`, `unattended-credit-free-cycle`, and
+  `unattended-cycle-memory`.
+- File-backed unattended cycle memory (`state/unattended-cycle-memory.json`,
+  gitignored) persists receipts and admitted specialist identifiers across
+  fires. Git remains read-only. Prompts and model output never enter the file.
+  This is the Voyager skill-library hop: compounding survives process restart
+  without dirtying `main`.
 - Transient result channel so a live Ollama/LM Studio can execute without
   persisting prompts or buying a cloud key. Verified (or held) generate results
   are stored as status + SHA-256 on that channel.
@@ -188,8 +196,8 @@ The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into ev
 
 ## Durable ledger
 
-`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git. Actions step summaries remain the CI-visible `$0` ledger.
+`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git at `state/heartbeat-ledger.json`. Actions step summaries remain the CI-visible `$0` ledger. `src/unattended-cycle-memory.mjs` is the durable Voyager library: it loads prior receipts and admitted specialists, merges Git coverage without writing Git, and saves the next snapshot after every unattended fire.
 
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/local-reasoner-channel.mjs` is the memory-only execution admitter. `src/credit-free-skill-compound.mjs` is the slow loop: identifier-only routines plus foundry plans from steward gaps, now passing the live fleet as `existingAgents`. `src/unattended-foundry-admit.mjs` admits those plans into a content-free fleet snapshot. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. `src/unattended-credit-free-cycle.mjs` is the unattended dual loop. `src/local-reasoner-generate.mjs` is the fail-closed generate adapter. `src/local-reasoner-loopback-invoke.mjs` is the content-free 127.0.0.1 generate path. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes, a loopback invoke when generation is required, the Git foundry registry as a read-only coverage set, and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/local-reasoner-channel.mjs` is the memory-only execution admitter. `src/credit-free-skill-compound.mjs` is the slow loop: identifier-only routines plus foundry plans from steward gaps, now passing the live fleet as `existingAgents`. `src/unattended-foundry-admit.mjs` admits those plans into a content-free fleet snapshot. `src/unattended-cycle-memory.mjs` persists that snapshot and the heartbeat receipts outside Git. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. `src/unattended-credit-free-cycle.mjs` is the unattended dual loop. `src/local-reasoner-generate.mjs` is the fail-closed generate adapter. `src/local-reasoner-loopback-invoke.mjs` is the content-free 127.0.0.1 generate path. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes, a loopback invoke when generation is required, the Git foundry registry as a read-only coverage set, and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.

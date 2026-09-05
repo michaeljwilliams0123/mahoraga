@@ -439,6 +439,14 @@ async function runHeartbeatCli() {
   } catch {
     foundryRegistry = null;
   }
+  let memory = null;
+  try {
+    const { loadUnattendedCycleMemory, mergeFoundryCoverage } = await import("./unattended-cycle-memory.mjs");
+    memory = await loadUnattendedCycleMemory();
+    foundryRegistry = mergeFoundryCoverage(foundryRegistry, memory);
+  } catch {
+    memory = null;
+  }
   const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
@@ -447,7 +455,28 @@ async function runHeartbeatCli() {
     probe,
     invoke,
     foundryRegistry,
+    priorReceipts: memory?.receipts ?? [],
     requiresGeneration: envFlag(process.env.MAHORAGA_REQUIRES_GENERATION),
   });
-  return asHeartbeatCliReceipt(await Promise.resolve(cycle));
+  const resolved = asHeartbeatCliReceipt(await Promise.resolve(cycle));
+  let persisted = null;
+  try {
+    const {
+      rememberUnattendedCycle,
+      saveUnattendedCycleMemory,
+      summarizeUnattendedCycleMemory,
+    } = await import("./unattended-cycle-memory.mjs");
+    persisted = await saveUnattendedCycleMemory(
+      rememberUnattendedCycle(memory?.receipts?.length ? memory : null, await Promise.resolve(cycle)),
+    );
+  } catch {
+    persisted = null;
+  }
+  return Object.freeze({
+    ...resolved,
+    unattended: Object.freeze({
+      ...resolved.unattended,
+      memory: persisted,
+    }),
+  });
 }

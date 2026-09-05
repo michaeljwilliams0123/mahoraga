@@ -14,6 +14,7 @@ state/checkpoints/
 state/repairs/
 state/heartbeat-ledger.jsonl
 state/heartbeat-ledger.json
+state/unattended-cycle-memory.json
 state/artifacts/
 state/execution-cells/
 state/content-vault/
