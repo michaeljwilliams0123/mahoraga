@@ -1,4 +1,5 @@
 const DEFAULT_BRANCH = "main";
+const MERGE_METHODS = Object.freeze(["squash", "merge", "rebase"]);
 
 export const WAVE_B_BRANCHES = Object.freeze([
   "agent/target-state-capability-router",
@@ -38,6 +39,17 @@ function requireObject(value, code) {
   return value;
 }
 
+function readMergedPullEvidence(branch) {
+  const mergedPullNumber = branch.mergedPullNumber;
+  if (mergedPullNumber === undefined || mergedPullNumber === null) return null;
+  if (!Number.isSafeInteger(mergedPullNumber) || mergedPullNumber < 1) fail("cleanup-branch-merged-pr-invalid");
+  const mergeMethod = branch.mergeMethod;
+  if (!MERGE_METHODS.includes(mergeMethod)) fail("cleanup-branch-merge-method-invalid");
+  const mergedAt = branch.mergedAt;
+  if (typeof mergedAt !== "string" || mergedAt.length < 10) fail("cleanup-branch-merged-at-invalid");
+  return frozen({ mergedPullNumber, mergeMethod, mergedAt });
+}
+
 export function classifyLeftoverWave(name) {
   if (typeof name !== "string" || name.length < 1) fail("cleanup-branch-name-invalid");
   return WAVE_B_BRANCHES.includes(name) ? "B" : "A";
@@ -61,12 +73,14 @@ export function classifyCleanupBranch(input = {}) {
   const aheadBy = branch.aheadBy;
   if (!Number.isSafeInteger(aheadBy) || aheadBy < 0) fail("cleanup-branch-ahead-invalid");
   const wave = branch.wave === "A" || branch.wave === "B" ? branch.wave : classifyLeftoverWave(name);
+  const merged = readMergedPullEvidence(branch);
   if (wave === "B") {
     return frozen({
       name,
       disposition: "reconcile",
       reason: aheadBy === 0 ? "wave-b-contained-still-reconcile" : "wave-b-divergent",
       aheadBy,
+      mergedPullNumber: merged?.mergedPullNumber ?? null,
       creditCost: 0,
       paidFallback: false,
     });
@@ -80,6 +94,21 @@ export function classifyCleanupBranch(input = {}) {
       evidenceTag: branch.evidenceTag ?? null,
       creditCost: 0,
       paidFallback: false,
+    });
+  }
+  if (merged) {
+    return frozen({
+      name,
+      disposition: branch.evidenceTag ? "archive-then-delete" : "delete-eligible",
+      reason: branch.evidenceTag ? "squash-merged-evidence-archive" : "squash-merged-unique-sha-ghost",
+      aheadBy,
+      mergedPullNumber: merged.mergedPullNumber,
+      mergeMethod: merged.mergeMethod,
+      mergedAt: merged.mergedAt,
+      evidenceTag: branch.evidenceTag ?? null,
+      creditCost: 0,
+      paidFallback: false,
+      note: "Squash/merge unique SHAs are leftover objects after GitHub rewrote the commit on main. They are not unrebased work. Deletion still requires a fresh comparison immediately before the ref is removed.",
     });
   }
   return frozen({
@@ -111,6 +140,6 @@ export function reduceCleanupLedger(branches = [], { evaluatedAt = new Date().to
     records: frozen(records),
     creditCost: 0,
     paidFallback: false,
-    note: "Deletion requires a fresh main comparison immediately before the ref is removed. Ahead_by must be 0.",
+    note: "Deletion requires a fresh main comparison immediately before the ref is removed. Wave A is delete-eligible at ahead_by=0 or when a merged PR attests squash/merge/rebase leftover unique SHAs. Wave B stays reconcile-only. Buying storage is not a recovery path.",
   });
 }
