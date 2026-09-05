@@ -148,9 +148,17 @@ test("signed-receipt trust verifies Ed25519 evidence and rejects owner spoof, ba
   const spoofedSigned = { ...spoofed, signature: signBody(spoofed) };
   assert.equal(evaluateDestinyTriggerReadiness(configured, spoofedSigned, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-receipt-owner-spoof");
 
-  const lastSignatureChar = readyObservation.signature.at(-1);
-  const corruptedSignature = `${readyObservation.signature.slice(0, -1)}${lastSignatureChar === "A" ? "B" : "A"}`;
-  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: corruptedSignature }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
+  const signatureBytes = Buffer.from(readyObservation.signature, "base64url");
+  signatureBytes[0] ^= 0xff;
+  const flipped = signatureBytes.toString("base64url");
+  assert.notEqual(flipped, readyObservation.signature);
+  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: flipped }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
+
+  const last = readyObservation.signature.slice(-1);
+  const nonCanonicalLast = last === "B" ? "C" : "B";
+  const nonCanonical = `${readyObservation.signature.slice(0, -1)}${nonCanonicalLast}`;
+  assert.equal(Buffer.from(nonCanonical, "base64url").toString("base64url") === nonCanonical, false);
+  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: nonCanonical }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
 
   const metered = { ...unsignedObservation, zeroCreditEligible: false };
   const meteredSigned = { ...metered, signature: signBody(metered) };

@@ -52,7 +52,10 @@ function canonicalWithoutSignature(value) {
 function verifySignedPayload(publicKeySpki, payload, signature) {
   if (typeof signature !== "string" || !SIGNATURE.test(signature)) return false;
   try {
-    return verify(null, Buffer.from(payload), createPublicKey(publicKeySpki), Buffer.from(signature, "base64url"));
+    const bytes = Buffer.from(signature, "base64url");
+    if (bytes.length !== 64) return false;
+    if (bytes.toString("base64url") !== signature) return false;
+    return verify(null, Buffer.from(payload), createPublicKey(publicKeySpki), bytes);
   } catch {
     return false;
   }

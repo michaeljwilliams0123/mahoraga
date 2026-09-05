@@ -178,8 +178,10 @@ Applied now:
 - Destiny signed-receipt trust (`src/destiny-trigger-trust.mjs`): issue #85 P0
   alternative to a dedicated GitHub App. Ed25519 public-key fingerprint lives
   in Git; the private key never does. Owner-authored ACK/RESULT comments cannot
-  prove execution. Self-healer restore now covers the trust module, health
-  script, Event Dispatch Lane docs, and trust config so a missing file cannot
+  prove execution. Signatures must decode to 64 bytes and round-trip as
+  canonical base64url — last-character padding mutations are not evidence.
+  Self-healer restore now covers the trust module, health script,
+  Event Dispatch Lane docs, and trust config so a missing file cannot
   drop fail-closed Destiny admission.
 - Hosted “free” inference brands (Groq, Gemini, Hugging Face, OpenRouter,
   Together, Fireworks) classify as metered. `llama-cpp` / `jan` / `gpt4all`
