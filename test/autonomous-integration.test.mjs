@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { evaluateAutonomousIntegration, latestExactDestinyResult, latestExactWorkflowRun } from "../src/autonomous-integration.mjs";
+import { createSovereignEvolutionReceipt, createTrustEpoch } from "../src/sovereign-evolution.mjs";
 import { ROOT } from "../src/config.mjs";
 
 const policy = {
@@ -44,6 +45,29 @@ function destinyCandidate(overrides = {}) {
   });
 }
 
+function sovereignReceipt(headSha) {
+  const trustedEpoch = createTrustEpoch({
+    epochId: "epoch-41",
+    trustedCommit: "a".repeat(40),
+    verifierFingerprint: "b".repeat(64),
+    rollbackCheckpointId: "checkpoint-41",
+    policyGeneration: 41,
+  }, { activatedAt: "2026-09-05T08:00:00.000Z" });
+  return createSovereignEvolutionReceipt({
+    trustedEpoch,
+    candidateCommit: headSha,
+    candidateEpochId: "epoch-42",
+    validatorAgentId: "mahoraga-validator",
+    validatorPassed: true,
+    deterministicVerificationPassed: true,
+    rollbackCheckpointCreated: true,
+    rollbackRehearsalPassed: true,
+    canaryPassed: true,
+    stateCompatibilityPassed: true,
+    sovereigntyInvariantPassed: true,
+  }, { evaluatedAt: "2026-09-05T08:30:00.000Z" });
+}
+
 test("exact successful same-repository heads outside protected roots are eligible", () => {
   assert.deepEqual(evaluateAutonomousIntegration(candidate(), policy), {
     eligible: true,
@@ -66,12 +90,37 @@ test("integration rejects stale, failed, forked, draft, conflicted, and changed-
   for (const [input, reason] of cases) assert.equal(evaluateAutonomousIntegration(input, policy).reason, reason);
 });
 
-test("integration rejects ineligible branches and every protected root", () => {
+test("integration rejects ineligible branches and every protected root without sovereign evidence", () => {
   assert.equal(evaluateAutonomousIntegration(candidate({ headRef: "random/change" }), policy).reason, "branch-not-eligible");
   for (const changedPath of policy.protectedPaths) {
     assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: [changedPath] }), policy).reason, "protected-path");
     assert.equal(evaluateAutonomousIntegration(candidate({ changedFiles: [`${changedPath}/nested.yml`] }), policy).reason, "protected-path");
   }
+});
+
+test("protected paths become eligible only with an exact incumbent sovereign-evolution receipt", () => {
+  const headSha = "c".repeat(40);
+  const input = candidate({
+    headSha,
+    changedFiles: ["src/autonomy-policy.mjs"],
+    sovereignEvolution: sovereignReceipt(headSha),
+    trustedEpochId: "epoch-41",
+  });
+  input.workflow.headSha = headSha;
+  assert.deepEqual(evaluateAutonomousIntegration(input, policy), {
+    eligible: true,
+    reason: "sovereign-eligible",
+    pullRequestNumber: 45,
+    headSha,
+  });
+
+  const stale = structuredClone(input);
+  stale.pullRequest.sovereignEvolution = sovereignReceipt("d".repeat(40));
+  assert.equal(evaluateAutonomousIntegration(stale, policy).reason, "sovereign-head-mismatch");
+
+  const wrongEpoch = structuredClone(input);
+  wrongEpoch.pullRequest.trustedEpochId = "epoch-40";
+  assert.equal(evaluateAutonomousIntegration(wrongEpoch, policy).reason, "sovereign-trusted-epoch-mismatch");
 });
 
 test("Destiny integration does not wait for an exact-head result after trusted checks pass", () => {
