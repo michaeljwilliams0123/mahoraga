@@ -4,13 +4,14 @@ import assert from 'node:assert/strict';
 let subject = {};
 try { subject = await import('../src/sovereign-evolution.mjs'); } catch {}
 
-function epoch() {
+function epoch(overrides = {}) {
   return subject.createTrustEpoch({
     epochId: 'epoch-41',
     trustedCommit: 'a'.repeat(40),
     verifierFingerprint: 'b'.repeat(64),
     rollbackCheckpointId: 'checkpoint-41',
     policyGeneration: 41,
+    ...overrides,
   }, { activatedAt: '2026-09-05T08:00:00.000Z' });
 }
 
@@ -34,8 +35,8 @@ function receipt(overrides = {}) {
 test('trusted epoch N can attest exact-head candidate N+1 only with complete rollback and canary evidence', () => {
   assert.equal(typeof subject.createTrustEpoch, 'function');
   const value = receipt();
-  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'c'.repeat(40), trustedEpochId: 'epoch-41' }), { valid: true, reason: 'sovereign-valid' });
-  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'd'.repeat(40), trustedEpochId: 'epoch-41' }), { valid: false, reason: 'sovereign-head-mismatch' });
+  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'c'.repeat(40), trustedEpoch: epoch() }), { valid: true, reason: 'sovereign-valid' });
+  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'd'.repeat(40), trustedEpoch: epoch() }), { valid: false, reason: 'sovereign-head-mismatch' });
 });
 
 test('candidate cannot use itself as the incumbent trusted generation', () => {
@@ -52,7 +53,13 @@ test('sovereign receipt fails closed when any required proof is false', () => {
   }
 });
 
-test('trusted epoch context must match the receipt incumbent epoch', () => {
+test('full trusted epoch context must match the receipt incumbent epoch', () => {
   const value = receipt();
-  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'c'.repeat(40), trustedEpochId: 'epoch-40' }), { valid: false, reason: 'sovereign-trusted-epoch-mismatch' });
+  const wrongVerifier = epoch({ verifierFingerprint: 'd'.repeat(64) });
+  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'c'.repeat(40), trustedEpoch: wrongVerifier }), { valid: false, reason: 'sovereign-trusted-epoch-mismatch' });
+});
+
+test('an epoch label alone cannot authorize sovereign evolution', () => {
+  const value = receipt();
+  assert.deepEqual(subject.validateSovereignEvolutionReceipt(value, { headSha: 'c'.repeat(40), trustedEpochId: 'epoch-41' }), { valid: false, reason: 'sovereign-trust-epoch-invalid' });
 });

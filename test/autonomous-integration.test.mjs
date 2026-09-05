@@ -45,16 +45,21 @@ function destinyCandidate(overrides = {}) {
   });
 }
 
-function sovereignReceipt(headSha) {
-  const trustedEpoch = createTrustEpoch({
+function trustedEpoch(overrides = {}) {
+  return createTrustEpoch({
     epochId: "epoch-41",
     trustedCommit: "a".repeat(40),
     verifierFingerprint: "b".repeat(64),
     rollbackCheckpointId: "checkpoint-41",
     policyGeneration: 41,
+    ...overrides,
   }, { activatedAt: "2026-09-05T08:00:00.000Z" });
-  return createSovereignEvolutionReceipt({
-    trustedEpoch,
+}
+
+function sovereignEvidence(headSha) {
+  const incumbent = trustedEpoch();
+  const sovereignEvolution = createSovereignEvolutionReceipt({
+    trustedEpoch: incumbent,
     candidateCommit: headSha,
     candidateEpochId: "epoch-42",
     validatorAgentId: "mahoraga-validator",
@@ -66,6 +71,7 @@ function sovereignReceipt(headSha) {
     stateCompatibilityPassed: true,
     sovereigntyInvariantPassed: true,
   }, { evaluatedAt: "2026-09-05T08:30:00.000Z" });
+  return { trustedEpoch: incumbent, sovereignEvolution };
 }
 
 test("exact successful same-repository heads outside protected roots are eligible", () => {
@@ -98,13 +104,14 @@ test("integration rejects ineligible branches and every protected root without s
   }
 });
 
-test("protected paths become eligible only with an exact incumbent sovereign-evolution receipt", () => {
+test("protected paths become eligible only with exact full-incumbent sovereign evidence", () => {
   const headSha = "c".repeat(40);
+  const evidence = sovereignEvidence(headSha);
   const input = candidate({
     headSha,
     changedFiles: ["src/autonomy-policy.mjs"],
-    sovereignEvolution: sovereignReceipt(headSha),
-    trustedEpochId: "epoch-41",
+    sovereignEvolution: evidence.sovereignEvolution,
+    trustedEpoch: evidence.trustedEpoch,
   });
   input.workflow.headSha = headSha;
   assert.deepEqual(evaluateAutonomousIntegration(input, policy), {
@@ -115,12 +122,17 @@ test("protected paths become eligible only with an exact incumbent sovereign-evo
   });
 
   const stale = structuredClone(input);
-  stale.pullRequest.sovereignEvolution = sovereignReceipt("d".repeat(40));
+  stale.pullRequest.sovereignEvolution = sovereignEvidence("d".repeat(40)).sovereignEvolution;
   assert.equal(evaluateAutonomousIntegration(stale, policy).reason, "sovereign-head-mismatch");
 
   const wrongEpoch = structuredClone(input);
-  wrongEpoch.pullRequest.trustedEpochId = "epoch-40";
+  wrongEpoch.pullRequest.trustedEpoch = trustedEpoch({ verifierFingerprint: "d".repeat(64) });
   assert.equal(evaluateAutonomousIntegration(wrongEpoch, policy).reason, "sovereign-trusted-epoch-mismatch");
+
+  const labelOnly = structuredClone(input);
+  delete labelOnly.pullRequest.trustedEpoch;
+  labelOnly.pullRequest.trustedEpochId = "epoch-41";
+  assert.equal(evaluateAutonomousIntegration(labelOnly, policy).reason, "protected-path");
 });
 
 test("Destiny integration does not wait for an exact-head result after trusted checks pass", () => {

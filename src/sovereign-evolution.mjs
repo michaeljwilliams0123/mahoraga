@@ -48,21 +48,32 @@ export function validateSovereignEvolutionReceipt(receipt, context = {}) {
   let current;
   try { current = validateReceiptShape(receipt); }
   catch (error) { return Object.freeze({ valid: false, reason: error?.code ?? 'sovereign-receipt-invalid' }); }
-  if (commit(context.headSha, 'sovereign-head-invalid') !== current.candidateCommit) return Object.freeze({ valid: false, reason: 'sovereign-head-mismatch' });
-  if (epochId(context.trustedEpochId, 'sovereign-trusted-epoch-invalid') !== current.trustedEpoch.epochId) return Object.freeze({ valid: false, reason: 'sovereign-trusted-epoch-mismatch' });
+
+  let headSha;
+  try { headSha = commit(context.headSha, 'sovereign-head-invalid'); }
+  catch (error) { return Object.freeze({ valid: false, reason: error?.code ?? 'sovereign-head-invalid' }); }
+  if (headSha !== current.candidateCommit) return Object.freeze({ valid: false, reason: 'sovereign-head-mismatch' });
+
+  let trustedEpoch;
+  try { trustedEpoch = validateTrustEpoch(context.trustedEpoch); }
+  catch (error) { return Object.freeze({ valid: false, reason: error?.code ?? 'sovereign-trust-epoch-invalid' }); }
+  if (!sameTrustEpoch(trustedEpoch, current.trustedEpoch)) return Object.freeze({ valid: false, reason: 'sovereign-trusted-epoch-mismatch' });
+
   return Object.freeze({ valid: true, reason: 'sovereign-valid' });
 }
 
 export function validateTrustEpoch(value) {
   exact(value, EPOCH_KEYS, 'sovereign-trust-epoch-invalid');
   if (value.schemaVersion !== 1) fail('sovereign-trust-epoch-invalid');
-  epochId(value.epochId, 'sovereign-epoch-id-invalid');
-  commit(value.trustedCommit, 'sovereign-trusted-commit-invalid');
-  fingerprint(value.verifierFingerprint, 'sovereign-verifier-fingerprint-invalid');
-  slug(value.rollbackCheckpointId, 'sovereign-rollback-checkpoint-invalid');
-  integer(value.policyGeneration, 1, 1_000_000, 'sovereign-policy-generation-invalid');
-  timestamp(value.activatedAt, 'sovereign-epoch-time-invalid');
-  return deepFreeze(structuredClone(value));
+  return deepFreeze({
+    schemaVersion: 1,
+    epochId: epochId(value.epochId, 'sovereign-epoch-id-invalid'),
+    trustedCommit: commit(value.trustedCommit, 'sovereign-trusted-commit-invalid'),
+    verifierFingerprint: fingerprint(value.verifierFingerprint, 'sovereign-verifier-fingerprint-invalid'),
+    rollbackCheckpointId: slug(value.rollbackCheckpointId, 'sovereign-rollback-checkpoint-invalid'),
+    policyGeneration: integer(value.policyGeneration, 1, 1_000_000, 'sovereign-policy-generation-invalid'),
+    activatedAt: timestamp(value.activatedAt, 'sovereign-epoch-time-invalid'),
+  });
 }
 
 function validateReceiptShape(value) {
@@ -72,17 +83,27 @@ function validateReceiptShape(value) {
   const candidateCommit = commit(value.candidateCommit, 'sovereign-candidate-commit-invalid');
   const candidateEpochId = epochId(value.candidateEpochId, 'sovereign-candidate-epoch-invalid');
   if (candidateEpochId === trustedEpoch.epochId || candidateCommit === trustedEpoch.trustedCommit) fail('sovereign-candidate-epoch-invalid');
-  slug(value.validatorAgentId, 'sovereign-validator-agent-invalid');
-  for (const [field, code] of PROOFS) if (value[field] !== true) fail(code);
-  timestamp(value.evaluatedAt, 'sovereign-evaluated-time-invalid');
-  const core = structuredClone(value);
-  delete core.schemaVersion;
-  delete core.receiptId;
+  const validatorAgentId = slug(value.validatorAgentId, 'sovereign-validator-agent-invalid');
+  const core = { trustedEpoch, candidateCommit, candidateEpochId, validatorAgentId };
+  for (const [field, code] of PROOFS) {
+    if (value[field] !== true) fail(code);
+    core[field] = true;
+  }
+  core.evaluatedAt = timestamp(value.evaluatedAt, 'sovereign-evaluated-time-invalid');
   const expected = `sovereign-${crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex').slice(0,24)}`;
   if (value.receiptId !== expected) fail('sovereign-receipt-id-invalid');
-  return deepFreeze(structuredClone(value));
+  return deepFreeze({ schemaVersion: 1, receiptId: value.receiptId, ...core });
 }
 
+function sameTrustEpoch(left, right) {
+  return left.schemaVersion === right.schemaVersion
+    && left.epochId === right.epochId
+    && left.trustedCommit === right.trustedCommit
+    && left.verifierFingerprint === right.verifierFingerprint
+    && left.rollbackCheckpointId === right.rollbackCheckpointId
+    && left.policyGeneration === right.policyGeneration
+    && left.activatedAt === right.activatedAt;
+}
 function epochId(value,code){ if(typeof value!=='string'||!/^epoch-[1-9][0-9]{0,11}$/.test(value)) fail(code); return value; }
 function commit(value,code){ if(typeof value!=='string'||!/^[a-f0-9]{40}$/.test(value)) fail(code); return value; }
 function fingerprint(value,code){ if(typeof value!=='string'||!/^[a-f0-9]{64}$/.test(value)) fail(code); return value; }
