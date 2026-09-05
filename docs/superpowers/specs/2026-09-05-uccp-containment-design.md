@@ -12,7 +12,7 @@ The UCCP plane is runtime-owned, not a separate supervisor or release authority.
 
 ## Persistent UCCP state
 
-`src/state/schema.mjs` owns a dedicated Node 24 `node:sqlite` database at `state/uccp-candidate-4783.sqlite` by default. It enables WAL, `synchronous=FULL`, foreign keys, and a busy timeout. The UCCP ledger is observability and candidate-lease state only; it is not a replacement for `RuntimeDatabase`.
+The 4783 candidate runtime owns an isolated state root at `state/candidate-4783/`. Its normal runtime database is `state/candidate-4783/mahoraga.sqlite`, and `src/state/schema.mjs` owns a separate UCCP observability database at `state/candidate-4783/uccp.sqlite`. Both use the Node 24 SQLite implementation; the UCCP store enables WAL, `synchronous=FULL`, foreign keys, and a busy timeout. The UCCP ledger is observability and candidate-lease state only; it is not a replacement for `RuntimeDatabase`.
 
 The `uccp_task_leases` table stores correlation ID, worker name, dialectical phase, lease expiry, timestamps, and a bounded structured `decision_summary_json`. Raw hidden chain-of-thought is never persisted or streamed.
 
@@ -22,18 +22,18 @@ The `uccp_task_leases` table stores correlation ID, worker name, dialectical pha
 
 ## Watchdog and rollback
 
-`src/state/watchdog.mjs` runs only for the 4783 candidate. It checks the UCCP database and candidate integrity on a 500 ms cadence with consecutive-failure debouncing. A failure requests containment through an injected rollback callback.
+`src/state/watchdog.mjs` runs only for the 4783 candidate. It checks the UCCP database, first-lease/lease freshness, and candidate integrity on a 500 ms cadence with consecutive-failure debouncing. A failure requests containment through an injected rollback callback only after the configured consecutive-failure threshold is reached.
 
 `scripts/emergency-rollback.ps1` may terminate the listener on port 4783 and quarantine candidate SQLite files. It may reset repository files only when an explicit candidate worktree path and base SHA are supplied and the worktree contains the `.mahoraga-candidate` marker. It MUST NOT run `git reset --hard` or `git clean` against the authoritative checkout or the 4782 baseline.
 
 ## Telemetry
 
-`src/relay/pga-status.mjs` exposes a local telemetry bus and an authenticated SSE handler for `GET /api/v1/pga/stream`. The stream is same-origin/local-session protected by the existing control server. It does not emit wildcard CORS headers and does not depend on a Vercel-to-localhost rewrite.
+`src/relay/pga-status.mjs` exposes an in-process telemetry registry and an authenticated SSE handler for `GET /api/v1/pga/stream`. The route is mounted on the existing control server and uses the existing local bearer/cookie authentication boundary. It does not emit wildcard CORS headers and does not depend on a Vercel-to-localhost rewrite.
 
 ## n8n boundary
 
-`src/relay/n8n-interceptor.mjs` provides HMAC-SHA256 signing/verification primitives for bounded automation messages. No inbound n8n route is opened by default because the runtime remains loopback-only and the secondary-host n8n service is also loopback-bound. A workflow template may consume POSTed telemetry when a separately approved transport exists.
+`src/relay/n8n-interceptor.mjs` provides HMAC-SHA256 signing/verification primitives for bounded automation messages. No inbound n8n route is opened by default because the runtime remains loopback-only and the secondary-host n8n service is also loopback-bound. The included n8n workflow template is inactive and may consume POSTed bounded telemetry only when a separately approved authenticated transport exists.
 
 ## Verification
 
-Tests cover WAL schema durability, bounded decision persistence, watchdog debounce/containment, HMAC verification, telemetry shape, 4783 candidate state isolation, and the authenticated local SSE route. Root verification remains `npm run verify`; `npm run test:alpha` aliases the Node test suite for candidate testing.
+Tests cover WAL schema durability, bounded decision persistence, watchdog debounce/containment, missing/stale lease detection, HMAC verification, telemetry shape, 4783 candidate state isolation, rollback scoping, and the authenticated local SSE route. Root verification remains `npm run verify`; `npm run test:alpha` aliases the Node test suite for candidate testing.
