@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "preservationMode": "additive-no-delete-rename",
+  "baselineAuthority": "current-main",
+  "meteredOpenAiApi": false,
+  "directMainWrites": false,
+  "runtimeWorkerReplacement": false,
+  "lanes": {
+    "artifact.create": {
+      "execution": "deterministic-local",
+      "resources": [
+        "src/artifact-contract.mjs",
+        "src/local-artifact-store.mjs",
+        "src/content-vault.mjs",
+        "src/artifact-authoring.mjs"
+      ]
+    },
+    "code.create-test": {
+      "execution": "primary-codex-builder-candidate-cell",
+      "resources": [
+        "src/codex-builder-worker.mjs",
+        "src/execution-cell.mjs",
+        "src/generated-code-safety.mjs",
+        "src/self-extension-worker.mjs"
+      ]
+    },
+    "self.patch": {
+      "execution": "primary-codex-builder-candidate-cell",
+      "resources": [
+        "src/codex-builder-worker.mjs",
+        "src/execution-cell.mjs",
+        "src/generated-code-safety.mjs",
+        "src/evolution-controller.mjs",
+        "src/self-extension-worker.mjs"
+      ]
+    },
+    "agent.replicate": {
+      "execution": "agent-foundry-plus-primary-codex-builder",
+      "resources": [
+        "src/agent-foundry.mjs",
+        "coordination/agent-factory/registry.json",
+        "src/codex-builder-worker.mjs",
+        "src/execution-cell.mjs",
+        "src/self-extension-worker.mjs"
+      ]
+    },
+    "self.enhance": {
+      "execution": "primary-codex-builder-plus-evolution-contract",
+      "resources": [
+        "src/codex-builder-worker.mjs",
+        "src/execution-cell.mjs",
+        "src/generated-code-safety.mjs",
+        "src/evolution-controller.mjs",
+        "src/self-extension-worker.mjs"
+      ]
+    }
+  },
+  "operatorAttachedResources": [
+    "GitHub connector",
+    "Mahoraga Steward child agents",
+    "Superpowers planning/TDD/verification skills",
+    "OpenAI Developers guidance when deliberately invoked",
+    "connected plugins and providers subject to their own authorization"
+  ],
+  "invariants": [
+    "Preserve current-main files by default; deletion and rename require a separately authorized change outside this pack.",
+    "Reuse existing artifact, Codex Builder, execution-cell, evolution, and Agent Foundry contracts.",
+    "Do not replace existing Grok/UI/auth/workflow/worker behavior.",
+    "Do not bypass provider authorization, repository protection, CI, leases, execution-cell containment, or release activation controls.",
+    "Do not introduce a metered OpenAI API fallback into zero-credit automation."
+  ]
+}
