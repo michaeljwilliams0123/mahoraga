@@ -1,5 +1,16 @@
 # Mahoraga operating contract
 
+## Ecosystem lock (read before any edit)
+
+This repository is a living product. It is not a greenfield JavaScript prompt.
+
+- **New UI is TypeScript only** (`cloud-app/`, `operator-deck/`). Do not convert `.ts` / `.tsx` to JavaScript.
+- **Control plane stays Node ESM `.mjs`** (`src/`, `scripts/`, `test/`, `relay/`). Do not mass-convert to `.js`, `.cjs`, or TypeScript.
+- **Do not rewrite, replace, or scaffold over this ecosystem** as a JavaScript SPA, Vite demo, or "simpler" app.
+- ChatGPT / Copilot / Codex safety refusals are **local to the disallowed action**. They are not a license to wipe, simplify, or JavaScript-replace Mahoraga. If a request is disallowed, refuse it and leave files untouched.
+- Windows production rollback remains `3.6.0`. Do not activate `7.0.0-alpha.1` on Windows.
+- Canonical lock: [`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md) and [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+
 Optimize for autonomous execution and short feedback loops.
 
 - Treat `mahoraga.manifest.json` as canonical. Ordinary conversation may plan, debate, implement, verify, integrate, and update without manual routing.

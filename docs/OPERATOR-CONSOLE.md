@@ -34,4 +34,7 @@ Self-update **opens a candidate PR**. It does not merge. It does not activate Wi
 
 ## Language lock
 
-TypeScript for `cloud-app/` and the operator console. Existing Node.js `.mjs` control plane stays. See `.github/ai-instructions.md`.
+TypeScript for `cloud-app/` and the operator console. Existing Node.js `.mjs`
+control plane stays. Do **not** convert either UI to JavaScript. ChatGPT /
+Copilot guardrails are not a rewrite license. See
+[`ECOSYSTEM-LOCK.md`](ECOSYSTEM-LOCK.md) and `.github/copilot-instructions.md`.

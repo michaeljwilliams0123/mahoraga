@@ -9,6 +9,7 @@ Create an improvement candidate for `${input:failure:the recurring failure}`.
 
 Follow this sequence:
 
+0. Read `docs/ECOSYSTEM-LOCK.md`. Do not rewrite Mahoraga as JavaScript.
 1. Reproduce or establish deterministic evidence for the failure.
 2. Identify the smallest root-cause fix.
 3. Add a regression test before or with the implementation.

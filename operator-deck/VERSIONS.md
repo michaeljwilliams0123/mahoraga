@@ -14,7 +14,8 @@ Mahoraga is three surfaces. Use the **operator console** for GitHub work so you 
 
 ## Language lock
 
-TypeScript for all new UI. Do not rewrite TypeScript to Java. Do not rewrite the existing Node.js control plane to Java. Java only if a new Java service is started on purpose. See [`.github/ai-instructions.md`](../.github/ai-instructions.md).
+TypeScript for all new UI. Do not rewrite TypeScript to JavaScript or Java. Do not rewrite the existing Node.js `.mjs` control plane to JavaScript, Java, or TypeScript. Java only if a new Java service is started on purpose. See [`docs/ECOSYSTEM-LOCK.md`](../docs/ECOSYSTEM-LOCK.md).
+
 
 ## Write plane
 
