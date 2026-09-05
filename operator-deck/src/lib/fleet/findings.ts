@@ -44,6 +44,14 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
     owner: "assurance",
   },
   {
+    id: "hosted-compute-quota",
+    severity: "p1",
+    title: "Duplicate Vercel projects and paid review bots burn the free cap",
+    detail:
+      "PR previews already hit api-deployments-free-per-day (100). Extra Vercel projects multiply that burn; Codex review bots then fail on usage limits. Keep one workspace project, let Verify be the credit-free review, and treat a spent free cap as hold-planned — never as a reason to buy Pro.",
+    owner: "assurance",
+  },
+  {
     id: "tunnel-posture",
     severity: "ok",
     title: "No inbound tunnels — keep it that way",

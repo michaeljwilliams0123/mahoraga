@@ -3,10 +3,15 @@ import assert from "node:assert/strict";
 import {
   CREDIT_FREE_PROTOCOL_STEPS,
   attestZeroCreditHealth,
+  attestHostedComputeBudget,
   classifyAutonomyProvider,
+  classifyCreditFreeIntent,
   creditFreeGraphNodes,
   maintainCreditFreeAutonomy,
+  planCreditFreeWork,
+  resolveCreditFreeNextAction,
   selectCreditFreeExecutionPlane,
+  selectCreditFreeGraph,
   assertCreditFreeDispatch,
 } from "../src/credit-free-autonomy.mjs";
 import { buildAutonomyObjective } from "../src/autonomy-orchestrator.mjs";
@@ -89,6 +94,52 @@ test("maintainCreditFreeAutonomy refuses paid recovery and dispatches only when 
   assert.equal(held.nextAction, "hold-planned");
 });
 
+test("metered requested providers refuse even when the deterministic plane is healthy", () => {
+  const refused = maintainCreditFreeAutonomy({
+    providers: ["repository", "local-core", "self-healer"],
+    requestedProvider: "openai-platform",
+  });
+  assert.equal(refused.health.ok, true);
+  assert.equal(refused.plane.reason, "metered-provider-forbidden");
+  assert.equal(refused.nextAction, "refuse-paid-route");
+  assert.equal(resolveCreditFreeNextAction({
+    health: { ok: true, status: "healthy" },
+    plane: { ok: false, reason: "subscription-local-not-credit-free" },
+  }), "refuse-paid-route");
+  assert.equal(resolveCreditFreeNextAction({
+    health: { ok: true, status: "healthy" },
+    plane: { ok: false, reason: "local-reasoner-not-ready" },
+  }), "wait-for-local-reasoner");
+});
+
+test("hosted compute cap exhaustion holds planned instead of buying a deploy tier", () => {
+  const exhausted = attestHostedComputeBudget({ vercelDeploymentsToday: 100, vercelDailyCap: 100 });
+  assert.equal(exhausted.ok, false);
+  assert.equal(exhausted.reason, "hosted-deploy-cap-exhausted");
+  const held = maintainCreditFreeAutonomy({ vercelDeploymentsToday: 100, vercelDailyCap: 100 });
+  assert.equal(held.nextAction, "hold-planned");
+  assert.equal(held.hostedCompute.reason, "hosted-deploy-cap-exhausted");
+  const duplicate = attestHostedComputeBudget({ extraVercelProjects: 3 });
+  assert.equal(duplicate.status, "degraded");
+  assert.equal(duplicate.reason, "duplicate-vercel-projects-burn-quota");
+});
+
+test("inspect intent uses a status graph; mutations keep containment and record a steward gap", () => {
+  assert.equal(classifyCreditFreeIntent("Inspect the repository status"), "inspect");
+  assert.deepEqual(selectCreditFreeGraph("inspect").map((node) => node.id), ["observe", "decide", "report"]);
+  const inspect = planCreditFreeWork({ message: "Inspect the repository status" });
+  assert.equal(inspect.intentKind, "inspect");
+  assert.equal(inspect.stewardGap, null);
+  assert.equal(inspect.nextAction, "dispatch-credit-free");
+
+  const mutation = planCreditFreeWork({ message: "Update the Mahoraga interface and apply the change" });
+  assert.equal(mutation.intentKind, "autonomous-action");
+  assert.deepEqual(mutation.graph.map((node) => node.id), [...CREDIT_FREE_PROTOCOL_STEPS]);
+  assert.equal(mutation.stewardGap.id, "credit-free-deferred-implementation");
+  assert.equal(mutation.stewardGap.paidFallback, false);
+  assert.equal(planCreditFreeWork({ message: "Update the interface", localReasonerReady: true }).stewardGap, null);
+});
+
 const EXECUTION_CONTRACT = Object.freeze({
   baseCommit: "a".repeat(40),
   allowedPaths: Object.freeze(["src", "test"]),
@@ -115,6 +166,21 @@ test("credit-free autonomy objectives never lease Codex", () => {
     assert.equal(task.paidFallback, false);
     assert.equal(task.baseCommit, EXECUTION_CONTRACT.baseCommit);
   }
+});
+
+test("credit-free inspect objectives skip mutation nodes and still stay at $0", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000000",
+    message: "Inspect the repository status",
+    requestedMode: "credit-free",
+    creditFreeRequired: true,
+    executionContract: EXECUTION_CONTRACT,
+  });
+  assert.deepEqual(objective.tasks.map((task) => task.id), ["observe", "decide", "report"]);
+  assert.equal(objective.intentKind, "inspect");
+  assert.equal(objective.stewardGap, null);
+  assert.equal(objective.creditCost, 0);
 });
 
 test("credit-free router admits deterministic workers and blocks Codex", () => {

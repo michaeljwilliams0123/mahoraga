@@ -16,6 +16,12 @@ export type AutonomyProviderClass =
   | "metered"
   | "unknown";
 
+export type CreditFreeNextAction =
+  | "dispatch-credit-free"
+  | "hold-planned"
+  | "wait-for-local-reasoner"
+  | "refuse-paid-route";
+
 const CREDIT_FREE_PROVIDERS = new Set([
   "repository",
   "local-core",
@@ -47,4 +53,18 @@ export function creditFreeHealthLabel(status: "healthy" | "degraded" | "unhealth
   if (status === "healthy") return "ok";
   if (status === "degraded") return "warn";
   return "danger";
+}
+
+export function resolveCreditFreeNextAction(input: {
+  healthOk: boolean;
+  healthStatus: "healthy" | "degraded" | "unhealthy";
+  planeOk: boolean;
+  planeReason?: string | null;
+  hostedComputeOk?: boolean;
+}): CreditFreeNextAction {
+  if (input.hostedComputeOk === false) return "hold-planned";
+  if (!input.healthOk) return input.healthStatus === "degraded" ? "hold-planned" : "refuse-paid-route";
+  if (input.planeOk) return "dispatch-credit-free";
+  if (input.planeReason === "local-reasoner-not-ready") return "wait-for-local-reasoner";
+  return "refuse-paid-route";
 }
