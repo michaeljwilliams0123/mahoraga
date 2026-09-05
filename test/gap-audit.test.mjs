@@ -5,13 +5,13 @@ import { buildGapAudit } from "../src/gap-audit.mjs";
 
 const CONTRACT_IDS = [
   "localhost-runtime-boundary", "verified-automatic-update-authority", "browser-worker-baseline", "repository-worker-baseline",
-  "automatic-operational-repair", "chromebook-control-plane", "cross-platform-ci",
+  "automatic-operational-repair", "cross-platform-ci",
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
-  "chromebook-control-plane", "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
+  "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
   "local-provider-readiness-probe", "local-reasoner-health-contract", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
@@ -86,4 +86,15 @@ test("gap audit closes contract gaps from file and manifest proof without live W
   assert.ok(!open.has("cross-platform-ci"));
   assert.ok(!open.has("no-default-metered-openai-api"));
   assert.ok(!open.has("automatic-operational-repair"));
+});
+
+test("retired Chromebook control plane closes only when the workflow is absent", async () => {
+  const manifest = await loadManifest();
+  const present = buildGapAudit(manifest, { root: "/synthetic", fileExists: () => true });
+  const absent = buildGapAudit(manifest, {
+    root: "/synthetic",
+    fileExists: (candidate) => !String(candidate).includes("chromebook-control-plane.yml"),
+  });
+  assert.equal(present.closed.some((item) => item.id === "chromebook-control-plane-retired"), false);
+  assert.equal(absent.closed.some((item) => item.id === "chromebook-control-plane-retired"), true);
 });

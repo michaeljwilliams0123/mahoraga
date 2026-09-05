@@ -42,7 +42,7 @@ True autonomy cannot wait for a chat turn. `src/autonomy-heartbeat.mjs` is the a
 5. Repair remains incident-only.
 6. Report a content-free receipt with `creditCost: 0` and `paidFallback: false`.
 
-The four-hour candidate cycle runs this heartbeat as a preflight. A refused paid route or exhausted hosted-compute cap holds the cycle instead of buying a provider. Compounded learning (`compoundCreditFreeLearning`) stores method identifiers and success/hold counts only.
+The four-hour candidate cycle runs this heartbeat as a preflight. The unattended CLI reads live evidence from the environment and from GitHub ledger text (`api-deployments-free-per-day`) instead of defaulting hosted compute to zero. A refused paid route or exhausted hosted-compute cap holds the cycle — the candidate job is skipped — instead of buying a provider. Compounded learning (`compoundCreditFreeLearning`) stores method identifiers and success/hold counts only. Heartbeat receipts are written to the Actions step summary as the durable $0 ledger.
 
 ## How to obtain and keep it
 
@@ -59,4 +59,4 @@ The four-hour candidate cycle runs this heartbeat as a preflight. A refused paid
 
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored. This does not activate Windows production and does not change the four-hour sovereign cadence.

@@ -136,15 +136,37 @@ jobs:
       - name: Credit-free heartbeat preflight
         if: steps.cadence.outputs.should_run == 'true'
         id: heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
+          ledger=""
+          if [[ -n "${GH_TOKEN:-}" && -n "${GITHUB_REPOSITORY:-}" ]]; then
+            ledger="$(gh api "repos/${GITHUB_REPOSITORY}/issues/comments?sort=updated&direction=desc&per_page=30" --jq '[.[].body] | join("\n")' || true)"
+          fi
+          if echo "${ledger}" | grep -q 'api-deployments-free-per-day'; then
+            export MAHORAGA_HOSTED_LEDGER_TEXT='code: "api-deployments-free-per-day"'
+          else
+            export MAHORAGA_HOSTED_LEDGER_TEXT=""
+          fi
           output="$(node src/autonomy-heartbeat.mjs)"
           echo "${output}"
           action="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.nextAction);' "${output}")"
           cost="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.creditCost));' "${output}")"
           paid="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.paidFallback));' "${output}")"
+          reason="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(value.hostedCompute?.reason || "");' "${output}")"
+          used="$(node -e 'const value=JSON.parse(process.argv[1]); process.stdout.write(String(value.hostedCompute?.used ?? 0));' "${output}")"
           echo "next_action=${action}" >> "$GITHUB_OUTPUT"
+          echo "hosted_used=${used}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Credit-free heartbeat"
+            echo "- nextAction: \`${action}\`"
+            echo "- hostedCompute: \`${reason}\`"
+            echo "- creditCost: \`${cost}\`"
+            echo "- paidFallback: \`${paid}\`"
+          } >> "${GITHUB_STEP_SUMMARY}"
           if [[ "${cost}" != "0" || "${paid}" != "false" ]]; then
             echo "Heartbeat contaminated a paid route; refusing." >&2
             exit 1
@@ -159,12 +181,15 @@ jobs:
 
       - name: Run anchored zero-credit candidate cycle
         id: cycle
-        if: steps.cadence.outputs.should_run == 'true'
+        if: >-
+          steps.cadence.outputs.should_run == 'true' &&
+          steps.heartbeat.outputs.next_action != 'hold-planned'
         env:
           GH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.cadence.outputs.anchor_iso }}
           MAHORAGA_CANDIDATE_PRODUCER: github-native
+          MAHORAGA_VERCEL_DEPLOYMENTS_TODAY: ${{ steps.heartbeat.outputs.hosted_used }}
         shell: bash
         run: |
           set -euo pipefail

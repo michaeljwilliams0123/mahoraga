@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   compoundCreditFreeLearning,
+  hostedComputeFromLedgerText,
+  readCreditFreeRuntime,
   runCreditFreeHeartbeat,
+  runCreditFreeHeartbeatFromEnv,
   validateHeartbeatReceipt,
 } from "../src/autonomy-heartbeat.mjs";
 import { CREDIT_FREE_PROTOCOL_STEPS } from "../src/credit-free-autonomy.mjs";
@@ -157,4 +160,31 @@ test("four-hour cycle workflow runs the credit-free heartbeat before candidate p
   assert.match(source, /node src\/autonomy-heartbeat\.mjs/);
   assert.match(source, /refuse-paid-route/);
   assert.match(source, /node src\/cloud-cycle-worker\.mjs/);
+  assert.match(source, /api-deployments-free-per-day/);
+  assert.match(source, /steps\.heartbeat\.outputs\.next_action != 'hold-planned'/);
+  assert.match(source, /MAHORAGA_HOSTED_LEDGER_TEXT/);
+});
+
+test("unattended heartbeat observes hosted-compute exhaustion from the GitHub ledger instead of defaulting to dispatch", () => {
+  const marker = hostedComputeFromLedgerText('Resource is limited (more than 100, code: "api-deployments-free-per-day").');
+  assert.equal(marker.vercelDeploymentsToday, 100);
+  assert.equal(hostedComputeFromLedgerText("healthy preview").vercelDeploymentsToday, 0);
+
+  const runtime = readCreditFreeRuntime({
+    MAHORAGA_HOSTED_LEDGER_TEXT: 'code: "api-deployments-free-per-day"',
+    GITHUB_SHA: "a".repeat(40),
+    MAHORAGA_OPEN_ISSUES: "2",
+    MAHORAGA_OPEN_PULLS: "0",
+  });
+  assert.equal(runtime.vercelDeploymentsToday, 100);
+  assert.equal(runtime.world.openIssues, 2);
+
+  const held = runCreditFreeHeartbeatFromEnv({
+    now: NOW,
+    env: { MAHORAGA_HOSTED_LEDGER_TEXT: 'code: "api-deployments-free-per-day"', GITHUB_SHA: "a".repeat(40) },
+  });
+  assert.equal(held.nextAction, "hold-planned");
+  assert.equal(held.executable, false);
+  assert.equal(held.paidFallback, false);
+  assert.equal(held.hostedCompute.reason, "hosted-deploy-cap-exhausted");
 });

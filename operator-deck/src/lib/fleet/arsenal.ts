@@ -311,18 +311,6 @@ export const ARSENAL: ArsenalCommand[] = [
     workflowFile: "codex-cloud-dispatch.yml",
   },
   {
-    id: "workflow-chromebook",
-    label: "Inspect Chromebook control plane",
-    command: "Inspect the last Chromebook control plane workflow run.",
-    owner: "relay",
-    plane: "github",
-    group: "GitHub ledger",
-    hint: "Outbound Chromebook lane.",
-    keywords: "chromebook control plane workflow",
-    intent: "workflow-inspect",
-    workflowFile: "chromebook-control-plane.yml",
-  },
-  {
     id: "workflow-receiver",
     label: "Inspect workspace agent receiver",
     command: "Inspect the last Workspace agent receiver workflow run.",

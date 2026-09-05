@@ -43,6 +43,7 @@ export const ESSENTIAL_FILES = [
   "src/autonomy-execution-scope.mjs",
   "src/autonomy-orchestrator.mjs",
   "src/credit-free-autonomy.mjs",
+  "src/autonomy-heartbeat.mjs",
   "src/objective-release-authority.mjs",
   "src/autonomous-integration.mjs",
   "src/copilot-worker.mjs",
