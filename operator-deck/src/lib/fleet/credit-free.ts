@@ -68,3 +68,32 @@ export function resolveCreditFreeNextAction(input: {
   if (input.planeReason === "local-reasoner-not-ready") return "wait-for-local-reasoner";
   return "refuse-paid-route";
 }
+
+export function admitLocalReasonerExecution(input: {
+  verified?: boolean;
+  channel?: {
+    persistence: string;
+    promptPersistenceAllowed: boolean;
+    responsePersistenceAllowed: boolean;
+    creditCost: number;
+    paidFallback: boolean;
+    expiresAt: string;
+  } | null;
+  now?: number;
+}): { executionEnabled: boolean; reason: string } {
+  if (input.verified !== true) return { executionEnabled: false, reason: "local-reasoner-not-ready" };
+  const channel = input.channel;
+  const now = input.now ?? Date.now();
+  if (
+    !channel
+    || channel.persistence !== "memory-only"
+    || channel.promptPersistenceAllowed !== false
+    || channel.responsePersistenceAllowed !== false
+    || channel.creditCost !== 0
+    || channel.paidFallback !== false
+    || Date.parse(channel.expiresAt) <= now
+  ) {
+    return { executionEnabled: false, reason: "transient-result-channel-required" };
+  }
+  return { executionEnabled: true, reason: "transient-result-channel-open" };
+}

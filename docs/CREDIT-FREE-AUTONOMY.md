@@ -44,6 +44,38 @@ True autonomy cannot wait for a chat turn. `src/autonomy-heartbeat.mjs` is the a
 
 The four-hour candidate cycle runs this heartbeat as a preflight. The unattended CLI reads live evidence from the environment and from GitHub ledger text (`api-deployments-free-per-day`) instead of defaulting hosted compute to zero. A refused paid route or exhausted hosted-compute cap holds the cycle — the candidate job is skipped — instead of buying a provider. Compounded learning (`compoundCreditFreeLearning`) stores method identifiers and success/hold counts only. Heartbeat receipts are written to the Actions step summary as the durable $0 ledger.
 
+## Transient local-reasoner channel
+
+Loopback probes stay content-free. Execution stays disabled until a **transient
+result channel** is opened for a single generation cycle:
+
+- Memory-only, TTL-bounded (default 15s).
+- Never persists prompts, responses, or chat.
+- Results are status + SHA-256 only.
+- Paid fallback remains forbidden. An expired or missing channel is a legal
+  wait (`transient-result-channel-required`), not a spend grant.
+
+`src/local-reasoner-channel.mjs` is the contract. The unattended heartbeat opens
+a channel only when generation is required, a local reasoner is live, and the
+next action is `dispatch-credit-free`.
+
+## Dual loop (2026 RSI, frozen weights)
+
+True autonomy is two loops, both at `$0`:
+
+1. **Fast loop** — `runCreditFreeHeartbeat`. Observe world metadata, decide with
+   `maintainCreditFreeAutonomy`, act only on `dispatch-credit-free`, verify,
+   incident-only repair, report a content-free receipt.
+2. **Slow loop** — `runCreditFreeImprovementLoop`. Compound identifier-only
+   skills into the routine library and plan zero-credit child specialists from
+   steward gaps via the agent foundry. No prompts. No weight updates. No paid
+   evals.
+
+This matches current local-first practice (Ollama / LM Studio as the only
+generation plane, GitHub Actions as the scheduler, Voyager-style skill
+compounding without storing traces). Cloud API fallbacks, Hugging Face free-tier
+as a guaranteed route, and Groq/Gemini "free" keys are still not recovery paths.
+
 ## How to obtain and keep it
 
 1. Prefer local models (Ollama, LM Studio, a verified open-weight Codespace) or deterministic workers over cloud APIs.
@@ -68,6 +100,9 @@ Applied now:
 
 - Keep the durable loop at `$0`. Chat is not the scheduler.
 - Dual-probe Ollama and LM Studio; either live unmetered loopback is enough.
+- Dual-loop RSI at frozen weights: heartbeat + skill/foundry compounding.
+- Transient result channel so a live Ollama/LM Studio can execute without
+  persisting prompts or buying a cloud key.
 - GitHub-native `main` protection and the incumbent epoch are credit-free
   containment, not a model. They fail closed without paid review bots.
 - Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,
@@ -113,4 +148,4 @@ The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into ev
 
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/local-reasoner-channel.mjs` is the memory-only execution admitter. `src/credit-free-skill-compound.mjs` is the slow loop: identifier-only routines plus foundry plans from steward gaps. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.
