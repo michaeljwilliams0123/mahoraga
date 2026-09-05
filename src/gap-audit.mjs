@@ -165,7 +165,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/branch-cleanup-ledger.mjs") && has("test/branch-cleanup-ledger.test.mjs"), {
     id: "branch-cleanup-ledger",
     priority: "medium",
-    summary: "Wave A contained branches are delete-eligible only after a fresh ahead_by=0 comparison, no open PR, and non-protected status.",
+    summary: "Wave A contained branches are delete-eligible after a fresh ahead_by=0 comparison, or when a merged PR attests squash/merge/rebase leftover unique SHAs. Wave B stays reconcile-only. No open PR. Non-protected.",
   });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
