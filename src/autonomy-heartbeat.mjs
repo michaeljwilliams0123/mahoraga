@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import {
   CREDIT_FREE_NEXT_ACTIONS,
   CREDIT_FREE_PROTOCOL_STEPS,
@@ -386,7 +387,7 @@ function envIntegerOrNull(value) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href) {
   runHeartbeatCli()
     .then((receipt) => {
       console.log(JSON.stringify(receipt));
