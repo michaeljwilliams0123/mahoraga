@@ -32,7 +32,8 @@ exact-head success of:
 
 - `Verify (ubuntu-latest)`
 - `Verify (windows-latest)`
-- `Verify unified Vercel workspace`
+
+`Verify unified Vercel workspace` may run. It must not gate PR completion.
 
 No actor may bypass the ruleset. Autonomous integration still squash-merges
 eligible PRs through the GitHub pull-request merge API after those checks pass.

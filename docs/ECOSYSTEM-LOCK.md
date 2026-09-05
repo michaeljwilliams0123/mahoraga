@@ -39,8 +39,9 @@ Canonical machine-readable copies:
    spend, or metered OpenAI API from an agent session in order to rebuild
    the stack.
 8. **Protect main.** Ruleset `22327855`. Required checks: Verify
-   (ubuntu-latest), Verify (windows-latest), Verify unified Vercel
-   workspace. Never squash-merge a blocked PR.
+   (ubuntu-latest), Verify (windows-latest). `Verify unified Vercel
+   workspace` may run, but must not gate PR completion. Never squash-merge
+   a blocked PR.
 9. **Keep public exposure bounded.** Persistent, unbounded public exposure
    is prohibited. Mahoraga-controlled specialized-purpose apertures are a
    first-class capability. They must be objective-bound, independently

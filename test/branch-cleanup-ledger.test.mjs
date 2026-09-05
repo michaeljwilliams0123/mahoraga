@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyCleanupBranch, reduceCleanupLedger } from "../src/branch-cleanup-ledger.mjs";
+import { classifyCleanupBranch, classifyLeftoverWave, reduceCleanupLedger } from "../src/branch-cleanup-ledger.mjs";
 
 test("contained Wave A branches with no open PR become delete-eligible only at ahead_by=0", () => {
   const eligible = classifyCleanupBranch({ name: "fix/cloud-cycle-windows-cli-entry-20260905", aheadBy: 0, openPrCount: 0, isProtected: false, wave: "A" });
@@ -39,4 +39,14 @@ test("ledger counts stay credit-free", () => {
   assert.equal(ledger.counts.reconcile, 1);
   assert.equal(ledger.creditCost, 0);
   assert.equal(ledger.paidFallback, false);
+});
+
+test("unnamed leftover merged heads default to Wave A except the issue #83 Wave B set", () => {
+  assert.equal(classifyLeftoverWave("feature/sovereign-e8ed53929165"), "A");
+  assert.equal(classifyLeftoverWave("feature/chatgpt-grade-ui"), "B");
+  const leftover = classifyCleanupBranch({ name: "feature/unattended-generation-admit-20260905", aheadBy: 0, openPrCount: 0 });
+  assert.equal(leftover.disposition, "delete-eligible");
+  const waveB = classifyCleanupBranch({ name: "feature/chatgpt-grade-ui", aheadBy: 0, openPrCount: 0 });
+  assert.equal(waveB.disposition, "reconcile");
+  assert.equal(waveB.reason, "wave-b-contained-still-reconcile");
 });

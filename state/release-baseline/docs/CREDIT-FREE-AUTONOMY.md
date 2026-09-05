@@ -134,6 +134,7 @@ or live-probe auto-arm.
 9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
 10. Keep a live local reasoner for source mutations. Probe Ollama at `127.0.0.1:11434` and LM Studio at `127.0.0.1:1234`. Either unmetered loopback is enough. Deterministic inspect/repair continues without a model. Paid fallback is never the missing-model recovery path.
 11. Obtain autonomy by keeping GitHub public-repo Actions, deterministic workers, and one local open-weight server. Maintain it by never adding extra Vercel projects, never enabling the Platform API, and never treating Copilot review credits as a heartbeat. The Vercel free cap (`api-deployments-free-per-day`) is a legal `hold-planned`, not a spend grant.
+12. Do not open a PR whose only delta is a cycleId / producedAt stamp. A silent scheduler is worse than a hold, but a no-op PR that then consumes Ubuntu+Windows Verify is hosted-compute burn. Record the pulse in the Actions step summary. Close stale ledger-only PRs.
 
 ## 2026 research applied
 
@@ -203,12 +204,19 @@ Applied now:
   are stored as status + SHA-256 on that channel.
 - GitHub-native `main` protection and the incumbent epoch are credit-free
   containment, not a model. They fail closed without paid review bots. The
-  live contract now matches the active ruleset: `Verify (ubuntu-latest)`,
-  `Verify (windows-latest)`, and `Verify unified Vercel workspace`. File
-  presence is not enforcement. Missing any required context fails closed.
+  live contract now matches the owner-approved PR completion gate:
+  `Verify (ubuntu-latest)` and `Verify (windows-latest)`. `Verify unified
+  Vercel workspace` may run and must not gate merge. File presence is not
+  enforcement. Missing any required context fails closed.
+- Sovereign cycleId-only ledger pulses hold at `$0`. Opening a PR that only
+  stamps `cycleId` / `producedAt` burns hosted Actions minutes without
+  changing gap composition. The Actions step summary is the pulse. Stale
+  ledger-only PRs are close-eligible (`src/stale-pr-ledger.mjs`). Gap
+  composition changes still refresh the ledger.
 - Gap audit records Destiny signed-receipt trust, the transient local-reasoner
-  channel, the unattended dual loop, and live main-protection files as closed
-  contracts. Runtime Windows activation and Destiny identity remain legal waits.
+  channel, the unattended dual loop, live main-protection files, and
+  sovereign cycle hold-no-op as closed contracts. Runtime Windows activation
+  and Destiny identity remain legal waits.
 - Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,
   extra Vercel projects, or Copilot review is not a recovery path.
 - Compound identifier-only learning. Do not store prompts or chats to "get

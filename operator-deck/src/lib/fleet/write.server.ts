@@ -236,7 +236,7 @@ async function mergePr(number: number): Promise<WriteOutcome> {
       ok: false,
       state: "waiting",
       title: `PR #${number} not mergeable`,
-      summary: `#${number} “${meta.title ?? ""}” is ${meta.mergeStateStatus}. Protect main requires Verify (Ubuntu + Windows + Vercel workspace) on the exact head. This deck will not squash past a blocked ruleset.`,
+      summary: `#${number} “${meta.title ?? ""}” is ${meta.mergeStateStatus}. Protect main requires exact-head Verify (Ubuntu + Windows). Unified Vercel workspace may run and must not gate merge. This deck will not squash past a blocked ruleset.`,
       evidence: [
         { label: "PR", value: `#${number} ${meta.title ?? ""}`, href: meta.url },
         { label: "Merge state", value: meta.mergeStateStatus },

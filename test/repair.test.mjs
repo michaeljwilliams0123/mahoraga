@@ -80,6 +80,7 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "src/destiny-event-delivery.mjs",
     "src/destiny-trigger-metrics.mjs",
     "src/branch-cleanup-ledger.mjs",
+    "src/stale-pr-ledger.mjs",
     "src/openclaw-adapter.mjs",
     "src/mcp-host-manager.mjs",
     "src/evidence-compiler.mjs",

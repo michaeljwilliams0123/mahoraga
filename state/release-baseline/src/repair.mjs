@@ -41,6 +41,7 @@ export const ESSENTIAL_FILES = [
   "src/destiny-event-delivery.mjs",
   "src/destiny-trigger-metrics.mjs",
   "src/branch-cleanup-ledger.mjs",
+  "src/stale-pr-ledger.mjs",
   "src/controller-authority.mjs",
   "src/cloud-task-gateway.mjs",
   "src/codex-builder-worker.mjs",

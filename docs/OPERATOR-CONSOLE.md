@@ -22,7 +22,8 @@ Required checks:
 
 - Verify (ubuntu-latest)
 - Verify (windows-latest)
-- Verify unified Vercel workspace
+
+`Verify unified Vercel workspace` may run. It must not gate PR completion.
 
 Strict up-to-date. No bypass actors. Issue #78 is the settings write; once evidence is on the thread it should be closed as completed. A file in git is not branch protection.
 

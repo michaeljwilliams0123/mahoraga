@@ -354,7 +354,7 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "admin",
     plane: "write",
     group: "GitHub writes",
-    hint: "Blocked until Verify Ubuntu + Windows + Vercel workspace are green.",
+    hint: "Blocked until exact-head Verify Ubuntu + Windows are green. Unified Vercel workspace is observational.",
     keywords: "merge 97 squash candidate scan report",
     intent: "github-write",
     writeVerb: "merge-pr",
