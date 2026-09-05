@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import path from "node:path";
-import { readFile } from "node:fs/promises";
 import { stdin as input, stdout, stderr } from "node:process";
 import { loadManifest, ROOT } from "../src/config.mjs";
 import { createContentVault } from "../src/content-vault.mjs";
@@ -10,14 +9,13 @@ import { executeSelfExtensionCapability } from "../src/self-extension-worker.mjs
 import { assertAdditiveBaseline } from "../src/baseline-preservation.mjs";
 
 const capability = process.argv[2];
-const requestPath = process.argv[3];
 
-if (!capability || !requestPath) {
-  stderr.write("usage: node scripts/mahoraga-self-extension.mjs <capability> <request.json|->\n");
+if (!capability || process.argv.length > 3) {
+  stderr.write("usage: <request.json node scripts/mahoraga-self-extension.mjs <capability>\n");
   process.exitCode = 2;
 } else {
   try {
-    const request = await readRequest(requestPath);
+    const request = await readRequestFromStdin();
     const result = await execute(capability, request);
     stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   } catch (error) {
@@ -50,21 +48,16 @@ async function artifactStore() {
   return new LocalArtifactStore(artifactRoot, { contentVault });
 }
 
-async function readRequest(source) {
-  const text = source === "-" ? await readStdin() : await readFile(path.resolve(process.cwd(), source), "utf8");
-  const value = JSON.parse(text);
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw Object.assign(new TypeError("self-extension-request-invalid"), { code: "self-extension-request-invalid" });
-  return value;
-}
-
-async function readStdin() {
+async function readRequestFromStdin() {
   let text = "";
   input.setEncoding("utf8");
   for await (const chunk of input) {
     text += chunk;
     if (Buffer.byteLength(text, "utf8") > 1024 * 1024) throw Object.assign(new Error("self-extension-request-too-large"), { code: "self-extension-request-too-large" });
   }
-  return text;
+  const value = JSON.parse(text);
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw Object.assign(new TypeError("self-extension-request-invalid"), { code: "self-extension-request-invalid" });
+  return value;
 }
 
 function classify(error) {
