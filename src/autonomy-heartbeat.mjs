@@ -8,6 +8,7 @@ import {
   selectCreditFreeGraph,
 } from "./credit-free-autonomy.mjs";
 import { admitLocalReasonerExecution, openTransientResultChannel } from "./local-reasoner-channel.mjs";
+import { actuateCreditFreeCycle, validateActuation } from "./credit-free-actuation.mjs";
 import { evaluateDestinyTriggerReadiness } from "./destiny-trigger-trust.mjs";
 
 export const HEARTBEAT_KIND = "credit-free-heartbeat";
@@ -56,7 +57,12 @@ export function attestHeartbeatDestinyTrigger({
   }
 }
 
-export function runCreditFreeHeartbeat({
+export function runCreditFreeHeartbeat(options = {}) {
+  const receipt = composeCreditFreeHeartbeat(options);
+  return actuateCreditFreeCycle(receipt, { now: timestampMs(options.now) });
+}
+
+export function composeCreditFreeHeartbeat({
   spendGrantUsd = 0,
   platformApiKeyPresent = false,
   allowPaidFallback = false,
@@ -246,6 +252,7 @@ export function validateHeartbeatReceipt(value) {
   if (!isCanonicalTimestamp(value.observedAt)) fail("heartbeat-observed-at-invalid");
   if (typeof value.worldDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.worldDigest)) fail("heartbeat-world-digest-invalid");
   if (value.destinyTrigger != null) validateDestinyTrigger(value.destinyTrigger);
+  if (value.actuation != null) validateActuation(value.actuation);
   return value;
 }
 

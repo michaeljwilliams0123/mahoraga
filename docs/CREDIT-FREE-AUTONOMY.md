@@ -59,6 +59,23 @@ result channel** is opened for a single generation cycle:
 a channel only when generation is required, a local reasoner is live, and the
 next action is `dispatch-credit-free`.
 
+## Actuation (admission is not autonomy)
+
+Opening a channel is a gate. True autonomy still has to **act, verify, and
+report** on that gate at `$0`:
+
+1. `composeCreditFreeHeartbeat` admits execution when the channel is open.
+2. `actuateCreditFreeCycle` puts a content-free result (status + SHA-256).
+3. Verify reads the transient list. `ok` becomes `verified`; `hold` / missing
+   results stay a legal wait; `refuse-paid-route` stays refused.
+4. Inspect cycles report the world digest and never open a channel.
+5. A custom `generate` callback may talk to Ollama / LM Studio, but the durable
+   receipt still stores only status + digest. Prompts, responses, and chat are
+   rejected. Ollama **cloud** tags (metered) are not a recovery path.
+
+`runCreditFreeHeartbeat` now returns an `actuation` object on every cycle.
+Missing local models remain `held`, never a spend grant.
+
 ## Dual loop (2026 RSI, frozen weights)
 
 True autonomy is two loops, both at `$0`:
@@ -103,6 +120,9 @@ Applied now:
 - Dual-loop RSI at frozen weights: heartbeat + skill/foundry compounding.
 - Transient result channel so a live Ollama/LM Studio can execute without
   persisting prompts or buying a cloud key.
+- Actuation after admission: put status + digest, verify the channel, hold
+  when the model is missing. Local-first agents (Hermes, Atomic, Goose) invoke
+  the local runtime; a gate that never acts is not autonomy.
 - GitHub-native `main` protection and the incumbent epoch are credit-free
   containment, not a model. They fail closed without paid review bots.
 - Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,

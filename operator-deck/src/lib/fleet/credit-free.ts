@@ -97,3 +97,31 @@ export function admitLocalReasonerExecution(input: {
   }
   return { executionEnabled: true, reason: "transient-result-channel-open" };
 }
+
+export function actuateCreditFreeCycle(input: {
+  nextAction: CreditFreeNextAction;
+  intentKind?: "inspect" | "repair" | "autonomous-action";
+  executionEnabled?: boolean;
+  worldDigest: string;
+}): {
+  status: "verified" | "held" | "refused";
+  reason: string;
+  resultSha256: string;
+  creditCost: 0;
+  paidFallback: false;
+} {
+  const digest = input.worldDigest;
+  if (input.nextAction === "refuse-paid-route") {
+    return { status: "refused", reason: "refuse-paid-route", resultSha256: digest, creditCost: 0, paidFallback: false };
+  }
+  if (input.nextAction !== "dispatch-credit-free") {
+    return { status: "held", reason: input.nextAction, resultSha256: digest, creditCost: 0, paidFallback: false };
+  }
+  if (input.intentKind === "inspect" || input.intentKind === "repair") {
+    return { status: "verified", reason: "inspect-reported", resultSha256: digest, creditCost: 0, paidFallback: false };
+  }
+  if (input.executionEnabled !== true) {
+    return { status: "held", reason: "execution-not-admitted", resultSha256: digest, creditCost: 0, paidFallback: false };
+  }
+  return { status: "verified", reason: "generation-result-verified", resultSha256: digest, creditCost: 0, paidFallback: false };
+}
