@@ -21,12 +21,27 @@ test("inspect heartbeats actuate by reporting the world digest at $0", () => {
   assert.equal(validateActuation(receipt.actuation), receipt.actuation);
 });
 
-test("admitted generation heartbeats put a content-free result and verify it", () => {
+test("admitted generation without an execution callback holds and records no fabricated result", () => {
   const receipt = runCreditFreeHeartbeat({
     now: NOW,
     requiresGeneration: true,
     localReasonerReady: true,
     message: "Update the Mahoraga interface and apply the change",
+  });
+  assert.equal(receipt.localReasonerExecution.executionEnabled, true);
+  assert.equal(receipt.actuation.status, "held");
+  assert.equal(receipt.actuation.reason, "generation-callback-required");
+  assert.equal(receipt.actuation.resultSha256, receipt.worldDigest);
+  assert.equal(listTransientResults(receipt.resultChannel, Date.parse(NOW.toISOString()) + 20).length, 0);
+});
+
+test("runCreditFreeHeartbeat forwards a real generation callback and verifies only its content-free digest result", () => {
+  const receipt = runCreditFreeHeartbeat({
+    now: NOW,
+    requiresGeneration: true,
+    localReasonerReady: true,
+    message: "Update the Mahoraga interface and apply the change",
+    generate: ({ worldDigest }) => ({ status: "ok", resultSha256: worldDigest }),
   });
   assert.equal(receipt.localReasonerExecution.executionEnabled, true);
   assert.equal(receipt.actuation.status, "verified");
