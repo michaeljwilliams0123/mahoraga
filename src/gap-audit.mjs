@@ -127,6 +127,26 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Two-hour steward foundry report carries schemaVersion 1 so empty plans hold at $0 instead of crashing the scheduler.",
   });
+  record(closed, has("src/destiny-trigger-trust.mjs") && has("test/destiny-trigger-trust.test.mjs") && has("config/destiny-trigger-trust.json"), {
+    id: "destiny-trigger-trust",
+    priority: "high",
+    summary: "Destiny signed-receipt trust is fail-closed: canonical Ed25519 only, owner comments are not execution proof, and unknown identity does not buy a probe.",
+  });
+  record(closed, has("src/local-reasoner-channel.mjs") && has("test/local-reasoner-channel.test.mjs"), {
+    id: "local-reasoner-channel",
+    priority: "high",
+    summary: "Transient memory-only result channel admits local generation without persisting prompts or buying a cloud key.",
+  });
+  record(closed, has("src/unattended-credit-free-cycle.mjs") && has("test/unattended-credit-free-cycle.test.mjs") && has("src/credit-free-skill-compound.mjs") && has("src/unattended-foundry-admit.mjs"), {
+    id: "unattended-credit-free-cycle",
+    priority: "high",
+    summary: "Unattended dual loop compounds identifier-only skills and admits foundry specialists at $0 without writing Git.",
+  });
+  record(closed, has("src/github-live-protection.mjs") && has("config/main-protection.contract.json") && has("test/github-live-protection.test.mjs"), {
+    id: "github-live-main-protection",
+    priority: "high",
+    summary: "Live main-protection contract requires exact-head Ubuntu, Windows, and unified Vercel workspace Verify. File presence is not enforcement.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

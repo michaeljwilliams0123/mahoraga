@@ -191,7 +191,13 @@ Applied now:
   persisting prompts or buying a cloud key. Verified (or held) generate results
   are stored as status + SHA-256 on that channel.
 - GitHub-native `main` protection and the incumbent epoch are credit-free
-  containment, not a model. They fail closed without paid review bots.
+  containment, not a model. They fail closed without paid review bots. The
+  live contract now matches the active ruleset: `Verify (ubuntu-latest)`,
+  `Verify (windows-latest)`, and `Verify unified Vercel workspace`. File
+  presence is not enforcement. Missing any required context fails closed.
+- Gap audit records Destiny signed-receipt trust, the transient local-reasoner
+  channel, the unattended dual loop, and live main-protection files as closed
+  contracts. Runtime Windows activation and Destiny identity remain legal waits.
 - Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,
   extra Vercel projects, or Copilot review is not a recovery path.
 - Compound identifier-only learning. Do not store prompts or chats to "get

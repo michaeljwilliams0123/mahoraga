@@ -4,6 +4,7 @@ export const LIVE_PROTECTION_PROBE = "node scripts/github-live-protection.mjs";
 const REQUIRED_CONTEXTS = Object.freeze([
   "Verify (ubuntu-latest)",
   "Verify (windows-latest)",
+  "Verify unified Vercel workspace",
 ]);
 
 export function parseMainProtectionContract(source) {
