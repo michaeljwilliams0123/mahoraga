@@ -28,6 +28,8 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "src/autonomy-orchestrator.mjs",
     "src/credit-free-autonomy.mjs",
     "src/autonomy-heartbeat.mjs",
+    "src/local-reasoner-provider.mjs",
+    "src/heartbeat-ledger.mjs",
     "src/autonomous-integration.mjs",
     "scripts/github-audit.mjs",
     "src/control-session.mjs",

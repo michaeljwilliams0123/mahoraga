@@ -55,7 +55,8 @@ The four-hour candidate cycle runs this heartbeat as a preflight. The unattended
 7. Do not burn hosted free quotas. Extra Vercel projects multiply deploys; the free cap is 100/day. Codex code-review credits are not autonomy — use Verify, not paid review bots.
 8. Compound knowledge in steward-learning and heartbeat receipts at `$0`. Never spend to “check if work exists.”
 9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
-10. Keep a live local reasoner for source mutations. Deterministic inspect/repair continues without it. Paid fallback is never the missing-model recovery path.
+10. Keep a live local reasoner for source mutations. Probe Ollama at `127.0.0.1:11434` and LM Studio at `127.0.0.1:1234`. Either unmetered loopback is enough. Deterministic inspect/repair continues without a model. Paid fallback is never the missing-model recovery path.
+11. Obtain autonomy by keeping GitHub public-repo Actions, deterministic workers, and one local open-weight server. Maintain it by never adding extra Vercel projects, never enabling the Platform API, and never treating Copilot review credits as a heartbeat. The Vercel free cap (`api-deployments-free-per-day`) is a legal `hold-planned`, not a spend grant.
 
 ## 2026 local-first constraints
 
@@ -68,6 +69,28 @@ Applied from current local-first agent practice. These are constraints, not a st
 - Quota exhaustion and missing local reasoners are legal waits. Upgrades and paid fallbacks are not.
 - Do not add extra Vercel projects or paid review bots to “speed up” autonomy.
 
+## Loopback reasoners
+
+`src/local-reasoner-provider.mjs` probes **both** loopback endpoints in parallel and keeps no model identifiers:
+
+- Ollama `http://127.0.0.1:11434/api/tags`
+- LM Studio `http://127.0.0.1:1234/v1/models`
+
+Either endpoint with loaded models is sufficient to mark the local reasoner live. Execution stays disabled until a transient result channel exists. Missing or empty reasoners are a legal wait, never a paid recovery.
+
+## Destiny trigger in the heartbeat
+
+The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into every receipt.
+
+- Deterministic inspect/repair continues at `$0` while the trigger is `unconfigured`, `unknown`, or stale.
+- Model-backed Destiny dispatch (`modelBackedDispatch`) fails closed with `hold-planned` until a dedicated actor or signed receipt is bound.
+- Owner comments are not execution proof. `config/destiny-trigger-trust.json` remains the non-secret source of truth and stays `unconfigured` until an independent actor is provisioned.
+- Zero-credit health never fires a model to probe Destiny. Unknown is the legal state.
+
+## Durable ledger
+
+`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git. Actions step summaries remain the CI-visible `$0` ledger.
+
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.

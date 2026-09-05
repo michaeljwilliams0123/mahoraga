@@ -56,12 +56,6 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
   try {
-    const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
-    if (providerDecision.status === "waiting") {
-      const terminalReason = providerDecision.providerId ?? "provider-unavailable";
-      events.push(event("waiting", cycleId, branch, terminalReason));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
-    }
     const heartbeat = runCreditFreeHeartbeat({
       now,
       providers: ["repository", "local-core", "self-healer"],
@@ -71,16 +65,23 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     });
     if (heartbeat.nextAction === "refuse-paid-route" || heartbeat.nextAction === "hold-planned") {
       events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
-    }
-    if (requiresGeneration === true && heartbeat.nextAction === "wait-for-local-reasoner") {
-      events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, null, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
     }
     if (heartbeat.health?.ok !== true) {
       const terminalReason = heartbeat.health?.reason ?? "credit-free-health-unhealthy";
       events.push(event("waiting", cycleId, branch, terminalReason));
+      return result("waiting", cycleId, branch, events, null, { terminalReason, windowStartUtc, heartbeat });
+    }
+
+    const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
+    if (providerDecision.status === "waiting") {
+      const terminalReason = providerDecision.providerId ?? "provider-unavailable";
+      events.push(event("waiting", cycleId, branch, terminalReason));
       return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat });
+    }
+    if (requiresGeneration === true && heartbeat.nextAction === "wait-for-local-reasoner") {
+      events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
+      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
     }
     if (providerDecision.providerId === "codespaces-open-weight") {
       events.push(event("cloud-running", cycleId, branch));
@@ -171,7 +172,21 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { createGitHubNativeCandidateProducer } = await import("./sovereign-candidate-producer.mjs");
     candidateProducer = createGitHubNativeCandidateProducer();
   }
-  const creditFree = readCreditFreeRuntime();
+  const creditFree = { ...readCreditFreeRuntime() };
+  try {
+    const { observeLocalReasonerReady } = await import("./local-reasoner-provider.mjs");
+    creditFree.localReasonerReady = await observeLocalReasonerReady({ timeoutMs: 1500 });
+  } catch {
+    /* env/runtime default stands */
+  }
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { ROOT } = await import("./config.mjs");
+    creditFree.destinyManifest = JSON.parse(await readFile(path.join(ROOT, "config", "destiny-trigger-trust.json"), "utf8"));
+  } catch {
+    creditFree.destinyManifest = null;
+  }
   const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc, candidateProducer, creditFree });
   console.log(JSON.stringify(output));
   if (output.status === "failed") process.exitCode = 1;
