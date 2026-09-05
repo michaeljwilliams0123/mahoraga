@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { ROOT, loadManifest } from "./config.mjs";
@@ -10,6 +10,7 @@ const OPERATOR_SCAN_REPORT = "scripts/sovereign-scan-report.mjs";
 const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
 const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs";
 const ZERO_CREDIT_BOUNDARY_TEST = "test/zero-credit-boundary.test.mjs";
+const CYCLE_OUTCOME_LEDGER = "reports/sovereign-cycle-outcome.json";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -28,7 +29,17 @@ const TRUST_PLANE_FILES = new Set([
   "scripts/create-release-baseline.mjs",
 ]);
 
-export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(path.join(ROOT, relative)), gapAudit = { open: [] } } = {}) {
+export function recordedLedgerCycleId(raw) {
+  if (typeof raw !== "string" || !raw.trim()) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    return typeof parsed?.cycleId === "string" ? parsed.cycleId : "";
+  } catch {
+    return "";
+  }
+}
+
+export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(path.join(ROOT, relative)), readFile = null, cycleId = "", gapAudit = { open: [] } } = {}) {
   void gapAudit;
   if (!fileExists(OPERATOR_SCAN_REPORT)) {
     return Object.freeze({
@@ -61,6 +72,25 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       summary: "Add a zero-credit test that the four-hour cycle stays on deterministic-only with empty providers, disabled OpenAI, and no generation.",
       changedFiles: Object.freeze([ZERO_CREDIT_BOUNDARY_TEST]),
     });
+  }
+  if (!fileExists(CYCLE_OUTCOME_LEDGER)) {
+    return Object.freeze({
+      id: "cycle-outcome-ledger",
+      title: "chore: add sovereign cycle outcome ledger",
+      summary: "Add a zero-credit cycle outcome ledger so each four-hour window still produces a candidate after the one-shot recipes are exhausted.",
+      changedFiles: Object.freeze([CYCLE_OUTCOME_LEDGER]),
+    });
+  }
+  if (typeof cycleId === "string" && /^[a-f0-9]{64}$/.test(cycleId) && typeof readFile === "function") {
+    const recorded = recordedLedgerCycleId(readFile(CYCLE_OUTCOME_LEDGER));
+    if (recorded !== cycleId) {
+      return Object.freeze({
+        id: "cycle-outcome-ledger",
+        title: "chore: refresh sovereign cycle outcome ledger",
+        summary: "Refresh the zero-credit cycle outcome ledger for this cycleId so the window is not a silent no-op.",
+        changedFiles: Object.freeze([CYCLE_OUTCOME_LEDGER]),
+      });
+    }
   }
   return null;
 }
@@ -199,6 +229,28 @@ export function renderZeroCreditBoundaryTest() {
   ].join("\n");
 }
 
+export function renderCycleOutcomeLedger({ cycleId, gapAudit = { open: [] }, baseSha = "", producedAt = new Date().toISOString() } = {}) {
+  if (typeof cycleId !== "string" || !/^[a-f0-9]{64}$/.test(cycleId)) throw new TypeError("cycleId is invalid");
+  const open = Array.isArray(gapAudit.open) ? gapAudit.open : [];
+  const blockedGapIds = open.filter((item) => item.state === "blocked").map((item) => item.id).filter(Boolean).sort();
+  const actionableGapIds = open.filter((item) => item.state === "open" || item.state === "unverified").map((item) => item.id).filter(Boolean).sort();
+  return `${JSON.stringify({
+    schemaVersion: 1,
+    product: "mahoraga",
+    cycleId,
+    baseSha: typeof baseSha === "string" ? baseSha : "",
+    producedAt,
+    counts: {
+      open: open.length,
+      blocked: blockedGapIds.length,
+      actionable: actionableGapIds.length,
+    },
+    blockedGapIds,
+    actionableGapIds,
+    note: "Zero-credit cycle pulse. Not a Windows activation.",
+  }, null, 2)}\n`;
+}
+
 export function classifyPullRequestCreationFailure(errorLike) {
   const text = diagnosticText(errorLike);
   if (/GitHub Actions is not permitted to create or approve pull requests/i.test(text)) {
@@ -253,6 +305,14 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     const gapAudit = buildGapAudit(manifest, { root });
     const enhancement = scanForSafeEnhancement({
       fileExists: (relative) => existsSync(path.join(root, relative)),
+      readFile: (relative) => {
+        try {
+          return readFileSync(path.join(root, relative), "utf8");
+        } catch {
+          return null;
+        }
+      },
+      cycleId,
       gapAudit,
     });
     if (!enhancement) return null;
@@ -275,6 +335,9 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, OPERATOR_STALE_BRANCH_REPORT), renderOperatorStaleBranchReportScript(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "zero-credit-boundary-test") {
       writeFileSync(path.join(root, ZERO_CREDIT_BOUNDARY_TEST), renderZeroCreditBoundaryTest(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "cycle-outcome-ledger") {
+      mkdirSync(path.join(root, "reports"), { recursive: true });
+      writeFileSync(path.join(root, CYCLE_OUTCOME_LEDGER), renderCycleOutcomeLedger({ cycleId, gapAudit, baseSha }), { encoding: "utf8" });
     } else {
       throw codedError("candidate-recipe-unsupported");
     }
@@ -409,6 +472,15 @@ function codedError(code, { stage = null, publicDetail = null } = {}) {
 const invoked = process.argv[1] ? path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) : false;
 if (invoked && process.argv.includes("--scan-only")) {
   const report = buildGapAudit(await loadManifest());
-  const enhancement = scanForSafeEnhancement({ gapAudit: report });
+  const enhancement = scanForSafeEnhancement({
+    gapAudit: report,
+    readFile: (relative) => {
+      try {
+        return readFileSync(path.join(ROOT, relative), "utf8");
+      } catch {
+        return null;
+      }
+    },
+  });
   process.stdout.write(`${JSON.stringify({ status: enhancement ? "actionable" : "no-actionable-work", enhancement, blockedGapIds: report.open.filter((item) => item.state === "blocked").map((item) => item.id).sort() })}\n`);
 }
