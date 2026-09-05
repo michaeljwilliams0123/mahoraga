@@ -16,7 +16,6 @@ test("release baseline covers GitHub governance and automation controls", () => 
     ".github/ai-instructions.md",
     ".github/copilot-instructions.md",
     ".github/instructions/typescript-ui.instructions.md",
-    ".github/workflows/chromebook-control-plane.yml",
     ".github/workflows/autonomous-integration.yml",
     ".github/workflows/codex-cloud-dispatch.yml",
     ".github/workflows/cloud-task-gateway.yml",
