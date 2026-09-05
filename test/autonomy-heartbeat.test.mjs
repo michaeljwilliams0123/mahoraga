@@ -151,6 +151,77 @@ test("four-hour cycle holds planned instead of producing when credit-free health
   assert.equal(held.heartbeat.paidFallback, false);
 });
 
+test("heartbeat records unconfigured Destiny identity without blocking deterministic inspect", () => {
+  const receipt = runCreditFreeHeartbeat({
+    now: NOW,
+    destinyManifest: {
+      schemaVersion: 1,
+      triggerId: "destiny-event-dispatch-v1",
+      repository: "michaeljwilliams0123/mahoraga",
+      owner: "michaeljwilliams0123",
+      readinessMaxAgeMs: 300000,
+      zeroCreditRequired: true,
+      receiptTrust: { mode: "unconfigured" },
+    },
+  });
+  assert.equal(receipt.nextAction, "dispatch-credit-free");
+  assert.equal(receipt.executable, true);
+  assert.equal(receipt.destinyTrigger.ready, false);
+  assert.equal(receipt.destinyTrigger.reason, "destiny-trigger-identity-unconfigured");
+  assert.equal(receipt.destinyTrigger.creditCost, 0);
+  assert.equal(receipt.destinyTrigger.paidFallback, false);
+  assert.equal(receipt.paidFallback, false);
+});
+
+test("model-backed Destiny dispatch holds planned when the trigger is unconfigured", () => {
+  const receipt = runCreditFreeHeartbeat({
+    now: NOW,
+    modelBackedDispatch: true,
+    destinyManifest: {
+      schemaVersion: 1,
+      triggerId: "destiny-event-dispatch-v1",
+      repository: "michaeljwilliams0123/mahoraga",
+      owner: "michaeljwilliams0123",
+      readinessMaxAgeMs: 300000,
+      zeroCreditRequired: true,
+      receiptTrust: { mode: "unconfigured" },
+    },
+  });
+  assert.equal(receipt.nextAction, "hold-planned");
+  assert.equal(receipt.executable, false);
+  assert.equal(receipt.destinyTrigger.modelBackedDispatch, true);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+});
+
+test("Destiny trigger receipts require exact zero-paid semantics", () => {
+  const receipt = runCreditFreeHeartbeat({ now: NOW });
+  assert.throws(
+    () => validateHeartbeatReceipt({ ...receipt, destinyTrigger: { ...receipt.destinyTrigger, paidFallback: null } }),
+    /heartbeat-paid-contamination/,
+  );
+  assert.throws(
+    () => validateHeartbeatReceipt({ ...receipt, destinyTrigger: { ...receipt.destinyTrigger, paidFallback: "false" } }),
+    /heartbeat-paid-contamination/,
+  );
+});
+
+test("four-hour cycle still heartbeats when generation providers are waiting", async () => {
+  const waiting = await runCloudCycle({
+    repositoryIdentity: "owner/repo",
+    providers: [],
+    requiresGeneration: true,
+    cloudModeEnabled: true,
+    now: NOW,
+  });
+  assert.equal(waiting.status, "waiting");
+  assert.equal(waiting.providerDecision.providerId, "waiting-zero-credit-provider");
+  assert.equal(waiting.heartbeat.kind, "credit-free-heartbeat");
+  assert.equal(waiting.heartbeat.destinyTrigger.ready, false);
+  assert.equal(waiting.heartbeat.creditCost, 0);
+  assert.equal(waiting.heartbeat.paidFallback, false);
+});
+
 test("four-hour cycle workflow runs the credit-free heartbeat before candidate production", async () => {
   const { readFile } = await import("node:fs/promises");
   const path = await import("node:path");
