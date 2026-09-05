@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { pathToFileURL } from "node:url";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
 import { readCreditFreeRuntime } from "./autonomy-heartbeat.mjs";
@@ -199,7 +200,7 @@ function result(status, cycleId, branch, events, providerDecision, { candidate =
   return Object.freeze({ status, cycleId, branch, workflowVersion: CLOUD_CYCLE_WORKFLOW_VERSION, events, providerDecision, candidate, heartbeat, unattended, terminalReason, terminalStage, terminalDetail, windowStartUtc });
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const repositoryIdentity = process.env.GITHUB_REPOSITORY || "unknown/repository";
   const anchorAtUtc = process.env.MAHORAGA_CYCLE_ANCHOR_UTC || null;
   let candidateProducer = null;
