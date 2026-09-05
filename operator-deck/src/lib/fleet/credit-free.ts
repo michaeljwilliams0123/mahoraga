@@ -102,6 +102,7 @@ export function actuateCreditFreeCycle(input: {
   nextAction: CreditFreeNextAction;
   intentKind?: "inspect" | "repair" | "autonomous-action";
   executionEnabled?: boolean;
+  generationResultVerified?: boolean;
   worldDigest: string;
 }): {
   status: "verified" | "held" | "refused";
@@ -122,6 +123,9 @@ export function actuateCreditFreeCycle(input: {
   }
   if (input.executionEnabled !== true) {
     return { status: "held", reason: "execution-not-admitted", resultSha256: digest, creditCost: 0, paidFallback: false };
+  }
+  if (input.generationResultVerified !== true) {
+    return { status: "held", reason: "generation-result-required", resultSha256: digest, creditCost: 0, paidFallback: false };
   }
   return { status: "verified", reason: "generation-result-verified", resultSha256: digest, creditCost: 0, paidFallback: false };
 }
