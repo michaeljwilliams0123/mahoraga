@@ -1,1 +1,7 @@
-{"schemaVersion":2,"product":"Mahoraga","version":"7.0.0-alpha.1"}
+{
+  "schemaVersion": 2,
+  "product": "Mahoraga",
+  "version": "7.0.0-alpha.1",
+  "phase": "alpha-candidate",
+  "environment": "candidate"
+}
