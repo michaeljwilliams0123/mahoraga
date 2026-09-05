@@ -1,0 +1,124 @@
+{
+  "name": "Mahoraga UCCP Bounded Event Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mahoraga-pga-bridge",
+        "responseMode": "onReceived",
+        "options": {
+          "rawBody": true,
+          "responseCode": 202
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-420, 0],
+      "id": "webhook-uccp-listener",
+      "name": "UCCP Bounded Telemetry Receiver"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-drift-check",
+              "leftValue": "={{ $json.body.predictiveMetrics.driftRisk }}",
+              "rightValue": "STABLE",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "cond-critical-event",
+              "leftValue": "={{ $json.body.eventType }}",
+              "rightValue": "ADMIN_CRITICAL",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [-160, 0],
+      "id": "if-uccp-risk",
+      "name": "Bounded Drift Evaluator"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "set-alert-status",
+              "name": "status",
+              "value": "CRITICAL",
+              "type": "string"
+            },
+            {
+              "id": "set-alert-summary",
+              "name": "decisionSummary",
+              "value": "={{ $json.body.generativeState.decisionSummary.synthesis }}",
+              "type": "string"
+            },
+            {
+              "id": "set-alert-worker",
+              "name": "worker",
+              "value": "={{ $json.body.agenticStatus.currentWorker }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [100, -80],
+      "id": "set-uccp-incident",
+      "name": "Compile Bounded Operational Alert"
+    }
+  ],
+  "connections": {
+    "UCCP Bounded Telemetry Receiver": {
+      "main": [
+        [
+          {
+            "node": "Bounded Drift Evaluator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bounded Drift Evaluator": {
+      "main": [
+        [
+          {
+            "node": "Compile Bounded Operational Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "mahoragaTransport": "requires-separately-approved-authenticated-push-transport",
+    "mahoragaSignature": "X-Mahoraga-Signature HMAC-SHA256 over exact raw body"
+  }
+}
