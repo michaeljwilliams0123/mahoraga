@@ -105,9 +105,9 @@ export function compoundCreditFreeLearning(receipts = []) {
   for (const receipt of receipts) {
     validateHeartbeatReceipt(receipt);
     nextActions[receipt.nextAction] += 1;
-    lastObservedAt = receipt.observedAt;
-    if (receipt.health?.ok === true) lastHealthyAt = receipt.observedAt;
-    if (receipt.creditCost !== 0 || receipt.paidFallback === true) paidContamination += 1;
+    if (lastObservedAt === null || receipt.observedAt > lastObservedAt) lastObservedAt = receipt.observedAt;
+    if (receipt.health?.ok === true && (lastHealthyAt === null || receipt.observedAt > lastHealthyAt)) lastHealthyAt = receipt.observedAt;
+    if (receipt.creditCost !== 0 || receipt.paidFallback !== false) paidContamination += 1;
   }
   if (paidContamination > 0) fail("heartbeat-paid-contamination");
   const gaps = [];
@@ -157,8 +157,12 @@ export function validateHeartbeatReceipt(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail("heartbeat-receipt-invalid");
   if (value.kind !== HEARTBEAT_KIND || value.schemaVersion !== HEARTBEAT_SCHEMA_VERSION) fail("heartbeat-receipt-invalid");
   if (!CREDIT_FREE_NEXT_ACTIONS.includes(value.nextAction)) fail("heartbeat-next-action-invalid");
-  if (value.creditCost !== 0 || value.paidFallback === true) fail("heartbeat-paid-contamination");
-  if (typeof value.observedAt !== "string" || value.observedAt.length < 20) fail("heartbeat-observed-at-invalid");
+  if (value.creditCost !== 0 || value.paidFallback !== false) fail("heartbeat-paid-contamination");
+  if (
+    typeof value.observedAt !== "string" ||
+    !Number.isFinite(Date.parse(value.observedAt)) ||
+    new Date(value.observedAt).toISOString() !== value.observedAt
+  ) fail("heartbeat-observed-at-invalid");
   if (typeof value.worldDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.worldDigest)) fail("heartbeat-world-digest-invalid");
   return value;
 }
