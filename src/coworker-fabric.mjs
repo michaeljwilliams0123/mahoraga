@@ -32,7 +32,7 @@ export function createHandoffEnvelope(input, { createdAt = new Date().toISOStrin
     urgency: urgency(input?.urgency),
     mayDelegate: boolean(input?.mayDelegate, 'coworker-handoff-delegation-invalid'),
   };
-  const handoffId = `handoff-${crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex').slice(0,24)}`;
+  const handoffId = handoffIdFor(core);
   return validateHandoffEnvelope({ schemaVersion: 1, handoffId, ...core, createdAt: timestamp(createdAt, 'coworker-handoff-time-invalid') });
 }
 
@@ -55,6 +55,7 @@ export function recordCoworkerOutcome(state, outcome, { at = new Date().toISOStr
   const now = timestamp(at, 'coworker-time-invalid');
   const objectiveId = slug(outcome.objectiveId, 'coworker-outcome-objective-invalid');
   const feats = featIds(outcome.reusableFeatIds ?? []);
+  const promotedFeats = outcome.outcome === 'success' ? feats : [];
   const scorecard = { ...current.scorecard };
   if (outcome.outcome === 'success') scorecard.successes += 1;
   if (outcome.outcome === 'failure') scorecard.failures += 1;
@@ -64,7 +65,7 @@ export function recordCoworkerOutcome(state, outcome, { at = new Date().toISOStr
     ...structuredClone(current),
     lifecycle: outcome.outcome === 'blocked' ? 'blocked' : 'idle',
     objectiveIds,
-    reusableFeatIds: [...new Set([...current.reusableFeatIds, ...feats])].sort(),
+    reusableFeatIds: [...new Set([...current.reusableFeatIds, ...promotedFeats])].sort(),
     scorecard,
     lastHeartbeatAt: now,
     lastSuccessfulActivityAt: outcome.outcome === 'success' ? now : current.lastSuccessfulActivityAt,
@@ -96,19 +97,23 @@ export function validateCoworkerState(value) {
 export function validateHandoffEnvelope(value) {
   exact(value, HANDOFF_KEYS, 'coworker-handoff-invalid');
   if (value.schemaVersion !== 1 || typeof value.handoffId !== 'string' || !/^handoff-[a-f0-9]{24}$/.test(value.handoffId)) fail('coworker-handoff-invalid');
-  slug(value.fromAgentId, 'coworker-handoff-sender-invalid');
-  slug(value.toAgentId, 'coworker-handoff-recipient-invalid');
-  slug(value.objectiveId, 'coworker-handoff-objective-invalid');
-  slug(value.capability, 'coworker-handoff-capability-invalid');
-  text(value.task, 2000, 'coworker-handoff-task-invalid');
-  textList(value.inputs, 64, 400, 'coworker-handoff-inputs-invalid');
-  textList(value.expectedOutputs, 64, 400, 'coworker-handoff-outputs-invalid', true);
-  urgency(value.urgency);
-  boolean(value.mayDelegate, 'coworker-handoff-delegation-invalid');
+  const core = {
+    fromAgentId: slug(value.fromAgentId, 'coworker-handoff-sender-invalid'),
+    toAgentId: slug(value.toAgentId, 'coworker-handoff-recipient-invalid'),
+    objectiveId: slug(value.objectiveId, 'coworker-handoff-objective-invalid'),
+    capability: slug(value.capability, 'coworker-handoff-capability-invalid'),
+    task: text(value.task, 2000, 'coworker-handoff-task-invalid'),
+    inputs: textList(value.inputs, 64, 400, 'coworker-handoff-inputs-invalid'),
+    expectedOutputs: textList(value.expectedOutputs, 64, 400, 'coworker-handoff-outputs-invalid', true),
+    urgency: urgency(value.urgency),
+    mayDelegate: boolean(value.mayDelegate, 'coworker-handoff-delegation-invalid'),
+  };
   timestamp(value.createdAt, 'coworker-handoff-time-invalid');
+  if (value.handoffId !== handoffIdFor(core)) fail('coworker-handoff-id-invalid');
   return deepFreeze(structuredClone(value));
 }
 
+function handoffIdFor(core) { return `handoff-${crypto.createHash('sha256').update(JSON.stringify(core)).digest('hex').slice(0,24)}`; }
 function featIds(value) { return idList(value, /^feat-[a-f0-9]{24}$/, 10_000, 'coworker-feats-invalid'); }
 function idList(value, pattern, max, code) { if (!Array.isArray(value) || value.length > max || new Set(value).size !== value.length || value.some((item)=>typeof item !== 'string' || !pattern.test(item))) fail(code); return [...value].sort(); }
 function slugList(value,max,code){ if(!Array.isArray(value)||value.length>max||new Set(value).size!==value.length) fail(code); return value.map((item)=>slug(item,code)).sort(); }
