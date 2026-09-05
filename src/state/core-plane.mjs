@@ -48,11 +48,14 @@ export function createAdminCognitivePlane({
       updatedAt: timestamp,
     });
     const activeLeases = typeof stateStore.listActiveLeases === "function" ? stateStore.listActiveLeases(timestamp).length : 1;
-    const telemetry = telemetryRegistry.update({
+    const updateResult = telemetryRegistry.update({
       predictiveMetrics: { driftRisk, databaseHealth },
       generativeState: { decisionSummary },
       agenticStatus: { activeLeases, currentWorker },
     });
+    const telemetry = updateResult ?? telemetryRegistry.snapshot?.() ?? {
+      predictiveMetrics: { driftRisk, databaseHealth }, generativeState: { decisionSummary }, agenticStatus: { activeLeases, currentWorker },
+    };
     return { lease, telemetry, observed };
   };
 
