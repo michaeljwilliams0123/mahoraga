@@ -7,9 +7,53 @@ import {
   selectCreditFreeExecutionPlane,
   selectCreditFreeGraph,
 } from "./credit-free-autonomy.mjs";
+import { evaluateDestinyTriggerReadiness } from "./destiny-trigger-trust.mjs";
 
 export const HEARTBEAT_KIND = "credit-free-heartbeat";
 export const HEARTBEAT_SCHEMA_VERSION = 1;
+
+export function attestHeartbeatDestinyTrigger({
+  manifest = null,
+  observation = null,
+  now = new Date(),
+  modelBackedDispatch = false,
+} = {}) {
+  const stamped = {
+    modelBackedDispatch: modelBackedDispatch === true,
+    creditCost: 0,
+    paidFallback: false,
+  };
+  if (manifest == null) {
+    return Object.freeze({
+      ready: false,
+      status: "unknown",
+      reason: "destiny-trigger-not-observed",
+      actorLogin: null,
+      zeroCreditEligible: false,
+      ...stamped,
+    });
+  }
+  try {
+    const readiness = evaluateDestinyTriggerReadiness(manifest, observation, { now: canonicalNow(now) });
+    return Object.freeze({
+      ready: readiness.ready === true,
+      status: readiness.status,
+      reason: readiness.reason,
+      actorLogin: readiness.actorLogin ?? null,
+      zeroCreditEligible: readiness.zeroCreditEligible === true,
+      ...stamped,
+    });
+  } catch (error) {
+    return Object.freeze({
+      ready: false,
+      status: "unknown",
+      reason: boundedReason(error),
+      actorLogin: null,
+      zeroCreditEligible: false,
+      ...stamped,
+    });
+  }
+}
 
 export function runCreditFreeHeartbeat({
   spendGrantUsd = 0,
@@ -25,6 +69,10 @@ export function runCreditFreeHeartbeat({
   world = {},
   requiresGeneration = false,
   message = "Maintain credit-free autonomy.",
+  destinyManifest = null,
+  destinyObservation = null,
+  destinyTrigger = null,
+  modelBackedDispatch = false,
 } = {}) {
   const maintenance = maintainCreditFreeAutonomy({
     spendGrantUsd,
@@ -76,17 +124,30 @@ export function runCreditFreeHeartbeat({
       paidFallback: false,
     });
   });
-  const executable = maintenance.nextAction === "dispatch-credit-free";
+  const destiny = destinyTrigger == null
+    ? attestHeartbeatDestinyTrigger({
+      manifest: destinyManifest,
+      observation: destinyObservation,
+      now,
+      modelBackedDispatch,
+    })
+    : attestProvidedDestiny(destinyTrigger, modelBackedDispatch);
+  let nextAction = maintenance.nextAction;
+  if (modelBackedDispatch === true && destiny.ready !== true && nextAction !== "refuse-paid-route") {
+    nextAction = "hold-planned";
+  }
+  const executable = nextAction === "dispatch-credit-free";
   return Object.freeze({
     schemaVersion: HEARTBEAT_SCHEMA_VERSION,
     kind: HEARTBEAT_KIND,
     observedAt: maintenance.observedAt,
     intentKind,
-    nextAction: maintenance.nextAction,
+    nextAction,
     executable,
     health: maintenance.health,
     plane: maintenance.plane,
     hostedCompute: maintenance.hostedCompute,
+    destinyTrigger: destiny,
     protocol: CREDIT_FREE_PROTOCOL_STEPS,
     steps: Object.freeze(steps),
     stewardGap: plan.stewardGap,
@@ -102,12 +163,14 @@ export function compoundCreditFreeLearning(receipts = []) {
   let lastHealthyAt = null;
   let lastObservedAt = null;
   let paidContamination = 0;
+  let destinyUnreadiness = 0;
   for (const receipt of receipts) {
     validateHeartbeatReceipt(receipt);
     nextActions[receipt.nextAction] += 1;
     lastObservedAt = receipt.observedAt;
     if (receipt.health?.ok === true) lastHealthyAt = receipt.observedAt;
     if (receipt.creditCost !== 0 || receipt.paidFallback === true) paidContamination += 1;
+    if (receipt.destinyTrigger && receipt.destinyTrigger.ready !== true) destinyUnreadiness += 1;
   }
   if (paidContamination > 0) fail("heartbeat-paid-contamination");
   const gaps = [];
@@ -138,6 +201,15 @@ export function compoundCreditFreeLearning(receipts = []) {
       "deterministic-plane-or-local-reasoner",
     ));
   }
+  if (destinyUnreadiness > 0) {
+    gaps.push(gap(
+      "heartbeat-destiny-trigger-not-ready",
+      "hold-planned",
+      "p0",
+      "Destiny Event Dispatch Lane remains unconfigured, stale, or unknown. Model-backed dispatch stays fail-closed at $0.",
+      "dedicated-actor-or-signed-receipt",
+    ));
+  }
   return Object.freeze({
     schemaVersion: HEARTBEAT_SCHEMA_VERSION,
     kind: "credit-free-learning",
@@ -160,7 +232,29 @@ export function validateHeartbeatReceipt(value) {
   if (value.creditCost !== 0 || value.paidFallback === true) fail("heartbeat-paid-contamination");
   if (typeof value.observedAt !== "string" || value.observedAt.length < 20) fail("heartbeat-observed-at-invalid");
   if (typeof value.worldDigest !== "string" || !/^[a-f0-9]{64}$/.test(value.worldDigest)) fail("heartbeat-world-digest-invalid");
+  if (value.destinyTrigger != null) validateDestinyTrigger(value.destinyTrigger);
   return value;
+}
+
+function validateDestinyTrigger(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("heartbeat-destiny-trigger-invalid");
+  if (typeof value.ready !== "boolean") fail("heartbeat-destiny-trigger-invalid");
+  if (value.creditCost !== 0 || value.paidFallback === true) fail("heartbeat-paid-contamination");
+  return value;
+}
+
+function attestProvidedDestiny(value, modelBackedDispatch) {
+  validateDestinyTrigger(value);
+  return Object.freeze({
+    ready: value.ready === true,
+    status: typeof value.status === "string" ? value.status.slice(0, 64) : "unknown",
+    reason: typeof value.reason === "string" ? value.reason.slice(0, 80) : "unknown",
+    actorLogin: typeof value.actorLogin === "string" ? value.actorLogin.slice(0, 64) : null,
+    zeroCreditEligible: value.zeroCreditEligible === true,
+    modelBackedDispatch: modelBackedDispatch === true || value.modelBackedDispatch === true,
+    creditCost: 0,
+    paidFallback: false,
+  });
 }
 
 function digestWorld(world) {
@@ -194,6 +288,17 @@ function gap(id, state, priority, summary, dependency) {
   return Object.freeze({ id, state, priority, summary, dependency, creditCost: 0, paidFallback: false });
 }
 
+function boundedReason(error) {
+  const message = typeof error?.message === "string" ? error.message : "destiny-trigger-readiness-invalid";
+  return message.slice(0, 80);
+}
+
+function canonicalNow(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString();
+  if (typeof value === "string" && Number.isFinite(Date.parse(value))) return new Date(value).toISOString();
+  return new Date().toISOString();
+}
+
 function fail(code) {
   const error = new TypeError(code);
   error.code = code;
@@ -201,7 +306,33 @@ function fail(code) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const receipt = runCreditFreeHeartbeat({ now: new Date() });
+  const receipt = await runHeartbeatCli();
   console.log(JSON.stringify(receipt));
   if (receipt.nextAction === "refuse-paid-route") process.exitCode = 1;
+}
+
+async function runHeartbeatCli() {
+  let destinyManifest = null;
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { ROOT } = await import("./config.mjs");
+    destinyManifest = JSON.parse(await readFile(path.join(ROOT, "config", "destiny-trigger-trust.json"), "utf8"));
+  } catch {
+    destinyManifest = null;
+  }
+  let localReasonerReady = false;
+  try {
+    const { probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
+    const probe = await probeLocalReasoner({ timeoutMs: 750 });
+    localReasonerReady = probe.verified === true;
+  } catch {
+    localReasonerReady = false;
+  }
+  return runCreditFreeHeartbeat({
+    now: new Date(),
+    localReasonerReady,
+    destinyManifest,
+    world: {},
+  });
 }

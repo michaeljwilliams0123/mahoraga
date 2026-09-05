@@ -95,7 +95,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/local-reasoner-provider.mjs") && has("test/local-reasoner-provider.test.mjs"), {
     id: "local-reasoner-health-contract",
     priority: "medium",
-    summary: "LM Studio readiness is probed only on loopback and returns model counts without model identifiers or generated content.",
+    summary: "Ollama and LM Studio readiness are probed only on loopback and return model counts without model identifiers or generated content.",
   });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",

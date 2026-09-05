@@ -57,6 +57,39 @@ The four-hour candidate cycle runs this heartbeat as a preflight. A refused paid
 9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
 10. Keep a live local reasoner for source mutations. Deterministic inspect/repair continues without it. Paid fallback is never the missing-model recovery path.
 
+## 2026 local-first constraints
+
+Applied from current local-first agent practice. These are constraints, not a stack replacement.
+
+- Inference is optional. The durable loop is Observe → Decide → Act → Verify → Repair-or-hold → Report at `$0`.
+- Open-weight local models (Qwen / Llama class via Ollama or LM Studio) are the only generation plane. Cloud APIs are contamination.
+- Unattended work uses GitHub Actions + the heartbeat, not a chat session.
+- Skill compounding stays identifier-only (method ids, hold/dispatch counts). No prompt or chat storage.
+- Quota exhaustion and missing local reasoners are legal waits. Upgrades and paid fallbacks are not.
+- Do not add extra Vercel projects or paid review bots to “speed up” autonomy.
+
+## Loopback reasoners
+
+`src/local-reasoner-provider.mjs` probes **both** loopback endpoints in parallel and keeps no model identifiers:
+
+- Ollama `http://127.0.0.1:11434/api/tags`
+- LM Studio `http://127.0.0.1:1234/v1/models`
+
+Either endpoint with loaded models is sufficient to mark the local reasoner live. Execution stays disabled until a transient result channel exists. Missing or empty reasoners are a legal wait, never a paid recovery.
+
+## Destiny trigger in the heartbeat
+
+The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into every receipt.
+
+- Deterministic inspect/repair continues at `$0` while the trigger is `unconfigured`, `unknown`, or stale.
+- Model-backed Destiny dispatch (`modelBackedDispatch`) fails closed with `hold-planned` until a dedicated actor or signed receipt is bound.
+- Owner comments are not execution proof. `config/destiny-trigger-trust.json` remains the non-secret source of truth and stays `unconfigured` until an independent actor is provisioned.
+- Zero-credit health never fires a model to probe Destiny. Unknown is the legal state.
+
+## Durable ledger
+
+`src/heartbeat-ledger.mjs` keeps an append-only, content-free receipt log (method identifiers, next-action counts, Destiny unreadiness). Duplicates are suppressed. Paid contamination is rejected. The file-backed copy lives outside Git.
+
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.

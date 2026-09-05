@@ -11,7 +11,8 @@ state/secondary-runner-state.json
 state/secondary-worktrees/
 state/cache/
 state/checkpoints/
-state/repairs/
+state/heartbeat-ledger.jsonl
+state/heartbeat-ledger.json
 state/artifacts/
 state/execution-cells/
 state/content-vault/

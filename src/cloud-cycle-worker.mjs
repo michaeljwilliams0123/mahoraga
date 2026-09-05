@@ -56,12 +56,6 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
   try {
-    const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
-    if (providerDecision.status === "waiting") {
-      const terminalReason = providerDecision.providerId ?? "provider-unavailable";
-      events.push(event("waiting", cycleId, branch, terminalReason));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc });
-    }
     const heartbeat = runCreditFreeHeartbeat({
       now,
       providers: ["repository", "local-core", "self-healer"],
@@ -71,14 +65,21 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
     });
     if (heartbeat.nextAction === "refuse-paid-route" || heartbeat.nextAction === "hold-planned") {
       events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, null, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
     }
     if (requiresGeneration === true && heartbeat.nextAction === "wait-for-local-reasoner") {
       events.push(event("waiting", cycleId, branch, heartbeat.nextAction));
-      return result("waiting", cycleId, branch, events, providerDecision, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
+      return result("waiting", cycleId, branch, events, null, { terminalReason: heartbeat.nextAction, windowStartUtc, heartbeat });
     }
     if (heartbeat.health?.ok !== true) {
       const terminalReason = heartbeat.health?.reason ?? "credit-free-health-unhealthy";
+      events.push(event("waiting", cycleId, branch, terminalReason));
+      return result("waiting", cycleId, branch, events, null, { terminalReason, windowStartUtc, heartbeat });
+    }
+
+    const providerDecision = providerSelector({ providers, requiresGeneration, cloudModeEnabled });
+    if (providerDecision.status === "waiting") {
+      const terminalReason = providerDecision.providerId ?? "provider-unavailable";
       events.push(event("waiting", cycleId, branch, terminalReason));
       return result("waiting", cycleId, branch, events, providerDecision, { terminalReason, windowStartUtc, heartbeat });
     }

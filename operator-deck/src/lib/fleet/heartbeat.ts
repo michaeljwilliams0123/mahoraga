@@ -16,12 +16,20 @@ export type HeartbeatStep = {
   paidFallback: false;
 };
 
+export type DestinyTriggerPreview = {
+  ready: boolean;
+  status: "ready" | "not-configured" | "auth-stale" | "delivery-degraded" | "unknown";
+  reason: string;
+  zeroCreditEligible: boolean;
+};
+
 export type HeartbeatPreview = {
   kind: typeof HEARTBEAT_KIND;
   nextAction: CreditFreeNextAction;
   executable: boolean;
   protocol: typeof CREDIT_FREE_PROTOCOL_STEPS;
   steps: HeartbeatStep[];
+  destinyTrigger: DestinyTriggerPreview;
   creditCost: 0;
   paidFallback: false;
 };
@@ -66,6 +74,12 @@ export function previewCreditFreeHeartbeat(input: {
     executable: nextAction === "dispatch-credit-free",
     protocol: CREDIT_FREE_PROTOCOL_STEPS,
     steps,
+    destinyTrigger: {
+      ready: false,
+      status: "not-configured",
+      reason: "destiny-trigger-identity-unconfigured",
+      zeroCreditEligible: false,
+    },
     creditCost: 0,
     paidFallback: false,
   };
