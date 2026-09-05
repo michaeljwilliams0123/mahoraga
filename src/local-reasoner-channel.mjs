@@ -5,19 +5,20 @@ export function openTransientResultChannel({ ttlMs = DEFAULT_TTL_MS, now = Date.
   const ttl = Number(ttlMs);
   if (!Number.isInteger(ttl) || ttl < 250 || ttl > 120_000) fail("channel-ttl-invalid");
   const openedAtMs = timestampMs(now);
+  const expiresAtMs = openedAtMs + ttl;
   const id = `trc-${openedAtMs.toString(16)}-${randomToken()}`;
   const channel = Object.freeze({
     schemaVersion: 1,
     id,
     openedAt: new Date(openedAtMs).toISOString(),
-    expiresAt: new Date(openedAtMs + ttl).toISOString(),
+    expiresAt: new Date(expiresAtMs).toISOString(),
     persistence: "memory-only",
     promptPersistenceAllowed: false,
     responsePersistenceAllowed: false,
     creditCost: 0,
     paidFallback: false,
   });
-  RESULTS.set(id, { expiresAtMs: openedAtMs + ttl, results: [] });
+  RESULTS.set(id, { openedAtMs, expiresAtMs, results: [] });
   return channel;
 }
 
@@ -26,7 +27,10 @@ export function isTransientChannelOpen(channel, now = Date.now()) {
   if (channel.persistence !== "memory-only") return false;
   if (channel.promptPersistenceAllowed !== false || channel.responsePersistenceAllowed !== false) return false;
   if (channel.creditCost !== 0 || channel.paidFallback !== false) return false;
-  return Date.parse(channel.expiresAt) > timestampMs(now);
+  const bucket = RESULTS.get(channel.id);
+  if (!bucket) return false;
+  if (bucket.openedAtMs !== Date.parse(channel.openedAt) || bucket.expiresAtMs !== Date.parse(channel.expiresAt)) return false;
+  return bucket.expiresAtMs > timestampMs(now);
 }
 
 export function admitLocalReasonerExecution({ verified = false, channel = null, now = Date.now() } = {}) {
@@ -49,7 +53,8 @@ export function putTransientResult(channel, input = {}, { now = Date.now() } = {
   const resultSha256 = input.resultSha256;
   if (typeof resultSha256 !== "string" || !/^[a-f0-9]{64}$/.test(resultSha256)) fail("transient-result-digest-invalid");
   sweep(timestampMs(now));
-  const bucket = RESULTS.get(channel.id) ?? { expiresAtMs: Date.parse(channel.expiresAt), results: [] };
+  const bucket = RESULTS.get(channel.id);
+  if (!bucket) fail("transient-result-channel-required");
   if (bucket.results.length >= 32) fail("transient-result-cap");
   const record = Object.freeze({
     status,
@@ -59,7 +64,6 @@ export function putTransientResult(channel, input = {}, { now = Date.now() } = {
     paidFallback: false,
   });
   bucket.results.push(record);
-  RESULTS.set(channel.id, bucket);
   return record;
 }
 
