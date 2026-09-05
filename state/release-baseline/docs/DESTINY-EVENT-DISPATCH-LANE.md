@@ -50,3 +50,20 @@ PR #40 demonstrated a historical end-to-end round trip with an ACK, RESULT, exac
 ## Relationship to the Destiny Cipher Relay
 
 The **Destiny Cipher Relay** is the separate Cloudflare ciphertext relay used for the browser↔local runtime transport. It does not wake Destiny Codex from a GitHub pull request, does not validate Destiny dispatch envelopes, and does not serve as execution identity evidence for the Event Dispatch Lane.
+
+## Event delivery matrix
+
+GitHub validation and external Destiny delivery are separate hops. `src/destiny-event-delivery.mjs` classifies actor/event classes without invoking a model:
+
+| Actor | Event | GitHub validation | Destiny delivery |
+| --- | --- | --- | --- |
+| Owner | `pull_request.opened` | schedules | eligible |
+| GitHub App | `pull_request.opened` | does not schedule (`app-created-pr-check-suite-gap`); recover with `workflow_dispatch` | supported-path restriction; recover with an owner-authored envelope |
+| Owner | `synchronize` / `reopened` / `edited` | schedules | does not re-deliver |
+| Any | exhausted / expired retry | dead-letter | dead-letter |
+
+Duplicate `deliveryId` values are suppressed. Bounded backoff never buys a paid probe. The historical app-created-PR check-suite gap is a tested path restriction, not a reason to spend credits.
+
+## Trigger health metrics
+
+`src/destiny-trigger-metrics.mjs` records only bounded metadata: dispatches created, validation accepted/rejected plus reason code, ACK/result latency aggregates, duplicates suppressed, expired/no-ACK count, actor/installation fingerprints, and last healthy timestamp. Prompts, model output, chats, credentials, and personal context are rejected.
