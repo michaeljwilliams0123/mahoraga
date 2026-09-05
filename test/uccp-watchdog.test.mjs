@@ -41,6 +41,25 @@ test("watchdog debounces transient failures and rolls back after consecutive fai
   assert.equal(watchdog.snapshot().containmentTriggered, true);
 });
 
+test("UCCP canary fails if the plane never produces its first lease", async () => {
+  const { createUccpCanary } = await loadWatchdogModule();
+  let now = 1_000;
+  const canary = createUccpCanary({
+    root: "/tmp/mahoraga-uccp-canary-contract",
+    loopTimeoutMs: 10_000,
+    now: () => now,
+    stateStore: {
+      health: () => ({ journalMode: "wal", integrity: "ok" }),
+      latestLease: () => null,
+    },
+  });
+  assert.equal((await canary()).ok, true);
+  now = 11_001;
+  const stale = await canary();
+  assert.equal(stale.ok, false);
+  assert.equal(stale.reason, "uccp-lease-heartbeat-missing");
+});
+
 test("watchdog stop is idempotent", async () => {
   const { ContainmentWatchdog } = await loadWatchdogModule();
   const watchdog = new ContainmentWatchdog({ port: 4783, check: async () => true, rollback: async () => {} });
