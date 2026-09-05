@@ -5,6 +5,7 @@ let subject = {};
 try { subject = await import('../src/steward-learning-state.mjs'); } catch {}
 const foundry = await import('../src/agent-foundry.mjs');
 const feats = await import('../src/agent-feat-ledger.mjs');
+const report = await import('../src/steward-foundry-report.mjs');
 
 const child = foundry.createChildAgentManifest({
   agentId: 'mahoraga-code-guardian',
@@ -33,9 +34,20 @@ test('learning state gives the parent all child feats and deterministic foundry 
   assert.equal(state.zeroCredit, true);
   assert.equal(state.parentAccess.allChildFeats, true);
   assert.deepEqual(state.parentAccess.featIds, [feat.featId]);
+  assert.equal(state.agentFactory.schemaVersion, 1);
+  assert.equal(state.agentFactory.zeroCredit, true);
   assert.equal(state.agentFactory.plannedCount, 1);
   assert.equal(state.agentFactory.plans[0].gapId, 'signed-browser-session');
   assert.match(state.stateFingerprint, /^[a-f0-9]{64}$/);
+  const normalized = report.normalizeStewardFoundryReport(state.agentFactory);
+  assert.equal(normalized.nextAction, 'apply-foundry');
+});
+
+test('empty foundry plans still carry schemaVersion 1 so the two-hour scheduler can hold', () => {
+  const state = subject.buildStewardLearningState({ parentAgentId: 'mahoraga-steward', agents: [child], feats: [feat], gaps: [] });
+  assert.equal(state.agentFactory.schemaVersion, 1);
+  assert.equal(state.agentFactory.plannedCount, 0);
+  assert.equal(report.normalizeStewardFoundryReport(state.agentFactory).nextAction, 'hold-planned');
 });
 
 test('learning fingerprint is stable across input ordering and changes only when meaningful state changes', () => {

@@ -112,6 +112,18 @@ export const ARSENAL: ArsenalCommand[] = [
     issueNumber: 83,
   },
   {
+    id: "steward-two-hour",
+    label: "Steward two-hour hold",
+    command: "Inspect the steward two-hour learning cycle: foundry report schemaVersion 1, empty plans hold at $0.",
+    owner: "repair",
+    plane: "live",
+    group: "Live on this deck",
+    hint: "Crashed scheduler is not autonomy. Empty plans hold. No Codex review.",
+    keywords: "steward two-hour foundry schemaVersion hold-planned",
+    intent: "health-scan",
+    workflowFile: "steward-two-hour-learning.yml",
+  },
+  {
     id: "inspect-97",
     label: "Issue/PR #97 — cycle candidate",
     command: "Inspect GitHub issue #97 and isolate it to its owner cell.",

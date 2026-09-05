@@ -8,12 +8,13 @@ const CONTRACT_IDS = [
   "automatic-operational-repair", "cross-platform-ci",
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
   "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit",
+  "steward-two-hour-learning",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
   "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
-  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "owner-approved-cloud-gateway", "verified-attested-update-channel",
+  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const RUNTIME_BLOCKED_IDS = ["signed-browser-session", "microsoft-durable-queue", "local-reasoner"];
