@@ -100,6 +100,34 @@
     },
     {
       "schemaVersion": 1,
+      "agentId": "mahoraga-self-extension-builder",
+      "parentAgentId": "mahoraga-steward",
+      "role": "self-extension-builder",
+      "mission": "Additively extend Mahoraga with bounded artifacts, tests, patches, agent replication, and self-enhancement without deleting or renaming baseline files.",
+      "capabilities": [
+        "artifact-create",
+        "code-create-test",
+        "self-patch",
+        "agent-replicate",
+        "self-enhance"
+      ],
+      "privileges": [
+        "artifact-write",
+        "github-actions-dispatch",
+        "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
       "agentId": "mahoraga-state-learner",
       "parentAgentId": "mahoraga-steward",
       "role": "state-learner",
