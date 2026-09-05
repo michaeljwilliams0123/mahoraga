@@ -49,17 +49,66 @@ test("scan proposes a zero-credit boundary test once report, test, and stale-bra
   assert.deepEqual(enhancement.changedFiles, ["test/zero-credit-boundary.test.mjs"]);
 });
 
-test("scan returns no actionable work once report, test, stale-branch report, and zero-credit boundary test exist", () => {
+const FOUR_SHOT = new Set([
+  "scripts/sovereign-scan-report.mjs",
+  "test/sovereign-scan-report.test.mjs",
+  "scripts/sovereign-stale-branch-report.mjs",
+  "test/zero-credit-boundary.test.mjs",
+]);
+const LEDGER = "reports/sovereign-cycle-outcome.json";
+const CYCLE_A = "a".repeat(64);
+const CYCLE_B = "b".repeat(64);
+
+test("scan proposes a cycle outcome ledger once one-shot recipes exist", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) =>
-      relative === "scripts/sovereign-scan-report.mjs" ||
-      relative === "test/sovereign-scan-report.test.mjs" ||
-      relative === "scripts/sovereign-stale-branch-report.mjs" ||
-      relative === "test/zero-credit-boundary.test.mjs",
+    fileExists: (relative) => FOUR_SHOT.has(relative),
+    gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
+  });
+  assert.equal(enhancement.id, "cycle-outcome-ledger");
+  assert.deepEqual(enhancement.changedFiles, [LEDGER]);
+  producerModule.assertSafeCandidatePaths([LEDGER]);
+});
+
+test("scan refreshes the ledger when cycleId advanced", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
+    cycleId: CYCLE_B,
+    gapAudit: { open: [] },
+  });
+  assert.equal(enhancement.id, "cycle-outcome-ledger");
+  assert.match(enhancement.title, /refresh/);
+});
+
+test("scan returns no actionable work when ledger already records this cycleId", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
+    cycleId: CYCLE_A,
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
+});
+
+test("cycle outcome ledger render is bounded JSON and zero-credit", () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  const rendered = producerModule.renderCycleOutcomeLedger({
+    cycleId: CYCLE_A,
+    gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }, { id: "gap-open", state: "open" }] },
+    baseSha: "c".repeat(40),
+    producedAt: "2026-09-05T04:00:00.000Z",
+  });
+  const parsed = JSON.parse(rendered);
+  assert.equal(parsed.schemaVersion, 1);
+  assert.equal(parsed.cycleId, CYCLE_A);
+  assert.equal(parsed.counts.blocked, 1);
+  assert.equal(parsed.counts.actionable, 1);
+  assert.deepEqual(parsed.blockedGapIds, ["signed-browser-session"]);
+  assert.doesNotMatch(rendered, /OPENAI_API_KEY|sk-proj|npm install|npx|Destiny|7\.0/);
+  assert.equal(producerModule.recordedLedgerCycleId(rendered), CYCLE_A);
 });
 
 test("producer refuses trust-plane changed paths", () => {
