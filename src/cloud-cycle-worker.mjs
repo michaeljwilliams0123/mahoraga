@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { getAnchoredFourHourWindowStart } from "./sovereign-cycle-clock.mjs";
-import { runCreditFreeHeartbeat } from "./autonomy-heartbeat.mjs";
+import { runCreditFreeHeartbeat, readCreditFreeRuntime } from "./autonomy-heartbeat.mjs";
 
 export const CLOUD_CYCLE_STATES = Object.freeze(["queued", "cloud-running", "local-running", "verifying", "waiting", "failed", "no-candidate", "candidate-ready"]);
 export const CLOUD_CYCLE_WORKFLOW_VERSION = "sovereign-four-hour-cycle/v1";
@@ -171,7 +171,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const { createGitHubNativeCandidateProducer } = await import("./sovereign-candidate-producer.mjs");
     candidateProducer = createGitHubNativeCandidateProducer();
   }
-  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc, candidateProducer });
+  const creditFree = readCreditFreeRuntime();
+  const output = await runCloudCycle({ repositoryIdentity, providers: [], requiresGeneration: false, cloudModeEnabled: false, anchorAtUtc, candidateProducer, creditFree });
   console.log(JSON.stringify(output));
   if (output.status === "failed") process.exitCode = 1;
 }

@@ -57,10 +57,10 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Outbound-only Secondary Codex coordination is enabled.",
   });
-  record(closed, has(".github/workflows/chromebook-control-plane.yml"), {
-    id: "chromebook-control-plane",
+  record(closed, !has(".github/workflows/chromebook-control-plane.yml"), {
+    id: "chromebook-control-plane-retired",
     priority: "high",
-    summary: "Browser-only Chromebook control workflow is present.",
+    summary: "Chromebook control plane remains retired; GitHub Actions Verify is the credit-free scheduler.",
   });
   record(closed, has(".github/workflows/verify.yml"), {
     id: "cross-platform-ci",
