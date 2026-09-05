@@ -57,19 +57,43 @@ export async function runCloudCycle({ repositoryIdentity, branch = "main", provi
   const events = [event("queued", cycleId, branch)];
   let startedCodespace = false;
   try {
-    const cycle = runUnattendedCreditFreeCycle({
+    let probe = creditFree.probe ?? null;
+    let invoke = creditFree.invoke ?? null;
+    if (probe == null) {
+      try {
+        const { probeLocalReasoner } = await import("./local-reasoner-provider.mjs");
+        probe = await probeLocalReasoner({ timeoutMs: 250 });
+      } catch {
+        probe = null;
+      }
+    }
+    if (invoke == null && probe != null) {
+      try {
+        const { createLoopbackGenerateInvoke } = await import("./local-reasoner-loopback-invoke.mjs");
+        invoke = createLoopbackGenerateInvoke({ probe, timeoutMs: 1500 });
+      } catch {
+        invoke = null;
+      }
+    }
+    const cycle = await Promise.resolve(runUnattendedCreditFreeCycle({
       now,
       providers: ["repository", "local-core", "self-healer"],
       requestedProvider: "repository",
       requiresGeneration: requiresGeneration === true,
       ...creditFree,
-    });
+      probe,
+      invoke,
+      foundryRegistry: creditFree.foundryRegistry ?? null,
+      localReasonerReady: creditFree.localReasonerReady === true || probe?.verified === true,
+    }));
     const heartbeat = cycle.heartbeat;
     const unattended = Object.freeze({
       kind: cycle.kind,
       slowLoop: cycle.slowLoop,
       generation: cycle.generation,
       foundryPlanCount: cycle.improvement.foundryPlanCount,
+      admittedCount: cycle.fleet.admittedCount,
+      fleetParent: cycle.fleet.parentAgentId,
       creditCost: 0,
       paidFallback: false,
     });

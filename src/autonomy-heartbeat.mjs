@@ -413,12 +413,33 @@ async function runHeartbeatCli() {
     localReasonerReady = runtime.localReasonerReady;
   }
   const { asHeartbeatCliReceipt, runUnattendedCreditFreeCycle } = await import("./unattended-credit-free-cycle.mjs");
+  let invoke = null;
+  try {
+    const { createLoopbackGenerateInvoke } = await import("./local-reasoner-loopback-invoke.mjs");
+    invoke = createLoopbackGenerateInvoke({ probe, timeoutMs: 1500 });
+  } catch {
+    invoke = null;
+  }
+  let foundryRegistry = null;
+  try {
+    const { readFile } = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { ROOT } = await import("./config.mjs");
+    const { applyAgentFoundryPlans } = await import("./agent-foundry.mjs");
+    const raw = JSON.parse(await readFile(path.join(ROOT, "coordination", "agent-factory", "registry.json"), "utf8"));
+    foundryRegistry = applyAgentFoundryPlans(raw, []);
+  } catch {
+    foundryRegistry = null;
+  }
   const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
     localReasonerReady,
     destinyManifest,
     probe,
+    invoke,
+    foundryRegistry,
+    requiresGeneration: envFlag(process.env.MAHORAGA_REQUIRES_GENERATION),
   });
-  return asHeartbeatCliReceipt(cycle);
+  return asHeartbeatCliReceipt(await Promise.resolve(cycle));
 }

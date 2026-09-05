@@ -64,6 +64,8 @@ test("CLI receipt keeps heartbeat nextAction at the root for the Actions parser"
   assert.equal(receipt.nextAction, cycle.nextAction);
   assert.equal(receipt.unattended.kind, "unattended-credit-free-cycle");
   assert.equal(receipt.unattended.slowLoop, "skill-compound-and-foundry");
+  assert.equal(receipt.unattended.fleet.kind, "unattended-foundry-fleet");
+  assert.ok(receipt.unattended.fleet.admittedCount >= 1);
   assert.equal(receipt.creditCost, 0);
   assert.equal(receipt.paidFallback, false);
 });
@@ -81,3 +83,26 @@ test("a real invoke may verify generation without persisting content", () => {
   assert.equal(cycle.generation.reason, "loopback-generate-verified");
   assert.equal(JSON.stringify(cycle.generation).includes("prompt"), false);
 });
+
+test("async invoke is awaited without fabricating an ok result", async () => {
+  const cycle = await runUnattendedCreditFreeCycle({
+    now: NOW,
+    requiresGeneration: true,
+    localReasonerReady: true,
+    probe: { verified: true },
+    invoke: async ({ worldDigest }) => ({ status: "ok", resultSha256: worldDigest }),
+    message: "Update the Mahoraga interface",
+  });
+  assert.equal(cycle.generation.status, "ok");
+  assert.equal(cycle.generation.paidFallback, false);
+});
+
+test("foundry admission is identifier-only and still zero-credit", () => {
+  const cycle = runUnattendedCreditFreeCycle({ now: NOW, world: { openIssues: 2 } });
+  assert.equal(cycle.fleet.kind, "unattended-foundry-fleet");
+  assert.equal(cycle.fleet.creditCost, 0);
+  assert.equal(cycle.fleet.paidFallback, false);
+  assert.ok(cycle.fleet.admittedAgentIds.includes("mahoraga-heartbeat-destiny-trigger-not-ready-specialist"));
+  assert.equal(JSON.stringify(cycle.fleet).includes("prompt"), false);
+});
+

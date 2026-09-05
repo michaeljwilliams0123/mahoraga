@@ -52,3 +52,13 @@ test("applyLocalReasonerGenerate holds when no callback is supplied", () => {
   assert.equal(held.status, "hold");
   assert.equal(held.reason, "generation-callback-required");
 });
+
+test("async invoke is verified only after it resolves status plus digest", async () => {
+  const generate = createLocalReasonerGenerate({
+    probe: { verified: true },
+    invoke: async ({ worldDigest }) => ({ status: "ok", resultSha256: worldDigest }),
+  });
+  const verified = await generate({ worldDigest: DIGEST });
+  assert.equal(verified.status, "ok");
+  assert.equal(verified.reason, "loopback-generate-verified");
+});

@@ -8,6 +8,7 @@ export function compoundCreditFreeSkills({
   learning,
   learnedAt = new Date().toISOString(),
   parentAgentId = "mahoraga",
+  existingAgents = [],
 } = {}) {
   if (!learning || typeof learning !== "object" || Array.isArray(learning)) fail("skill-learning-invalid");
   if (learning.kind !== "credit-free-learning" || learning.zeroCredit !== true) fail("skill-learning-invalid");
@@ -42,7 +43,7 @@ export function compoundCreditFreeSkills({
   const foundryGaps = (Array.isArray(learning.gaps) ? learning.gaps : []).map(toFoundryGap).filter(Boolean);
   const foundryPlans = planChildAgents({
     parentAgentId,
-    existingAgents: [],
+    existingAgents,
     gaps: foundryGaps,
     createdAt: learnedAt,
   });
@@ -66,8 +67,9 @@ export function runCreditFreeImprovementLoop({
   learning,
   learnedAt = new Date().toISOString(),
   parentAgentId = "mahoraga",
+  existingAgents = [],
 } = {}) {
-  const skills = compoundCreditFreeSkills({ learning, learnedAt, parentAgentId });
+  const skills = compoundCreditFreeSkills({ learning, learnedAt, parentAgentId, existingAgents });
   return Object.freeze({
     schemaVersion: 1,
     kind: "credit-free-improvement-loop",
