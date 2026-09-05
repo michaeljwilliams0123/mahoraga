@@ -52,6 +52,10 @@ export function evaluateLiveMainProtection({ rulesets = [], contract } = {}) {
   if (missing.length > 0) {
     return blocked("main-required-checks-missing", { missing: Object.freeze(missing) });
   }
+  const extra = merged.requiredContexts.filter((context) => !expected.requiredContexts.includes(context));
+  if (extra.length > 0) {
+    return blocked("main-required-checks-extra", { extra: Object.freeze(extra) });
+  }
   return Object.freeze({
     ok: true,
     status: "protected",

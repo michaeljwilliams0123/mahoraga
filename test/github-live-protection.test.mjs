@@ -67,6 +67,35 @@ test("live main protection does not require the unified Vercel workspace", () =>
   ]);
 });
 
+test("live main protection fails closed when an observational job is a required check", () => {
+  const report = evaluateLiveMainProtection({
+    rulesets: [ruleset({
+      rules: [
+        { type: "deletion" },
+        { type: "non_fast_forward" },
+        { type: "pull_request", parameters: { required_approving_review_count: 0 } },
+        {
+          type: "required_status_checks",
+          parameters: {
+            strict_required_status_checks_policy: true,
+            required_status_checks: [
+              { context: "Verify (ubuntu-latest)" },
+              { context: "Verify (windows-latest)" },
+              { context: "Verify unified Vercel workspace" },
+            ],
+          },
+        },
+      ],
+    })],
+    contract,
+  });
+  assert.equal(report.ok, false);
+  assert.equal(report.reason, "main-required-checks-extra");
+  assert.deepEqual(report.extra, ["Verify unified Vercel workspace"]);
+  assert.equal(report.creditCost, 0);
+  assert.equal(report.paidFallback, false);
+});
+
 test("tracked contract is the canonical exact-head Verify set", () => {
   assert.deepEqual(contract.requiredContexts, [
     "Verify (ubuntu-latest)",

@@ -207,7 +207,9 @@ Applied now:
   live contract now matches the owner-approved PR completion gate:
   `Verify (ubuntu-latest)` and `Verify (windows-latest)`. `Verify unified
   Vercel workspace` may run and must not gate merge. File presence is not
-  enforcement. Missing any required context fails closed.
+  enforcement. Missing any required context fails closed. Extra required
+  contexts (including observational Vercel) also fail closed — a third gate
+  is hosted-minute burn, not containment.
 - Sovereign cycleId-only ledger pulses hold at `$0`. Opening a PR that only
   stamps `cycleId` / `producedAt` burns hosted Actions minutes without
   changing gap composition. The Actions step summary is the pulse. Stale
@@ -237,6 +239,7 @@ Applied from current local-first agent practice. These are constraints, not a st
 - Skill compounding stays identifier-only (method ids, hold/dispatch counts). No prompt or chat storage.
 - Quota exhaustion and missing local reasoners are legal waits. Upgrades and paid fallbacks are not.
 - Do not add extra Vercel projects or paid review bots to “speed up” autonomy.
+- Extra merge gates (hosted deploy checks, review bots) are contamination. The live-protection evaluator fails closed when required checks are not exactly Ubuntu + Windows.
 - A scheduled foundry/skill loop must exit 0 on empty plans. Crashing the two-hour steward because `schemaVersion` was omitted is a scheduler defect, not a reason to buy Codex review.
 
 ## Loopback reasoners

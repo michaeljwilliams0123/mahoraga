@@ -145,7 +145,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/github-live-protection.mjs") && has("config/main-protection.contract.json") && has("test/github-live-protection.test.mjs"), {
     id: "github-live-main-protection",
     priority: "high",
-    summary: "Live main-protection contract requires exact-head Ubuntu and Windows Verify. Unified Vercel workspace may run and must not gate PR completion. File presence is not enforcement.",
+    summary: "Live main-protection contract requires exact-head Ubuntu and Windows Verify. Extra required checks, including observational Vercel, fail closed. File presence is not enforcement.",
   });
   record(closed, has("src/stale-pr-ledger.mjs") && has("test/stale-pr-ledger.test.mjs") && has("src/sovereign-candidate-producer.mjs"), {
     id: "sovereign-cycle-hold-noop",
