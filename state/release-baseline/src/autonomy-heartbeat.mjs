@@ -59,7 +59,7 @@ export function attestHeartbeatDestinyTrigger({
 
 export function runCreditFreeHeartbeat(options = {}) {
   const receipt = composeCreditFreeHeartbeat(options);
-  return actuateCreditFreeCycle(receipt, { now: timestampMs(options.now) });
+  return actuateCreditFreeCycle(receipt, { now: timestampMs(options.now), generate: options.generate ?? null });
 }
 
 export function composeCreditFreeHeartbeat({

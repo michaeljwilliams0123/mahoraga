@@ -32,9 +32,16 @@ export function actuateCreditFreeCycle(heartbeat, { now = Date.now(), generate =
     });
   }
 
-  const produced = typeof generate === "function"
-    ? generate({ channel, admission: execution, worldDigest: heartbeat.worldDigest, now: when })
-    : { status: "ok", resultSha256: heartbeat.worldDigest };
+  if (typeof generate !== "function") {
+    return withActuation(heartbeat, {
+      status: "held",
+      reason: "generation-callback-required",
+      resultSha256: heartbeat.worldDigest,
+      channelId: channel.id,
+    });
+  }
+
+  const produced = generate({ channel, admission: execution, worldDigest: heartbeat.worldDigest, now: when });
   assertGeneratedResult(produced);
 
   const stored = putTransientResult(channel, {
