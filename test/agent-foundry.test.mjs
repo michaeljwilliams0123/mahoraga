@@ -60,3 +60,25 @@ test('foundry applies planned children to the permanent registry idempotently', 
   const twice = subject.applyAgentFoundryPlans(once, [plan]);
   assert.deepEqual(twice, once);
 });
+
+test('foundry treats the same semantic child re-planned later as an idempotent replay', () => {
+  const gap = { id: 'signed-browser-session', state: 'open', priority: 'high', summary: 'Browser gap', dependency: 'Create a bounded browser specialist.' };
+  const firstPlan = subject.planChildAgents({
+    parentAgentId: 'mahoraga-steward',
+    existingAgents: [],
+    gaps: [gap],
+    createdAt: '2026-09-05T06:30:00.000Z',
+  })[0];
+  const once = subject.applyAgentFoundryPlans({ schemaVersion: 1, parentAgentId: 'mahoraga-steward', agents: [] }, [firstPlan]);
+
+  const laterPlan = subject.planChildAgents({
+    parentAgentId: 'mahoraga-steward',
+    existingAgents: [],
+    gaps: [gap],
+    createdAt: '2026-09-05T08:30:00.000Z',
+  })[0];
+
+  const twice = subject.applyAgentFoundryPlans(once, [laterPlan]);
+  assert.deepEqual(twice, once);
+  assert.equal(twice.agents[0].createdAt, '2026-09-05T06:30:00.000Z');
+});
