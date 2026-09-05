@@ -188,5 +188,8 @@ test("workflow merges exact verified heads without waiting for Destiny comments"
   assert.match(source, /freshDecision = evaluateAutonomousIntegration/);
   assert.match(source, /createWorkflowDispatch/);
   assert.match(source, /workflow_id: "verify\.yml"/);
+  assert.match(source, /incumbent-trust-epoch\.json/);
+  assert.match(source, /trustedEpoch/);
+  assert.match(source, /sovereignEvolution/);
   assert.doesNotMatch(source, /pages\.yml|deploy_pages/);
 });

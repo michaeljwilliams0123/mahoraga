@@ -16,7 +16,7 @@ The operator console is the singular cloud UI for GitHub and fleet commands.
 
 ## Protect main
 
-Ruleset `22284961` **Protect main** is active on the default branch.
+Ruleset `22327855` **Protect main — exact-head Verify** is active on the default branch.
 
 Required checks:
 

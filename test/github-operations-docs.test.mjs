@@ -42,11 +42,14 @@ test("pull requests require deterministic evidence and public-repository privacy
   assert.match(template, /does not change repository visibility/);
 });
 
-test("security baseline preserves the control path while recording live hardening", async () => {
+test("security baseline attests live exact-head main protection", async () => {
   const baseline = await source("docs/GITHUB-SECURITY-BASELINE.md");
   assert.match(baseline, /does not change repository visibility/);
   assert.match(baseline, /Secret scanning, push protection, Dependabot alerts/i);
-  assert.match(baseline, /account-level settings were API-verified/);
-  assert.match(baseline, /blocks deletion and force pushes/);
-  assert.match(baseline, /Normal fast-forward updates\s+from the owner-gated Chromebook control workflow remain compatible/);
+  assert.match(baseline, /22327855/);
+  assert.match(baseline, /blocks deletion and force-push/);
+  assert.match(baseline, /github-live-protection\.mjs/);
+  assert.match(baseline, /incumbent-trust-epoch\.json/);
+  assert.doesNotMatch(baseline, /does not require pull requests or status checks/);
+  assert.doesNotMatch(baseline, /Chromebook control workflow still fast-forwards/);
 });

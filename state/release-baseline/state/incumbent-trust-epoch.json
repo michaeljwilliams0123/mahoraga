@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "epochId": "epoch-1",
+  "trustedCommit": "244baba36a75b2d48a066e847d54c1b7c0c02b7e",
+  "verifierFingerprint": "98f39baa8769e7739dbfcd8b3eee5aa56b6cf54f878b82bd1b4e42f8312a34f9",
+  "rollbackCheckpointId": "rollback-3-6-0",
+  "policyGeneration": 1,
+  "activatedAt": "2026-09-05T09:10:00.000Z"
+}

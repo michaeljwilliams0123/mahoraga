@@ -17,22 +17,46 @@ without a new explicit instruction.
 - The pre-push hook rejects deletion or non-fast-forward updates to `main` and
   the preserved production branch.
 - The public-repository privacy checklist remains mandatory for pull requests.
+- `node scripts/github-live-protection.mjs` attests live `main` rulesets against
+  the exact-head Verify contract and fails closed when protection is absent.
 
 ## Live GitHub controls
 
-The following account-level settings were API-verified on 2026-08-24. Re-verify
-them after every ownership, plan, or visibility change:
+Live `main` protection is attested by `node scripts/github-live-protection.mjs`
+against `config/main-protection.contract.json`. Repository-only `github:audit`
+success is not proof of live settings.
+
+Ruleset `22327855` (`Protect main — exact-head Verify`) is the live GitHub-native
+gate. It blocks deletion and force-push, requires a pull request, and requires
+exact-head success of:
+
+- `Verify (ubuntu-latest)`
+- `Verify (windows-latest)`
+- `Verify unified Vercel workspace`
+
+No actor may bypass the ruleset. Autonomous integration still squash-merges
+eligible PRs through the GitHub pull-request merge API after those checks pass.
+
+Account-level controls last verified 2026-08-24 and re-checked 2026-09-05:
 
 1. Secret scanning, push protection, Dependabot alerts/security updates, private
    vulnerability reporting, and CodeQL default setup are enabled.
 2. Actions permits GitHub-owned actions only. Current workflows use only
    `actions/checkout`, `actions/setup-node`, and `actions/github-script`.
-3. `main` blocks deletion and force pushes, including administrator bypass, but
-   does not require pull requests or status checks. Normal fast-forward updates
-   from the owner-gated Chromebook control workflow remain compatible.
-4. The registered workflow whose path no longer exists on `main` is disabled.
-5. The default workflow token remains read-only and no repository secret stores
-   Codex, ChatGPT, browser-session, or local Windows runtime authentication.
+3. The default workflow token remains read-only except on the write-capable
+   Autonomous Integration merge job, and no repository secret stores Codex,
+   ChatGPT, browser-session, or local Windows runtime authentication.
+4. The Chromebook fast-forward control path is retired. Exact-head required
+   checks are now the live merge gate.
+
+## Incumbent trust epoch
+
+`state/incumbent-trust-epoch.json` is the canonical incumbent generation. Trusted
+`main` is the only source. Autonomous integration loads that file from the
+`main` checkout and binds any candidate sovereign receipt from
+`coordination/sovereign-receipts/`. A candidate cannot supply or overwrite the
+incumbent epoch. Missing live protection, missing epoch, or incomplete proofs
+fail closed.
 
 ## Workflow hardening
 
@@ -41,7 +65,3 @@ commit SHA with its major version retained in a comment for reviewability.
 Dependabot remains responsible for proposing future GitHub Actions updates, and
 the live Actions allowlist remains restricted to GitHub-owned actions.
 
-The Chromebook control workflow still fast-forwards bounded task records to
-`main`. Full required-status-check protection depends on first changing that
-workflow to publish a scoped branch and pull request. The current history-only
-protection deliberately preserves that outbound control path.

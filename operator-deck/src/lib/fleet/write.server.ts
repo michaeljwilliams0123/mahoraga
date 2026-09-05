@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import type { WriteVerb } from "./types";
 
 export const REPO = "michaeljwilliams0123/mahoraga";
-const RULESET_ID = "22284961";
+const RULESET_ID = "22327855";
 const PROTECTED = new Set(["main", "master", "production", "HEAD"]);
 
 /** Wave A contained branches from issue #83. Preview first; delete only if ahead_by=0 and no open PR. */
