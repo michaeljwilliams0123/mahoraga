@@ -1,10 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
   validateDestinyTriggerTrustManifest,
   evaluateDestinyTriggerReadiness,
   validateDestinyTriggerReceipt,
   reduceDestinyReceiptLifecycle,
+  ownerAuthoredCommentCannotProveExecution,
+  fingerprintPublicKeySpki,
 } from "../src/destiny-trigger-trust.mjs";
 
 const repository = "michaeljwilliams0123/mahoraga";
@@ -80,7 +83,7 @@ test("trusted receipts bind full hashes, exact head, delivery id, and independen
   assert.equal(validateDestinyTriggerReceipt(configured, receipt("acked")).kind, "acked");
   assert.throws(() => validateDestinyTriggerReceipt(configured, receipt("acked", { requestSha256: requestSha256.slice(0, 12) })), /destiny-trigger-receipt-invalid/);
   assert.throws(() => validateDestinyTriggerReceipt(configured, receipt("acked", { headSha: headSha.slice(0, 12) })), /destiny-trigger-receipt-invalid/);
-  assert.throws(() => validateDestinyTriggerReceipt(configured, receipt("acked", { actorLogin: owner })), /destiny-trigger-receipt-actor-mismatch/);
+  assert.throws(() => validateDestinyTriggerReceipt(configured, receipt("acked", { actorLogin: owner })), /destiny-trigger-receipt-owner-spoof/);
 });
 
 test("receipt lifecycle is monotonic, suppresses identical duplicates, and rejects conflicts", () => {
@@ -95,4 +98,79 @@ test("receipt lifecycle is monotonic, suppresses identical duplicates, and rejec
   assert.throws(() => reduceDestinyReceiptLifecycle(configured, correlation, [ack, receipt("running", { deliveryId: "delivery-1" })], { now: "2026-09-03T02:01:00.000Z" }), /destiny-trigger-receipt-delivery-conflict/);
   assert.throws(() => reduceDestinyReceiptLifecycle(configured, correlation, [running, ack], { now: "2026-09-03T02:01:00.000Z" }), /destiny-trigger-receipt-out-of-order/);
   assert.throws(() => reduceDestinyReceiptLifecycle(configured, correlation, [result, running], { now: "2026-09-03T02:01:00.000Z" }), /destiny-trigger-receipt-after-terminal/);
+});
+
+test("owner-authored comments cannot independently prove Destiny execution", () => {
+  assert.equal(ownerAuthoredCommentCannotProveExecution(owner, owner), true);
+  assert.equal(ownerAuthoredCommentCannotProveExecution(owner, "destiny-codex-trigger[bot]"), false);
+  const configured = validateDestinyTriggerTrustManifest(manifest());
+  assert.throws(
+    () => validateDestinyTriggerReceipt(configured, receipt("acked", { actorLogin: owner })),
+    /destiny-trigger-receipt-owner-spoof/,
+  );
+  const readiness = evaluateDestinyTriggerReadiness(configured, observation({ actorLogin: owner }), { now: "2026-09-03T02:03:00.000Z" });
+  assert.equal(readiness.ready, false);
+  assert.equal(readiness.reason, "destiny-trigger-receipt-owner-spoof");
+});
+
+test("signed-receipt trust verifies Ed25519 evidence and rejects owner spoof, bad signatures, and paid eligibility", () => {
+  const { publicKey, privateKey } = generateKeyPairSync("ed25519");
+  const publicKeySpki = publicKey.export({ type: "spki", format: "pem" });
+  const publicKeyFingerprint = fingerprintPublicKeySpki(publicKeySpki);
+  const configured = validateDestinyTriggerTrustManifest(manifest({
+    receiptTrust: { mode: "signed-receipt", algorithm: "ed25519", publicKeyFingerprint, keyId: "destiny-event-dispatch-v1" },
+  }));
+
+  function signBody(body) {
+    const { signature: _ignored, ...rest } = body;
+    void _ignored;
+    const canonical = JSON.stringify(Object.fromEntries(Object.keys(rest).sort().map((key) => [key, rest[key]])));
+    return sign(null, Buffer.from(canonical), privateKey).toString("base64url");
+  }
+
+  const unsignedObservation = {
+    schemaVersion: 1,
+    triggerId: "destiny-event-dispatch-v1",
+    repository,
+    status: "ready",
+    observedAt: "2026-09-03T02:00:00.000Z",
+    zeroCreditEligible: true,
+    actorLogin: "destiny-event-dispatch-v1",
+    publicKeyFingerprint,
+    publicKeySpki,
+  };
+  const readyObservation = { ...unsignedObservation, signature: signBody(unsignedObservation) };
+  const ready = evaluateDestinyTriggerReadiness(configured, readyObservation, { now: "2026-09-03T02:03:00.000Z" });
+  assert.equal(ready.ready, true);
+  assert.equal(ready.installationFingerprint, publicKeyFingerprint);
+
+  const spoofed = { ...unsignedObservation, actorLogin: owner };
+  const spoofedSigned = { ...spoofed, signature: signBody(spoofed) };
+  assert.equal(evaluateDestinyTriggerReadiness(configured, spoofedSigned, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-receipt-owner-spoof");
+
+  const badSig = { ...readyObservation, signature: "A".repeat(86).replace(/A/g, "A").replace(/.$/, "B") };
+  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: `${readyObservation.signature.slice(0, -1)}A` }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
+  void badSig;
+
+  const metered = { ...unsignedObservation, zeroCreditEligible: false };
+  const meteredSigned = { ...metered, signature: signBody(metered) };
+  assert.equal(evaluateDestinyTriggerReadiness(configured, meteredSigned, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-zero-credit-not-eligible");
+
+  const ackedBody = {
+    schemaVersion: 1,
+    kind: "acked",
+    repository,
+    pullRequest: 101,
+    dispatchId: "dcx-0123456789abcdef01234567",
+    requestSha256,
+    headSha,
+    deliveryId: "delivery-signed-1",
+    status: "acked",
+    observedAt: "2026-09-03T02:00:10.000Z",
+    actorLogin: "destiny-event-dispatch-v1",
+    publicKeyFingerprint,
+    publicKeySpki,
+  };
+  const signedAck = { ...ackedBody, signature: signBody(ackedBody) };
+  assert.equal(validateDestinyTriggerReceipt(configured, signedAck).kind, "acked");
 });

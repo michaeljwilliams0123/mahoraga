@@ -1,7 +1,18 @@
 const CREDIT_FREE_PROVIDERS = Object.freeze(["repository", "local-core", "self-healer", "steward-learning", "browser", "desktop"]);
-const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama"]);
+const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = Object.freeze(["primary-codex-builder"]);
-const METERED_PROVIDERS = Object.freeze(["openai-platform", "github-copilot", "workspace-agent-cloud", "codex-cloud"]);
+const METERED_PROVIDERS = Object.freeze([
+  "openai-platform",
+  "github-copilot",
+  "workspace-agent-cloud",
+  "codex-cloud",
+  "groq",
+  "gemini",
+  "huggingface",
+  "openrouter",
+  "together",
+  "fireworks",
+]);
 const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|publish|repair|restart|update|write)\b/i;
 const INSPECT_WORDS = /\b(?:inspect|review|examine|status|health|observe)\b/i;
 const REPAIR_WORDS = /\b(?:repair|heal|restore|rollback)\b/i;
