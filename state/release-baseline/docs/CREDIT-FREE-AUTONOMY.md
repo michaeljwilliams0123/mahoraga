@@ -31,17 +31,32 @@ Inspect-only requests skip mutation nodes and report status. Hybrid conversation
 
 If the request is a source mutation and no local reasoner is live, the containment graph still runs and a `stewardGap` is recorded: model-backed edits wait for Ollama / LM Studio or an owner-authorized dispatch. Containment is not a fake implementation.
 
+## Unattended heartbeat
+
+True autonomy cannot wait for a chat turn. `src/autonomy-heartbeat.mjs` is the always-on credit-free loop:
+
+1. Observe bounded world metadata (HEAD, worker ids, task counts, open issue/PR counts). No prompts, chats, or credentials.
+2. Decide with `maintainCreditFreeAutonomy`. Legal waits: `refuse-paid-route`, `hold-planned`, `wait-for-local-reasoner`.
+3. Act only when `nextAction` is `dispatch-credit-free`. Inspect heartbeats skip mutation nodes.
+4. Verify the same fail-closed health attestation.
+5. Repair remains incident-only.
+6. Report a content-free receipt with `creditCost: 0` and `paidFallback: false`.
+
+The four-hour candidate cycle runs this heartbeat as a preflight. A refused paid route or exhausted hosted-compute cap holds the cycle instead of buying a provider. Compounded learning (`compoundCreditFreeLearning`) stores method identifiers and success/hold counts only.
+
 ## How to obtain and keep it
 
 1. Prefer local models (Ollama, LM Studio, a verified open-weight Codespace) or deterministic workers over cloud APIs.
 2. Keep OpenAI Platform API disabled. Do not treat Hugging Face free-tier inference as a guaranteed route; rate limits become `hold-planned`.
-3. Do not wire Copilot / Codex Cloud as an automatic fallback. GitHub Actions Verify, Dependabot, CodeQL, and Destiny envelope validation already run at zero model credits.
+3. Do not wire Copilot / Codex Cloud as an automatic fallback. GitHub Actions Verify, Dependabot, CodeQL, Destiny envelope validation, and the four-hour cycle already run at zero model credits.
 4. Record receipts with `creditCost: 0` and `paidFallback: false`.
 5. If no credit-free plane is ready, leave the task planned. Do not buy a route.
-6. Run `maintainCreditFreeAutonomy` before a cycle or conversation dispatch. Legal waits: `refuse-paid-route`, `hold-planned`, `wait-for-local-reasoner`.
+6. Run `maintainCreditFreeAutonomy` and `runCreditFreeHeartbeat` before a cycle or conversation dispatch. Legal waits: `refuse-paid-route`, `hold-planned`, `wait-for-local-reasoner`.
 7. Do not burn hosted free quotas. Extra Vercel projects multiply deploys; the free cap is 100/day. Codex code-review credits are not autonomy — use Verify, not paid review bots.
-8. Compound knowledge in steward-learning at `$0`. Never spend to “check if work exists.”
+8. Compound knowledge in steward-learning and heartbeat receipts at `$0`. Never spend to “check if work exists.”
+9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
+10. Keep a live local reasoner for source mutations. Deterministic inspect/repair continues without it. Paid fallback is never the missing-model recovery path.
 
 ## Contract
 
-`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. It does not activate Windows production and does not change the four-hour sovereign cadence.
+`src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. This does not activate Windows production and does not change the four-hour sovereign cadence.

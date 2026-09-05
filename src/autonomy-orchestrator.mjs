@@ -31,6 +31,22 @@ function taskTypeForProvider(provider) {
   return "repository";
 }
 
+function creditFreeContextFrom(value) {
+  if (value == null) return Object.freeze({});
+  if (typeof value !== "object" || Array.isArray(value)) throw new TypeError("Credit-free context is invalid.");
+  const context = {};
+  if ("localReasonerReady" in value) context.localReasonerReady = value.localReasonerReady === true;
+  if ("spendGrantUsd" in value) context.spendGrantUsd = Number(value.spendGrantUsd);
+  if ("platformApiKeyPresent" in value) context.platformApiKeyPresent = value.platformApiKeyPresent === true;
+  if ("allowPaidFallback" in value) context.allowPaidFallback = value.allowPaidFallback === true;
+  if ("providers" in value) context.providers = value.providers;
+  if ("requestedProvider" in value) context.requestedProvider = value.requestedProvider;
+  if ("vercelDeploymentsToday" in value) context.vercelDeploymentsToday = Number(value.vercelDeploymentsToday);
+  if ("vercelDailyCap" in value) context.vercelDailyCap = Number(value.vercelDailyCap);
+  if ("extraVercelProjects" in value) context.extraVercelProjects = Number(value.extraVercelProjects);
+  return Object.freeze(context);
+}
+
 function creditFreeTask({ node, outcome, conversationId, taskArea, contract }) {
   const decision = assertCreditFreeDispatch({ requestedProvider: node.provider });
   return {
@@ -107,8 +123,8 @@ function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, comp
   };
 }
 
-function buildCreditFreeObjective({ conversationId, messageId, request, area, contract }) {
-  const plan = planCreditFreeWork({ message: request });
+function buildCreditFreeObjective({ conversationId, messageId, request, area, contract, creditFreeContext }) {
+  const plan = planCreditFreeWork({ message: request, ...creditFreeContext });
   const graph = plan.graph ?? CREDIT_FREE_GRAPH;
   const context = `User request: ${request}`;
   const tasks = graph.map((node) => creditFreeTask({
@@ -140,12 +156,20 @@ export function buildAutonomyObjective({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
+  creditFreeContext = null,
 }) {
   const contract = executionContract(suppliedExecutionContract);
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
   if (creditFreeRequested({ creditFreeRequired, requestedMode })) {
-    return buildCreditFreeObjective({ conversationId, messageId, request, area, contract });
+    return buildCreditFreeObjective({
+      conversationId,
+      messageId,
+      request,
+      area,
+      contract,
+      creditFreeContext: creditFreeContextFrom(creditFreeContext),
+    });
   }
   const context = `User request: ${request}`;
   const tasks = [
@@ -177,6 +201,7 @@ export function createAutonomousConversationTurn({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
+  creditFreeContext = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -190,6 +215,7 @@ export function createAutonomousConversationTurn({
     taskArea,
     executionContract: contract,
     creditFreeRequired,
+    creditFreeContext,
   }));
   return Object.freeze({ message, objective });
 }
@@ -205,6 +231,7 @@ export function createAutonomousConversation({
   taskArea = "mahoraga-autonomy",
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
+  creditFreeContext = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -221,6 +248,7 @@ export function createAutonomousConversation({
     taskArea,
     executionContract: contract,
     creditFreeRequired,
+    creditFreeContext,
   }));
   return Object.freeze({ conversation, objective });
 }
