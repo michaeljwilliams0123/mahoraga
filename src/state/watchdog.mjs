@@ -94,6 +94,7 @@ export function createUccpCanary({ stateStore, root, loopTimeoutMs = 10_000, now
   if (typeof root !== "string" || !root) throw new TypeError("uccp-canary-root-required");
   if (!Number.isInteger(loopTimeoutMs) || loopTimeoutMs < 2_000) throw new TypeError("uccp-canary-timeout-invalid");
   const forbiddenPaths = [path.join(root, "src", "index.js"), path.join(root, "src", "server.js")];
+  const startedAt = now();
 
   return async () => {
     let databaseTxPass = false;
@@ -105,11 +106,14 @@ export function createUccpCanary({ stateStore, root, loopTimeoutMs = 10_000, now
     } catch (error) {
       return { ok: false, reason: `uccp-database-error:${error?.message ?? "unknown"}`, databaseTxPass: false, fsIntegrityPass: true };
     }
+    const currentTime = now();
     const fsIntegrityPass = forbiddenPaths.every((candidate) => !fs.existsSync(candidate));
-    const leaseFresh = !latest || (now() - latest.updatedAt) <= loopTimeoutMs;
+    const firstLeaseWithinGrace = latest !== null || (currentTime - startedAt) <= loopTimeoutMs;
+    const leaseFresh = latest ? (currentTime - latest.updatedAt) <= loopTimeoutMs : firstLeaseWithinGrace;
     const ok = databaseTxPass && fsIntegrityPass && leaseFresh;
     const reason = !databaseTxPass ? "uccp-database-unhealthy"
       : !fsIntegrityPass ? "candidate-forbidden-core-js-detected"
+      : !latest && !firstLeaseWithinGrace ? "uccp-lease-heartbeat-missing"
       : !leaseFresh ? "uccp-lease-heartbeat-stale"
       : null;
     return { ok, reason, databaseTxPass, fsIntegrityPass };
