@@ -148,9 +148,9 @@ test("signed-receipt trust verifies Ed25519 evidence and rejects owner spoof, ba
   const spoofedSigned = { ...spoofed, signature: signBody(spoofed) };
   assert.equal(evaluateDestinyTriggerReadiness(configured, spoofedSigned, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-receipt-owner-spoof");
 
-  const badSig = { ...readyObservation, signature: "A".repeat(86).replace(/A/g, "A").replace(/.$/, "B") };
-  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: `${readyObservation.signature.slice(0, -1)}A` }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
-  void badSig;
+  const lastSignatureChar = readyObservation.signature.at(-1);
+  const corruptedSignature = `${readyObservation.signature.slice(0, -1)}${lastSignatureChar === "A" ? "B" : "A"}`;
+  assert.equal(evaluateDestinyTriggerReadiness(configured, { ...readyObservation, signature: corruptedSignature }, { now: "2026-09-03T02:03:00.000Z" }).reason, "destiny-trigger-signature-invalid");
 
   const metered = { ...unsignedObservation, zeroCreditEligible: false };
   const meteredSigned = { ...metered, signature: signBody(metered) };
