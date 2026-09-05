@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const POLICY_FILES = [
   "AGENTS.md",
   ".github/ai-instructions.md",
+  ".github/copilot-instructions.md",
   ".github/agents/mahoraga-coordinator.agent.md",
   ".github/agents/mahoraga-assurance.agent.md",
 ];
