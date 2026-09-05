@@ -15,13 +15,14 @@ export function createLocalReasonerGenerate({ probe = null, invoke = null, cloud
     if (typeof invoke !== "function") {
       return result(HOLD, "generation-invoke-required", worldDigest);
     }
-    const produced = invoke({ worldDigest, now, probe });
-    assertGenerated(produced);
-    return result(
-      produced.status,
-      produced.status === OK ? "loopback-generate-verified" : produced.reason ?? "loopback-generate-held",
-      produced.resultSha256,
-    );
+    return thenable(invoke({ worldDigest, now, probe }), (produced) => {
+      assertGenerated(produced);
+      return result(
+        produced.status,
+        produced.status === OK ? "loopback-generate-verified" : produced.reason ?? "loopback-generate-held",
+        produced.resultSha256,
+      );
+    });
   };
 }
 
@@ -29,11 +30,17 @@ export function applyLocalReasonerGenerate(generate, input = {}) {
   if (typeof generate !== "function") {
     return result(HOLD, "generation-callback-required", digestOrNull(input.worldDigest));
   }
-  const produced = generate(input);
-  assertGenerated(produced);
-  return produced.status === OK || produced.status === HOLD || produced.status === REFUSED
-    ? freezeGenerate(produced)
-    : result(HOLD, "generation-result-invalid", digestOrNull(input.worldDigest));
+  return thenable(generate(input), (produced) => {
+    assertGenerated(produced);
+    return produced.status === OK || produced.status === HOLD || produced.status === REFUSED
+      ? freezeGenerate(produced)
+      : result(HOLD, "generation-result-invalid", digestOrNull(input.worldDigest));
+  });
+}
+
+export function thenable(value, map) {
+  if (value && typeof value.then === "function") return value.then(map);
+  return map(value);
 }
 
 function result(status, reason, resultSha256) {

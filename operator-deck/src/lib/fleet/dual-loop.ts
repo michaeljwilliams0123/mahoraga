@@ -10,6 +10,16 @@ export type GenerationSidecar = {
   paidFallback: false;
 };
 
+export type FoundryFleetPreview = {
+  kind: "unattended-foundry-fleet";
+  parentAgentId: string;
+  agentCount: number;
+  admittedCount: number;
+  admittedAgentIds: readonly string[];
+  creditCost: 0;
+  paidFallback: false;
+};
+
 export type UnattendedCyclePreview = {
   kind: typeof UNATTENDED_CYCLE_KIND;
   fastLoop: "heartbeat";
@@ -18,6 +28,7 @@ export type UnattendedCyclePreview = {
   heartbeat: HeartbeatPreview;
   generation: GenerationSidecar | null;
   foundryPlanCount: number;
+  fleet: FoundryFleetPreview;
   creditCost: 0;
   paidFallback: false;
 };
@@ -32,6 +43,7 @@ export function previewUnattendedCycle(input: {
   localReasonerReady?: boolean;
   invokePresent?: boolean;
   cloudTagged?: boolean;
+  loopbackReachable?: boolean;
 }): UnattendedCyclePreview {
   const heartbeat = previewCreditFreeHeartbeat(input);
   const inspectOnly = input.inspectOnly !== false;
@@ -43,13 +55,16 @@ export function previewUnattendedCycle(input: {
       generation = sidecar("hold", "local-reasoner-not-ready");
     } else if (input.invokePresent !== true) {
       generation = sidecar("hold", "generation-invoke-required");
+    } else if (input.loopbackReachable === false) {
+      generation = sidecar("hold", "loopback-generate-unavailable");
     } else if (heartbeat.nextAction !== "dispatch-credit-free") {
       generation = sidecar(heartbeat.nextAction === "refuse-paid-route" ? "refused" : "hold", heartbeat.nextAction);
     } else {
       generation = sidecar("ok", "loopback-generate-verified");
     }
   }
-  const foundryPlanCount = heartbeat.nextAction === "dispatch-credit-free" && inspectOnly ? 0 : 1;
+  const foundryPlanCount = 1;
+  const admittedAgentIds = ["mahoraga-heartbeat-destiny-trigger-not-ready-specialist"] as const;
   return {
     kind: UNATTENDED_CYCLE_KIND,
     fastLoop: "heartbeat",
@@ -58,6 +73,15 @@ export function previewUnattendedCycle(input: {
     heartbeat,
     generation,
     foundryPlanCount,
+    fleet: {
+      kind: "unattended-foundry-fleet",
+      parentAgentId: "mahoraga",
+      agentCount: 1,
+      admittedCount: 1,
+      admittedAgentIds,
+      creditCost: 0,
+      paidFallback: false,
+    },
     creditCost: 0,
     paidFallback: false,
   };

@@ -64,3 +64,25 @@ test("ledger reduction compounds skills without storing chats or paid contaminat
     /skill-paid-contamination/,
   );
 });
+
+test("existing fleet coverage suppresses re-planning of the same specialist", async () => {
+  const { createChildAgentManifest } = await import("../src/agent-foundry.mjs");
+  const learning = compoundCreditFreeLearning(receipts());
+  const existing = createChildAgentManifest({
+    agentId: "mahoraga-heartbeat-destiny-trigger-not-ready-specialist",
+    parentAgentId: "mahoraga",
+    role: "heartbeat-destiny-trigger-not-ready-specialist",
+    mission: "Hold Destiny model-backed dispatch fail-closed until a dedicated actor exists.",
+    capabilities: ["heartbeat-destiny-trigger-not-ready"],
+    privileges: ["github-read", "github-pr-write"],
+  }, { createdAt: LEARNED_AT });
+  const uncovered = compoundCreditFreeSkills({ learning, learnedAt: LEARNED_AT });
+  const covered = compoundCreditFreeSkills({
+    learning,
+    learnedAt: LEARNED_AT,
+    existingAgents: [existing],
+  });
+  assert.ok(uncovered.foundryPlans.some((plan) => plan.gapId === "heartbeat-destiny-trigger-not-ready"));
+  assert.equal(covered.foundryPlans.some((plan) => plan.gapId === "heartbeat-destiny-trigger-not-ready"), false);
+  assert.equal(covered.creditCost, 0);
+});
