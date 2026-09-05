@@ -31,13 +31,19 @@ const CREDIT_FREE_PROVIDERS = new Set([
   "desktop",
 ]);
 
-const LOCAL_REASONER_PROVIDERS = new Set(["local-reasoner", "lm-studio", "ollama"]);
+const LOCAL_REASONER_PROVIDERS = new Set(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = new Set(["primary-codex-builder"]);
 const METERED_PROVIDERS = new Set([
   "openai-platform",
   "github-copilot",
   "workspace-agent-cloud",
   "codex-cloud",
+  "groq",
+  "gemini",
+  "huggingface",
+  "openrouter",
+  "together",
+  "fireworks",
 ]);
 
 export function classifyAutonomyProvider(provider: string): AutonomyProviderClass {

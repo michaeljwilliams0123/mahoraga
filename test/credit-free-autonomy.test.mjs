@@ -24,6 +24,10 @@ test("classifies deterministic, local-reasoner, subscription, and metered provid
   assert.equal(classifyAutonomyProvider("ollama"), "local-reasoner");
   assert.equal(classifyAutonomyProvider("primary-codex-builder"), "subscription-local");
   assert.equal(classifyAutonomyProvider("openai-platform"), "metered");
+  assert.equal(classifyAutonomyProvider("groq"), "metered");
+  assert.equal(classifyAutonomyProvider("gemini"), "metered");
+  assert.equal(classifyAutonomyProvider("huggingface"), "metered");
+  assert.equal(classifyAutonomyProvider("llama-cpp"), "local-reasoner");
   assert.equal(classifyAutonomyProvider("mystery"), "unknown");
 });
 
@@ -38,6 +42,9 @@ test("never falls back to paid, metered, subscription, or key-backed routes", ()
   const cases = [
     [{ requestedProvider: "openai-platform" }, "metered-provider-forbidden"],
     [{ requestedProvider: "github-copilot" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "groq" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "gemini" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "huggingface" }, "metered-provider-forbidden"],
     [{ requestedProvider: "primary-codex-builder" }, "subscription-local-not-credit-free"],
     [{ requestedProvider: "repository", allowPaidFallback: true }, "paid-fallback-forbidden"],
     [{ requestedProvider: "repository", spendGrantUsd: 1 }, "spend-grant-not-zero"],
