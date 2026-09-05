@@ -38,6 +38,8 @@ jobs:
         run: npm run verify:conversation-plane
 
       - name: Verify authoritative repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify
 
       - name: Validate static self-upgrade policy

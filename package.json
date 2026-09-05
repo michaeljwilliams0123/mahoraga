@@ -9,6 +9,8 @@
   "scripts": {
     "start": "node src/cli.mjs start",
     "start:production": "node src/cli.mjs start",
+    "start:candidate": "node src/cli.mjs start --port 4783",
+    "validate": "node src/cli.mjs validate",
     "status": "node src/cli.mjs status",
     "submit:health": "node src/cli.mjs submit system.health",
     "coordination:create": "node scripts/coordination.mjs create-assignment",
@@ -39,6 +41,7 @@
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "baseline:verify": "node scripts/create-release-baseline.mjs --verify",
     "test": "node --test --test-isolation=none",
+    "test:alpha": "node --test --test-isolation=none",
     "verify": "node src/cli.mjs validate && node scripts/coordination.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
