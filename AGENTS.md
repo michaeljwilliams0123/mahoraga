@@ -11,6 +11,13 @@ This repository is a living product. It is not a greenfield JavaScript prompt.
 - Windows production rollback remains `3.6.0`. Do not activate `7.0.0-alpha.1` on Windows.
 - Canonical lock: [`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md) and [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
 
+## Review transport policy
+
+- Codex is not a code-review path for Mahoraga. It may execute explicitly assigned implementation work only where repository policy otherwise permits it.
+- Do not request, retry, or purchase Codex code review. Do not add credits or generate additional review traffic to recover from a review quota condition.
+- Codex quota or usage-limit messages are non-blocking infrastructure signals. They are not code defects, merge findings, or reasons to retry a review.
+- Prefer deterministic exact-head GitHub verification and repository-scoped, zero-credit review evidence. Never weaken protected checks to compensate for an unavailable review bot.
+
 Optimize for autonomous execution and short feedback loops.
 
 - Treat `mahoraga.manifest.json` as canonical. Ordinary conversation may plan, debate, implement, verify, integrate, and update without manual routing.

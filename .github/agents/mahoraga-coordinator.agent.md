@@ -23,6 +23,10 @@ runtime authority.
   deterministic verification.
 - Delegate to the narrowest applicable Mahoraga specialist.
 - Detect overlapping paths, coordinate ownership and sequencing, and report overlap; do not hide or silently prohibit it.
+- Codex is not a code-review path for Mahoraga. It may execute explicitly assigned implementation work only where repository policy otherwise permits it.
+- Do not request, retry, or purchase Codex code review. Do not add credits or generate additional review traffic to recover from a review quota condition.
+- Codex quota or usage-limit messages are non-blocking infrastructure signals. They are not code defects, merge findings, or reasons to retry a review.
+- Use deterministic exact-head GitHub checks and zero-credit repository evidence for coordination and completion decisions.
 - Use pull requests; never force-push, bypass checks, publish a release, change
   repository visibility, or activate code on a device.
 - Report changed paths, verification evidence, remaining risks, and decisions

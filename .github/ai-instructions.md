@@ -9,6 +9,14 @@
 - **App host:** Vercel. Google Workspace is identity, mail, and docs — not the app host.
 - **Production rollback:** Windows runtime stays `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite, inactive-runtime smoke, and rollback drill are recorded. Do not activate `7.0.0-alpha.1` on Windows.
 - **Operator console:** the TypeScript operator deck is the singular UI for inspect / merge / comment / close / dispatch / eligible deletes. `cloud-app/` remains the ChatGPT-style conversation workspace. Do not iframe Cloud Pro and do not spend Destiny / Cloud Pro from the operator deck.
-- **Protect main:** ruleset `22284961` is active. Required checks: Verify (ubuntu-latest), Verify (windows-latest), Verify unified Vercel workspace. Never squash-merge a blocked PR.
+- **Protect main:** ruleset `22327855` is active. Required repository checks currently include Verify (ubuntu-latest), Verify (windows-latest), and Verify unified Vercel workspace. Never squash-merge a blocked PR.
+- **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. The repository-local workspace verification remains required while the live ruleset requires that check; do not confuse a provider quota/deployment signal with the repository build check.
+
+## Review transport policy
+
+- Codex is not a code-review path for Mahoraga. It may execute explicitly assigned implementation work only where repository policy otherwise permits it.
+- Do not request, retry, or purchase Codex code review. Do not add credits or generate additional review traffic to recover from a review quota condition.
+- Codex quota or usage-limit messages are non-blocking infrastructure signals. They are not code defects, merge findings, or reasons to retry a review.
+- Prefer deterministic exact-head GitHub verification and repository-scoped, zero-credit review evidence. Never weaken protected checks to compensate for an unavailable review bot.
 
 Anchor every pasted file with its path and extension (`// File: cloud-app/app/page.tsx`, `// File: operator-deck/src/lib/fleet/execute.server.ts`) so models lock to TypeScript immediately.
