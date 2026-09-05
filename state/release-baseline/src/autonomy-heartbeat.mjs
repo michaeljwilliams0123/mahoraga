@@ -7,6 +7,7 @@ import {
   selectCreditFreeExecutionPlane,
   selectCreditFreeGraph,
 } from "./credit-free-autonomy.mjs";
+import { admitLocalReasonerExecution, openTransientResultChannel } from "./local-reasoner-channel.mjs";
 import { evaluateDestinyTriggerReadiness } from "./destiny-trigger-trust.mjs";
 
 export const HEARTBEAT_KIND = "credit-free-heartbeat";
@@ -137,6 +138,17 @@ export function runCreditFreeHeartbeat({
     nextAction = "hold-planned";
   }
   const executable = nextAction === "dispatch-credit-free";
+  const generationReady = requiresGeneration === true && localReasonerReady === true && executable;
+  const resultChannel = generationReady
+    ? openTransientResultChannel({ ttlMs: 15_000, now: timestampMs(now) })
+    : null;
+  const localReasonerExecution = requiresGeneration === true
+    ? admitLocalReasonerExecution({
+      verified: localReasonerReady === true,
+      channel: resultChannel,
+      now: timestampMs(now),
+    })
+    : null;
   return Object.freeze({
     schemaVersion: HEARTBEAT_SCHEMA_VERSION,
     kind: HEARTBEAT_KIND,
@@ -151,6 +163,7 @@ export function runCreditFreeHeartbeat({
     protocol: CREDIT_FREE_PROTOCOL_STEPS,
     steps: Object.freeze(steps),
     stewardGap: plan.stewardGap,
+    ...(requiresGeneration === true ? { resultChannel, localReasonerExecution } : {}),
     worldDigest: digestWorld(world),
     creditCost: 0,
     paidFallback: false,
@@ -288,6 +301,13 @@ function sanitizeCounts(value) {
 
 function integerOrNull(value) {
   return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function timestampMs(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.getTime();
+  if (typeof value === "string" && Number.isFinite(Date.parse(value))) return Date.parse(value);
+  return Date.now();
 }
 
 function gap(id, state, priority, summary, dependency) {
