@@ -28,6 +28,10 @@ test("classifies deterministic, local-reasoner, subscription, and metered provid
   assert.equal(classifyAutonomyProvider("gemini"), "metered");
   assert.equal(classifyAutonomyProvider("huggingface"), "metered");
   assert.equal(classifyAutonomyProvider("llama-cpp"), "local-reasoner");
+  assert.equal(classifyAutonomyProvider("jan"), "local-reasoner");
+  assert.equal(classifyAutonomyProvider("gpt4all"), "local-reasoner");
+  assert.equal(classifyAutonomyProvider("localai"), "local-reasoner");
+  assert.equal(classifyAutonomyProvider("mlx"), "local-reasoner");
   assert.equal(classifyAutonomyProvider("mystery"), "unknown");
 });
 

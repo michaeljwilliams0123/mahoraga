@@ -47,7 +47,22 @@ export const WAVE_A_BRANCHES = [
   "security/codeql-remediation-20260824",
   "test/chromebook-control-plane-smoke-20260823",
   "upgrade/provider-readiness-20260823",
+  "codex/cloud-migration-cleanup-20260902",
+  "fix/zero-credit-codespace-cleanup-20260902",
 ] as const;
+
+/** Evidence-oriented Wave A refs. Tag the branch tip before any delete. */
+export const WAVE_A_EVIDENCE_TAGS: Record<string, string> = {
+  "agent/mahoraga-3-1-production-workers": "archive/wave-a/agent-mahoraga-3-1-production-workers",
+  "agent/mahoraga-7-truth-containment": "archive/wave-a/agent-mahoraga-7-truth-containment",
+  "alert-autofix-38": "archive/wave-a/alert-autofix-38",
+  "audit/github-hardening-20260824": "archive/wave-a/audit-github-hardening-20260824",
+  "destiny/ui-functional-audit-20260831": "archive/wave-a/destiny-ui-functional-audit-20260831",
+  "test/chromebook-control-plane-smoke-20260823": "archive/wave-a/test-chromebook-control-plane-smoke-20260823",
+  "security/codeql-remediation-20260824": "archive/wave-a/security-codeql-remediation-20260824",
+  "secondary/sec-3260ff23-e5b2-4bbc-9a15-0cb07acc9492": "archive/wave-a/secondary-sec-3260ff23",
+  "secondary/sec-ac0c314a-a0d1-4f4a-bfa6-36405c1e1ccb": "archive/wave-a/secondary-sec-ac0c314a",
+};
 
 export type GhResult = { code: number; stdout: string; stderr: string };
 
@@ -428,15 +443,36 @@ async function previewDeletes(): Promise<WriteOutcome> {
   };
 }
 
+async function archiveEvidence(branch: string): Promise<string | null> {
+  const tag = WAVE_A_EVIDENCE_TAGS[branch];
+  if (!tag) return null;
+  const tip = await runGh(["api", `repos/${REPO}/branches/${encodeURIComponent(branch)}`, "--jq", ".commit.sha"]);
+  if (tip.code !== 0) return `tag-tip-missing`;
+  const sha = tip.stdout.trim();
+  if (!/^[a-f0-9]{40}$/.test(sha)) return `tag-sha-invalid`;
+  const existing = await runGh(["api", `repos/${REPO}/git/ref/tags/${tag}`]);
+  if (existing.code === 0) return tag;
+  const created = await runGh(["api", "repos/" + REPO + "/git/refs", "-f", `ref=refs/tags/${tag}`, "-f", `sha=${sha}`]);
+  if (created.code !== 0 && !created.stderr.includes("Reference already exists")) return `tag-failed`;
+  return tag;
+}
+
 async function deleteEligible(): Promise<WriteOutcome> {
   const deleted: string[] = [];
   const skipped: string[] = [];
+  const tagged: string[] = [];
   for (const branch of WAVE_A_BRANCHES) {
     const info = await inspectBranch(branch);
     if (!info.exists || info.skipReason) {
       skipped.push(`${branch}:${info.skipReason ?? "missing"}`);
       continue;
     }
+    const evidence = await archiveEvidence(branch);
+    if (WAVE_A_EVIDENCE_TAGS[branch] && evidence && !evidence.startsWith("archive/")) {
+      skipped.push(`${branch}:${evidence}`);
+      continue;
+    }
+    if (typeof evidence === "string" && evidence.startsWith("archive/")) tagged.push(`${branch}->${evidence}`);
     const result = await runGh(["api", "-X", "DELETE", `repos/${REPO}/git/refs/heads/${branch}`]);
     if (result.code === 0 || result.stderr.includes("Reference does not exist")) {
       deleted.push(branch);
@@ -448,9 +484,10 @@ async function deleteEligible(): Promise<WriteOutcome> {
     ok: true,
     state: "succeeded",
     title: "Wave A contained-branch delete",
-    summary: `Deleted ${deleted.length} eligible contained branches. Skipped ${skipped.length}. main was not touched.`,
+    summary: `Deleted ${deleted.length} eligible contained branches after evidence tags. Skipped ${skipped.length}. main was not touched.`,
     evidence: [
       { label: "Deleted", value: deleted.join(" · ") || "none" },
+      { label: "Tagged", value: tagged.join(" · ") || "none" },
       { label: "Skipped", value: clip(skipped.join(" · ") || "none", 480) },
     ],
   };
