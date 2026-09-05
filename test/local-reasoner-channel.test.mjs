@@ -53,6 +53,23 @@ test("expired or content-bearing channels never admit execution", () => {
   assert.equal(isTransientChannelOpen(contaminated, NOW), false);
 });
 
+test("forged or tampered channels cannot satisfy the in-memory admission boundary", () => {
+  const legitimate = openTransientResultChannel({ ttlMs: 15_000, now: NOW });
+  const forged = {
+    ...legitimate,
+    id: "trc-forged-channel",
+  };
+  const tampered = {
+    ...legitimate,
+    expiresAt: new Date(NOW + 60_000).toISOString(),
+  };
+
+  assert.equal(isTransientChannelOpen(forged, NOW + 1_000), false);
+  assert.equal(admitLocalReasonerExecution({ verified: true, channel: forged, now: NOW + 1_000 }).executionEnabled, false);
+  assert.equal(isTransientChannelOpen(tampered, NOW + 1_000), false);
+  assert.equal(admitLocalReasonerExecution({ verified: true, channel: tampered, now: NOW + 1_000 }).executionEnabled, false);
+});
+
 test("transient results store only status and digest, never prompts or model output", () => {
   const channel = openTransientResultChannel({ now: NOW });
   const stored = putTransientResult(channel, { status: "ok", resultSha256: DIGEST }, { now: NOW + 10 });
