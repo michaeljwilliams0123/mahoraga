@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { createCycleId, getFourHourWindowStart, runCloudCycle } from "../src/cloud-cycle-worker.mjs";
+
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 test("creates stable four-hour cycle identity from repository and UTC window", () => {
   assert.equal(getFourHourWindowStart(new Date("2026-09-02T17:17:00Z")), "2026-09-02T16:00:00.000Z");
@@ -38,4 +42,26 @@ test("always stops a started codespace after producing a concrete candidate rece
   assert.equal(result.status, "candidate-ready");
   assert.deepEqual(result.candidate, candidate);
   assert.equal(stopped, true);
+});
+
+test("cloud-cycle CLI executes and emits a receipt on every supported runner OS", () => {
+  const result = spawnSync(process.execPath, ["src/cloud-cycle-worker.mjs"], {
+    cwd: ROOT,
+    env: {
+      ...process.env,
+      GITHUB_REPOSITORY: "owner/repo",
+      MAHORAGA_CANDIDATE_PRODUCER: "",
+      MAHORAGA_LOCAL_REASONER_READY: "false",
+      MAHORAGA_PLATFORM_API_KEY_PRESENT: "false",
+      MAHORAGA_ALLOW_PAID_FALLBACK: "false",
+    },
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, result.stderr);
+  const receipt = JSON.parse(result.stdout);
+  assert.equal(receipt.workflowVersion, "sovereign-four-hour-cycle/v1");
+  assert.equal(typeof receipt.status, "string");
+  assert.equal(receipt.branch, "main");
 });
