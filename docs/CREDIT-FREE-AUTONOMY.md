@@ -57,6 +57,17 @@ The four-hour candidate cycle runs this heartbeat as a preflight. The unattended
 9. Treat GitHub Actions as the durable scheduler, not a model host. Public-repo minutes stay free; the only spend to avoid is inference.
 10. Keep a live local reasoner for source mutations. Deterministic inspect/repair continues without it. Paid fallback is never the missing-model recovery path.
 
+## 2026 local-first constraints
+
+Applied from current local-first agent practice. These are constraints, not a stack replacement.
+
+- Inference is optional. The durable loop is Observe → Decide → Act → Verify → Repair-or-hold → Report at `$0`.
+- Open-weight local models (Qwen / Llama class via Ollama or LM Studio) are the only generation plane. Cloud APIs are contamination.
+- Unattended work uses GitHub Actions + the heartbeat, not a chat session.
+- Skill compounding stays identifier-only (method ids, hold/dispatch counts). No prompt or chat storage.
+- Quota exhaustion and missing local reasoners are legal waits. Upgrades and paid fallbacks are not.
+- Do not add extra Vercel projects or paid review bots to “speed up” autonomy.
+
 ## Contract
 
 `src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored. This does not activate Windows production and does not change the four-hour sovereign cadence.
