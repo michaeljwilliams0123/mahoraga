@@ -54,14 +54,22 @@ must reproduce the same bounded evidence or fail as a replay conflict.
 | Cancel | Invalidate any lease and enter an immutable terminal state. |
 | Status | Return bounded state and expiry metadata without task content. |
 
-## Persistence adapter requirements
+## Persistence adapter
 
-A future cloud adapter must perform submit and lease transitions atomically,
-enforce unique idempotency keys, compare request hashes, and use conditional
-writes on the current fencing token. A task record may persist bounded metadata,
-commit identities, paths, hashes, counts, timestamps, and sanitized receipts.
-It may not persist credentials, prompts, model responses, chat transcripts,
-browser history, document contents, or attachment bytes.
+`src/task-relay-store.mjs` is the first durable adapter. It keeps protocol 3.0.1
+records in a local SQLite WAL file:
+
+- submit and lease run inside `BEGIN IMMEDIATE` transactions;
+- idempotency keys are unique;
+- request hashes are immutable;
+- updates are conditional on the current fencing token and status;
+- crash/reopen recovers the same logical tasks.
+
+The store persists bounded metadata, hashes, paths, counts, timestamps, and
+content-free receipts. It does not persist credentials, prompts, model output,
+chat transcripts, or attachment bytes. It still does not expose a public
+listener or a cloud SDK.
+
 
 ## Pressure-test baseline
 
@@ -69,4 +77,3 @@ The deterministic suite covers duplicate submission, key reuse conflict, active
 lease contention, expiry/reassignment, stale completion, replay conflict,
 bounded attempts, retryable failure, terminal failure, cancellation, traversal,
 credential-shaped metadata, and tampered hashes.
-
