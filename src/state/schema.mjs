@@ -13,6 +13,21 @@ const PRIVATE_REASONING_KEYS = new Set([
   "reasoningtrace",
 ]);
 const MAX_SUMMARY_BYTES = 64 * 1024;
+const DECISION_SUMMARY_KEYS = new Set([
+  "schemaVersion",
+  "outcome",
+  "contentRef",
+  "contentSha256",
+  "contentBytes",
+  "contentClassification",
+  "contentKind",
+]);
+const METRIC_KEYS = new Set(["driftRisk", "databaseHealth", "workerCount", "taskCount"]);
+const VALID_OUTCOMES = new Set(["stable", "hold"]);
+const VALID_DRIFT = new Set(["STABLE", "ELEVATED", "CRITICAL", "UNKNOWN"]);
+const VALID_DATABASE_HEALTH = new Set(["WAL_OK", "WAL_DEGRADED"]);
+const VAULT_REFERENCE_PATTERN = /^vault:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 export function openUccpStateStore({ file, now = () => Date.now() } = {}) {
   if (typeof file !== "string" || !file.trim()) throw new TypeError("uccp-state-file-required");
@@ -74,7 +89,7 @@ export function openUccpStateStore({ file, now = () => Date.now() } = {}) {
       if (!Number.isInteger(leaseDurationMs) || leaseDurationMs < 1_000 || leaseDurationMs > 3_600_000) throw new TypeError("uccp-lease-duration-invalid");
       if (!Number.isInteger(createdAt) || !Number.isInteger(updatedAt)) throw new TypeError("uccp-timestamp-invalid");
       assertBoundedSummary(decisionSummary);
-      if (metrics !== null) assertNoPrivateReasoning(metrics);
+      assertBoundedMetrics(metrics);
       const payload = JSON.stringify({ decisionSummary, metrics });
       if (Buffer.byteLength(payload, "utf8") > MAX_SUMMARY_BYTES) throw new TypeError("uccp-decision-summary-too-large");
       const expiresAt = updatedAt + leaseDurationMs;
@@ -136,6 +151,30 @@ function normalizeLease(row) {
 function assertBoundedSummary(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("uccp-decision-summary-required");
   assertNoPrivateReasoning(value);
+  if (!hasExactKeys(value, DECISION_SUMMARY_KEYS)) throw new TypeError("uccp-decision-summary-metadata-invalid");
+  if (value.schemaVersion !== 1 || !VALID_OUTCOMES.has(value.outcome)) throw new TypeError("uccp-decision-summary-metadata-invalid");
+  if (typeof value.contentRef !== "string" || !VAULT_REFERENCE_PATTERN.test(value.contentRef)) throw new TypeError("uccp-decision-summary-metadata-invalid");
+  if (typeof value.contentSha256 !== "string" || !SHA256_PATTERN.test(value.contentSha256)) throw new TypeError("uccp-decision-summary-metadata-invalid");
+  if (!Number.isSafeInteger(value.contentBytes) || value.contentBytes < 1 || value.contentBytes > MAX_SUMMARY_BYTES) throw new TypeError("uccp-decision-summary-metadata-invalid");
+  if (value.contentClassification !== "local-only" || value.contentKind !== "uccp-decision-summary") throw new TypeError("uccp-decision-summary-metadata-invalid");
+}
+
+function assertBoundedMetrics(value) {
+  if (value === null) return;
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("uccp-metrics-invalid");
+  assertNoPrivateReasoning(value);
+  if (!hasExactKeys(value, METRIC_KEYS)) throw new TypeError("uccp-metrics-invalid");
+  if (!VALID_DRIFT.has(value.driftRisk) || !VALID_DATABASE_HEALTH.has(value.databaseHealth)) throw new TypeError("uccp-metrics-invalid");
+  if (!boundedCount(value.workerCount) || !boundedCount(value.taskCount)) throw new TypeError("uccp-metrics-invalid");
+}
+
+function hasExactKeys(value, allowed) {
+  const keys = Object.keys(value);
+  return keys.length === allowed.size && keys.every((key) => allowed.has(key));
+}
+
+function boundedCount(value) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= 1_000_000;
 }
 
 function assertNoPrivateReasoning(value, seen = new Set()) {
