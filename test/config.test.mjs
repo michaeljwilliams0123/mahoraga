@@ -2,11 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadManifest, validateManifest } from "../src/config.mjs";
 
-test("canonical manifest defines verified automatic update authority and localhost runtime", async () => {
+test("canonical manifest exposes one product version plus compatibility revisions", async () => {
   const manifest = await loadManifest();
   assert.equal(manifest.version, "7.0.0-alpha.2");
-  assert.equal(manifest.versions.runtime, manifest.version);
-  assert.equal(manifest.versions.controlCenter, manifest.version);
+  assert.equal(manifest.versions, undefined);
+  assert.deepEqual(manifest.protocols, {
+    apiProtocol: "2",
+    taskSchema: "3",
+    workerContract: "2",
+    relayProtocol: "1",
+    capabilityRegistrySchema: "1",
+  });
   assert.equal(manifest.updateAuthority, "mahoraga-verified-automatic");
   assert.equal(manifest.runtime.host, "127.0.0.1");
   assert.equal(manifest.schemaVersion, 2);
@@ -16,6 +22,8 @@ test("canonical manifest defines verified automatic update authority and localho
   assert.ok(manifest.workers.some((worker) => worker.id === "self-healer" && worker.enabled));
   assert.ok(manifest.workers.some((worker) => worker.id === "browser" && worker.enabled));
   assert.ok(manifest.workers.some((worker) => worker.id === "repository" && worker.enabled));
+  assert.ok(manifest.workers.every((worker) => typeof worker.implementationRevision === "string" && worker.implementationRevision.length > 0));
+  assert.ok(manifest.workers.every((worker) => worker.version === undefined));
   assert.equal(manifest.browser.controlCenterUrl, "http://127.0.0.1:4782/");
   assert.equal(manifest.browser.signedSessionEnabled, false);
   assert.equal(manifest.mcpProviders.length, 1);
@@ -38,6 +46,15 @@ test("canonical manifest defines verified automatic update authority and localho
     assert.equal(worker.capabilityCanaries[worker.healthProbe], "health");
     assert.ok(Object.values(worker.capabilityCanaries).every((mode) => ["health", "direct", "provider-derived"].includes(mode)));
   }
+});
+
+test("manifest validator rejects legacy product-like subversion fields", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.versions = { runtime: manifest.version };
+  assert.throws(() => validateManifest(manifest), /Legacy version registry|protocol/i);
+  delete manifest.versions;
+  manifest.workers[0].version = manifest.workers[0].implementationRevision;
+  assert.throws(() => validateManifest(manifest), /legacy worker version|implementation revision/i);
 });
 
 test("manifest rejects external browser targets and premature signed browser access", async () => {
