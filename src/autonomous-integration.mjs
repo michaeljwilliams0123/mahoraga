@@ -35,10 +35,10 @@ export function evaluateAutonomousIntegration(input, policy) {
   const protectedChange = pullRequest.changedFiles.some((changedPath) => policy.protectedPaths.some((protectedPath) => pathIsProtected(changedPath, protectedPath)));
   let sovereignEligible = false;
   if (protectedChange) {
-    if (!pullRequest.sovereignEvolution || !pullRequest.trustedEpochId) return reject("protected-path");
+    if (!pullRequest.sovereignEvolution || !pullRequest.trustedEpoch) return reject("protected-path");
     const sovereign = validateSovereignEvolutionReceipt(pullRequest.sovereignEvolution, {
       headSha: pullRequest.headSha,
-      trustedEpochId: pullRequest.trustedEpochId,
+      trustedEpoch: pullRequest.trustedEpoch,
     });
     if (!sovereign.valid) return reject(sovereign.reason);
     sovereignEligible = true;
