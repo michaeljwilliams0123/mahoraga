@@ -7,6 +7,8 @@ export const ROOT = legacy.ROOT;
 export const MANIFEST_PATH = legacy.MANIFEST_PATH;
 export const MANIFEST_BACKUP_PATH = legacy.MANIFEST_BACKUP_PATH;
 
+export const CORE_OWNED_CLOUD_WORKERS = Object.freeze(["native-cloud-model", "cloud-browser"]);
+
 const PROTOCOL_KEYS = new Set(["apiProtocol", "taskSchema", "workerContract", "relayProtocol", "capabilityRegistrySchema"]);
 const PROTOCOL_REVISION = /^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/;
 
