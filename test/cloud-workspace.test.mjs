@@ -6,18 +6,23 @@ import { ROOT } from "../src/config.mjs";
 
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
-test("the single workspace is Vercel-hosted, credential-free in the browser, and fixed-origin", async () => {
-  const [config, workspace, relay, docs] = await Promise.all([
+test("the single workspace is a credential-free encrypted client of one Mahoraga core", async () => {
+  const [config, workspace, relay, chatRoute, docs] = await Promise.all([
     read("cloud-app/next.config.ts"),
     read("cloud-app/components/workspace.tsx"),
     read("cloud-app/lib/runtime-relay.ts"),
+    read("cloud-app/app/api/chat/route.ts"),
     read("docs/CLOUD-WORKSPACE.md"),
   ]);
   assert.match(config, /wss:\/\/relay\.mahoraga\.app/);
   assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
   assert.doesNotMatch(`${workspace}\n${relay}`, /github_pat_|gh[pousr]_|OPENAI_API_KEY|localStorage|sessionStorage/);
-  assert.match(workspace, /DefaultChatTransport/);
+  assert.doesNotMatch(workspace, /DefaultChatTransport|useChat\(/);
+  assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);
   assert.match(workspace, /RuntimeRelay/);
+  assert.match(workspace, /One core authority/);
+  assert.match(chatRoute, /core-gateway-required/);
+  assert.doesNotMatch(chatRoute, /streamText|@ai-sdk\/gateway|cloudBrowserTool/);
   assert.match(docs, /single Vercel-hosted workspace/i);
   assert.match(docs, /No second local or Pages UI/i);
 });

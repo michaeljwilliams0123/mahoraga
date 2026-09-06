@@ -1,22 +1,11 @@
 "use client";
 
-import { useChat } from "@ai-sdk/react";
-import {
-  DefaultChatTransport,
-  getToolName,
-  isToolUIPart,
-  lastAssistantMessageIsCompleteWithApprovalResponses,
-  type UIMessage,
-} from "ai";
 import {
   ArrowUp,
   Bot,
   Check,
   CircleAlert,
-  Cpu,
   Database,
-  FileText,
-  Globe2,
   Link2,
   LoaderCircle,
   Menu,
@@ -31,27 +20,25 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { MessageResponse } from "@/components/ai-elements/message";
-import { MAX_FILE_BYTES, MAX_FILES, MAX_INPUT_TEXT_CHARS, MAX_TOTAL_FILE_BYTES, MODEL_LABEL } from "@/lib/runtime-config";
+import { MAX_FILE_BYTES, MAX_FILES, MAX_INPUT_TEXT_CHARS, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 
-type CapabilityName = "chat" | "files" | "datasetAnalysis" | "webResearch" | "browser" | "githubTaskBridge" | "runtimeRelay";
-type RouteMode = "efficient" | "cloud";
+type TaskMode = "auto" | "ask" | "act";
+type RelayState = "unpaired" | "pairing" | "connected" | "error";
+type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string };
 type Health = {
   ok: boolean;
-  model: { id: string; label: string; reasoning: string };
-  capabilities: Record<CapabilityName, boolean>;
-  boundaries: { executionPlane: string; localExtensionRequired: boolean; localDeviceMutationAllowed: boolean; relaySeesPlaintext: boolean };
+  boundaries?: { executionPlane?: string; relaySeesPlaintext?: boolean };
+  routing?: { automaticPaidFallback?: boolean };
 };
 
 const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 const TERMINAL_TASK_STATES = new Set(["succeeded", "failed", "cancelled", "rejected"]);
-const CLOUD_TRANSPORT = new DefaultChatTransport({ api: "/api/chat" });
 
 const starters = [
   { icon: Database, title: "Analyze a dataset", prompt: "Analyze the attached dataset. Find material patterns, anomalies, competing explanations, data-quality limitations, and the three most important actions. Quantify every finding you can." },
   { icon: Search, title: "Improve a repository", prompt: "Review the connected repository, identify the highest-impact verified improvement, implement it within the approved scope, run focused checks, and return the evidence." },
-  { icon: MonitorUp, title: "Approved browser task", prompt: "Use the isolated cloud browser, if connected, to complete this bounded task. Stop for approval before any external or consequential action: " },
+  { icon: MonitorUp, title: "Approved browser task", prompt: "Use an approved browser capability if the Mahoraga core can route one. Stop for approval before any external or consequential action: " },
 ];
 
 function readableBytes(bytes: number) {
@@ -60,11 +47,12 @@ function readableBytes(bytes: number) {
 
 function runtimeErrorMessage(code: string) {
   const messages: Record<string, string> = {
-    "zero-credit-provider-unavailable": "No verified zero-credit language provider is connected yet. Deterministic runtime capabilities remain available, or you can deliberately select Cloud Pro.",
-    "zero-credit-objective-provider-unavailable": "Older paired runtimes rejected model-backed objectives. Current zero-credit autonomy runs observe, decide, act, verify, repair, and report on local workers instead of spending credits.",
-    "relay-not-paired": "The paired runtime is no longer connected. Pair it again to continue on the zero-credit route.",
-    "relay-disconnected": "The encrypted runtime connection closed. This conversation was not sent to Cloud Pro.",
-    "relay-request-timeout": "The paired runtime did not answer before the bounded timeout. No paid fallback was attempted.",
+    "zero-credit-provider-unavailable": "No verified zero-credit language provider is connected yet. Mahoraga will not use a paid fallback.",
+    "zero-credit-objective-provider-unavailable": "This objective is waiting for a verified zero-credit provider. No paid fallback was attempted.",
+    "relay-not-paired": "The Mahoraga core is no longer paired. Pair it again to continue this conversation.",
+    "relay-disconnected": "The encrypted core connection closed. No alternate execution brain was used.",
+    "relay-request-timeout": "The Mahoraga core did not answer before the bounded timeout. No paid fallback was attempted.",
+    "relay-attachments-local-only": "Attachments require the core artifact bridge and are not sent through the conversation relay.",
   };
   return messages[code] ?? code.replaceAll("-", " ");
 }
@@ -75,14 +63,14 @@ export function Workspace() {
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [routeMode, setRouteMode] = useState<RouteMode>("efficient");
+  const [taskMode, setTaskMode] = useState<TaskMode>("auto");
   const [pairingOffer, setPairingOffer] = useState("");
-  const [relayState, setRelayState] = useState<"unpaired" | "pairing" | "connected" | "error">("unpaired");
+  const [relayState, setRelayState] = useState<RelayState>("unpaired");
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
-  const [conversationRoute, setConversationRoute] = useState<"cloud" | "runtime" | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const fileInput = useRef<HTMLInputElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   const bottom = useRef<HTMLDivElement>(null);
@@ -90,27 +78,12 @@ export function Workspace() {
   const renderedRuntimeMessages = useRef(new Set<string>());
   const activeRuntimeTask = useRef<RuntimeTask | null>(null);
   const runtimePollGeneration = useRef(0);
-  const { messages, sendMessage, status: cloudStatus, error: cloudError, stop: stopCloud, setMessages, addToolApprovalResponse } = useChat({
-    transport: CLOUD_TRANSPORT,
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
-  });
-  const cloudBusy = cloudStatus === "submitted" || cloudStatus === "streaming";
-  const busy = cloudBusy || runtimeBusy;
-  const runtimeReady = relayState === "connected" && relay.current?.connected === true;
-  const cloudReady = health?.capabilities.chat === true;
-  const selectedRoute = conversationRoute ?? (routeMode === "cloud" ? "cloud" : "runtime");
-  const routeReady = selectedRoute === "runtime" ? runtimeReady : cloudReady;
-  const attachmentsReady = conversationRoute !== "runtime" && routeMode === "cloud" && cloudReady;
-  const routeLabel = conversationRoute === "runtime"
-    ? "Zero-Codex runtime · conversation"
-    : conversationRoute === "cloud"
-      ? "Cloud Pro · explicit conversation"
-      : routeMode === "cloud"
-        ? health?.model.label ?? MODEL_LABEL
-        : runtimeReady
-          ? "Zero-Codex runtime · no paid fallback"
-          : "Pair runtime for zero-credit chat";
+
+  const busy = runtimeBusy;
+  const coreReady = relayState === "connected" && relay.current?.connected === true;
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
+  const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
+  const routeLabel = coreReady ? "Mahoraga core · encrypted · no paid fallback" : "Pair runtime to connect the Mahoraga core";
 
   useEffect(() => {
     fetch("/api/health", { cache: "no-store" })
@@ -121,15 +94,13 @@ export function Workspace() {
       .catch(() => setHealthError(true));
   }, []);
 
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, cloudStatus, runtimeBusy]);
-
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, runtimeBusy]);
   useEffect(() => () => { void relay.current?.revoke(); }, []);
 
   function resetConversation() {
     runtimePollGeneration.current += 1;
     setMessages([]);
     setRuntimeConversationId(null);
-    setConversationRoute(null);
     renderedRuntimeMessages.current.clear();
     activeRuntimeTask.current = null;
     setRuntimeError(null);
@@ -138,8 +109,7 @@ export function Workspace() {
   }
 
   function appendMessage(role: "assistant" | "user", text: string, id = crypto.randomUUID()) {
-    const message: UIMessage = { id, role, parts: [{ type: "text", text }] };
-    setMessages((current) => [...current, message]);
+    setMessages((current) => [...current, { id, role, text }]);
   }
 
   function chooseStarter(prompt: string) {
@@ -162,48 +132,35 @@ export function Workspace() {
 
   async function submit() {
     const text = input.trim();
-    if ((!text && files.length === 0) || busy || !routeReady) return;
-    const desiredRoute = conversationRoute ?? (routeMode === "cloud" ? "cloud" : "runtime");
-    const shouldUseRuntime = desiredRoute === "runtime";
-    if (shouldUseRuntime) {
-      if (files.length > 0) {
-        setRuntimeError("Attachments stay on the cloud analysis route; switch to Cloud Pro explicitly.");
-        return;
-      }
-      await submitRuntime(text);
+    if ((!text && files.length === 0) || busy) return;
+    if (!coreReady) {
+      setRuntimeError("Pair the Mahoraga core before submitting work.");
       return;
     }
-    if (!cloudReady) {
-      setRuntimeError("No execution route is connected.");
+    if (files.length > 0) {
+      setRuntimeError("Attachments require the core artifact bridge. Nothing was uploaded or sent.");
       return;
     }
-    const transfer = new DataTransfer();
-    files.forEach((file) => transfer.items.add(file));
-    setInput("");
-    setFiles([]);
-    setRuntimeError(null);
-    setConversationRoute("cloud");
-    await sendMessage({ text, files: transfer.files });
+    await submitCore(text);
   }
 
-  async function submitRuntime(text: string) {
+  async function submitCore(text: string) {
     const transport = relay.current;
     if (!transport?.connected || !text) {
       setRelayState("error");
-      setRuntimeError("The paired runtime is not connected.");
+      setRuntimeError("The paired Mahoraga core is not connected.");
       return;
     }
     setInput("");
     setRuntimeError(null);
     setRuntimeBusy(true);
-    setConversationRoute("runtime");
     appendMessage("user", text);
     const pollGeneration = ++runtimePollGeneration.current;
     try {
       const result = await transport.chat({
         conversationId: runtimeConversationId,
         content: text,
-        mode: "auto",
+        mode: taskMode,
         creditPolicy: "zero-codex",
         attachmentIds: [],
         idempotencyKey: `vercel-${crypto.randomUUID()}`,
@@ -251,11 +208,11 @@ export function Workspace() {
       if (!activeRuntimeTask.current && (sawTerminal || (sawResponse && !expectsWork))) return;
       await new Promise((resolve) => setTimeout(resolve, 750));
     }
-    appendMessage("assistant", "The paired runtime accepted this work and is continuing it. Its result will remain in the runtime conversation; submit another message after it finishes to refresh the view.");
+    appendMessage("assistant", "Mahoraga accepted this work and is still processing it. The result remains bound to this core conversation.");
   }
 
   async function syncRuntimeMessages(transport: RuntimeRelay, conversationId: string, runtimeMessages: RuntimeMessage[]) {
-    const additions: UIMessage[] = [];
+    const additions: WorkspaceMessage[] = [];
     for (const message of runtimeMessages) {
       if (renderedRuntimeMessages.current.has(message.id) || message.role === "user") {
         renderedRuntimeMessages.current.add(message.id);
@@ -266,7 +223,7 @@ export function Workspace() {
         : message.content ?? "";
       if (!content) continue;
       renderedRuntimeMessages.current.add(message.id);
-      additions.push({ id: `runtime-${message.id}`, role: "assistant", parts: [{ type: "text", text: content }] });
+      additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content });
     }
     if (additions.length > 0) setMessages((current) => [...current, ...additions]);
     return additions.length > 0;
@@ -285,7 +242,6 @@ export function Workspace() {
       setRuntimeCapabilities(capabilities);
       setPairingOffer("");
       setRelayState("connected");
-      setRouteMode("efficient");
       resetConversation();
     } catch (caught) {
       await transport.revoke();
@@ -299,23 +255,22 @@ export function Workspace() {
     relay.current = null;
     setRelayState("unpaired");
     setRuntimeCapabilities([]);
-    setRouteMode("efficient");
     resetConversation();
     await transport?.revoke();
   }
 
   async function stopActiveResponse() {
     const task = activeRuntimeTask.current;
-    if (runtimeBusy) {
-      runtimePollGeneration.current += 1;
-      if (task && relay.current?.connected) {
-        try { await relay.current.taskAction(task.id, task.conversationId, "cancel"); }
-        catch (caught) { setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "runtime-cancel-failed")); }
+    runtimePollGeneration.current += 1;
+    if (task && relay.current?.connected) {
+      try {
+        await relay.current.taskAction(task.id, task.conversationId, "cancel");
+      } catch (caught) {
+        setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "runtime-cancel-failed"));
       }
-      setRuntimeBusy(false);
-      return;
     }
-    stopCloud();
+    activeRuntimeTask.current = null;
+    setRuntimeBusy(false);
   }
 
   return (
@@ -333,121 +288,105 @@ export function Workspace() {
           <a href="#connections"><Link2 size={17} /> Connections</a>
         </nav>
         <div className="sidebar-spacer" />
-        <div className="privacy-card"><ShieldCheck size={18} /><div><strong>Owner-controlled boundary</strong><span>Cloud work stays cloud-side. A paired runtime is end-to-end encrypted and never grants ambient device control.</span></div></div>
-        <a className="repo-link" href="https://github.com/michaeljwilliams0123/mahoraga" target="_blank" rel="noreferrer">GitHub repository <span>↗</span></a>
+        <div className="privacy-card"><ShieldCheck size={18} /><div><strong>One core authority</strong><span>The Vercel workspace is an encrypted client. Policy, routing, verification, and execution authority remain with the paired Mahoraga core.</span></div></div>
+        <a className="repo-link" href="https://github.com/michaeljwilliams0123/mahoraga/issues/new?template=codex-cloud-task.yml" target="_blank" rel="noreferrer">Repository task <span>↗</span></a>
       </aside>
       {sidebarOpen && <button className="sidebar-scrim" onClick={() => setSidebarOpen(false)} aria-label="Close navigation" />}
 
       <main className="main-panel" id="chat">
         <header className="topbar">
-          <button className="menu-button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={20} /></button>
-          <label className="route-picker"><Sparkles size={15} /><span className="sr-only">Execution route</span><select value={routeMode} onChange={(event) => { resetConversation(); setRouteMode(event.target.value as RouteMode); }} disabled={busy} aria-label="Execution route"><option value="efficient">Zero-Codex route</option><option value="cloud">Cloud Pro · explicit</option></select></label>
-          <div className={routeReady ? "live-state ready" : "live-state"}><span /> {routeReady ? routeLabel : routeMode === "efficient" ? "Pair a zero-credit runtime" : healthError ? "Health unavailable" : "Connect Cloud Pro"}</div>
+          <button className="menu-button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
+          <div className="route-status">
+            <span className={coreReady ? "status-dot status-ready" : "status-dot"} />
+            <span>{routeLabel}</span>
+          </div>
+          <div className="mode-switch" aria-label="Task mode">
+            {(["auto", "ask", "act"] as TaskMode[]).map((mode) => (
+              <button key={mode} type="button" aria-pressed={taskMode === mode} onClick={() => setTaskMode(mode)}>{mode[0].toUpperCase() + mode.slice(1)}</button>
+            ))}
+          </div>
         </header>
 
-        <section className="conversation" aria-live="polite">
+        <section className="conversation-panel">
           {messages.length === 0 ? (
-            <div className="welcome">
-              <div className="welcome-mark"><Sparkles size={26} /></div>
-              <h1>What are we working on?</h1>
-              <p>One workspace, one conversation surface. Ordinary chat uses the paired zero-Codex route with no paid fallback; Cloud Pro runs only when you select it explicitly.</p>
+            <div className="welcome-panel">
+              <div className="welcome-mark"><Sparkles size={24} /></div>
+              <h1>One Mahoraga. One core.</h1>
+              <p>Pair the runtime once. Every conversation then enters the same encrypted Conversation Gateway, policy router, verification path, and receipt graph.</p>
               <div className="starter-grid">
-                {starters.map((starter) => (
-                  <button type="button" key={starter.title} aria-label={`Start: ${starter.title}`} onClick={() => chooseStarter(starter.prompt)}>
-                    <starter.icon size={18} /><span>{starter.title}</span><small>{starter.prompt.slice(0, 72)}…</small>
-                  </button>
-                ))}
+                {starters.map((starter) => {
+                  const Icon = starter.icon;
+                  return <button key={starter.title} type="button" aria-label={`Start: ${starter.title}`} onClick={() => chooseStarter(starter.prompt)}><Icon size={18} /><strong>{starter.title}</strong></button>;
+                })}
               </div>
             </div>
           ) : (
             <div className="message-list">
               {messages.map((message) => (
-                <article key={message.id} className={`message ${message.role}`}>
-                  <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={16} /> : "M"}</div>
-                  <div className="message-body">
-                    <div className="message-author">{message.role === "assistant" ? "Mahoraga" : "You"}</div>
-                    {message.parts.map((part, index) => {
-                      if (part.type === "text") return <MessageResponse key={index} isAnimating={busy && message === messages.at(-1)}>{part.text}</MessageResponse>;
-                      if (part.type === "reasoning") return <details className="reasoning" key={index}><summary>Reasoning summary</summary><MessageResponse>{part.text}</MessageResponse></details>;
-                      if (part.type === "file") return <div className="file-part" key={index}><FileText size={16} /><span>{part.filename ?? "Attachment"}</span></div>;
-                      if (part.type === "source-url") return <a className="source-part" key={index} href={part.url} target="_blank" rel="noreferrer"><Globe2 size={14} />{part.title ?? new URL(part.url).hostname}</a>;
-                      if (isToolUIPart(part)) {
-                        const name = getToolName(part).replaceAll("_", " ");
-                        return (
-                          <div className={`tool-card state-${part.state}`} key={part.toolCallId}>
-                            <div className="tool-title">
-                              {part.state === "output-available" ? <Check size={15} /> : part.state === "output-error" || part.state === "output-denied" ? <CircleAlert size={15} /> : <LoaderCircle size={15} className="spin" />}
-                              <strong>{name}</strong><span>{part.state.replaceAll("-", " ")}</span>
-                            </div>
-                            {part.state === "approval-requested" && !part.approval.isAutomatic && (
-                              <div className="approval-box"><p>{part.approval.requestReason ?? "This cloud browser action requires your approval."}</p><div><button onClick={() => addToolApprovalResponse({ id: part.approval.id, approved: false, reason: "Owner denied the action." })}>Deny</button><button className="approve" onClick={() => addToolApprovalResponse({ id: part.approval.id, approved: true })}>Approve once</button></div></div>
-                            )}
-                            {part.state === "output-error" && <p className="tool-error">{part.errorText}</p>}
-                            {part.state === "output-available" && name === "cloud browser" && <pre>{JSON.stringify(part.output, null, 2)}</pre>}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
+                <article key={message.id} className={`message-row message-${message.role}`}>
+                  <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={16} /> : "You"}</div>
+                  <div className="message-body"><div className="message-text" style={{ whiteSpace: "pre-wrap" }}>{message.text}</div></div>
                 </article>
               ))}
-              {(cloudStatus === "submitted" || runtimeBusy) && <div className="thinking-line"><LoaderCircle className="spin" size={17} /> Mahoraga is interpreting the task through {runtimeBusy ? "the paired runtime" : "Cloud Pro"}…</div>}
-              {(cloudError || runtimeError) && <div className="error-banner"><CircleAlert size={17} /><span>{runtimeError || cloudError?.message || "The request failed."}</span></div>}
-              <div ref={bottom} />
+              {runtimeBusy && <div className="message-row message-assistant"><div className="message-avatar"><Sparkles size={16} /></div><div className="message-body"><LoaderCircle className="spin" size={18} /> Mahoraga is working through the core…</div></div>}
             </div>
+          )}
+          <div ref={bottom} />
+        </section>
+
+        <section className="composer-shell">
+          {runtimeError && <div className="inline-alert" role="alert"><CircleAlert size={16} /> {runtimeError}</div>}
+          <div className="composer-card">
+            {files.length > 0 && <div className="file-strip">{files.map((file) => <span key={`${file.name}-${file.size}`}><Paperclip size={13} /> {file.name}<button type="button" onClick={() => setFiles((current) => current.filter((item) => item !== file))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>)}</div>}
+            <textarea
+              ref={composer}
+              value={input}
+              maxLength={MAX_INPUT_TEXT_CHARS}
+              onChange={(event) => setInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void submit();
+                }
+              }}
+              placeholder={coreReady ? "Message Mahoraga…" : "Pair the Mahoraga core to begin…"}
+              aria-label="Message Mahoraga"
+            />
+            <div className="composer-actions">
+              <input ref={fileInput} type="file" multiple hidden onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} />
+              <button type="button" onClick={() => fileInput.current?.click()} aria-label="Attach files" title="Attach files"><Paperclip size={18} /></button>
+              <span className="composer-hint">{files.length > 0 ? `${files.length} file(s) · ${readableBytes(totalBytes)} · core artifact bridge required` : "Zero-Codex route · no paid fallback"}</span>
+              {busy
+                ? <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response" title="Stop response"><Square size={16} /></button>
+                : <button type="button" className="send-button" onClick={() => void submit()} disabled={!input.trim() && files.length === 0} aria-label="Send"><ArrowUp size={18} /></button>}
+            </div>
+          </div>
+          <div className="status-line" aria-live="polite">
+            {coreReady ? <><Check size={14} /> Core paired</> : relayState === "pairing" ? <><LoaderCircle className="spin" size={14} /> Pairing…</> : <><Unplug size={14} /> Core not paired</>}
+            {healthError && <span> · workspace health unavailable</span>}
+            {health?.routing?.automaticPaidFallback === false && <span> · paid fallback disabled</span>}
+          </div>
+        </section>
+
+        <section className="connection-panel" id="connections">
+          <div className="section-heading"><div><span className="eyebrow">Encrypted connection</span><h2>Pair runtime</h2></div><ShieldCheck size={20} /></div>
+          <p>The pairing offer establishes an end-to-end encrypted session to the authoritative Mahoraga core. Pairing changes connectivity only; it does not select a different brain.</p>
+          {relayState !== "connected" ? (
+            <div className="pair-row">
+              <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
+              <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || relayState === "pairing"}>{relayState === "pairing" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Pair runtime</button>
+            </div>
+          ) : (
+            <div className="pair-row"><span><Check size={16} /> Authoritative core connected</span><button type="button" onClick={() => void revokeRuntime()}><Unplug size={16} /> Revoke</button></div>
           )}
         </section>
 
-        <section className="composer-zone">
-          <div className="composer-card">
-            {files.length > 0 && <div className="attachment-row">{files.map((file, index) => <div className="attachment-chip" key={`${file.name}-${file.lastModified}`}><FileText size={15} /><span>{file.name}<small>{readableBytes(file.size)}</small></span><button onClick={() => setFiles(files.filter((_, i) => i !== index))} aria-label={`Remove ${file.name}`}><X size={14} /></button></div>)}</div>}
-            <textarea ref={composer} id="composer" value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); } }} placeholder={!routeReady ? routeMode === "efficient" ? "Pair a runtime to chat without Codex credits" : "Connect Cloud Pro" : `Message Mahoraga · ${routeLabel}`} maxLength={MAX_INPUT_TEXT_CHARS} rows={1} disabled={!routeReady} />
-            <div className="composer-actions">
-              <input ref={fileInput} type="file" multiple hidden accept=".csv,.tsv,.json,.txt,.md,.pdf,.xlsx,image/*" onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }} />
-              <button className="attach" onClick={() => fileInput.current?.click()} disabled={busy || files.length >= MAX_FILES || !attachmentsReady} aria-label="Attach files"><Paperclip size={18} /></button>
-              <span className="mode-label"><Sparkles size={14} /> {routeLabel}</span>
-              <span className="file-limit">{files.length ? `${files.length}/${MAX_FILES} · ${readableBytes(totalBytes)}` : "Files · data · images"}</span>
-              {busy ? <button className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={14} fill="currentColor" /></button> : <button className="send-button" onClick={() => void submit()} disabled={(!input.trim() && files.length === 0) || !routeReady} aria-label="Send message"><ArrowUp size={18} /></button>}
-            </div>
-          </div>
-          <p className="composer-footnote">Zero-Codex never falls through to a paid model. Cloud Pro, browser actions, and device-impacting actions stay explicit and approval gated.</p>
-        </section>
-
-        <section className="capability-section" id="capabilities">
-          <div className="section-heading"><span>Runtime</span><h2>Capabilities you can actually use</h2><p>Each state comes from the deployed backend configuration.</p></div>
-          <div className="capability-grid">
-            <Capability icon={Sparkles} title="Pro reasoning" ready={health?.capabilities.chat} detail="GPT-5.6 Sol · Pro mode · max effort" />
-            <Capability icon={Database} title="File + data analysis" ready={health?.capabilities.datasetAnalysis} detail="CSV, JSON, PDF, documents, and images" />
-            <Capability icon={Globe2} title="Grounded web research" ready={health?.capabilities.webResearch} detail="Live search with returned sources" />
-            <Capability icon={MonitorUp} title="Isolated browser" ready={health?.capabilities.browser} detail={health?.capabilities.browser ? "Cloud provider · approval gated" : "Needs browser provider secrets"} />
-            <Capability icon={Cpu} title="Zero-Codex runtime" ready={runtimeReady} detail={runtimeReady ? `${runtimeCapabilities.filter((item) => item.routable).length} runtime capabilities routable · no paid fallback` : "Encrypted owner pairing · no extension"} />
-          </div>
-        </section>
-
-        <section className="capability-section connections" id="connections">
-          <div className="section-heading"><span>Connections</span><h2>No simulated integrations</h2><p>A connector is only shown as ready when its deployment credential exists.</p></div>
-          <div className="connection-list">
-            <Connection name="Vercel AI Gateway" ready={health?.capabilities.chat} detail="Model, analysis, and web tools" />
-            <Connection name="GitHub task bridge" ready={health?.capabilities.githubTaskBridge} detail="Owner-triggered draft PR · Primary Codex first" href="https://github.com/michaeljwilliams0123/mahoraga/issues/new?template=codex-cloud-task.yml" />
-            <Connection name="Cloud browser" ready={health?.capabilities.browser} detail="No local Chrome extension" />
-            <Connection name="Mahoraga runtime" ready={runtimeReady} detail={runtimeReady ? "End-to-end encrypted · zero-Codex policy" : "Paste a short-lived offer below"} />
-          </div>
-          <div className="pairing-panel">
-            <div className="pairing-copy"><Cpu size={18} /><div><strong>Pair a zero-Codex runtime</strong><p>Generate a short-lived offer on the cloud or secondary runtime you explicitly want to connect. The relay cannot read task content, and this route rejects paid-model fallback.</p></div></div>
-            <textarea value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste the pairing offer" rows={3} disabled={relayState === "pairing" || runtimeReady} aria-label="Runtime pairing offer" />
-            <div className="pairing-actions"><span className={`pairing-state ${runtimeReady ? "ready" : ""}`}>{runtimeReady ? `${runtimeCapabilities.filter((item) => item.routable).length} capabilities ready` : relayState === "pairing" ? "Pairing…" : relayState === "error" ? "Pairing failed" : "Not paired"}</span>{runtimeReady ? <button onClick={() => void revokeRuntime()} disabled={busy}><Unplug size={15} /> Revoke</button> : <button className="pair-button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || relayState === "pairing" || busy}><Link2 size={15} /> Pair runtime</button>}</div>
-          </div>
+        <section className="capability-panel" id="capabilities">
+          <div className="section-heading"><div><span className="eyebrow">Core-routed</span><h2>Capabilities</h2></div><Bot size={20} /></div>
+          <p>Capability readiness is reported by the paired core. The browser does not choose providers or grant execution authority.</p>
+          {routableCapabilities.length === 0 ? <p className="muted">Pair the core to read its routable capability index.</p> : <div className="capability-list">{routableCapabilities.map((capability) => <div key={capability.capability}><strong>{capability.capability}</strong><span>routable</span></div>)}</div>}
         </section>
       </main>
     </div>
   );
-}
-
-function Capability({ icon: Icon, title, ready, detail }: { icon: typeof Sparkles; title: string; ready?: boolean; detail: string }) {
-  return <article><div className="capability-icon"><Icon size={19} /></div><div><h3>{title}</h3><p>{detail}</p></div><span className={ready ? "status-badge ready" : "status-badge"}>{ready ? "Ready" : "Setup needed"}</span></article>;
-}
-
-function Connection({ name, ready, detail, href }: { name: string; ready?: boolean; detail: string; href?: string }) {
-  return <article><span className={ready ? "connection-dot ready" : "connection-dot"} /><div><strong>{name}</strong><small>{detail}</small></div>{href && ready ? <a href={href} target="_blank" rel="noreferrer">Open ↗</a> : <span>{ready ? "Connected" : "Not configured"}</span>}</article>;
 }
