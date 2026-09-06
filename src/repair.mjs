@@ -108,6 +108,7 @@ export const ESSENTIAL_FILES = [
   "src/generated-code-safety.mjs",
   "src/evolution-controller.mjs",
   "src/world-state-observer.mjs",
+  "src/objective-planner.mjs",
   "src/worker-process.mjs",
   "src/workspace-agent-worker.mjs",
   "src/update-contract.mjs",
