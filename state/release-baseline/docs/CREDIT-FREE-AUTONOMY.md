@@ -236,7 +236,14 @@ Applied now:
   scheduler on a public repo; Ollama / LM Studio remain the only generation
   plane; Observe → Decide → Act → Verify → Hold runs with inference optional.
   Buying OpenClaw hosting, extra Vercel projects, or Copilot review is still
-  not a recovery path.
+  not a recovery path. Eigent-style $0 local loops, cron/Actions schedulers,
+  and fail-closed missing-model holds match this selector. Hosted “free” keys
+  remain contamination.
+- The alpha.2 identity facade must keep `loadManifest().versions` undefined
+  while the control API synthesizes a compatibility `versions` envelope from
+  the single product version. Restoring the legacy registry on the loaded
+  manifest would fail identity tests; leaving the API on `manifest.versions`
+  crashes the runtime. That fusion is a $0 repair hop, not a stack change.
 - Gap audit records Destiny signed-receipt trust, the transient local-reasoner
   channel, the unattended dual loop, live main-protection files,
   sovereign cycle hold-no-op, and single product identity as closed contracts.

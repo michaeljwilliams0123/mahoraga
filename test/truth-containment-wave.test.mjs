@@ -22,6 +22,13 @@ test("status API never marks a capability routable without fresh verified canary
     listTasks: () => [], listImprovements: () => [], listConversations: () => [], listObjectives: () => [], listRepairIncidents: () => [],
   };
   const status = statusPayload(manifest, database, supervisor);
+  assert.equal(manifest.versions, undefined);
+  assert.equal(status.version, "7.0.0-alpha.2");
+  assert.equal(status.versions.runtime, status.version);
+  assert.equal(status.versions.controlCenter, status.version);
+  assert.equal(status.versions.api, status.version);
+  assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
+  assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.ok(status.capabilities.length > 0);
   for (const capability of status.capabilities) if (capability.routable) {
     assert.equal(capability.canary, "verified");
