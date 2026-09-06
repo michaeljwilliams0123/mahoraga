@@ -27,6 +27,12 @@ test("classifies deterministic, local-reasoner, subscription, and metered provid
   assert.equal(classifyAutonomyProvider("groq"), "metered");
   assert.equal(classifyAutonomyProvider("gemini"), "metered");
   assert.equal(classifyAutonomyProvider("huggingface"), "metered");
+  assert.equal(classifyAutonomyProvider("native-cloud-model"), "metered");
+  assert.equal(classifyAutonomyProvider("vercel-ai-gateway"), "metered");
+  assert.equal(classifyAutonomyProvider("cloud-browser"), "metered");
+  assert.equal(classifyAutonomyProvider("browserbase"), "metered");
+  assert.equal(classifyAutonomyProvider("github-operator"), "credit-free");
+  assert.equal(classifyAutonomyProvider("mcp-host"), "credit-free");
   assert.equal(classifyAutonomyProvider("llama-cpp"), "local-reasoner");
   assert.equal(classifyAutonomyProvider("jan"), "local-reasoner");
   assert.equal(classifyAutonomyProvider("gpt4all"), "local-reasoner");
@@ -49,6 +55,9 @@ test("never falls back to paid, metered, subscription, or key-backed routes", ()
     [{ requestedProvider: "groq" }, "metered-provider-forbidden"],
     [{ requestedProvider: "gemini" }, "metered-provider-forbidden"],
     [{ requestedProvider: "huggingface" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "native-cloud-model" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "cloud-browser" }, "metered-provider-forbidden"],
+    [{ requestedProvider: "vercel-ai-gateway" }, "metered-provider-forbidden"],
     [{ requestedProvider: "primary-codex-builder" }, "subscription-local-not-credit-free"],
     [{ requestedProvider: "repository", allowPaidFallback: true }, "paid-fallback-forbidden"],
     [{ requestedProvider: "repository", spendGrantUsd: 1 }, "spend-grant-not-zero"],
