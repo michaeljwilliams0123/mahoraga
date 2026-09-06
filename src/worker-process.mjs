@@ -13,6 +13,8 @@ import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
 import { executeQuestionModel, probeQuestionModel } from "./question-model.mjs";
+import { executeNativeCloudModel, probeNativeCloudModel } from "./native-cloud-model.mjs";
+import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -90,6 +92,16 @@ async function artifactInspectionCanary() {
 }
 
 async function execute(capability, task) {
+  if (workerId === "native-cloud-model") {
+    if (capability === "assistant.health") return probeNativeCloudModel();
+    if (capability === "assistant.respond") return executeNativeCloudModel({ task });
+    throw new Error("unsupported-capability");
+  }
+  if (workerId === "cloud-browser") {
+    if (capability === "browser.cloud-health") return probeCloudBrowserProvider();
+    if (capability === "browser.navigate") return executeCloudBrowserNavigation({ task });
+    throw new Error("unsupported-capability");
+  }
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability, task);
   if (capability.startsWith("repository.")) return executeRepositoryCapability(capability, task);
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);
@@ -110,7 +122,6 @@ async function execute(capability, task) {
         provider: "microsoft365",
         summary: "Mahoraga kept this enterprise request local and recorded a provider gap. The Microsoft 365 execution provider is not enabled; attach a local copy for private inspection or activate an approved Microsoft provider before retrying the link.",
       };
-
     case "artifact.inspect":
       return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
     case "system.health":
@@ -153,6 +164,7 @@ function classifyError(error) {
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";
   if (/workspace-agent/i.test(error?.message ?? "")) return "workspace-agent-provider-failed";
+  if (/gateway|native-cloud/i.test(error?.message ?? "")) return "native-cloud-provider-failed";
   return "worker-execution-failed";
 }
 
