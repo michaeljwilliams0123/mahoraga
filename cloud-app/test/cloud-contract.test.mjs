@@ -60,7 +60,7 @@ test("one Vercel workspace connects to the authoritative core through the paired
 
 test("accessible task starters only prepare the composer and preserve core authority", async () => {
   const source = await read("components/workspace.tsx");
-  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task"]) {
+  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task", "Inspect fleet cycle"]) {
     assert.match(source, new RegExp(`title: "${label}"`));
   }
   assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*composer\.current\?\.focus\(\);\s*\}/);

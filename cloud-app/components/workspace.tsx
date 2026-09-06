@@ -39,6 +39,7 @@ const starters = [
   { icon: Database, title: "Analyze a dataset", prompt: "Analyze the attached dataset. Find material patterns, anomalies, competing explanations, data-quality limitations, and the three most important actions. Quantify every finding you can." },
   { icon: Search, title: "Improve a repository", prompt: "Review the connected repository, identify the highest-impact verified improvement, implement it within the approved scope, run focused checks, and return the evidence." },
   { icon: MonitorUp, title: "Approved browser task", prompt: "Use an approved browser capability if the Mahoraga core can route one. Stop for approval before any external or consequential action: " },
+  { icon: Search, title: "Inspect fleet cycle", prompt: "Inspect the current Mahoraga fleet and repository cycle state. Summarize open pull requests, required check failures, candidate/production boundaries, and the next bounded repair action. Do not bypass core authority or paid-fallback policy." },
 ];
 
 function readableBytes(bytes: number) {
