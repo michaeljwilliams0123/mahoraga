@@ -35,6 +35,21 @@ export function canonicalWorkspaceUrl(value = process.env.MAHORAGA_WORKSPACE_URL
   return parsed.href;
 }
 
+export function compatibilityVersions(manifest) {
+  const version = String(manifest.version);
+  const protocols = manifest.protocols ?? {};
+  return {
+    runtime: version,
+    controlCenter: version,
+    api: version,
+    cloudControlPlane: `protocol-${protocols.apiProtocol ?? "2"}`,
+    cloudWorkspace: `relay-${protocols.relayProtocol ?? "1"}`,
+    capabilityRegistry: `schema-${protocols.capabilityRegistrySchema ?? "1"}`,
+    taskSchema: String(protocols.taskSchema ?? "3"),
+    workerContract: String(protocols.workerContract ?? "2"),
+  };
+}
+
 export function createControlServer({
   manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
@@ -315,14 +330,15 @@ export function statusPayload(manifest, database, supervisor) {
   const generatedAt = new Date().toISOString();
   const runtimeHealth = supervisor.health(Date.parse(generatedAt));
   const capabilities = capabilityIndex(manifest, workers, Date.parse(generatedAt));
+  const versions = compatibilityVersions(manifest);
   return {
     generatedAt,
-    product: manifest.product, version: manifest.version, versions: manifest.versions, phase: manifest.phase,
+    product: manifest.product, version: manifest.version, versions, phase: manifest.phase,
     controlCenterApi: {
       protocolVersion: 1,
       runtimeVersion: manifest.version,
-      controlCenterVersion: manifest.versions.controlCenter,
-      assetSetId: `${manifest.version}:${manifest.versions.controlCenter}`,
+      controlCenterVersion: versions.controlCenter,
+      assetSetId: `${manifest.version}:${versions.controlCenter}`,
       staticAssetsSnapshotted: false,
       interactionSurface: "vercel-workspace",
       localUiRetired: true,
@@ -382,12 +398,13 @@ function connectionProjections(connections, capabilities) {
 }
 
 export function identityPayload(manifest) {
+  const versions = compatibilityVersions(manifest);
   return {
     product: manifest.product,
     version: manifest.version,
     environment: manifest.environment,
     loopbackOnly: manifest.runtime.host === "127.0.0.1",
-    controlCenterVersion: manifest.versions.controlCenter,
+    controlCenterVersion: versions.controlCenter,
   };
 }
 
@@ -582,11 +599,12 @@ export function builderIntakeBody(body, correlationId) {
 }
 
 function setHeaders(response, manifest) {
+  const versions = compatibilityVersions(manifest);
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com https://relay.mahoraga.app wss://relay.mahoraga.app; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   response.setHeader("X-Mahoraga-Runtime-Version", manifest.version);
-  response.setHeader("X-Mahoraga-Control-Center-Version", manifest.versions.controlCenter);
+  response.setHeader("X-Mahoraga-Control-Center-Version", versions.controlCenter);
 }
 function redirect(response, location) { response.writeHead(307, { Location: location }); response.end(); }
 function json(response, status, value) { response.writeHead(status, { "Content-Type": "application/json; charset=utf-8" }); response.end(JSON.stringify(value)); }

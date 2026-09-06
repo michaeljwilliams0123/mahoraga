@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
   "product": "Mahoraga",
-  "version": "7.0.0-alpha.1",
+  "version": "7.0.0-alpha.2",
   "phase": "alpha-candidate",
   "environment": "candidate",
   "versions": {
-    "runtime": "7.0.0-alpha.1",
-    "controlCenter": "7.0.0-alpha.1",
-    "api": "7.0.0-alpha.1",
+    "runtime": "7.0.0-alpha.2",
+    "controlCenter": "7.0.0-alpha.2",
+    "api": "7.0.0-alpha.2",
     "cloudControlPlane": "3.2.0",
     "cloudWorkspace": "2.0.0",
     "capabilityRegistry": "1.0.0",

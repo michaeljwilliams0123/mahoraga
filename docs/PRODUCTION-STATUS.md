@@ -4,8 +4,8 @@ This record deliberately separates **repository truth**, **GitHub verification**
 
 ## Repository line
 
-- Repository candidate version: `7.0.0-alpha.1`
-- Runtime/API protocol declaration: `7.0.0-alpha.1`; browser UI: unified Vercel workspace
+- Repository candidate version: `7.0.0-alpha.2`
+- Runtime/API protocol declaration: `7.0.0-alpha.2`; browser UI: unified Vercel workspace
 - Phase/environment: `alpha-candidate` / `candidate`
 - Canonical runtime boundary: `127.0.0.1:4782`
 - OpenAI Platform API provider: disabled by default

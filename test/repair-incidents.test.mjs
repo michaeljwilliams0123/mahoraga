@@ -6,7 +6,7 @@ import path from "node:path";
 import { RuntimeDatabase } from "../src/database.mjs";
 import { advanceRepairIncident, reconcileRepairIncidents, repairIncidentId } from "../src/repair-incidents.mjs";
 
-const BASELINE = "7.0.0-alpha.1:state/release-baseline";
+const BASELINE = "7.0.0-alpha.2:state/release-baseline";
 const ISSUE = Object.freeze({
   relative: "src/runtime.mjs",
   condition: "live-file-missing-or-empty",
@@ -29,7 +29,7 @@ test("incident identity changes only with path, expected digest, condition, or b
   assert.equal(repairIncidentId({ ...ISSUE, observedSha256: "b".repeat(64) }, BASELINE), id);
   assert.notEqual(repairIncidentId({ ...ISSUE, expectedSha256: "c".repeat(64) }, BASELINE), id);
   assert.notEqual(repairIncidentId({ ...ISSUE, condition: "baseline-file-out-of-date" }, BASELINE), id);
-  assert.notEqual(repairIncidentId({ ...ISSUE, baselineVersion: "7.0.0-alpha.2:state/release-baseline" }, BASELINE), id);
+  assert.notEqual(repairIncidentId({ ...ISSUE, baselineVersion: "7.0.0-alpha.3:state/release-baseline" }, BASELINE), id);
 });
 
 test("recovery transitions preserve failure and rollback evidence", () => {

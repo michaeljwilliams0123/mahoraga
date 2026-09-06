@@ -5,7 +5,7 @@ Mahoraga is three surfaces. Use the **operator console** for GitHub work so you 
 | Surface | Version | Host | Language | What it is |
 |---|---|---|---|---|
 | Windows production | `3.6.0` | Loopback `127.0.0.1:4782` on the Windows host | Existing Node.js control plane | Live rollback. Never replace with 7.0 from a cloud UI. SHA `397acebf16766f44e3b4317f9d8b68b10de5f821`. |
-| Conversation workspace | `7.0.0-alpha.1` | Vercel `mahoraga-cloud-workspace` | TypeScript (Next.js `cloud-app/`) | ChatGPT-style Cloud Pro workspace. Not the Windows PID. |
+| Conversation workspace | `7.0.0-alpha.2` | Vercel `mahoraga-cloud-workspace` | TypeScript (Next.js `cloud-app/`) | ChatGPT-style Cloud Pro workspace. Not the Windows PID. |
 | Operator console | `fleet-1` | Vercel (this deck) | TypeScript (TanStack Start) | Singular operator UI: inspect, merge, comment, close, dispatch, delete eligible contained branches. |
 
 ## Host decision

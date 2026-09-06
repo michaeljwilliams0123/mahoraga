@@ -32,9 +32,9 @@ Canonical machine-readable copies:
    `cloud-app/` and `operator-deck/` on Vercel.
 6. **Windows production stays `3.6.0`** at
    `397acebf16766f44e3b4317f9d8b68b10de5f821`. Do not activate
-   `7.0.0-alpha.1` on Windows from chat, a PR, or a "cleanup". A future
-   activation must use the release/evolution channel and its incumbent
-   trust-epoch, canary, checkpoint, and rollback evidence.
+   `7.0.0-alpha.1` or `7.0.0-alpha.2` on Windows from chat, a PR, or a
+   "cleanup". A future activation must use the release/evolution channel
+   and its incumbent trust-epoch, canary, checkpoint, and rollback evidence.
 7. **Do not spend your way around the lock.** No Destiny fire, Cloud Pro
    spend, or metered OpenAI API from an agent session in order to rebuild
    the stack.

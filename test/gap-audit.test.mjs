@@ -8,13 +8,13 @@ const CONTRACT_IDS = [
   "automatic-operational-repair", "cross-platform-ci",
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
   "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit",
-  "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger",
+  "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
   "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
-  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "owner-approved-cloud-gateway", "verified-attested-update-channel",
+  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const RUNTIME_BLOCKED_IDS = ["signed-browser-session", "microsoft-durable-queue", "local-reasoner"];
@@ -33,7 +33,7 @@ test("gap audit distinguishes closed repository controls from live-machine block
 
   assert.equal(report.scope, "evidence-backed-contract-and-runtime-state");
   assert.equal(report.liveWindowsRuntimeVerified, true);
-  assert.equal(report.version, "7.0.0-alpha.1");
+  assert.equal(report.version, "7.0.0-alpha.2");
 
   const closed = new Map(report.closed.map((item) => [item.id, item]));
   const open = new Map(report.open.map((item) => [item.id, item]));

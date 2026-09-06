@@ -152,6 +152,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "CycleId-only sovereign ledger pulses hold at $0 instead of opening a PR. Stale ledger-only PRs are close-eligible. The Actions step summary is the pulse.",
   });
+  record(closed, has("config/product-identity.json") && has("src/product-identity.mjs") && has("scripts/product-identity.mjs") && has("src/config.mjs") && has("test/product-identity.test.mjs"), {
+    id: "single-product-identity",
+    priority: "high",
+    summary: "One Mahoraga product identity is canonical across identity config, package, cloud app, on-disk manifest, and effective runtime. 4783 is a canary of the same product, not another Mahoraga.",
+  });
   record(closed, has("src/destiny-trigger-trust.mjs") && has("src/destiny-event-delivery.mjs") && has("test/destiny-event-delivery.test.mjs"), {
     id: "destiny-event-delivery-matrix",
     priority: "high",
