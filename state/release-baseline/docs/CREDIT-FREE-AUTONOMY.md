@@ -6,10 +6,10 @@ Mahoraga stays autonomous only when execution can continue without paid inferenc
 
 Credit-free autonomy is fail-closed.
 
-- Deterministic local planes (`repository`, `local-core`, `self-healer`, `steward-learning`, `browser`, `desktop`, `mcp-host`, `github-operator`, `grok-github-mcp`) are admissible at `$0`.
+- Deterministic local planes (`repository`, `local-core`, `self-healer`, `steward-learning`, `browser`, `desktop`, `mcp-host`, `github-operator`, `grok-github-mcp`, `chatgpt-github-mcp`) are admissible at `$0`.
 - Local reasoners (`ollama`, `lm-studio`, `local-reasoner`) are admissible only when live-ready and unmetered.
 - Subscription-local Codex Builder is not treated as credit-free. It may exist, but this selector will not dispatch it.
-- Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`, `native-cloud-model`, `vercel-ai-gateway`, `cloud-browser`, `browserbase`, `chatgpt-codex-connector`, `copilot-review`, `openclaw-hosted`) are forbidden. Hosted “free” keys are contamination, not a recovery path.
+- Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`, `native-cloud-model`, `vercel-ai-gateway`, `cloud-browser`, `browserbase`, `chatgpt-codex-connector`, `copilot-review`, `openclaw-hosted`, `codespaces`, `github-codespaces`) are forbidden. Hosted “free” keys are contamination, not a recovery path. GitHub Codespaces minutes are billed compute, not public-repo Actions minutes.
 - Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `localai`, `mlx`, `local-reasoner`) are local-reasoner planes. Execution still requires a live loopback probe (Ollama `11434` or LM Studio `1234`) and a transient result channel. Classifying `llama-cpp`, `localai`, or `mlx` does not add a third HTTP probe.
 - Paid fallback is never a recovery path.
 - A non-zero spend grant or Platform API key blocks dispatch.
@@ -245,6 +245,16 @@ Applied now:
     action. Codex review quota remains non-blocking.
   - Self-healer restore now covers `native-cloud-model`, `cloud-browser-provider`,
     and `credit-free-operator` so a missing file cannot drop containment.
+- 2026-09-06 deny-first + billed-compute research (LocalHarness topology
+  isolation; Codespaces are billed minutes, not public-repo Actions minutes)
+  applied without a stack replacement:
+  - `chatgpt-github-mcp` classifies as credit-free, matching the admitted actor.
+  - `codespaces` / `github-codespaces` classify as **metered**. Inspect and
+    stop stay GitHub-operator actions. Start cannot replace Zero-Codex.
+  - Owner GitHub operators refuse `delete-ref`. Host-mutating actions
+    (`repair`, `merge-exact-head`) refuse when untrusted content is in the
+    same context. Inspect and comment stay admitted. This is deny-first
+    topology, not a model promise.
 - 2026-09-05 local-first research reconfirmed: GitHub Actions is the durable
   scheduler on a public repo; Ollama / LM Studio remain the only generation
   plane; Observe → Decide → Act → Verify → Hold runs with inference optional.

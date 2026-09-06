@@ -9,6 +9,7 @@ export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
   "merge-exact-head",
   "close-superseded",
 ]);
+export const HOST_MUTATING_OPERATOR_ACTIONS = Object.freeze(["repair", "merge-exact-head"]);
 
 const MCP_CREDIT_FREE_SPENDING = Object.freeze(["zero", "credit-free", "deterministic"]);
 const MCP_METERED_SPENDING = Object.freeze(["licensed-cloud", "metered", "metered-cloud"]);
@@ -27,12 +28,18 @@ export function admitOwnerGitHubOperator({
   opensCycleIdOnlyPr = false,
   addsMergeGate = false,
   invokesMeteredInference = false,
+  deletesRef = false,
+  untrustedContentPresent = false,
   requestedProvider = "github-operator",
 } = {}) {
   if (requestsCodexReview === true) return blocked("codex-review-forbidden");
   if (opensCycleIdOnlyPr === true) return blocked("cycleid-only-pr-forbidden");
   if (addsMergeGate === true) return blocked("extra-merge-gate-forbidden");
   if (invokesMeteredInference === true) return blocked("metered-provider-forbidden");
+  if (deletesRef === true) return blocked("delete-ref-forbidden");
+  if (untrustedContentPresent === true && HOST_MUTATING_OPERATOR_ACTIONS.includes(action)) {
+    return blocked("untrusted-content-mutation-forbidden");
+  }
 
   const actorId = String(actor ?? "").trim().toLowerCase();
   if (!CREDIT_FREE_OPERATOR_ACTORS.includes(actorId)) return blocked("operator-actor-unknown");
@@ -52,6 +59,7 @@ export function admitOwnerGitHubOperator({
     creditCost: 0,
     paidFallback: false,
     scheduler: false,
+    denyFirst: true,
   });
 }
 
@@ -67,5 +75,6 @@ function blocked(reason) {
     creditCost: 0,
     paidFallback: false,
     scheduler: false,
+    denyFirst: true,
   });
 }

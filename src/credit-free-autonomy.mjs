@@ -8,6 +8,7 @@ const CREDIT_FREE_PROVIDERS = Object.freeze([
   "mcp-host",
   "github-operator",
   "grok-github-mcp",
+  "chatgpt-github-mcp",
 ]);
 const LOCAL_REASONER_PROVIDERS = Object.freeze(["local-reasoner", "lm-studio", "ollama", "llama-cpp", "jan", "gpt4all", "localai", "mlx"]);
 const SUBSCRIPTION_LOCAL_PROVIDERS = Object.freeze(["primary-codex-builder"]);
@@ -32,6 +33,8 @@ const METERED_PROVIDERS = Object.freeze([
   "chatgpt-codex-connector",
   "copilot-review",
   "openclaw-hosted",
+  "codespaces",
+  "github-codespaces",
   ...CORE_OWNED_CLOUD_METERED_PROVIDERS,
 ]);
 const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|publish|repair|restart|update|write)\b/i;

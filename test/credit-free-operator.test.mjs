@@ -58,3 +58,26 @@ test("owner GitHub operator refuses Codex review, cycleId-only PRs, extra gates,
   assert.equal(admitOwnerGitHubOperator({ action: "buy-review-credits" }).reason, "operator-action-not-admitted");
   assert.equal(admitOwnerGitHubOperator({ actor: "codex-cloud" }).reason, "operator-actor-unknown");
 });
+
+test("chatgpt GitHub MCP is a credit-free operator plane", () => {
+  assert.equal(classifyAutonomyProvider("chatgpt-github-mcp"), "credit-free");
+  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "chatgpt-github-mcp" }).ok, true);
+  assert.equal(admitOwnerGitHubOperator({ actor: "chatgpt-github-mcp", action: "inspect" }).ok, true);
+});
+
+test("GitHub Codespaces start is metered billed compute", () => {
+  assert.equal(classifyAutonomyProvider("codespaces"), "metered");
+  assert.equal(classifyAutonomyProvider("github-codespaces"), "metered");
+  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "codespaces" }).reason, "metered-provider-forbidden");
+  assert.equal(attestZeroCreditHealth({
+    providers: ["repository", "codespaces"],
+  }).reason, "metered-provider-present");
+});
+
+test("deny-first: untrusted content cannot share mutating tools; delete-ref is forbidden", () => {
+  assert.equal(admitOwnerGitHubOperator({ action: "inspect", untrustedContentPresent: true }).ok, true);
+  assert.equal(admitOwnerGitHubOperator({ action: "comment", untrustedContentPresent: true }).ok, true);
+  assert.equal(admitOwnerGitHubOperator({ action: "repair", untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden");
+  assert.equal(admitOwnerGitHubOperator({ action: "merge-exact-head", untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden");
+  assert.equal(admitOwnerGitHubOperator({ deletesRef: true }).reason, "delete-ref-forbidden");
+});

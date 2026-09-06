@@ -180,7 +180,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
   record(closed, has("src/credit-free-operator.mjs") && has("test/credit-free-operator.test.mjs"), {
     id: "credit-free-github-operator",
     priority: "high",
-    summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, and metered inference fail closed. Chat is not the scheduler.",
+    summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, metered inference, delete-ref, and host-mutating actions mixed with untrusted content fail closed. Chat is not the scheduler. Codespaces start is metered billed compute.",
   });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
