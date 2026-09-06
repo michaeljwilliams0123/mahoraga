@@ -1,5 +1,6 @@
 import path from "node:path";
 import { inspectGeneratedExtension } from "./generated-code-safety.mjs";
+import { assertStageableMutation } from "./pdf-authority-profile.mjs";
 
 const TERMINAL_STATES = new Set(["activated", "failed", "rolled-back"]);
 
@@ -37,6 +38,7 @@ export function createEvolutionController({ database, repository, verifier, depl
           if (result.headSha === candidate.baseSha) fail("candidate-head-unchanged");
           const changedPaths = normalizePaths(result.changedPaths);
           if (changedPaths.length < 1 || changedPaths.some((changed) => !pathAllowed(changed, candidate.allowedPaths))) fail("candidate-path-forbidden");
+          inspectMutationAuthority(result, changedPaths);
           return database.updateEvolutionCandidate(id, { state: "candidate-created", headSha: result.headSha.toLowerCase() });
         }
         if (candidate.state === "candidate-created") {
@@ -116,6 +118,28 @@ function inspectGeneratedExtensions(result, safetyInspector) {
       candidateRoot: extension.candidateRoot ?? result.candidateRoot ?? path.resolve("."),
     });
     if (!decision || decision.safe !== true) fail("generated-extension-unsafe");
+  }
+}
+
+function inspectMutationAuthority(result, changedPaths) {
+  const generatedExtensions = result?.generatedExtensions ?? result?.extensions ?? [];
+  const generated = result?.generated === true || (Array.isArray(generatedExtensions) && generatedExtensions.length > 0);
+  if (!generated) return;
+
+  const envelopes = result?.mutationEnvelopes ?? (result?.mutationEnvelope ? [result.mutationEnvelope] : []);
+  if (!Array.isArray(envelopes) || envelopes.length < 1 || envelopes.length > 64) fail("pdf-authority-mutation-envelope-required");
+
+  for (const envelope of envelopes) {
+    if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) fail("pdf-authority-mutation-envelope-invalid");
+    const targetPath = typeof envelope.targetPath === "string" ? envelope.targetPath : "";
+    if (!targetPath || !changedPaths.includes(targetPath)) fail("pdf-authority-envelope-target-not-changed");
+    try {
+      assertStageableMutation(envelope);
+    } catch (error) {
+      const blocker = error?.result?.blockers?.[0];
+      if (typeof blocker === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(blocker)) fail(`pdf-authority:${blocker}`);
+      fail("pdf-authority-mutation-blocked");
+    }
   }
 }
 
