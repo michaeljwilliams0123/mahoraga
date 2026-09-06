@@ -31,18 +31,20 @@ test("retired static and loopback UI entry points are absent", async () => {
   }
 });
 
-test("runtime pairing is fixed-origin, encrypted, cancellable, and memory-only", async () => {
-  const [workspace, relay] = await Promise.all([
+test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and not a route selector", async () => {
+  const [workspace, relay, chatRoute] = await Promise.all([
     read("cloud-app/components/workspace.tsx"),
     read("cloud-app/lib/runtime-relay.ts"),
+    read("cloud-app/app/api/chat/route.ts"),
   ]);
   assert.match(relay, /ECDH/);
   assert.match(relay, /HKDF/);
   assert.match(relay, /AES-GCM/);
   assert.match(relay, /async taskAction/);
   assert.match(relay, /async revoke/);
-  assert.match(workspace, /conversationRoute/);
+  assert.doesNotMatch(workspace, /conversationRoute|DefaultChatTransport|useChat\(/);
   assert.match(workspace, /runtimePollGeneration/);
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(chatRoute, /core-gateway-required/);
   assert.doesNotMatch(`${workspace}\n${relay}`, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });
