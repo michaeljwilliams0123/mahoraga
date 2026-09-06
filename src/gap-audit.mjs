@@ -172,6 +172,16 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "medium",
     summary: "Wave A contained branches are delete-eligible after a fresh ahead_by=0 comparison, or when a merged PR attests squash/merge/rebase leftover unique SHAs. Wave B stays reconcile-only. No open PR. Non-protected.",
   });
+  record(closed, has("src/native-cloud-model.mjs") && has("src/cloud-browser-provider.mjs") && has("test/core-owned-cloud-capabilities.test.mjs") && worker("native-cloud-model")?.enabled !== true && worker("cloud-browser")?.enabled !== true, {
+    id: "core-owned-cloud-containment",
+    priority: "high",
+    summary: "Native cloud and cloud browser exist only as core-routed, disabled-by-default licensed workers. Credit-free autonomy classifies them as metered so they cannot replace Zero-Codex.",
+  });
+  record(closed, has("src/credit-free-operator.mjs") && has("test/credit-free-operator.test.mjs"), {
+    id: "credit-free-github-operator",
+    priority: "high",
+    summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, and metered inference fail closed. Chat is not the scheduler.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

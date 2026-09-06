@@ -9,12 +9,13 @@ const CONTRACT_IDS = [
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
   "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit",
   "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger",
+  "core-owned-cloud-containment", "credit-free-github-operator",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
   "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
-  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "owner-approved-cloud-gateway", "verified-attested-update-channel",
+  "local-provider-readiness-probe", "local-reasoner-health-contract", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "core-owned-cloud-containment", "credit-free-github-operator", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const RUNTIME_BLOCKED_IDS = ["signed-browser-session", "microsoft-durable-queue", "local-reasoner"];

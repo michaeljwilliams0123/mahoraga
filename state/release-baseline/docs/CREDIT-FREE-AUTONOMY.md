@@ -6,10 +6,10 @@ Mahoraga stays autonomous only when execution can continue without paid inferenc
 
 Credit-free autonomy is fail-closed.
 
-- Deterministic local planes (`repository`, `local-core`, `self-healer`, `steward-learning`, `browser`, `desktop`) are admissible at `$0`.
+- Deterministic local planes (`repository`, `local-core`, `self-healer`, `steward-learning`, `browser`, `desktop`, `mcp-host`, `github-operator`, `grok-github-mcp`) are admissible at `$0`.
 - Local reasoners (`ollama`, `lm-studio`, `local-reasoner`) are admissible only when live-ready and unmetered.
 - Subscription-local Codex Builder is not treated as credit-free. It may exist, but this selector will not dispatch it.
-- Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`) are forbidden. Hosted “free” keys are contamination, not a recovery path.
+- Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`, `native-cloud-model`, `vercel-ai-gateway`, `cloud-browser`, `browserbase`, `chatgpt-codex-connector`, `copilot-review`, `openclaw-hosted`) are forbidden. Hosted “free” keys are contamination, not a recovery path.
 - Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `localai`, `mlx`, `local-reasoner`) are local-reasoner planes. Execution still requires a live loopback probe (Ollama `11434` or LM Studio `1234`) and a transient result channel. Classifying `llama-cpp`, `localai`, or `mlx` does not add a third HTTP probe.
 - Paid fallback is never a recovery path.
 - A non-zero spend grant or Platform API key blocks dispatch.
@@ -231,7 +231,20 @@ Applied now:
   scheduler. They may close identity and baseline gaps at `$0` model credits
   when they do not invoke a metered inference API. They must not open
   cycleId-only PRs, request Codex review, add merge gates, or treat
-  hosted-minute burn as recovery.
+  hosted-minute burn as recovery. `src/credit-free-operator.mjs` is the
+  fail-closed admitter for those actions.
+- 2026-09-06 research (Cline+Ollama scoped loops, GitHub Actions as the
+  durable scheduler, local MCP tools as deterministic, hosted “free” keys as
+  contamination) applied without a stack replacement:
+  - Core-owned `#169` workers (`native-cloud-model`, `cloud-browser`,
+    `vercel-ai-gateway`, `browserbase`) classify as **metered**. Unknown is
+    no longer a silent path into Zero-Codex.
+  - Local MCP (`mcp-host`) with deterministic spending is credit-free;
+    `licensed-cloud` MCP spending is metered.
+  - Exact-head Ubuntu+Windows merge of a verified PR is an admitted operator
+    action. Codex review quota remains non-blocking.
+  - Self-healer restore now covers `native-cloud-model`, `cloud-browser-provider`,
+    and `credit-free-operator` so a missing file cannot drop containment.
 - 2026-09-05 local-first research reconfirmed: GitHub Actions is the durable
   scheduler on a public repo; Ollama / LM Studio remain the only generation
   plane; Observe → Decide → Act → Verify → Hold runs with inference optional.
