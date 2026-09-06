@@ -1,62 +1,66 @@
 # Unified Mahoraga workspace
 
 `cloud-app/` is Mahoraga's single Vercel-hosted workspace and only browser UI.
-It combines the useful cloud and runtime capabilities behind one conversation,
-one route selector, and one connection view. No second local or Pages UI remains.
+It is a thin encrypted client of the authoritative Mahoraga core: one
+conversation surface, one pairing view, and no browser-side provider or brain
+selector. No second local or Pages UI remains.
 
 The canonical production address is
 `https://mahoraga-cloud-workspace.vercel.app/`. A separately managed custom
 domain may replace it by setting `MAHORAGA_WORKSPACE_URL` on the runtime. The
-loopback root redirects to that HTTPS address; the loopback process remains an
-API and encrypted-relay execution service, not another frontend.
+loopback root redirects to that HTTPS address; the loopback process remains the
+API, encrypted-relay, Conversation Gateway, policy/router, and execution
+service—not another frontend.
 
-## Execution routes
+## Single-core execution
 
-| Route | Use | Content boundary |
-| --- | --- | --- |
-| Zero-Codex route (default) | Deterministic work and an attested zero-credit/open-weight provider through the paired runtime | Never falls through to Codex, AI Gateway, or another paid model; unavailable generation waits rather than spending credits |
-| Cloud Pro (explicit) | GPT-5.6 Sol through Vercel AI Gateway with pro reasoning and maximum effort | Runs only after the owner selects it; Vercel zero-data-retention routing is requested |
+Every user turn follows one logical path:
 
-Every conversation locks to the route used for its first turn. A runtime
-conversation cannot fall through to cloud after a disconnect. Attachments are
-enabled only on the explicitly selected Cloud Pro route because the paired
-runtime intentionally rejects relay attachments. The isolated browser is a
-cloud tool and remains unavailable until its provider variables are configured.
-It never controls the user's installed Chrome and no extension is used.
+`Workspace -> encrypted relay -> Conversation Gateway -> policy/router -> bounded capability -> verification -> receipt/vault -> Workspace`
+
+Pairing changes connectivity only. It does not switch Mahoraga between a local
+and cloud brain. The workspace cannot directly invoke AI Gateway, search, a
+browser provider, or another model endpoint, and the legacy `/api/chat` route
+fails closed with `core-gateway-required`.
+
+The default conversation policy remains Zero-Codex: ordinary paired-core chat
+sends `creditPolicy: zero-codex`, the relay boundary preserves the authoritative
+core policy, and there is no automatic paid fallback. If no verified
+zero-credit language provider is routable, model-backed conversation waits or
+returns `zero-credit-provider-unavailable` rather than silently buying another
+route. Deterministic core capabilities can still run when their own readiness
+contracts are satisfied.
+
+Cloud-capable implementations such as GPT-5.6 Sol, search, or the isolated
+browser may remain packaged as provider/capability code, but they are not
+user-addressable orchestration paths. They may execute only after the core owns
+the run, derives policy, selects an eligible capability, and verifies its
+receipt. Browser execution remains isolated and approval-gated; it never
+controls the user's installed Chrome and no local extension is required.
+
+Attachments are displayed by the workspace but are not sent through the
+conversation relay. Until the core artifact bridge is connected, attachment
+submission fails closed without upload or paid fallback.
 
 The empty conversation presents three keyboard-accessible task starters:
 **Analyze a dataset**, **Improve a repository**, and **Approved browser task**.
 Choosing one only places a detailed prompt in the editable composer and moves
-focus there. It does not submit, call a provider, select Cloud Pro, or change the
-conversation route; the user remains in control of review and submission.
-
-Cloud Pro keeps the highest declared model but bounds each request to the latest
-14 messages, 48,000 retained text characters, 12,000 characters in a new turn,
-8,000 output tokens, five tool steps, and 6,000 search-tool tokens. These are ceilings, not a promise that every request
-uses the full budget. Ordinary paired-runtime chat sends
-`creditPolicy: zero-codex`; both relay boundaries overwrite that field so a
-modified browser client cannot request a hidden paid fallback.
+focus there. It does not submit work, call a provider, or change routing
+authority.
 
 ## Pairing
 
-1. On the explicitly chosen cloud or secondary runtime, generate a short-lived
-   pairing offer using the existing Mahoraga relay command. This does not need
-   to be the device displaying the workspace.
+1. Generate a short-lived Mahoraga relay pairing offer from the runtime that
+   owns the authoritative core.
 2. Open the workspace's **Connections** section, paste the offer, and choose
    **Pair runtime**.
-3. Review the count of currently routable runtime capabilities. Use **Revoke**
-   to close the session and invalidate the paired device.
+3. Review the bounded capability index returned by the core. Use **Revoke** to
+   close the session and invalidate the paired device.
 
-Pairing state, decrypted messages, and conversation route state live only in
-the browser tab. They are not written to local storage, a Vercel database,
-GitHub, or relay logs.
-
-Generation on the default route requires an independently deployed provider
-whose zero-credit billing state and fresh capability canary are verified. If no
-such provider exists, general conversation stops with
-`zero-credit-provider-unavailable`; deterministic health, repository, and
-workflow capabilities can still run. This is intentional: zero Codex credits
-does not mean that model inference has zero compute cost.
+Pairing state, decrypted messages, and conversation content live only in the
+browser tab. They are not written to local storage, a Vercel database, GitHub,
+or relay logs. The relay sees ciphertext; message plaintext is decrypted only
+at the paired endpoints.
 
 ## Deployment and verification
 
@@ -72,8 +76,8 @@ npm run verify
 ```
 
 That command type-checks, runs the workspace contract tests, and performs a
-production Next.js build. `GET /api/health` reports configured backend
-capabilities without claiming that an unconfigured connector is usable.
+production Next.js build. `GET /api/health` reports the client/core boundary and
+never claims direct browser-side provider authority.
 
 GitHub Pages and the legacy `cloud/` and `web/` entry points are retired. A
 main-branch merge is sufficient for the connected Vercel project to produce the
