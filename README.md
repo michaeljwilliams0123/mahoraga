@@ -1,6 +1,6 @@
 # Mahoraga 7.0 — Truth and Containment alpha
 
-This branch stages Mahoraga `7.0.0-alpha.1`. It is an isolated candidate, not the
+This branch stages Mahoraga `7.0.0-alpha.2`. It is an isolated candidate, not the
 active Windows production runtime. The last verified production and rollback
 target remains `3.6.0` at commit
 `397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite,
@@ -25,7 +25,7 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Release truth
 
-- Installed candidate metadata: runtime/API `7.0.0-alpha.1`. Two Vercel browser UIs:
+- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. Two Vercel browser UIs:
   the conversation workspace (`cloud-app/`) and the operator console (`operator-deck/`).
   See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/VERSIONS.md`](operator-deck/VERSIONS.md).
 - Active production baseline: `3.6.0`; this document does not claim it has been

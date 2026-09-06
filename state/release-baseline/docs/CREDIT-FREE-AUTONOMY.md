@@ -220,10 +220,27 @@ Applied now:
   changing gap composition. The Actions step summary is the pulse. Stale
   ledger-only PRs are close-eligible (`src/stale-pr-ledger.mjs`). Gap
   composition changes still refresh the ledger.
+- One visible product identity (`config/product-identity.json`) is credit-free
+  containment. Overlaying identity at load time is not enough: on-disk
+  `mahoraga.manifest.json`, root `package.json`, `cloud-app/package.json`,
+  and the cloud lockfile must agree, and `src/config.mjs` must stay
+  byte-identical to its release baseline. A missing identity module is a
+  self-healer restore, not a rewrite.
+- Owner-initiated connected GitHub operators (Grok / ChatGPT GitHub MCP) are
+  inspect/repair tools, not the unattended scheduler. Chat remains not the
+  scheduler. They may close identity and baseline gaps at `$0` model credits
+  when they do not invoke a metered inference API. They must not open
+  cycleId-only PRs, request Codex review, add merge gates, or treat
+  hosted-minute burn as recovery.
+- 2026-09-05 local-first research reconfirmed: GitHub Actions is the durable
+  scheduler on a public repo; Ollama / LM Studio remain the only generation
+  plane; Observe → Decide → Act → Verify → Hold runs with inference optional.
+  Buying OpenClaw hosting, extra Vercel projects, or Copilot review is still
+  not a recovery path.
 - Gap audit records Destiny signed-receipt trust, the transient local-reasoner
-  channel, the unattended dual loop, live main-protection files, and
-  sovereign cycle hold-no-op as closed contracts. Runtime Windows activation
-  and Destiny identity remain legal waits.
+  channel, the unattended dual loop, live main-protection files,
+  sovereign cycle hold-no-op, and single product identity as closed contracts.
+  Runtime Windows activation and Destiny identity remain legal waits.
 - Hosted free-tier exhaustion remains `hold-planned`. Buying OpenClaw hosting,
   extra Vercel projects, or Copilot review is not a recovery path.
 - Compound identifier-only learning. Do not store prompts or chats to "get

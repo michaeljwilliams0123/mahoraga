@@ -14,11 +14,13 @@ async function json(relative) {
 }
 
 test("root, effective manifest, and cloud app share one Mahoraga product version", async () => {
-  const [identity, rootPackage, manifest, cloudPackage] = await Promise.all([
+  const [identity, rootPackage, manifest, cloudPackage, onDiskManifest, cloudLock] = await Promise.all([
     loadProductIdentity(),
     json("package.json"),
     loadManifest(),
     json("cloud-app/package.json"),
+    json("mahoraga.manifest.json"),
+    json("cloud-app/package-lock.json"),
   ]);
 
   assert.deepEqual(identity, {
@@ -30,7 +32,13 @@ test("root, effective manifest, and cloud app share one Mahoraga product version
   const mirrors = {
     rootPackage: rootPackage.version,
     manifest: manifest.version,
+    onDiskManifest: onDiskManifest.version,
     cloudPackage: cloudPackage.version,
+    cloudLock: cloudLock.version,
+    cloudLockPackage: cloudLock.packages[""].version,
+    onDiskRuntime: onDiskManifest.versions.runtime,
+    onDiskControlCenter: onDiskManifest.versions.controlCenter,
+    onDiskApi: onDiskManifest.versions.api,
   };
   assert.deepEqual(Object.values(mirrors), Array(Object.keys(mirrors).length).fill(TARGET_VERSION));
   assert.deepEqual(assertProductIdentityMirrors(identity, mirrors), mirrors);
