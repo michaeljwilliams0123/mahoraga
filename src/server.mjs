@@ -3,6 +3,7 @@ import { capabilityIndex } from "./router.mjs";
 import { createHash, randomUUID } from "node:crypto";
 import { bearerMatches } from "./local-auth.mjs";
 import { observeWorldState } from "./world-state-observer.mjs";
+import { planWorldStateActions } from "./objective-planner.mjs";
 import { COORDINATION_PRIVACY } from "./coordination-records.mjs";
 import { secondaryRunnerSnapshot } from "./secondary-runner-status.mjs";
 import { LocalArtifactStore } from "./local-artifact-store.mjs";
@@ -213,7 +214,10 @@ export function createControlServer({
       if (request.method === "GET" && url.pathname === "/api/diagnostics") return json(response, 200, {
         generatedAt: new Date().toISOString(), workers: database.listWorkerState(), events: database.listEvents(300),
       });
-      if (request.method === "GET" && url.pathname === "/api/world-state") return json(response, 200, await observeWorldState({ manifest, database, supervisor }));
+      if (request.method === "GET" && url.pathname === "/api/world-state") {
+        const worldState = await observeWorldState({ manifest, database, supervisor });
+        return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) });
+      }
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/chat") {
         const body = await bodyJson(request);
