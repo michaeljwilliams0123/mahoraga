@@ -82,6 +82,7 @@ export function Workspace() {
   const busy = runtimeBusy;
   const coreReady = relayState === "connected" && relay.current?.connected === true;
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
+  const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
   const routeLabel = coreReady ? "Mahoraga core · encrypted · no paid fallback" : "Pair runtime to connect the Mahoraga core";
 
   useEffect(() => {
@@ -383,7 +384,7 @@ export function Workspace() {
         <section className="capability-panel" id="capabilities">
           <div className="section-heading"><div><span className="eyebrow">Core-routed</span><h2>Capabilities</h2></div><Bot size={20} /></div>
           <p>Capability readiness is reported by the paired core. The browser does not choose providers or grant execution authority.</p>
-          {runtimeCapabilities.length === 0 ? <p className="muted">Pair the core to read its bounded capability index.</p> : <div className="capability-list">{runtimeCapabilities.map((capability) => <div key={capability.capability}><strong>{capability.capability}</strong><span>{capability.routable ? "routable" : "not routable"}</span></div>)}</div>}
+          {routableCapabilities.length === 0 ? <p className="muted">Pair the core to read its routable capability index.</p> : <div className="capability-list">{routableCapabilities.map((capability) => <div key={capability.capability}><strong>{capability.capability}</strong><span>routable</span></div>)}</div>}
         </section>
       </main>
     </div>
