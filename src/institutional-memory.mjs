@@ -16,7 +16,7 @@ const RECORD_KEYS = new Set([
 export function createInstitutionalMemoryRecord(input, { observedAt = new Date().toISOString() } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('institutional-memory-invalid');
   const core = normalizeCore(input, observedAt);
-  const memoryId = `mem-${digest(core).slice(0, 32)}`;
+  const memoryId = `mem-${digest(identityCore(core)).slice(0, 32)}`;
   return validateInstitutionalMemoryRecord({
     schemaVersion: 1,
     memoryId,
@@ -31,7 +31,7 @@ export function validateInstitutionalMemoryRecord(value) {
   if (value.schemaVersion !== 1) fail('institutional-memory-schema-invalid');
   if (typeof value.memoryId !== 'string' || !/^mem-[a-f0-9]{32}$/.test(value.memoryId)) fail('institutional-memory-id-invalid');
   const core = normalizeCore(value, value.observedAt);
-  if (value.memoryId !== `mem-${digest(core).slice(0, 32)}`) fail('institutional-memory-id-mismatch');
+  if (value.memoryId !== `mem-${digest(identityCore(core)).slice(0, 32)}`) fail('institutional-memory-id-mismatch');
   if (value.zeroCredit !== true || value.providerRequired !== false) fail('institutional-memory-provider-boundary-invalid');
   return deepFreeze({ schemaVersion: 1, memoryId: value.memoryId, ...core, zeroCredit: true, providerRequired: false });
 }
@@ -45,7 +45,11 @@ export function reconcileInstitutionalMemory({ records = [], incoming = [], now 
   for (const raw of [...records, ...incoming]) {
     const record = validateInstitutionalMemoryRecord(raw);
     const current = byId.get(record.memoryId);
-    if (current && JSON.stringify(current) !== JSON.stringify(record)) fail('institutional-memory-id-conflict');
+    if (current) {
+      if (JSON.stringify(identityCore(current)) !== JSON.stringify(identityCore(record))) fail('institutional-memory-id-conflict');
+      if (record.observedAt < current.observedAt) byId.set(record.memoryId, record);
+      continue;
+    }
     byId.set(record.memoryId, record);
   }
   const ordered = [...byId.values()].sort((a, b) => a.observedAt.localeCompare(b.observedAt) || a.memoryId.localeCompare(b.memoryId));
@@ -58,7 +62,7 @@ export function reconcileInstitutionalMemory({ records = [], incoming = [], now 
   const superseded = new Set(ordered.flatMap((record) => record.supersedes));
   const activeMemoryIds = ordered.filter((record) => !superseded.has(record.memoryId)).map((record) => record.memoryId).sort();
   const supersededMemoryIds = [...superseded].sort();
-  const fingerprint = digest(ordered);
+  const fingerprint = digest(ordered.map((record) => ({ ...identityCore(record), memoryId: record.memoryId })));
   return deepFreeze({
     schemaVersion: 1,
     records: ordered,
@@ -114,6 +118,21 @@ function normalizeCore(input, observedAt) {
     capability: checkedSlug(input.capability, 64, 'institutional-memory-capability-invalid'),
     supersedes: normalizeMemoryIds(input.supersedes ?? []),
     observedAt: canonicalTimestamp(observedAt, 'institutional-memory-observed-at-invalid'),
+  };
+}
+
+function identityCore(value) {
+  return {
+    memoryClass: value.memoryClass,
+    subject: value.subject,
+    statement: value.statement,
+    provenance: value.provenance,
+    confidence: value.confidence,
+    freshness: value.freshness,
+    objectiveIds: [...value.objectiveIds],
+    evidenceRefs: [...value.evidenceRefs],
+    capability: value.capability,
+    supersedes: [...value.supersedes],
   };
 }
 
