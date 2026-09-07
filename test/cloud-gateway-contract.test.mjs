@@ -20,7 +20,7 @@ const authRequest = {
   sessionId: session.sessionId,
   userId: session.userId,
   csrfToken: csrf,
-  origin: "https://mahoraga-cloud-workspace.vercel.app",
+  origin: "https://michaeljwilliams0123.github.io",
   authenticated: true,
 };
 

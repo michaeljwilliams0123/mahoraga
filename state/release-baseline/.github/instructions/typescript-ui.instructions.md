@@ -6,7 +6,7 @@ These trees are TypeScript. Keep `.ts` / `.tsx`.
 
 - Do not convert files to `.js` or `.jsx`.
 - Do not rewrite `cloud-app/` or `operator-deck/` as a JavaScript SPA.
-- `cloud-app/` is the one deployable browser UI on Vercel and contains Chat,
+- `cloud-app/` is the one deployable browser UI source, published on GitHub Pages, and contains Chat,
   Control Center, Operations, and Connections.
 - `operator-deck/` is a non-deployable TypeScript reference/control-library
   layer. Preserve its bounded helpers, but do not recreate a second browser app.

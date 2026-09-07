@@ -4,16 +4,18 @@ import { createRelayBroker } from "../relay/core.mjs";
 
 const owner = "owner@example.com";
 const origin = "https://mahoraga-cloud-workspace.vercel.app";
+const pagesOrigin = "https://michaeljwilliams0123.github.io";
 const frame = (sessionId, counter = 1) => ({ schemaVersion: 1, sessionId, direction: "ui-to-runtime", counter, iv: "a".repeat(16), ciphertext: "b".repeat(32) });
 
-test("relay binds pairing and ciphertext forwarding to the exact owner and Vercel workspace origin", () => {
-  const broker = createRelayBroker({ ownerIdentity: owner, allowedOrigin: origin, now: () => 0 });
+test("relay binds pairing and ciphertext forwarding to the exact owner and approved workspace origins", () => {
+  const broker = createRelayBroker({ ownerIdentity: owner, allowedOrigin: [origin, pagesOrigin], now: () => 0 });
   const local = broker.pairLocal({ owner, deviceId: "primary-windows", pairingId: "pair-123456" });
   assert.throws(() => broker.pairRemote({ owner: "other@example.com", origin, pairingId: "pair-123456" }), /relay-owner-required/);
   assert.throws(() => broker.pairRemote({ owner, origin: "https://evil.example", pairingId: "pair-123456" }), /relay-origin-required/);
   broker.pairRemote({ owner, origin, pairingId: "pair-123456" });
   broker.forward({ owner, origin, sessionId: local.sessionId, from: "remote", frame: frame(local.sessionId) });
   assert.deepEqual(broker.replay({ owner, origin, sessionId: local.sessionId, to: "local", afterCounter: 0 }), [frame(local.sessionId)]);
+  assert.throws(() => broker.pairRemote({ owner, origin: pagesOrigin, pairingId: "missing-pair" }), /relay-pairing-missing/);
 });
 
 test("relay rejects generic proxy metadata and enforces frame, rate, and reconnect limits", () => {

@@ -2,7 +2,8 @@ const FRAME_KEYS = new Set(["schemaVersion", "sessionId", "direction", "counter"
 const DEFAULT_LIMITS = Object.freeze({ maximumDevices: 3, maximumFrameBytes: 65_536, maximumFramesPerMinute: 120, sessionTtlMs: 30 * 60_000, reconnectTtlMs: 300_000 });
 
 export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, now = () => Date.now(), initialState = null } = {}) {
-  identity(ownerIdentity, "relay-owner-invalid"); originValue(allowedOrigin, "relay-origin-invalid");
+  identity(ownerIdentity, "relay-owner-invalid");
+  const allowedOrigins = originValues(allowedOrigin, "relay-origin-invalid");
   const bounded = validateLimits({ ...DEFAULT_LIMITS, ...limits });
   const sessions = new Map();
   const pairingIndex = new Map();
@@ -22,7 +23,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
   };
   const authorize = ({ owner, origin = null }, remote = false) => {
     if (owner !== ownerIdentity) fail("relay-owner-required");
-    if (remote && origin !== allowedOrigin) fail("relay-origin-required");
+    if (remote && !allowedOrigins.has(origin)) fail("relay-origin-required");
   };
   const sessionFor = (sessionId) => { const session = sessions.get(sessionId); if (!session) fail("relay-session-missing"); return session; };
 
@@ -191,7 +192,15 @@ function validateLimits(value) {
 }
 function projection(value) { return Object.freeze({ sessionId: value.sessionId, deviceId: value.deviceId, pairingId: value.pairingId, paired: value.localPaired && value.remotePaired, expiresAt: new Date(value.expiresAt).toISOString() }); }
 function identity(value, code) { if (typeof value !== "string" || value.length < 3 || value.length > 160 || /[\0\r\n]/.test(value)) fail(code); }
-function originValue(value, code) { try { const url = new URL(value); if (url.protocol !== "https:" || url.origin !== value) fail(code); } catch { fail(code); } }
+function originValues(value, code) {
+  const values = Array.isArray(value) ? value : [value];
+  if (values.length < 1 || values.length > 8 || new Set(values).size !== values.length) fail(code);
+  for (const item of values) {
+    try { const url = new URL(item); if (url.protocol !== "https:" || url.origin !== item) fail(code); }
+    catch { fail(code); }
+  }
+  return new Set(values);
+}
 function token(value, code) { if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(value)) fail(code); }
 function pairingCode(value) { if (typeof value !== "string" || !/^[A-Z2-9]{8}$/.test(value)) fail("relay-pairing-proof-invalid"); return value; }
 function publicKey(value, code) { if (!value || typeof value !== "object" || Array.isArray(value) || value.kty !== "EC" || value.crv !== "P-256" || typeof value.x !== "string" || typeof value.y !== "string" || !/^[A-Za-z0-9_-]{20,80}$/.test(value.x) || !/^[A-Za-z0-9_-]{20,80}$/.test(value.y)) fail(code); return structuredClone(value); }

@@ -28,12 +28,13 @@ import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
 
-export const DEFAULT_WORKSPACE_URL = "https://mahoraga-cloud-workspace.vercel.app/";
+export const DEFAULT_WORKSPACE_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 
 export function canonicalWorkspaceUrl(value = process.env.MAHORAGA_WORKSPACE_URL ?? DEFAULT_WORKSPACE_URL) {
   let parsed;
   try { parsed = new URL(value); } catch { throw new TypeError("canonical-workspace-url-invalid"); }
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash || parsed.pathname !== "/") throw new TypeError("canonical-workspace-url-invalid");
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash ||
+      (!parsed.pathname.endsWith("/") || parsed.pathname.includes(".."))) throw new TypeError("canonical-workspace-url-invalid");
   return parsed.href;
 }
 
@@ -345,7 +346,7 @@ export function statusPayload(manifest, database, supervisor) {
       controlCenterVersion: versions.controlCenter,
       assetSetId: `${manifest.version}:${versions.controlCenter}`,
       staticAssetsSnapshotted: false,
-      interactionSurface: "vercel-workspace",
+      interactionSurface: "github-pages-workspace",
       localUiRetired: true,
     },
     environment: manifest.environment, featureFlags: manifest.featureFlags, queue: manifest.queue,

@@ -17,7 +17,7 @@ backend, listener, or vendor deployment is active.
 
 ## Required controls
 
-- User authentication and origin allowlisting (`https://mahoraga-cloud-workspace.vercel.app`).
+- User authentication and origin allowlisting (`https://michaeljwilliams0123.github.io`, with the historical Vercel origin retained during migration).
 - CSRF compared with a timing-safe digest bound to the session.
 - Idempotent submit. Repeating a key with a different task type conflicts.
 - Pagination limited to 50 events. Unknown cursors fail as stale.

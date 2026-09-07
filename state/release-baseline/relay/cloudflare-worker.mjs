@@ -2,6 +2,7 @@ import { createRelayBroker } from "./core.mjs";
 
 const STATE_KEY = "relay-broker-v1";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
+const CANONICAL_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io";
 
 export function createCloudflareRelayHandler() {
   return Object.freeze({
@@ -12,7 +13,7 @@ export function createCloudflareRelayHandler() {
       const local = url.pathname === "/pair/local";
       const owner = request.headers.get("cf-access-authenticated-user-email");
       if (local ? !localProtocolAuthorized(request, env.MAHORAGA_LOCAL_RELAY_TOKEN) : owner !== env.MAHORAGA_OWNER_IDENTITY) return fixed(403, "owner-required");
-      if (!local && request.headers.get("origin") !== env.MAHORAGA_WORKSPACE_ORIGIN) return fixed(403, "origin-required");
+      if (!local && !workspaceOrigins(env).includes(request.headers.get("origin"))) return fixed(403, "origin-required");
       if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return fixed(426, "websocket-required", { Upgrade: "websocket" });
       if (!env.RELAY_SESSIONS || typeof env.RELAY_SESSIONS.idFromName !== "function") return fixed(503, "relay-session-namespace-unavailable");
       const id = env.RELAY_SESSIONS.idFromName(env.MAHORAGA_OWNER_IDENTITY);
@@ -36,7 +37,7 @@ export class RelayDurableObject {
   async #load() {
     let snapshot = null;
     if (this.state?.storage && typeof this.state.storage.get === "function") snapshot = await this.state.storage.get(STATE_KEY);
-    this.broker = createRelayBroker({ ownerIdentity: this.env.MAHORAGA_OWNER_IDENTITY, allowedOrigin: this.env.MAHORAGA_WORKSPACE_ORIGIN, initialState: snapshot });
+    this.broker = createRelayBroker({ ownerIdentity: this.env.MAHORAGA_OWNER_IDENTITY, allowedOrigin: workspaceOrigins(this.env), initialState: snapshot });
   }
 
   async fetch(request) {
@@ -130,9 +131,14 @@ export default handler;
 function validEnvironment(env) {
   try {
     if (!env || typeof env.MAHORAGA_OWNER_IDENTITY !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(env.MAHORAGA_LOCAL_RELAY_TOKEN ?? "")) return false;
-    const origin = new URL(env.MAHORAGA_WORKSPACE_ORIGIN);
-    return origin.protocol === "https:" && origin.origin === env.MAHORAGA_WORKSPACE_ORIGIN;
+    return workspaceOrigins(env).every((value) => {
+      const origin = new URL(value);
+      return origin.protocol === "https:" && origin.origin === value;
+    });
   } catch { return false; }
+}
+function workspaceOrigins(env) {
+  return [...new Set([env.MAHORAGA_WORKSPACE_ORIGIN, CANONICAL_PAGES_ORIGIN])];
 }
 function localProtocolAuthorized(request, token) {
   const values = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((value) => value.trim());

@@ -28,8 +28,8 @@ Canonical machine-readable copies:
 4. **Java is not the UI language.** Java only if the owner explicitly
    starts a Java service. Never translate the UI or the `.mjs` plane to Java.
 5. **Do not restore retired frontends or create a parallel browser app.**
-   `cloud/`, `web/`, GitHub Pages, and the old loopback UI stay retired.
-   The one deployable browser UI is `cloud-app/` on Vercel, containing Chat,
+   `cloud/`, `web/`, and the old loopback UI stay retired. GitHub Pages may only
+   publish a derived export of the one `cloud-app/` browser UI, containing Chat,
    Control Center, Operations, and Connections. `operator-deck/` must stay
    non-deployable reference/control code.
 6. **Windows production stays `3.6.0`** at
@@ -122,12 +122,12 @@ transfer root credentials that establish ownership.
 | Surface | Language | Role |
 |---|---|---|
 | Control plane `src/`, `scripts/`, `test/`, `relay/` | Node ESM `.mjs` | Supervisor, workers, verify, learning/evolution cycles |
-| Browser workspace `cloud-app/` | TypeScript | One deployable Vercel UI: Chat, Control Center, Operations, Connections |
+| Browser workspace `cloud-app/` | TypeScript | One UI source published on Pages: Chat, Control Center, Operations, Connections |
 | Operator reference `operator-deck/` | TypeScript | Non-deployable bounded reference/control helpers |
 | Copilot profiles `.github/agents/` | Markdown | Specialist prompts, not live workers |
 | Release baseline `state/release-baseline/` | Mirror of essentials | Self-healer restore source |
 
-The browser UI host is **Vercel**. Google Workspace is identity,
+The browser UI host is **GitHub Pages** from approved `main`. Google Workspace is identity,
 mail, and docs — not the app host.
 
 ## What an agent may do

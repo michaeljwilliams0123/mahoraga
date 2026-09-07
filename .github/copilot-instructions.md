@@ -12,7 +12,7 @@ Read `docs/ECOSYSTEM-LOCK.md` and `AGENTS.md` before the first edit.
 - **New browser UI is TypeScript only** in `cloud-app/**`. `operator-deck/**`
   remains a TypeScript reference/control-library layer. Keep `.ts` / `.tsx`;
   do not emit `.js` / `.jsx` UI.
-- **There is one deployable browser UI:** `cloud-app/` on Vercel, containing
+- **There is one deployable browser UI source:** `cloud-app/`, published on GitHub Pages, containing
   Chat, Control Center, Operations, and Connections. Do not recreate
   `operator-deck/` as a second browser deployment.
 - **Control plane stays Node ESM `.mjs`** (`src/`, `scripts/`, `test/`,
@@ -20,7 +20,7 @@ Read `docs/ECOSYSTEM-LOCK.md` and `AGENTS.md` before the first edit.
 - Java is not the UI language. Do not translate this repo to Java.
 - Do not delete `src/`, `cloud-app/`, `operator-deck/`, `.github/`,
   `mahoraga.manifest.json`, `state/release-baseline/`, or `AGENTS.md`.
-- Do not restore retired `cloud/`, `web/`, or GitHub Pages frontends.
+- Do not restore retired `cloud/` or `web/` frontends or create a second Pages implementation.
 - Do not activate Windows `7.0.0-alpha.1` or `7.0.0-alpha.2`. Rollback remains `3.6.0`.
 - Do not force-push, bypass Protect main, fire Destiny, or spend
   Cloud Pro / metered OpenAI from this session.
@@ -45,7 +45,7 @@ If the request is allowed but you are unsure, stop. Do not start over.
 
 ## Surfaces
 
-- `cloud-app/` — the one deployable TypeScript browser UI on Vercel:
+- `cloud-app/` — the one deployable TypeScript browser UI source, published on Pages:
   Chat, Control Center, Operations, and Connections
 - `operator-deck/` — non-deployable TypeScript reference/control-library helpers;
   preserve the tree but do not expose it as a second app

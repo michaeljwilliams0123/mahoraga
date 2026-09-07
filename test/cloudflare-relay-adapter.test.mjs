@@ -7,6 +7,7 @@ const env = {
   MAHORAGA_WORKSPACE_ORIGIN: "https://mahoraga-cloud-workspace.vercel.app",
   MAHORAGA_LOCAL_RELAY_TOKEN: "l".repeat(48),
 };
+const pagesOrigin = "https://michaeljwilliams0123.github.io";
 
 test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-WebSocket requests", async () => {
   const handler = createCloudflareRelayHandler();
@@ -15,6 +16,8 @@ test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-We
   assert.equal((await handler.fetch(wrongOrigin, env)).status, 403);
   const ordinaryHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_WORKSPACE_ORIGIN } });
   assert.equal((await handler.fetch(ordinaryHttp, env)).status, 426);
+  const pagesHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: pagesOrigin } });
+  assert.equal((await handler.fetch(pagesHttp, env)).status, 426);
   const localWithoutToken = new Request("https://relay.example/pair/local", { headers: { upgrade: "websocket" } });
   assert.equal((await handler.fetch(localWithoutToken, env)).status, 403);
 });

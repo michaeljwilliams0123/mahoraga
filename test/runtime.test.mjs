@@ -24,7 +24,7 @@ test("Primary Codex intake bearer comparison fails closed", () => {
   assert.equal(bearerMatches({ headers: { authorization: "Bearer wrong" } }, "x".repeat(32)), false);
 });
 
-test("runtime exposes only the canonical Vercel workspace as its interaction surface", () => {
+test("runtime exposes only the canonical GitHub Pages workspace as its interaction surface", () => {
   assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
   assert.equal(canonicalWorkspaceUrl("https://workspace.example/"), "https://workspace.example/");
   assert.throws(() => canonicalWorkspaceUrl("http://127.0.0.1:4782/"), /canonical-workspace-url-invalid/);
@@ -48,7 +48,7 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
   assert.equal(status.controlCenterApi.staticAssetsSnapshotted, false);
-  assert.equal(status.controlCenterApi.interactionSurface, "vercel-workspace");
+  assert.equal(status.controlCenterApi.interactionSurface, "github-pages-workspace");
   assert.equal(status.controlCenterApi.localUiRetired, true);
   const statusResponse = await fetch(`${base}/api/status`);
   assert.equal(statusResponse.headers.get("x-mahoraga-runtime-version"), status.version);

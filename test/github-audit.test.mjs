@@ -12,7 +12,7 @@ test("repository GitHub audit enforces all blocking controls", async () => {
   assert.equal(report.checks.find((check) => check.id === "github-action-sha-pinning")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "destiny-codex-relay")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "workspace-agent-receiver")?.healthy, true);
-  assert.equal(report.checks.find((check) => check.id === "single-vercel-workspace")?.healthy, true);
+  assert.equal(report.checks.find((check) => check.id === "single-cloud-workspace")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "incumbent-trust-epoch")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "live-main-protection-contract")?.healthy, true);
 });
