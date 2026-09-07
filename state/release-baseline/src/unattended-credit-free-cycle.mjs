@@ -5,6 +5,7 @@ import { applyLocalReasonerGenerate, createLocalReasonerGenerate, thenable } fro
 import { putTransientResult } from "./local-reasoner-channel.mjs";
 import { admitUnattendedFoundry } from "./unattended-foundry-admit.mjs";
 import { runGrowthCompoundingLoop } from "./growth-compounding-loop.mjs";
+import { runResearchAssimilation } from "./research-assimilation-loop.mjs";
 
 export const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
 export const UNATTENDED_CYCLE_SCHEMA_VERSION = 1;
@@ -23,6 +24,7 @@ export function runUnattendedCreditFreeCycle({
   existingObjectives = [],
   existingUnits = [],
   feats = [],
+  research = null,
   ...heartbeatOptions
 } = {}) {
   const heartbeat = runCreditFreeHeartbeat(heartbeatOptions);
@@ -39,18 +41,43 @@ export function runUnattendedCreditFreeCycle({
     })
     : null;
 
-  return thenable(generation, (resolved) => assembleCycle({
-    heartbeat,
-    generation: persistGeneration(heartbeat, resolved, heartbeatOptions.now),
-    priorReceipts,
-    parentAgentId,
-    existingAgents,
-    foundryRegistry,
-    memoryRecords,
-    existingObjectives,
-    existingUnits,
-    feats,
-  }));
+  return thenable(generation, (resolved) => {
+    const persistedGeneration = persistGeneration(heartbeat, resolved, heartbeatOptions.now);
+    if (research == null) {
+      return assembleCycle({
+        heartbeat,
+        generation: persistedGeneration,
+        priorReceipts,
+        parentAgentId,
+        existingAgents,
+        foundryRegistry,
+        memoryRecords,
+        existingObjectives,
+        existingUnits,
+        feats,
+        research: null,
+      });
+    }
+    if (!research || typeof research !== "object" || Array.isArray(research)) fail("unattended-research-invalid");
+    const assimilation = runResearchAssimilation({
+      ...research,
+      existingMemoryRecords: memoryRecords,
+      now: heartbeat.observedAt,
+    });
+    return thenable(assimilation, (resolvedResearch) => assembleCycle({
+      heartbeat,
+      generation: persistedGeneration,
+      priorReceipts,
+      parentAgentId,
+      existingAgents,
+      foundryRegistry,
+      memoryRecords: resolvedResearch.memory.records,
+      existingObjectives,
+      existingUnits,
+      feats,
+      research: resolvedResearch,
+    }));
+  });
 }
 
 export function asHeartbeatCliReceipt(cycle) {
@@ -66,6 +93,7 @@ export function asHeartbeatCliReceipt(cycle) {
       improvement: cycle.improvement,
       fleet: cycle.fleet,
       ledger: cycle.ledger,
+      research: summarizeResearch(cycle.research),
       growth: summarizeGrowth(cycle.growth),
       creditCost: 0,
       paidFallback: false,
@@ -84,9 +112,13 @@ function assembleCycle({
   existingObjectives,
   existingUnits,
   feats,
+  research,
 }) {
   if (heartbeat.creditCost !== 0 || heartbeat.paidFallback !== false) fail("unattended-paid-contamination");
   if (generation && (generation.creditCost !== 0 || generation.paidFallback !== false)) fail("unattended-paid-contamination");
+  if (research && (research.zeroCredit !== true || research.providerRequired !== false || research.creditCost !== 0 || research.paidFallback !== false)) {
+    fail("unattended-paid-contamination");
+  }
 
   const resolvedParent = foundryRegistry?.parentAgentId ?? parentAgentId ?? "mahoraga";
   const resolvedAgents = foundryRegistry?.agents ?? existingAgents ?? [];
@@ -125,6 +157,7 @@ function assembleCycle({
     nextAction: heartbeat.nextAction,
     heartbeat,
     generation,
+    research,
     improvement: summarizeImprovement(improvement),
     growth,
     fleet: admission.fleet,
@@ -185,6 +218,24 @@ function summarizeImprovement(improvement) {
     refuseCount: improvement.skills.refuseCount,
     foundryPlanCount: improvement.skills.foundryPlans.length,
     methodIds: Object.freeze([...improvement.skills.methodIds]),
+    creditCost: 0,
+    paidFallback: false,
+  });
+}
+
+function summarizeResearch(research) {
+  if (!research) return null;
+  return Object.freeze({
+    kind: "research-assimilation-summary",
+    status: research.plan.status,
+    plannedCount: research.plan.jobs.length,
+    completedCount: research.run.completedCount,
+    evidenceCount: research.evidenceIds.length,
+    newMemoryCount: research.newMemoryIds.length,
+    activeMemoryCount: research.memory.activeMemoryIds.length,
+    deferredCount: research.plan.deferredCount,
+    zeroCredit: true,
+    providerRequired: false,
     creditCost: 0,
     paidFallback: false,
   });
