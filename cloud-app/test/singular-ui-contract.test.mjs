@@ -24,6 +24,7 @@ test("workspace navigation exposes only complete singular surfaces", async () =>
 test("control center exposes deployment identity and paired-core capability readiness", async () => {
   const cockpit = await read("components/cockpit/CockpitView.tsx");
   assert.match(cockpit, /Control Center/);
+  assert.match(cockpit, /deployment\?\.provider/);
   assert.match(cockpit, /deployment\?\.commitSha/);
   assert.match(cockpit, /deployment\?\.environment/);
   assert.match(cockpit, /runtimeCapabilities/);
@@ -41,10 +42,20 @@ test("connections surface reports relay capabilities without gaining direct auth
   assert.doesNotMatch(source, /api\.github\.com|@ai-sdk\/|confirmationToken/);
 });
 
-test("health route publishes non-secret deployment identity", async () => {
+test("health route publishes host-neutral deployment identity with Vercel fallback", async () => {
   const health = await read("app/api/health/route.ts");
   assert.match(health, /version:\s*"7\.0\.0-alpha\.2"/);
   assert.match(health, /deployment:/);
+  for (const portable of [
+    "MAHORAGA_DEPLOYMENT_PROVIDER",
+    "MAHORAGA_DEPLOYMENT_ENV",
+    "MAHORAGA_DEPLOYMENT_URL",
+    "MAHORAGA_GIT_COMMIT_SHA",
+    "MAHORAGA_GIT_COMMIT_REF",
+  ]) {
+    assert.match(health, new RegExp(portable));
+  }
+  assert.match(health, /provider:/);
   assert.match(health, /VERCEL_GIT_COMMIT_SHA/);
   assert.match(health, /VERCEL_GIT_COMMIT_REF/);
   assert.match(health, /VERCEL_ENV/);
