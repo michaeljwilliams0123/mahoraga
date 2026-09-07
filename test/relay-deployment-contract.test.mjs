@@ -21,11 +21,14 @@ test("release packages and attests the host-neutral relay without embedded crede
   assert.match(cli, /MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN/);
 });
 
-test("verification binds the relay and unified Vercel workspace to checked-out source", async () => {
+test("verification binds the relay to checked-out source while dedicated Vercel verification is frozen", async () => {
   const [verify, vercel, packageSource] = await Promise.all([read(".github/workflows/verify.yml"), read("cloud-app/vercel.json"), read("package.json")]);
   assert.match(verify, /npm run verify:conversation-plane/);
-  assert.match(verify, /Verify unified Vercel workspace/);
-  assert.match(verify, /working-directory: cloud-app/);
+  assert.match(verify, /Dedicated Vercel\/workspace verification is intentionally frozen/);
+  assert.match(verify, /Required repository verification remains/);
+  assert.match(verify, /Ubuntu \+ Windows only/);
+  assert.doesNotMatch(verify, /Verify unified Vercel workspace/);
+  assert.doesNotMatch(verify, /working-directory: cloud-app/);
   assert.match(verify, /npm run verify/);
   assert.match(vercel, /"framework": "nextjs"/);
   const scripts = JSON.parse(packageSource).scripts;
