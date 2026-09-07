@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@mahoraga/cockpit": [
+        "../operator-deck/src/lib/cockpit/index.ts"
+      ],
+      "@mahoraga/cockpit/*": [
+        "../operator-deck/src/lib/cockpit/*"
       ]
     }
   },

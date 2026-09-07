@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { ChatView } from "./workspace/chat-view";
+import { CockpitView } from "./cockpit/CockpitView";
 import { OperationsView } from "./workspace/operations-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
 import type {
@@ -344,6 +345,26 @@ export function Workspace() {
             coreReady={coreReady}
             relay={pairedRelay}
             onRequestPairing={() => setView("chat")}
+          />
+        </>
+      )}
+      {view === "cockpit" && (
+        <>
+          <header className="topbar">
+            <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation">
+              <Menu size={19} />
+            </button>
+            <div className="route-status">
+              <span className={coreReady ? "status-dot status-ready" : "status-dot"} />
+              <span>{coreReady ? "Cockpit · paired core" : "Cockpit · observational"}</span>
+            </div>
+          </header>
+          <CockpitView
+            coreReady={coreReady}
+            health={health}
+            healthError={healthError}
+            onRequestPairing={() => setView("chat")}
+            onOpenOperations={() => setView("operations")}
           />
         </>
       )}

@@ -13,6 +13,7 @@ export type Health = {
 export type WorkspaceView =
   | "chat"
   | "operations"
+  | "cockpit"
   | "agents"
   | "plugins"
   | "files"
@@ -24,6 +25,7 @@ export type WorkspaceView =
 export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: string }> = Object.freeze([
   { id: "chat", label: "Chat" },
   { id: "operations", label: "Operations" },
+  { id: "cockpit", label: "Cockpit" },
   { id: "agents", label: "Agents" },
   { id: "plugins", label: "Plugins & Connections" },
   { id: "files", label: "Files & Data" },
@@ -86,4 +88,12 @@ export type OperationsViewProps = {
   coreReady: boolean;
   relay: RuntimeRelay | null;
   onRequestPairing: () => void;
+};
+
+export type CockpitViewProps = {
+  coreReady: boolean;
+  health: Health | null;
+  healthError: boolean;
+  onRequestPairing: () => void;
+  onOpenOperations: () => void;
 };
