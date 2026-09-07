@@ -5,12 +5,12 @@ It is a thin encrypted client of the authoritative Mahoraga core: one
 conversation surface, one pairing view, and no browser-side provider or brain
 selector. No second local or Pages UI remains.
 
-The canonical production address is
-`https://mahoraga-cloud-workspace.vercel.app/`. A separately managed custom
-domain may replace it by setting `MAHORAGA_WORKSPACE_URL` on the runtime. The
-loopback root redirects to that HTTPS address; the loopback process remains the
-API, encrypted-relay, Conversation Gateway, policy/router, and execution
-service—not another frontend.
+The canonical production project is `mahoraga-workspace` and the canonical
+production address is `https://mahoraga-workspace.vercel.app/`. A separately
+managed custom domain may replace it by setting `MAHORAGA_WORKSPACE_URL` on the
+runtime. The loopback root redirects to that HTTPS address; the loopback process
+remains the API, encrypted-relay, Conversation Gateway, policy/router, and
+execution service—not another frontend.
 
 ## Single-core execution
 
@@ -65,9 +65,11 @@ at the paired endpoints.
 ## Deployment and verification
 
 The Vercel Git integration owns previews and production promotion for the
-`mahoraga-cloud-workspace` project with `cloud-app/` as its root. Every pull
-request may also run the repository's `Verify unified Vercel workspace` job.
-That job is observational: it must not gate PR completion.
+canonical `mahoraga-workspace` project with `cloud-app/` as its root. Other
+historical Vercel projects linked to the repository are non-canonical and must
+not be treated as production truth. Every pull request may also run the
+repository's `Verify unified Vercel workspace` job. That job is observational:
+it must not gate PR completion.
 
 ```bash
 cd cloud-app
@@ -80,9 +82,9 @@ production Next.js build. `GET /api/health` reports the client/core boundary and
 never claims direct browser-side provider authority.
 
 GitHub Pages and the legacy `cloud/` and `web/` entry points are retired. A
-main-branch merge is sufficient for the connected Vercel project to produce the
-production deployment; autonomous integration no longer dispatches a separate
-Pages workflow.
+main-branch merge is sufficient for the canonical connected Vercel project to
+produce the production deployment; autonomous integration no longer dispatches
+a separate Pages workflow.
 
 The remaining infrastructure choices and secret-free owner inputs are listed in
 [`CLOUD-ONLY-DEPLOYMENT.md`](CLOUD-ONLY-DEPLOYMENT.md).
