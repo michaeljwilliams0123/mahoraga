@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 
 const appRoot = new URL("../", import.meta.url);
 const readApp = (path) => readFile(new URL(path, appRoot), "utf8").catch(() => "");
-const readRepo = (path) => readFile(new URL(`../../${path}`, appRoot), "utf8").catch(() => "");
+const readRepo = (path) => readFile(new URL(`../${path}`, appRoot), "utf8").catch(() => "");
 
 test("Netlify fallback builds the existing Next workspace without changing authority", async () => {
   const [config, pkg] = await Promise.all([
