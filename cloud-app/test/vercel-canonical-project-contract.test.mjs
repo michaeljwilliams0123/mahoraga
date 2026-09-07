@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const canonicalProjectId = "prj_lkeL3E4UNp2HkMxm8KePeGdl5ADJ";
-const expectedIgnoreCommand = `if [ "$VERCEL_PROJECT_ID" = "${canonicalProjectId}" ]; then exit 1; else exit 0; fi`;
+const expectedRootIgnoreCommand = `if [ "$VERCEL_PROJECT_ID" = "${canonicalProjectId}" ]; then git diff --quiet HEAD^ HEAD -- cloud-app; else exit 0; fi`;
+const expectedAppIgnoreCommand = `if [ "$VERCEL_PROJECT_ID" = "${canonicalProjectId}" ]; then git diff --quiet HEAD^ HEAD -- .; else exit 0; fi`;
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("legacy repo-root Vercel Git deployment is disabled and canonical app deployment stays enabled", async () => {
+test("legacy Vercel projects are ignored and canonical builds require a cloud-app change", async () => {
   const [rootConfigSource, appConfigSource] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
@@ -18,6 +19,6 @@ test("legacy repo-root Vercel Git deployment is disabled and canonical app deplo
 
   assert.equal(rootConfig.git?.deploymentEnabled, false);
   assert.equal(appConfig.git?.deploymentEnabled, true);
-  assert.equal(rootConfig.ignoreCommand, expectedIgnoreCommand);
-  assert.equal(appConfig.ignoreCommand, expectedIgnoreCommand);
+  assert.equal(rootConfig.ignoreCommand, expectedRootIgnoreCommand);
+  assert.equal(appConfig.ignoreCommand, expectedAppIgnoreCommand);
 });
