@@ -1,5 +1,6 @@
 const PLANNER_VERSION = "objective-planner-v1";
 const UNHEALTHY_WORKER_STATES = new Set(["crashed", "hung", "quarantined", "stale"]);
+const OWNER_MUTATION_OPERATIONS = Object.freeze(["read", "create", "modify", "administer"]);
 const ACTIVE_LEASE_GRACE_MS = 5_000;
 
 export function planWorldStateActions(snapshot, { now = Date.now() } = {}) {
@@ -89,11 +90,14 @@ export function planWorldStateActions(snapshot, { now = Date.now() } = {}) {
 
   if (providerErrors.length > 0) {
     actions.push(action({
-      id: "inspect-provider-errors",
+      id: "remediate-provider-errors",
       intent: "provider.gap",
       priority: "high",
       reasonCode: "provider-errors-present",
-      completionCriteria: "provider-errors-classified",
+      completionCriteria: "provider-errors-remediated",
+      authority: "owner-authorized-github-operator",
+      mutation: true,
+      operations: OWNER_MUTATION_OPERATIONS,
       evidence: { count: providerErrors.length, providerIds: providerErrors.slice(0, 16) },
     }));
   }
@@ -103,7 +107,7 @@ export function planWorldStateActions(snapshot, { now = Date.now() } = {}) {
     schemaVersion: 1,
     plannerVersion: PLANNER_VERSION,
     state: deduped.length > 0 ? "attention-required" : "stable",
-    automaticMutationAllowed: false,
+    automaticMutationAllowed: deduped.some((item) => item.mutation === true),
     actionCount: deduped.length,
     actions: Object.freeze(deduped),
   });
@@ -113,17 +117,29 @@ export function objectivePlannerVersion() {
   return PLANNER_VERSION;
 }
 
-function action({ id, intent, priority, reasonCode, completionCriteria, evidence }) {
-  return Object.freeze({
+function action({
+  id,
+  intent,
+  priority,
+  reasonCode,
+  completionCriteria,
+  evidence,
+  authority = "world-state-observer",
+  mutation = false,
+  operations = null,
+}) {
+  const planned = {
     id,
     intent,
     priority,
     reasonCode,
     completionCriteria,
-    authority: "world-state-observer",
-    mutation: false,
-    evidence: Object.freeze({ ...evidence }),
-  });
+    authority,
+    mutation,
+  };
+  if (operations !== null) planned.operations = Object.freeze([...operations]);
+  planned.evidence = Object.freeze({ ...evidence });
+  return Object.freeze(planned);
 }
 
 function dedupeActions(actions) {

@@ -40,8 +40,10 @@ test("MCP spending class is fail-closed", () => {
   assert.equal(classifyMcpSpendingClass("mystery"), "unknown");
 });
 
-test("owner GitHub operator may inspect, repair, merge exact-head, and close superseded PRs at $0", () => {
-  for (const action of ["inspect", "repair", "comment", "assign", "merge-exact-head", "close-superseded"]) {
+test("owner GitHub operator may read, create, modify, administer, repair, and merge at $0", () => {
+  for (const action of [
+    "inspect", "create", "modify", "administer", "repair", "comment", "assign", "merge-exact-head", "close-superseded",
+  ]) {
     const admitted = admitOwnerGitHubOperator({ action });
     assert.equal(admitted.ok, true, action);
     assert.equal(admitted.creditCost, 0);
@@ -59,10 +61,12 @@ test("owner GitHub operator refuses Codex review, cycleId-only PRs, extra gates,
   assert.equal(admitOwnerGitHubOperator({ actor: "codex-cloud" }).reason, "operator-actor-unknown");
 });
 
-test("chatgpt GitHub MCP is a credit-free operator plane", () => {
+test("chatgpt GitHub MCP is a credit-free owner-authorized mutation plane", () => {
   assert.equal(classifyAutonomyProvider("chatgpt-github-mcp"), "credit-free");
   assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "chatgpt-github-mcp" }).ok, true);
-  assert.equal(admitOwnerGitHubOperator({ actor: "chatgpt-github-mcp", action: "inspect" }).ok, true);
+  for (const action of ["inspect", "create", "modify", "administer"]) {
+    assert.equal(admitOwnerGitHubOperator({ actor: "chatgpt-github-mcp", action }).ok, true, action);
+  }
 });
 
 test("GitHub Codespaces start is metered billed compute", () => {
@@ -74,10 +78,11 @@ test("GitHub Codespaces start is metered billed compute", () => {
   }).reason, "metered-provider-present");
 });
 
-test("deny-first: untrusted content cannot share mutating tools; delete-ref is forbidden", () => {
+test("deny-first: untrusted content cannot share mutating tools; delete-ref remains forbidden", () => {
   assert.equal(admitOwnerGitHubOperator({ action: "inspect", untrustedContentPresent: true }).ok, true);
   assert.equal(admitOwnerGitHubOperator({ action: "comment", untrustedContentPresent: true }).ok, true);
-  assert.equal(admitOwnerGitHubOperator({ action: "repair", untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden");
-  assert.equal(admitOwnerGitHubOperator({ action: "merge-exact-head", untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden");
+  for (const action of ["repair", "create", "modify", "administer", "merge-exact-head"]) {
+    assert.equal(admitOwnerGitHubOperator({ action, untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden", action);
+  }
   assert.equal(admitOwnerGitHubOperator({ deletesRef: true }).reason, "delete-ref-forbidden");
 });
