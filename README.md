@@ -18,16 +18,17 @@ ChatGPT, Copilot, and Codex must follow
 [`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md) and
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
 
-- New UI is **TypeScript** (`cloud-app/`, `operator-deck/`).
+- The deployable browser UI is **TypeScript** in `cloud-app/`.
+- `operator-deck/` remains a TypeScript reference/control-library layer, not a second deployed UI.
 - The control plane stays Node ESM **`.mjs`**.
 - Do not wipe, scaffold over, or "simplify" Mahoraga into a JavaScript app.
 - A model safety refusal is not a license to replace the stack.
 
 ## Release truth
 
-- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. Two Vercel browser UIs:
-  the conversation workspace (`cloud-app/`) and the operator console (`operator-deck/`).
-  See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/VERSIONS.md`](operator-deck/VERSIONS.md).
+- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. There is one Vercel browser UI:
+  `cloud-app/`, containing Chat, Control Center, Operations, and Connections.
+  See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/README.md`](operator-deck/README.md).
 - Active production baseline: `3.6.0`; this document does not claim it has been
   replaced or restarted.
 - Verification state: implementation complete through the release-metadata
@@ -61,14 +62,13 @@ ChatGPT, Copilot, and Codex must follow
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- One Vercel-hosted ChatGPT-style workspace combines Cloud Pro reasoning, files,
-  datasets, web research, the approval-gated isolated browser, and an explicitly
-  paired Mahoraga runtime. The loopback process remains an API and encrypted
-  execution service; GitHub Pages and the former local/static frontends are
-  retired. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
-- Its ordinary conversation route is forced to the paired runtime's
-  `zero-codex` policy and never falls through to a paid model. Cloud Pro is an
-  explicit selection with bounded context, output, search, and tool-step ceilings.
+- One Vercel-hosted workspace provides Chat, Control Center, Operations, and Connections
+  against an explicitly paired Mahoraga runtime. The browser is an encrypted client;
+  policy, routing, verification, and execution authority remain with the paired core.
+  The loopback process remains an API and encrypted execution service; GitHub Pages and
+  former local/static frontends are retired. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
+- Ordinary conversation routing is forced to the paired runtime's `zero-codex` policy
+  and never falls through to a paid model.
   See [`docs/CLOUD-ONLY-DEPLOYMENT.md`](docs/CLOUD-ONLY-DEPLOYMENT.md) for the
   remaining remote-runtime, relay, identity, and zero-credit provider inputs.
 - A successful exact-`main` verification automatically packages an immutable beta
@@ -94,13 +94,15 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Use the workspace
 
-- **Talk to Mahoraga:** `https://mahoraga-cloud-workspace.vercel.app/` is the
-  ChatGPT-style conversation workspace (Cloud Pro lives there).
-- **Operate Mahoraga:** the operator console is the singular UI for inspect,
-  merge, comment, close, dispatch, and eligible deletes. Language lock is
-  TypeScript. Host is Vercel. See [`operator-deck/README.md`](operator-deck/README.md).
-- Pair an explicitly chosen runtime from the conversation workspace Connections
-  section when local workers or task state are needed. No browser extension is installed.
+- **Talk to and operate Mahoraga:** `https://mahoraga-cloud-workspace.vercel.app/` is the
+  single browser UI. Use Chat for conversation, Control Center for deployment/core status,
+  Operations for core-mediated actions, and Connections for relay/capability readiness.
+- Pair an explicitly chosen runtime from the workspace when local workers or task state are needed.
+  No browser extension is installed.
+- The Control Center displays the deployed Git commit SHA and environment so stale deployments
+  can be identified directly in the UI.
+- `operator-deck/` is not a separate deployable app; it retains TypeScript control/reference helpers
+  used for bounded compatibility and documentation.
 - **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
   select `mahoraga`, choose `main` as the base branch, and start with a
   read-only prompt such as `Inspect main and report current health; do not
@@ -111,7 +113,6 @@ ChatGPT, Copilot, and Codex must follow
   generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
   the event without an inbound tunnel. Wait for both the read-only validation
   check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
-
 
 ## Candidate lifecycle
 
@@ -168,4 +169,3 @@ An **EXPERIMENT ONLY** isolated scaffold lives under
 It is not production Mahoraga, not a cutover, and must not be merged without
 explicit review. See that directory README and OVERRIDE.md for the 2026-09-07
 ECOSYSTEM-LOCK / Production Runbook override notes.
-
