@@ -2,9 +2,11 @@ import { createHash } from 'node:crypto';
 import { planChildAgents, validateChildAgentManifest } from './agent-foundry.mjs';
 import { buildAgentFeatLedger } from './agent-feat-ledger.mjs';
 
+export const LEVEL8_ORGANIZATION_SCHEMA_VERSION = 1;
+
 const UNIT_KEYS = new Set([
   'schemaVersion', 'unitId', 'role', 'mission', 'capabilities', 'workloadClasses',
-  'persistent', 'authority', 'sharedMemory', 'sharedFeatLedger', 'zeroCredit', 'createdAt',
+  'persistent', 'authority', 'sharedMemory', 'sharedFeatLedger', 'zeroCredit', 'providerRequired', 'createdAt',
 ]);
 const ACTIONABLE_STATES = new Set(['open', 'unverified']);
 const PRIORITY_RANK = Object.freeze({ critical: 0, high: 1, medium: 2, low: 3 });
@@ -12,7 +14,7 @@ const PRIORITY_RANK = Object.freeze({ critical: 0, high: 1, medium: 2, low: 3 })
 export function createOrganizationUnit(input, { createdAt = new Date().toISOString() } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('organization-unit-invalid');
   return validateOrganizationUnit({
-    schemaVersion: 1,
+    schemaVersion: LEVEL8_ORGANIZATION_SCHEMA_VERSION,
     unitId: input.unitId,
     role: input.role,
     mission: input.mission,
@@ -23,28 +25,31 @@ export function createOrganizationUnit(input, { createdAt = new Date().toISOStri
     sharedMemory: true,
     sharedFeatLedger: true,
     zeroCredit: true,
+    providerRequired: false,
     createdAt,
   });
 }
 
 export function validateOrganizationUnit(value) {
   exact(value, UNIT_KEYS, 'organization-unit-invalid');
-  if (value.schemaVersion !== 1) fail('organization-unit-schema-invalid');
+  if (value.schemaVersion !== LEVEL8_ORGANIZATION_SCHEMA_VERSION) fail('organization-unit-schema-invalid');
   const unit = {
-    schemaVersion: 1,
+    schemaVersion: LEVEL8_ORGANIZATION_SCHEMA_VERSION,
     unitId: checkedSlug(value.unitId, 64, 'organization-unit-id-invalid'),
     role: checkedSlug(value.role, 64, 'organization-unit-role-invalid'),
-    mission: checkedText(value.mission, 1_000, 'organization-unit-mission-invalid'),
+    mission: checkedText(value.mission, 2_000, 'organization-unit-mission-invalid'),
     capabilities: normalizeSlugs(value.capabilities, 64, 'organization-unit-capabilities-invalid'),
     workloadClasses: normalizeSlugs(value.workloadClasses, 32, 'organization-unit-workloads-invalid'),
-    persistent: value.persistent === true,
+    persistent: value.persistent,
     authority: value.authority,
     sharedMemory: value.sharedMemory,
     sharedFeatLedger: value.sharedFeatLedger,
     zeroCredit: value.zeroCredit,
+    providerRequired: value.providerRequired,
     createdAt: canonicalTimestamp(value.createdAt, 'organization-unit-created-at-invalid'),
   };
-  if (!unit.persistent || unit.authority !== 'internal-function' || unit.sharedMemory !== true || unit.sharedFeatLedger !== true || unit.zeroCredit !== true) {
+  if (typeof unit.persistent !== 'boolean') fail('organization-unit-persistent-invalid');
+  if (unit.authority !== 'internal-function' || unit.sharedMemory !== true || unit.sharedFeatLedger !== true || unit.zeroCredit !== true || unit.providerRequired !== false) {
     fail('organization-unit-authority-invalid');
   }
   return deepFreeze(unit);
@@ -66,12 +71,13 @@ export function planOrganizationUnits({
   }
   const agents = existingAgents.map(validateChildAgentManifest);
   const units = normalizeUnits(existingUnits);
-  const covered = new Set([
+  const coveredCapabilities = new Set([
     ...agents.flatMap((agent) => agent.capabilities),
     ...units.flatMap((unit) => unit.capabilities),
   ]);
+  const coveredWorkloads = new Set(units.flatMap((unit) => unit.workloadClasses));
   const normalizedGaps = workloadGaps.map(normalizeGap)
-    .filter((gap) => ACTIONABLE_STATES.has(gap.state) && !covered.has(gap.id))
+    .filter((gap) => ACTIONABLE_STATES.has(gap.state) && !coveredCapabilities.has(gap.id) && !coveredWorkloads.has(gap.workloadClass))
     .sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.id.localeCompare(b.id));
   const childPlans = planChildAgents({ parentAgentId, existingAgents: agents, gaps: normalizedGaps, createdAt });
   const byGap = new Map(childPlans.map((plan) => [plan.gapId, plan]));
@@ -88,7 +94,22 @@ export function planOrganizationUnits({
     }, { createdAt });
     const current = units.find((candidate) => candidate.unitId === unit.unitId);
     if (current && !sameUnitDefinition(current, unit)) fail('organization-unit-conflict');
-    return deepFreeze({ schemaVersion: 1, gapId: gap.id, priority: gap.priority, unit, manifest: child.manifest });
+    return deepFreeze({
+      schemaVersion: LEVEL8_ORGANIZATION_SCHEMA_VERSION,
+      entityId,
+      parentAgentId,
+      gapId: gap.id,
+      workloadClass: gap.workloadClass,
+      priority: gap.priority,
+      summary: gap.summary,
+      dependency: gap.dependency,
+      proposedUnitId: unit.unitId,
+      createdAt: unit.createdAt,
+      unit,
+      manifest: child.manifest,
+      zeroCredit: true,
+      providerRequired: false,
+    });
   });
   return deepFreeze(plans);
 }
@@ -104,6 +125,7 @@ export function buildOrganizationalAgentGraph({
 } = {}) {
   const normalizedEntityId = checkedSlug(entityId, 64, 'organization-entity-id-invalid');
   const normalizedParent = checkedSlug(parentAgentId, 64, 'organization-parent-agent-invalid');
+  canonicalTimestamp(createdAt, 'organization-graph-created-at-invalid');
   const normalizedAgents = existingAgents.map(validateChildAgentManifest).sort((a, b) => a.agentId.localeCompare(b.agentId));
   const normalizedUnits = normalizeUnits(units);
   const plans = planOrganizationUnits({
@@ -128,10 +150,11 @@ export function buildOrganizationalAgentGraph({
     parentAgentId: normalizedParent,
     units: effectiveUnits,
     plans,
+    plannedUnits: plans,
     sharedFeatIds: [...sharedFeatIds].sort(),
   };
   return deepFreeze({
-    schemaVersion: 1,
+    schemaVersion: LEVEL8_ORGANIZATION_SCHEMA_VERSION,
     ...graphCore,
     singularAuthority: true,
     authority: 'mahoraga-parent-only',
@@ -189,7 +212,7 @@ function normalizeSlugs(value, maximum, code) {
   return value.map((item) => checkedSlug(item, 64, code)).sort();
 }
 function checkedSlug(value, maximum, code) {
-  if (typeof value !== 'string' || value.length > maximum || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(value)) fail(code);
+  if (typeof value !== 'string' || value.length > maximum || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(value)) fail(code);
   return value;
 }
 function checkedText(value, maximum, code) {
