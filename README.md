@@ -12,6 +12,18 @@ sensitive surfaces, server-derived authority, typed receipts, evidence-backed
 routing, isolated Codex worktrees, an encrypted local content vault, and
 incident-only repair records.
 
+## Quick access
+
+- **Live Mahoraga workspace:** https://mahoraga-workspace.vercel.app/
+- **Vercel project dashboard:** https://vercel.com/michaeljwilliams0123-9969/mahoraga-workspace
+- **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
+- **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
+- **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
+- **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
+
+The live workspace link above is the single canonical browser deployment. Historical
+Vercel projects are non-canonical and should not be used as production truth.
+
 ## AI agents — do not JavaScript-rewrite this repository
 
 ChatGPT, Copilot, and Codex must follow
