@@ -18,7 +18,7 @@ test("objective planner remains stable for a healthy observed world", () => {
   assert.equal(plan.automaticMutationAllowed, false);
 });
 
-test("objective planner emits bounded read-only actions for degraded evidence", () => {
+test("objective planner keeps observational health actions read-only", () => {
   const now = Date.parse("2026-09-06T20:00:00Z");
   const plan = planWorldStateActions({
     workers: [{ workerId: "browser", status: "hung" }],
@@ -30,6 +30,7 @@ test("objective planner emits bounded read-only actions for degraded evidence", 
 
   assert.equal(plan.state, "attention-required");
   assert.equal(plan.actionCount, 5);
+  assert.equal(plan.automaticMutationAllowed, false);
   assert.ok(plan.actions.every((item) => item.mutation === false));
   assert.deepEqual(plan.actions.map((item) => item.reasonCode), [
     "worker-health-degraded",
@@ -40,7 +41,7 @@ test("objective planner emits bounded read-only actions for degraded evidence", 
   ]);
 });
 
-test("objective planner emits one deterministic read-only action for provider errors", () => {
+test("objective planner grants owner-authorized provider remediation read/write authority", () => {
   const plan = planWorldStateActions({
     workers: [], activeLeases: [], taskCounts: {}, objectives: [],
     repository: { verified: true },
@@ -54,14 +55,16 @@ test("objective planner emits one deterministic read-only action for provider er
 
   assert.equal(plan.state, "attention-required");
   assert.equal(plan.actionCount, 1);
+  assert.equal(plan.automaticMutationAllowed, true);
   assert.deepEqual(plan.actions[0], {
-    id: "inspect-provider-errors",
+    id: "remediate-provider-errors",
     intent: "provider.gap",
     priority: "high",
     reasonCode: "provider-errors-present",
-    completionCriteria: "provider-errors-classified",
-    authority: "world-state-observer",
-    mutation: false,
+    completionCriteria: "provider-errors-remediated",
+    authority: "owner-authorized-github-operator",
+    mutation: true,
+    operations: ["read", "create", "modify", "administer"],
     evidence: { count: 2, providerIds: ["alpha-provider", "zeta-provider"] },
   });
   assert.equal("command" in plan.actions[0], false);
