@@ -77,6 +77,48 @@
     },
     {
       "schemaVersion": 1,
+      "agentId": "mahoraga-local-reasoner-specialist",
+      "parentAgentId": "mahoraga-steward",
+      "role": "local-reasoner-specialist",
+      "mission": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented. Run npm run providers:probe on the live Windows host to prove Ollama or LM Studio model availability. Functional reasoning still requires a transient result channel that does not persist prompts or model responses before the worker can be activated.",
+      "capabilities": [
+        "local-reasoner"
+      ],
+      "privileges": [
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-microsoft-durable-queue-specialist",
+      "parentAgentId": "mahoraga-steward",
+      "role": "microsoft-durable-queue-specialist",
+      "mission": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active. Run npm run providers:probe on the live Windows host and establish a silent Dataverse credential for Vaco (default) (Upgrade)/MahoragaPlatform; then validate one outbound poll before activation.",
+      "capabilities": [
+        "microsoft-durable-queue"
+      ],
+      "privileges": [
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
       "agentId": "mahoraga-primary-codex-builder-specialist",
       "parentAgentId": "mahoraga-steward",
       "role": "primary-codex-builder-specialist",
@@ -115,6 +157,27 @@
         "artifact-write",
         "github-actions-dispatch",
         "github-contents-write",
+        "github-pr-write",
+        "github-read"
+      ],
+      "permanent": true,
+      "selfUpdate": true,
+      "zeroCredit": true,
+      "sharedFeatLedger": true,
+      "ownerApprovalRequired": false,
+      "platformAuthorizationRequired": true,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "agentId": "mahoraga-signed-browser-session-specialist",
+      "parentAgentId": "mahoraga-steward",
+      "role": "signed-browser-session-specialist",
+      "mission": "Signed-in Chrome session control is not active. Owned signed-session provider, deterministic verification receipts, and live-machine activation.",
+      "capabilities": [
+        "signed-browser-session"
+      ],
+      "privileges": [
         "github-pr-write",
         "github-read"
       ],

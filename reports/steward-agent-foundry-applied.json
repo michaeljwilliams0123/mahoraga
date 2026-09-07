@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "createdAgentIds": [
+    "mahoraga-local-reasoner-specialist",
+    "mahoraga-microsoft-durable-queue-specialist",
+    "mahoraga-signed-browser-session-specialist"
+  ],
+  "zeroCredit": true,
+  "ownerApprovalRequired": false,
+  "platformAuthorizationRequired": true
+}
