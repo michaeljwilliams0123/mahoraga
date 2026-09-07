@@ -82,6 +82,22 @@ export function planWorldStateActions(snapshot, { now = Date.now() } = {}) {
     }));
   }
 
+  const providerErrors = (Array.isArray(snapshot.providers) ? snapshot.providers : [])
+    .filter((provider) => typeof provider?.error === "string" && provider.error.trim().length > 0)
+    .map((provider) => String(provider?.id ?? "unknown"))
+    .sort();
+
+  if (providerErrors.length > 0) {
+    actions.push(action({
+      id: "inspect-provider-errors",
+      intent: "provider.gap",
+      priority: "high",
+      reasonCode: "provider-errors-present",
+      completionCriteria: "provider-errors-classified",
+      evidence: { count: providerErrors.length, providerIds: providerErrors.slice(0, 16) },
+    }));
+  }
+
   const deduped = dedupeActions(actions).slice(0, 8);
   return Object.freeze({
     schemaVersion: 1,
