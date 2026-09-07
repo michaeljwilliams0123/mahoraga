@@ -2,6 +2,10 @@
 
 `cloud-app/` is the **single Vercel-hosted browser UI** for Mahoraga.
 
+Canonical production project: `mahoraga-workspace`
+
+Canonical production URL: `https://mahoraga-workspace.vercel.app/`
+
 It contains four complete in-app surfaces:
 
 - **Chat** — encrypted RuntimeRelay conversation path using `creditPolicy: zero-codex`.
