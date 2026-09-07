@@ -51,16 +51,16 @@ test("health route publishes non-secret deployment identity", async () => {
   assert.match(health, /VERCEL_URL/);
 });
 
-test("both Vercel entrypoints enable Git deployment and root build targets nested Next output", async () => {
-  const [rootConfig, appConfig] = await Promise.all([
+test("legacy repo-root Git deployment is disabled while canonical cloud-app deployment remains enabled", async () => {
+  const [rootConfigSource, appConfigSource] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
   ]);
-  for (const config of [rootConfig, appConfig]) {
-    assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*false/);
-    assert.match(config, /"deploymentEnabled"\s*:\s*true/);
-  }
-  assert.match(rootConfig, /"outputDirectory"\s*:\s*"cloud-app\/\.next"/);
+  const rootConfig = JSON.parse(rootConfigSource);
+  const appConfig = JSON.parse(appConfigSource);
+  assert.equal(rootConfig.git?.deploymentEnabled, false);
+  assert.equal(appConfig.git?.deploymentEnabled, true);
+  assert.equal(rootConfig.outputDirectory, "cloud-app/.next");
 });
 
 test("repository declares only the canonical Vercel workspace alias", async () => {
