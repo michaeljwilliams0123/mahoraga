@@ -23,7 +23,7 @@ test("release workflow is owner-only, verified, attested, and never activates a 
   const source = await readFile(path.join(ROOT, ".github", "workflows", "release.yml"), "utf8");
   assert.match(source, /github\.actor == github\.repository_owner/);
   assert.match(source, /npm run verify/);
-  assert.match(source, /actions\/attest-build-provenance@[a-f0-9]{40} # v3/);
+  assert.match(source, /actions\/attest-build-provenance@[a-f0-9]{40} # v4\.2\.2/);
   assert.match(source, /node scripts\/update-manifest\.mjs validate/);
   assert.doesNotMatch(source, /Expand-Archive|start-production|OPENAI_API_KEY|\$\{\{\s*secrets\./i);
   assert.match(source, /Eligible for verified local rollout with mandatory rollback evidence/);
