@@ -1,10 +1,14 @@
 # Mahoraga Cloud Workspace
 
-`cloud-app/` is the **single Vercel-hosted browser UI** for Mahoraga.
+`cloud-app/` is the **single browser UI source** for Mahoraga.
 
-Canonical production project: `mahoraga-workspace`
+GitHub main is the code authority. Vercel remains an optional deployment target and
+Netlify is the live fallback when Vercel capacity is unavailable. Both hosts deploy
+this same Next.js workspace and neither gains execution authority over the paired core.
 
-Canonical production URL: `https://mahoraga-workspace.vercel.app/`
+Historical Vercel project: `mahoraga-workspace`
+
+Historical Vercel URL: `https://mahoraga-workspace.vercel.app/`
 
 It contains four complete in-app surfaces:
 
@@ -17,7 +21,7 @@ It contains four complete in-app surfaces:
 
 ## Runtime
 
-- Next.js App Router on Vercel
+- Next.js App Router on Vercel or Netlify
 - React 19 / TypeScript
 - fixed `wss://relay.mahoraga.app/pair` endpoint for encrypted runtime pairing
 - ECDH + HKDF + AES-GCM relay framing in the browser client
@@ -40,8 +44,8 @@ The browser does not auto-confirm owner-gated Operations actions. It does not se
 `GET /api/health` exposes only non-secret deployment and boundary metadata, including:
 
 - product and runtime candidate version
-- Vercel environment
-- deployed Vercel URL
+- deployment provider and environment
+- deployed provider URL
 - deployed Git commit SHA
 - deployed Git ref
 - paired-core authority boundary and paid-fallback state
@@ -55,4 +59,4 @@ npm ci
 npm run verify
 ```
 
-Repository-native exact-head verification remains the merge gate. Vercel bot/review output is not a PR completion requirement.
+Repository-native exact-head verification remains the merge gate. Vercel output is optional and non-gating. Netlify is a deployment fallback only; it does not replace GitHub main as authority or the paired Mahoraga core as the execution plane.
