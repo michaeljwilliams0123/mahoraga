@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildStewardLearningState } from '../src/steward-learning-state.mjs';
+import { normalizeStewardGapAudit } from '../src/steward-gap-normalization.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const REPORTS = Object.freeze({
@@ -19,7 +20,7 @@ writeJson(args.foundryOutput ?? path.join(ROOT, 'reports/steward-agent-factory.j
 writeJson(args.memoryOutput ?? REPORTS.memory, state.compounding.memory);
 writeJson(args.objectivesOutput ?? REPORTS.objectives, state.compounding.objectives);
 writeJson(args.organizationOutput ?? REPORTS.organization, state.compounding.organization);
-process.stdout.write(`${JSON.stringify({
+process.stdout.write(`${JSON.stringify({"}
   schemaVersion: 1,
   stateFingerprint: state.stateFingerprint,
   featCount: state.featLedger.feats.length,
@@ -40,14 +41,7 @@ async function loadRepositoryInput() {
   const feats = loadFeatSubmissions(path.join(ROOT, 'coordination/agent-feats/submissions'));
   const [{ loadManifest }, { buildGapAudit }] = await Promise.all([import('../src/config.mjs'), import('../src/gap-audit.mjs')]);
   const audit = buildGapAudit(await loadManifest());
-  const gaps = audit.open.map(({ id, state, priority, summary, dependency }) => ({
-    id,
-    state,
-    priority,
-    summary,
-    dependency,
-    workloadClass: inferWorkloadClass(id),
-  }));
+  const gaps = normalizeStewardGapAudit(audit.open);
   const memory = readJsonOr(REPORTS.memory, { records: [] });
   const objectives = readJsonOr(REPORTS.objectives, []);
   const organization = readJsonOr(REPORTS.organization, { units: [] });
@@ -77,13 +71,6 @@ function readJsonOr(file, fallback) {
   if (!existsSync(file)) return fallback;
   try { return JSON.parse(readFileSync(file, 'utf8')); }
   catch { throw new TypeError(`steward-state-json-invalid:${path.basename(file)}`); }
-}
-
-function inferWorkloadClass(id) {
-  if (id.includes('research')) return 'research';
-  if (id.includes('artifact')) return 'analysis';
-  if (id.includes('repository') || id.includes('verify')) return 'engineering';
-  return 'operations';
 }
 
 function writeJson(file, value) {
