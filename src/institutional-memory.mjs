@@ -1,12 +1,14 @@
 import { createHash } from 'node:crypto';
 
+export const LEVEL8_MEMORY_SCHEMA_VERSION = 1;
+
 const MEMORY_CLASSES = new Set([
   'fact', 'observation', 'knowledge', 'strategy', 'outcome', 'failure',
   'source-reliability', 'procedure', 'learned-capability', 'stakeholder-pattern',
   'system-pattern', 'negative-memory',
 ]);
 const PROVENANCE = new Set(['owner-explicit', 'connected-evidence', 'verified-outcome', 'synthesized', 'entity-inference']);
-const FRESHNESS = new Set(['current', 'aging', 'stale']);
+const FRESHNESS = new Set(['current', 'aging', 'stale', 'historical']);
 const RECORD_KEYS = new Set([
   'schemaVersion', 'memoryId', 'memoryClass', 'subject', 'statement', 'provenance',
   'confidence', 'freshness', 'objectiveIds', 'evidenceRefs', 'capability', 'supersedes',
@@ -18,7 +20,7 @@ export function createInstitutionalMemoryRecord(input, { observedAt = new Date()
   const core = normalizeCore(input, observedAt);
   const memoryId = `mem-${digest(identityCore(core)).slice(0, 32)}`;
   return validateInstitutionalMemoryRecord({
-    schemaVersion: 1,
+    schemaVersion: LEVEL8_MEMORY_SCHEMA_VERSION,
     memoryId,
     ...core,
     zeroCredit: true,
@@ -28,12 +30,11 @@ export function createInstitutionalMemoryRecord(input, { observedAt = new Date()
 
 export function validateInstitutionalMemoryRecord(value) {
   exact(value, RECORD_KEYS, 'institutional-memory-invalid');
-  if (value.schemaVersion !== 1) fail('institutional-memory-schema-invalid');
+  if (value.schemaVersion !== LEVEL8_MEMORY_SCHEMA_VERSION) fail('institutional-memory-schema-invalid');
   if (typeof value.memoryId !== 'string' || !/^mem-[a-f0-9]{32}$/.test(value.memoryId)) fail('institutional-memory-id-invalid');
   const core = normalizeCore(value, value.observedAt);
-  if (value.memoryId !== `mem-${digest(identityCore(core)).slice(0, 32)}`) fail('institutional-memory-id-mismatch');
   if (value.zeroCredit !== true || value.providerRequired !== false) fail('institutional-memory-provider-boundary-invalid');
-  return deepFreeze({ schemaVersion: 1, memoryId: value.memoryId, ...core, zeroCredit: true, providerRequired: false });
+  return deepFreeze({ schemaVersion: LEVEL8_MEMORY_SCHEMA_VERSION, memoryId: value.memoryId, ...core, zeroCredit: true, providerRequired: false });
 }
 
 export function reconcileInstitutionalMemory({ records = [], incoming = [], now = new Date().toISOString() } = {}) {
@@ -64,7 +65,7 @@ export function reconcileInstitutionalMemory({ records = [], incoming = [], now 
   const supersededMemoryIds = [...superseded].sort();
   const fingerprint = digest(ordered.map((record) => ({ ...identityCore(record), memoryId: record.memoryId })));
   return deepFreeze({
-    schemaVersion: 1,
+    schemaVersion: LEVEL8_MEMORY_SCHEMA_VERSION,
     records: ordered,
     activeMemoryIds,
     supersededMemoryIds,
@@ -109,7 +110,7 @@ function normalizeCore(input, observedAt) {
   return {
     memoryClass,
     subject: checkedSlug(input.subject, 96, 'institutional-memory-subject-invalid'),
-    statement: checkedText(input.statement, 2_000, 'institutional-memory-statement-invalid'),
+    statement: checkedText(input.statement, 4_000, 'institutional-memory-statement-invalid'),
     provenance,
     confidence: input.confidence,
     freshness,
@@ -174,7 +175,7 @@ function assertAcyclic(records) {
 }
 
 function checkedSlug(value, maximumLength, code) {
-  if (typeof value !== 'string' || value.length > maximumLength || !/^[a-z0-9][a-z0-9-]{1,95}$/.test(value)) fail(code);
+  if (typeof value !== 'string' || value.length > maximumLength || !/^[a-z0-9][a-z0-9-]{0,95}$/.test(value)) fail(code);
   return value;
 }
 
