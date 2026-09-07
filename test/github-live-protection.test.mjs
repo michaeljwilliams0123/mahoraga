@@ -40,9 +40,29 @@ test("live main protection admits an active exact-head Verify ruleset", () => {
   assert.equal(report.paidFallback, false);
 });
 
-test("live main protection fails closed without rulesets, force-push, or missing Verify contexts", () => {
-  assert.equal(evaluateLiveMainProtection({ rulesets: [], contract }).reason, "main-unprotected");
-  assert.equal(evaluateLiveMainProtection({ rulesets: [ruleset({ enforcement: "disabled" })], contract }).reason, "main-unprotected");
+test("temporary advisory contract admits an intentionally absent ruleset", () => {
+  assert.equal(contract.liveEnforcementRequired, false);
+  const report = evaluateLiveMainProtection({ rulesets: [], contract });
+  assert.equal(report.ok, true);
+  assert.equal(report.status, "advisory-unprotected");
+  assert.equal(report.reason, "live-main-protection-temporarily-advisory");
+  assert.deepEqual(report.requiredContexts, [
+    "Verify (ubuntu-latest)",
+    "Verify (windows-latest)",
+  ]);
+  assert.equal(report.creditCost, 0);
+  assert.equal(report.paidFallback, false);
+});
+
+test("strict live enforcement still fails closed when a ruleset is required", () => {
+  const strictContract = { ...contract, liveEnforcementRequired: true };
+  const report = evaluateLiveMainProtection({ rulesets: [], contract: strictContract });
+  assert.equal(report.ok, false);
+  assert.equal(report.status, "unprotected");
+  assert.equal(report.reason, "main-unprotected");
+});
+
+test("temporary advisory mode does not excuse a malformed active ruleset", () => {
   assert.equal(evaluateLiveMainProtection({
     rulesets: [ruleset({ rules: [{ type: "deletion" }, { type: "pull_request" }, { type: "required_status_checks", parameters: { strict_required_status_checks_policy: true, required_status_checks: [{ context: "Verify (ubuntu-latest)" }] } }] })],
     contract,
@@ -96,11 +116,12 @@ test("live main protection fails closed when an observational job is a required 
   assert.equal(report.paidFallback, false);
 });
 
-test("tracked contract is the canonical exact-head Verify set", () => {
+test("tracked contract keeps exact-head Verify contexts while live enforcement is temporarily advisory", () => {
   assert.deepEqual(contract.requiredContexts, [
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)",
   ]);
+  assert.equal(contract.liveEnforcementRequired, false);
   assert.equal(contract.strictExactHead, true);
   assert.equal(contract.deletionAllowed, false);
   assert.equal(contract.forcePushAllowed, false);
