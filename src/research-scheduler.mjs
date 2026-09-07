@@ -113,9 +113,10 @@ export function planResearchJobs({
   });
 }
 
-export async function runResearchJobs({ plan, evidencePlane } = {}) {
+export async function runResearchJobs({ plan, evidencePlane, observeResult = null } = {}) {
   if (!plan || typeof plan !== 'object' || !Array.isArray(plan.jobs)) fail('research-plan-invalid');
   if (!evidencePlane || typeof evidencePlane.ingest !== 'function') fail('research-evidence-plane-invalid');
+  if (observeResult !== null && typeof observeResult !== 'function') fail('research-result-observer-invalid');
   if (plan.zeroCredit !== true || plan.providerRequired !== false || plan.creditCost !== 0 || plan.paidFallback !== false) {
     fail('research-plan-cost-boundary-invalid');
   }
@@ -143,6 +144,7 @@ export async function runResearchJobs({ plan, evidencePlane } = {}) {
       if (typeof record?.memoryId !== 'string' || !/^mem-[a-f0-9]{32}$/.test(record.memoryId)) fail('research-memory-id-invalid');
       memoryIds.push(record.memoryId);
     }
+    if (observeResult) await observeResult(Object.freeze({ job: normalized, result }));
   }
 
   return deepFreeze({
