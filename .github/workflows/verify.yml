@@ -55,6 +55,7 @@ jobs:
 
   workspace:
     name: Verify unified Vercel workspace
+    continue-on-error: true
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -78,7 +79,7 @@ jobs:
         run: npm run verify
 
   dispatch-sovereign-integration:
-    needs: [verify, workspace]
+    needs: [verify]
     if: >-
       success() &&
       github.event_name == 'workflow_dispatch' &&

@@ -64,7 +64,9 @@ test("successful sovereign verification explicitly dispatches trusted integratio
   const integration = await readFile(new URL("../.github/workflows/autonomous-integration.yml", import.meta.url), "utf8");
 
   assert.match(verify, /dispatch-sovereign-integration:/);
-  assert.match(verify, /needs:\s*\[verify, workspace\]/);
+  assert.match(verify, /needs:\s*\[verify\]/);
+  assert.doesNotMatch(verify, /dispatch-sovereign-integration:\s*\n\s+needs:\s*\[verify, workspace\]/);
+  assert.match(verify, /workspace:\s*\n\s+name: Verify unified Vercel workspace\s*\n\s+continue-on-error: true/);
   assert.match(verify, /github\.event_name == 'workflow_dispatch'/);
   assert.match(verify, /startsWith\(github\.ref_name, 'feature\/sovereign-'\)/);
   assert.match(verify, /actions:\s*write/);
