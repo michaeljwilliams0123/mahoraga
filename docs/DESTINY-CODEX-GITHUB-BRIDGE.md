@@ -10,6 +10,7 @@ This bridge gives Mahoraga a deterministic way to submit implementation work fro
 - GitHub App ID, connector bot ID, and repository installation ID are shared and are not treated as Destiny identity.
 - Raw ChatGPT/Codex account IDs and installation IDs are hashed locally and never written to GitHub.
 - The raw Codex environment ID is retained only in the local private route because `codex cloud exec --env` requires it.
+- The private route is schema version 2 and carries the SHA-256 environment fingerprint alongside the raw local-only environment ID so later bridge validation can detect route drift without exposing the raw ID.
 - `config/destiny-trigger-trust.json` must remain fail-closed until signed readiness from Destiny's machine is verified.
 
 ## Staged probe
@@ -50,7 +51,7 @@ Because submission occurs through the Codex CLI already authenticated on Destiny
 
 ## Future GitHub tasks after binding
 
-Create an open issue authored by `michaeljwilliams0123` containing exactly one `MAHORAGA_DESTINY_TASK_V1` marker. The payload must use schema version 1, kind `destiny-codex-task`, a unique `dct-<24 hex>` task ID, repository `michaeljwilliams0123/mahoraga`, attempts `1`, `implementationOnly: true`, and `codeReview: false`.
+Create an open issue authored by `michaeljwilliams0123` containing exactly one `MAHORAGA_DESTINY_TASK_V1` marker. Multiple machine-task markers are rejected as ambiguous rather than selecting one implicitly. The payload must use schema version 1, kind `destiny-codex-task`, a unique `dct-<24 hex>` task ID, repository `michaeljwilliams0123/mahoraga`, attempts `1`, `implementationOnly: true`, and `codeReview: false`.
 
 On Destiny's PC the dispatch becomes:
 
@@ -73,7 +74,7 @@ Safe to return to Mahoraga after bootstrap:
 
 Never post or copy into GitHub:
 
-- `route-private.json` (contains the raw environment ID)
+- `route-private.json` (schema v2; contains the raw environment ID and its local integrity fingerprint)
 - `receipt-private-key.pem`
 - `%USERPROFILE%\.codex\auth.json`
 - access tokens, API keys, or raw account/install IDs
