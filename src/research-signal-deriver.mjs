@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const MAX_BYTES = 2 * 1024 * 1024;
 const MAX_SIGNALS = 64;
 const STATEMENT_PREFIX = 'UNTRUSTED INTERNET EVIDENCE DATA:';
@@ -21,6 +23,7 @@ export function deriveResearchSignals({
   if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > MAX_BYTES) fail('research-signal-bytes-invalid');
   const host = checkedHost(targetHost);
   const digest = checkedHash(contentSha256);
+  if (createHash('sha256').update(bytes).digest('hex') !== digest) fail('research-signal-hash-mismatch');
   checkedSlug(objectiveId, 96, 'research-signal-objective-invalid');
   checkedSlug(capability, 64, 'research-signal-capability-invalid');
   const normalizedSourceClass = checkedSlug(sourceClass, 64, 'research-signal-source-class-invalid');

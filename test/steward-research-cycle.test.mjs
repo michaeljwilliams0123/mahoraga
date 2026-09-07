@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { deriveResearchSignals } from '../src/research-signal-deriver.mjs';
 import { runStewardResearchCycle } from '../scripts/steward-research-cycle.mjs';
 
@@ -43,7 +44,7 @@ test('deterministic signal derivation retains structured identifiers but never p
     bytes,
     contentType: 'application/json',
     targetHost: 'nodejs.org',
-    contentSha256: 'a'.repeat(64),
+    contentSha256: createHash('sha256').update(bytes).digest('hex'),
     objectiveId: 'track-runtime-releases',
     capability: 'runtime-release-intelligence',
     sourceClass: 'official-release',
@@ -59,6 +60,50 @@ test('deterministic signal derivation retains structured identifiers but never p
   assert.doesNotMatch(serialized, /Ignore previous instructions/i);
   assert.doesNotMatch(serialized, /malicious\(\)/i);
   assert.doesNotMatch(serialized, /<script>/i);
+});
+
+test('signal derivation rejects a digest that does not describe the supplied evidence', () => {
+  assert.throws(() => deriveResearchSignals({ bytes: Buffer.from('v1.2.3'),
+    contentSha256: 'a'.repeat(64), targetHost: 'nodejs.org',
+    objectiveId: 'track-runtime-releases', capability: 'runtime-release-intelligence', sourceClass: 'official-release',
+  }), /research-signal-hash-mismatch/);
+});
+
+test('research cycle rejects HTTP failures and enforces source reservations on streamed bodies', async () => {
+  for (const status of [302, 404, 503]) {
+    await assert.rejects(runStewardResearchCycle({ registry: registry(), now: NOW, resolveHost: publicResolver,
+      fetchImpl: async () => new Response('v99.0.0', { status }),
+    }), /egress-fetch-failed/);
+  }
+  const small = registry();
+  small.sources[0].maximumBytes = 4;
+  await assert.rejects(runStewardResearchCycle({ registry: small, now: NOW, resolveHost: publicResolver,
+    fetchImpl: async () => new Response('v99.0.0'),
+  }), /egress-fetch-failed/);
+});
+
+test('offline and exhausted budgets do not fetch; invalid persisted cost state fails closed', async () => {
+  const fetchImpl = async () => { assert.fail('unexpected network request'); };
+  const offline = await runStewardResearchCycle({ registry: registry(), now: NOW, networkAvailable: false, fetchImpl });
+  assert.equal(offline.summary.status, 'offline-hold');
+  const limited = registry();
+  limited.budget.maximumTotalBytes = 1;
+  const deferred = await runStewardResearchCycle({ registry: limited, now: NOW, fetchImpl });
+  assert.equal(deferred.summary.deferredCount, 1);
+  await assert.rejects(runStewardResearchCycle({ registry: registry(), now: NOW, fetchImpl,
+    priorState: { ...offline.state, paidFallback: true },
+  }), /steward-research-state-invalid/);
+});
+
+test('unchanged evidence refresh advances cadence without multiplying memory', async () => {
+  const fetchImpl = async () => new Response('v26.8.1');
+  const first = await runStewardResearchCycle({ registry: registry(), now: NOW, resolveHost: publicResolver, fetchImpl });
+  const second = await runStewardResearchCycle({ registry: registry(), priorState: first.state,
+    now: '2026-09-07T18:00:00.000Z', resolveHost: publicResolver, fetchImpl });
+  assert.equal(second.summary.completedCount, 1);
+  assert.equal(second.summary.newMemoryCount, 0);
+  assert.deepEqual(second.state.memoryRecords, first.state.memoryRecords);
+  assert.equal(second.state.history[0].contentHashes.length, 1);
 });
 
 test('steward research cycle bootstraps public evidence into durable provider-free state and respects cadence', async () => {
