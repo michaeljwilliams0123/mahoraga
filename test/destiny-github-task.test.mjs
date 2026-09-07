@@ -36,3 +36,12 @@ test("GitHub task authorization and policy are fail-closed", () => {
   assert.throws(() => parseDestinyGithubTaskIssue(bad, { repository, owner }), /destiny-github-task-policy-invalid/);
   assert.throws(() => buildCodexCloudExecArgs("", parseDestinyGithubTaskIssue(issue(), { repository, owner })), /destiny-codex-environment-id-invalid/);
 });
+
+test("GitHub task rejects multiple machine envelopes instead of selecting the first", () => {
+  const candidate = issue();
+  candidate.body = `${candidate.body}\n\n${candidate.body}`;
+  assert.throws(
+    () => parseDestinyGithubTaskIssue(candidate, { repository, owner }),
+    /destiny-github-task-marker-ambiguous/,
+  );
+});
