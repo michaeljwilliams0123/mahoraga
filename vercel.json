@@ -4,6 +4,6 @@
   "installCommand": "npm ci --prefix cloud-app",
   "buildCommand": "npm run build --prefix cloud-app",
   "git": {
-    "deploymentEnabled": false
+    "deploymentEnabled": true
   }
 }

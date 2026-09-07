@@ -36,21 +36,27 @@ test("lock forbids wiping the control plane and converting UI to JavaScript", as
   assert.match(lock, /greenfield JavaScript prompt/i);
   assert.match(lock, /safety refusals|guardrails/i);
   assert.match(lock, /3\.6\.0/);
-  assert.match(lock, /7\.0\.0-alpha\.1/);
+  assert.match(lock, /7\.0\.0-alpha\.2/);
+  assert.match(lock, /one deployable browser UI/i);
+  assert.doesNotMatch(lock, /two browser surfaces|both browser UIs/i);
   assert.doesNotMatch(lock, /rewrite this repository as JavaScript is allowed/i);
 });
 
-test("Copilot repo instructions are inline, not a link-only stub", async () => {
+test("Copilot repo instructions are inline and preserve the singular deployable UI", async () => {
   const source = await sourceOf(".github/copilot-instructions.md");
   assert.ok(source.length > 800, "copilot-instructions.md must carry the rules inline");
   assert.match(source, /Do \*\*not\*\* rewrite/);
   assert.match(source, /operator-deck/);
   assert.match(source, /cloud-app/);
+  assert.match(source, /one deployable browser UI/i);
+  assert.match(source, /reference\/control-library/i);
 });
 
-test("experience agent keeps both TypeScript UIs and does not call cloud-app the only UI", async () => {
+test("experience agent preserves one deployable UI and the operator reference library", async () => {
   const source = await sourceOf(".github/agents/mahoraga-experience.agent.md");
+  assert.match(source, /one deployable TypeScript browser UI/i);
   assert.match(source, /operator-deck/);
+  assert.match(source, /reference\/control-library/i);
   assert.match(source, /TypeScript/);
-  assert.doesNotMatch(source, /only browser UI/);
+  assert.doesNotMatch(source, /Two TypeScript browser surfaces/i);
 });

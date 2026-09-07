@@ -17,19 +17,21 @@ Canonical machine-readable copies:
    over, or "start fresh" on `src/`, `scripts/`, `test/`, `relay/`,
    `cloud-app/`, `operator-deck/`, `.github/`, `mahoraga.manifest.json`,
    `state/release-baseline/`, or `AGENTS.md`.
-2. **New UI is TypeScript only.** `cloud-app/` (Next.js conversation
-   workspace) and `operator-deck/` (TanStack operator console) stay
-   `.ts` / `.tsx`. Do not emit `.js` / `.jsx` UI. Do not "simplify" them
-   to JavaScript because a model prefers it.
+2. **New UI is TypeScript only.** `cloud-app/` is the one deployable browser UI.
+   `operator-deck/` remains a TypeScript reference/control-library layer.
+   Keep both trees `.ts` / `.tsx`; do not emit `.js` / `.jsx` UI or simplify
+   either tree to JavaScript because a model prefers it.
 3. **Control plane stays Node ESM `.mjs`.** `src/`, `scripts/`, `test/`,
    and `relay/` are the existing control plane. Do not mass-convert to
    `.js`, `.cjs`, or TypeScript unless the owner explicitly starts that
    migration in a bounded PR.
 4. **Java is not the UI language.** Java only if the owner explicitly
    starts a Java service. Never translate the UI or the `.mjs` plane to Java.
-5. **Do not restore retired frontends.** `cloud/`, `web/`, GitHub Pages,
-   and the old loopback UI stay retired. The two browser surfaces are
-   `cloud-app/` and `operator-deck/` on Vercel.
+5. **Do not restore retired frontends or create a parallel browser app.**
+   `cloud/`, `web/`, GitHub Pages, and the old loopback UI stay retired.
+   The one deployable browser UI is `cloud-app/` on Vercel, containing Chat,
+   Control Center, Operations, and Connections. `operator-deck/` must stay
+   non-deployable reference/control code.
 6. **Windows production stays `3.6.0`** at
    `397acebf16766f44e3b4317f9d8b68b10de5f821`. Do not activate
    `7.0.0-alpha.1` or `7.0.0-alpha.2` on Windows from chat, a PR, or a
@@ -120,12 +122,12 @@ transfer root credentials that establish ownership.
 | Surface | Language | Role |
 |---|---|---|
 | Control plane `src/`, `scripts/`, `test/`, `relay/` | Node ESM `.mjs` | Supervisor, workers, verify, learning/evolution cycles |
-| Conversation workspace `cloud-app/` | TypeScript | ChatGPT-style Cloud Pro UI on Vercel |
-| Operator console `operator-deck/` | TypeScript | Inspect, merge, comment, close, dispatch |
+| Browser workspace `cloud-app/` | TypeScript | One deployable Vercel UI: Chat, Control Center, Operations, Connections |
+| Operator reference `operator-deck/` | TypeScript | Non-deployable bounded reference/control helpers |
 | Copilot profiles `.github/agents/` | Markdown | Specialist prompts, not live workers |
 | Release baseline `state/release-baseline/` | Mirror of essentials | Self-healer restore source |
 
-Host for both browser UIs is **Vercel**. Google Workspace is identity,
+The browser UI host is **Vercel**. Google Workspace is identity,
 mail, and docs — not the app host.
 
 ## What an agent may do
@@ -142,8 +144,8 @@ mail, and docs — not the app host.
 
 - Convert the repo to JavaScript.
 - Create a parallel app and call it Mahoraga.
-- Delete the operator console because another prompt called `cloud-app/`
-  the "only" UI.
+- Recreate `operator-deck/` as a second deployable browser app or delete its
+  bounded reference/control helpers.
 - Disable the learning fallback, Autonomous Integration, or Verify.
 - Expose the loopback API directly to the public internet or create a
   persistent unbounded network forward.

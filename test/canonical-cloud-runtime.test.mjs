@@ -8,12 +8,13 @@ import { canonicalWorkspaceUrl, DEFAULT_WORKSPACE_URL } from "../src/server.mjs"
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
 async function readWorkspaceSurface() {
-  const [workspace, shell, chatView] = await Promise.all([
+  const [workspace, shell, chatView, workspaceTypes] = await Promise.all([
     read("cloud-app/components/workspace.tsx"),
     read("cloud-app/components/workspace/workspace-shell.tsx"),
     read("cloud-app/components/workspace/chat-view.tsx"),
+    read("cloud-app/components/workspace/workspace-types.ts"),
   ]);
-  return `${workspace}\n${shell}\n${chatView}`;
+  return `${workspace}\n${shell}\n${chatView}\n${workspaceTypes}`;
 }
 
 test("Vercel is the only Mahoraga browser interaction surface", async () => {
@@ -23,7 +24,10 @@ test("Vercel is the only Mahoraga browser interaction surface", async () => {
     read("docs/CLOUD-WORKSPACE.md"),
   ]);
   assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
-  assert.match(workspace, /Unified workspace/);
+  assert.match(workspace, /Single browser surface/);
+  for (const label of ["Chat", "Control Center", "Operations", "Connections"]) {
+    assert.match(workspace, new RegExp(`label: "${label}"`));
+  }
   assert.match(workspace, /Zero-Codex route/);
   assert.match(workspace, /Pair runtime/);
   assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);

@@ -1,18 +1,21 @@
-# Operator console
+# Integrated operator surface
 
-The operator console is the singular cloud UI for GitHub and fleet commands.
+Mahoraga has one browser UI: the Vercel `cloud-app/` workspace at `https://mahoraga-cloud-workspace.vercel.app/`.
 
-## Split of duties
+The former operator-console concept is now integrated into that workspace rather than deployed as a second application.
+
+## Split of duties inside the single UI
 
 | Job | Surface |
 |---|---|
-| Inspect repo, isolate issues, review the 4-hour cycle | Operator console |
-| Merge / approve / comment / close / create issues | Operator console (owner `gh` session) |
-| Dispatch the four-hour candidate cycle | Operator console write plane |
-| Preview / delete eligible Wave A contained branches | Operator console write plane |
-| Conversation, files, Cloud Pro | Vercel `cloud-app/` at https://mahoraga-cloud-workspace.vercel.app/ |
-| Local runtime, `npm run status`, activate a verified release | Windows / Chromebook loopback `127.0.0.1:4782` |
-| Destiny fire, Cloud Pro spend, Windows 7.0 activate | Hard deny on the operator console |
+| Conversation and zero-Codex task submission | Chat |
+| Deployment identity, exact deployed Git SHA, core/routing/capability status | Control Center |
+| Runtime/repository/repair actions and verification | Operations |
+| Relay pairing and capability/worker readiness | Connections |
+| Local runtime activation of verified releases | Windows / Chromebook loopback `127.0.0.1:4782` |
+| Destiny fire, paid fallback, browser direct GitHub/provider authority | Hard deny in the browser UI |
+
+`operator-deck/` remains a TypeScript reference/control-library layer only. It is not a separate Vercel project or user-facing surface.
 
 ## Protect main
 
@@ -25,17 +28,22 @@ Required checks:
 
 `Verify unified Vercel workspace` may run. It must not gate PR completion.
 
-Strict up-to-date. No bypass actors. Issue #78 is the settings write; once evidence is on the thread it should be closed as completed. A file in git is not branch protection.
+Strict up-to-date. No bypass actors. A file in git is not branch protection.
+
+## Deployment truth
+
+Root `vercel.json` enables Git-driven deployment again so a verified merge to `main` can update the canonical workspace. The browser health route publishes non-secret deployment identity (`VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`), and Control Center renders the commit SHA so stale production is visible immediately.
+
+Vercel bot/review output remains non-blocking for PR completion; repository-native exact-head verification is the code gate.
 
 ## Four-hour self-update
 
 Workflow file is still named `.github/workflows/sovereign-eight-hour-cycle.yml`. Display name is **Sovereign Four Hour Candidate Cycle**. Cron heartbeats at minute 7/22/37/52 every hour. The 4-hour window is software (tags `sovereign-cycle-anchor-v2-*` / `sovereign-cycle-complete-v2-*`), not cron.
 
-Self-update **opens a candidate PR**. It does not merge. It does not activate Windows 7.0. Merge still requires exact-head Verify.
+Self-update opens a candidate PR. It does not activate Windows 7.0. Merge still requires exact-head Verify.
 
-## Language lock
+## Language and authority lock
 
-TypeScript for `cloud-app/` and the operator console. Existing Node.js `.mjs`
-control plane stays. Do **not** convert either UI to JavaScript. ChatGPT /
-Copilot guardrails are not a rewrite license. See
-[`ECOSYSTEM-LOCK.md`](ECOSYSTEM-LOCK.md) and `.github/copilot-instructions.md`.
+TypeScript for `cloud-app/`. Existing Node.js `.mjs` control plane stays. Do **not** convert the UI to JavaScript.
+
+Browser surfaces remain clients of the paired core. They must not become direct GitHub mutation authority, direct provider selectors, automatic owner-confirmation paths, or paid-fallback routes.

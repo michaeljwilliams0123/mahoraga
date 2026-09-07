@@ -6,33 +6,39 @@ export type RelayState = "unpaired" | "pairing" | "connected" | "error";
 export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string };
 export type Health = {
   ok: boolean;
-  boundaries?: { executionPlane?: string; relaySeesPlaintext?: boolean };
-  routing?: { automaticPaidFallback?: boolean };
+  product?: string;
+  version?: string;
+  deployment?: {
+    environment?: string;
+    url?: string | null;
+    commitSha?: string | null;
+    gitRef?: string | null;
+  };
+  capabilities?: {
+    runtimeRelay?: boolean;
+    directConversationExecution?: boolean;
+    directProviderSelection?: boolean;
+  };
+  boundaries?: {
+    executionPlane?: string;
+    localExtensionRequired?: boolean;
+    localDeviceMutationAllowed?: boolean;
+    relaySeesPlaintext?: boolean;
+  };
+  routing?: {
+    authority?: string;
+    automaticPaidFallback?: boolean;
+    browserMaySelectProvider?: boolean;
+  };
 };
 
-export type WorkspaceView =
-  | "chat"
-  | "operations"
-  | "cockpit"
-  | "agents"
-  | "plugins"
-  | "files"
-  | "browser"
-  | "automations"
-  | "activity"
-  | "settings";
+export type WorkspaceView = "chat" | "cockpit" | "operations" | "connections";
 
 export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: string }> = Object.freeze([
   { id: "chat", label: "Chat" },
+  { id: "cockpit", label: "Control Center" },
   { id: "operations", label: "Operations" },
-  { id: "cockpit", label: "Cockpit" },
-  { id: "agents", label: "Agents" },
-  { id: "plugins", label: "Plugins & Connections" },
-  { id: "files", label: "Files & Data" },
-  { id: "browser", label: "Browser" },
-  { id: "automations", label: "Automations" },
-  { id: "activity", label: "Activity" },
-  { id: "settings", label: "Settings" },
+  { id: "connections", label: "Connections" },
 ]);
 
 export type Starter = {
@@ -94,6 +100,16 @@ export type CockpitViewProps = {
   coreReady: boolean;
   health: Health | null;
   healthError: boolean;
+  runtimeCapabilities: RuntimeCapability[];
   onRequestPairing: () => void;
   onOpenOperations: () => void;
+  onOpenConnections: () => void;
+};
+
+export type ConnectionsViewProps = {
+  coreReady: boolean;
+  health: Health | null;
+  runtimeCapabilities: RuntimeCapability[];
+  onRequestPairing: () => void;
+  onDisconnect: () => void | Promise<void>;
 };

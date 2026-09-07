@@ -110,29 +110,23 @@ test("operations is core-mediated, not a browser GitHub authority route", async 
   assert.doesNotMatch(operationsView, /confirm:\s*true\s*,\s*\/\/\s*auto/i);
 });
 
-test("canonical workspace navigation labels are exact and in-app", async () => {
+test("canonical workspace navigation contains only complete in-app surfaces", async () => {
   const [types, nav, shell] = await Promise.all([
     read("components/workspace/workspace-types.ts"),
     read("components/workspace/workspace-nav.tsx"),
     read("components/workspace/workspace-shell.tsx"),
   ]);
-  for (const label of [
-    "Chat",
-    "Operations",
-    "Agents",
-    "Plugins & Connections",
-    "Files & Data",
-    "Browser",
-    "Automations",
-    "Activity",
-    "Settings",
-  ]) {
+  for (const label of ["Chat", "Control Center", "Operations", "Connections"]) {
     assert.match(types, new RegExp(`label: "${label}"`));
+  }
+  for (const retired of ["Agents", "Plugins & Connections", "Files & Data", "Browser", "Automations", "Activity", "Settings"]) {
+    assert.doesNotMatch(types, new RegExp(`label: "${retired}"`));
   }
   assert.match(nav, /WORKSPACE_NAV_ITEMS/);
   assert.match(nav, /setView\(item\.id\)/);
   assert.doesNotMatch(nav, /href=["']https?:/);
   assert.match(shell, /WorkspaceNav/);
+  assert.match(shell, /Single browser surface/);
 });
 
 test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fallback", async () => {

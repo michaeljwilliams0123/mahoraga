@@ -1,38 +1,34 @@
-# Mahoraga operator console
+# Mahoraga operator reference library
 
-This directory is the **singular operator UI** for `michaeljwilliams0123/mahoraga`.
+`operator-deck/` is a **TypeScript reference/control-library layer** for `michaeljwilliams0123/mahoraga`.
 
-It is not a second conversation app. `cloud-app/` stays the ChatGPT-style Cloud Pro workspace. This console is the control deck: live GitHub inspect, owner writes (merge / comment / close / dispatch / eligible deletes), the four-hour candidate cycle, and the version ledger.
+It is **not** a second browser application and is not deployed separately. The singular browser UI is `cloud-app/`, which now contains Chat, Control Center, Operations, and Connections in one Vercel workspace.
 
-## Why this exists
+## Why this directory remains
 
-Three surfaces were competing:
+The directory preserves bounded, reusable operator concepts and compatibility helpers without creating another execution or deployment surface. Pure helpers under `src/lib/` may be imported by `cloud-app/` where appropriate, but browser mutation authority remains with the paired Mahoraga core.
 
-1. Windows `3.6.0` loopback runtime
-2. GitHub candidate `7.0.0-alpha.1` plus the Vercel conversation workspace
-3. This operator deck
+## Canonical operator surface
 
-Operators should work **here** for GitHub and fleet commands, talk in Cloud, and leave Windows `3.6.0` as the rollback. See [VERSIONS.md](./VERSIONS.md).
+Use `https://mahoraga-cloud-workspace.vercel.app/` for all browser interaction:
 
-## Language and host
+- **Chat** — encrypted RuntimeRelay conversation path using the zero-Codex policy.
+- **Control Center** — cloud deployment identity, Git SHA, core status, routing policy, and capability readiness.
+- **Operations** — core-mediated runtime/repository/repair actions with owner confirmation where required.
+- **Connections** — paired relay and capability/worker readiness.
 
-- **TypeScript** locked. Never JavaScript for new UI. Never Java unless a Java service is started on purpose.
-- **Vercel** is the app host. Google Workspace is not.
-- Auth stays off on this console. Writes use the owner `gh` session and fail closed without it. Tokens are never rendered.
-- ChatGPT / Copilot must not delete this console or rewrite it as JS. See [../docs/ECOSYSTEM-LOCK.md](../docs/ECOSYSTEM-LOCK.md).
+## Language and authority locks
 
-## What this console will not do
-
-- Activate `7.0.0-alpha.1` on the Windows host
-- Fire Destiny / spend Cloud Pro
-- Open inbound tunnels (`ngrok`, cloudflared, reverse SSH)
-- Squash-merge a PR whose `mergeStateStatus` is not `CLEAN`
+- Browser UI remains **TypeScript**.
+- Control plane remains Node ESM `.mjs`.
+- This library must never become a parallel direct-GitHub or direct-provider browser authority.
+- No inbound tunnels (`ngrok`, cloudflared, reverse SSH).
+- No paid fallback or automatic owner confirmation.
 
 ## Related docs
 
 - [../docs/OPERATOR-CONSOLE.md](../docs/OPERATOR-CONSOLE.md)
 - [../docs/ECOSYSTEM-LOCK.md](../docs/ECOSYSTEM-LOCK.md)
-- [../.github/copilot-instructions.md](../.github/copilot-instructions.md)
-- [../.github/ai-instructions.md](../.github/ai-instructions.md)
-- [../docs/UPDATE-CHANNEL.md](../docs/UPDATE-CHANNEL.md)
 - [../docs/CLOUD-WORKSPACE.md](../docs/CLOUD-WORKSPACE.md)
+- [../.github/copilot-instructions.md](../.github/copilot-instructions.md)
+- [VERSIONS.md](./VERSIONS.md)

@@ -6,14 +6,15 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-describe("cockpit pressure-test contract", () => {
-  it("registers cockpit in workspace nav", () => {
+describe("singular control center contract", () => {
+  it("registers Control Center in workspace nav", () => {
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
     assert.match(types, /"cockpit"/);
-    assert.match(types, /label: "Cockpit"/);
+    assert.match(types, /label: "Control Center"/);
+    assert.doesNotMatch(types, /label: "Cockpit"/);
   });
 
-  it("re-exports pure Deck helpers only", () => {
+  it("keeps operator-deck pure helpers available as a non-authoritative reference layer", () => {
     const bridge = readFileSync(join(root, "lib/cockpit.ts"), "utf8");
     assert.match(bridge, /operator-deck\/src\/lib\/cockpit\/types/);
     assert.match(bridge, /operator-deck\/src\/lib\/cockpit\/health/);
@@ -21,17 +22,21 @@ describe("cockpit pressure-test contract", () => {
     assert.doesNotMatch(bridge, /panels/);
   });
 
-  it("wires CockpitView into workspace shell", () => {
+  it("wires final Control Center and Connections into the single workspace", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     assert.match(workspace, /CockpitView/);
     assert.match(workspace, /view === "cockpit"/);
+    assert.match(workspace, /ConnectionsView/);
+    assert.match(workspace, /view === "connections"/);
+    assert.doesNotMatch(workspace, /function placeholder\(/);
   });
 
-  it("keeps gateway cards fail-closed for OAuth and fake rollback", () => {
-    const cockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
-    assert.match(cockpit, /HARD_DENIES\.googleOAuthOnConsole/);
-    assert.match(cockpit, /HARD_DENIES\.fakeRollbackApi/);
-    assert.match(cockpit, /TelemetrySparkline/);
-    assert.match(cockpit, /COCKPIT_PANEL_IDS/);
+  it("keeps the final Control Center observational and core-mediated", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /Control Center/);
+    assert.match(cockpit, /runtimeCapabilities/);
+    assert.match(cockpit, /automaticPaidFallback/);
+    assert.match(cockpit, /onOpenOperations/);
+    assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
   });
 });

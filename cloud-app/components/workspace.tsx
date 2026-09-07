@@ -12,6 +12,7 @@ import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-c
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { ChatView } from "./workspace/chat-view";
 import { CockpitView } from "./cockpit/CockpitView";
+import { ConnectionsView } from "./workspace/connections-view";
 import { OperationsView } from "./workspace/operations-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
 import type {
@@ -270,23 +271,6 @@ export function Workspace() {
     setRuntimeBusy(false);
   }
 
-  function placeholder(title: string, body: string) {
-    return (
-      <section className="connection-panel" aria-label={title}>
-        <div className="section-heading">
-          <div>
-            <span className="eyebrow">Workspace</span>
-            <h2>{title}</h2>
-          </div>
-        </div>
-        <p>{body}</p>
-        <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation" style={{ marginTop: 12 }}>
-          <Menu size={19} />
-        </button>
-      </section>
-    );
-  }
-
   return (
     <WorkspaceShell
       view={view}
@@ -330,6 +314,30 @@ export function Workspace() {
           revokeRuntime={revokeRuntime}
         />
       )}
+
+      {view === "cockpit" && (
+        <>
+          <header className="topbar">
+            <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation">
+              <Menu size={19} />
+            </button>
+            <div className="route-status">
+              <span className={coreReady ? "status-dot status-ready" : "status-dot"} />
+              <span>{coreReady ? "Control Center · paired core" : "Control Center · cloud only"}</span>
+            </div>
+          </header>
+          <CockpitView
+            coreReady={coreReady}
+            health={health}
+            healthError={healthError}
+            runtimeCapabilities={runtimeCapabilities}
+            onRequestPairing={() => setView("chat")}
+            onOpenOperations={() => setView("operations")}
+            onOpenConnections={() => setView("connections")}
+          />
+        </>
+      )}
+
       {view === "operations" && (
         <>
           <header className="topbar">
@@ -348,7 +356,8 @@ export function Workspace() {
           />
         </>
       )}
-      {view === "cockpit" && (
+
+      {view === "connections" && (
         <>
           <header className="topbar">
             <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation">
@@ -356,25 +365,18 @@ export function Workspace() {
             </button>
             <div className="route-status">
               <span className={coreReady ? "status-dot status-ready" : "status-dot"} />
-              <span>{coreReady ? "Cockpit · paired core" : "Cockpit · observational"}</span>
+              <span>{coreReady ? "Connections · paired core" : "Connections · unpaired"}</span>
             </div>
           </header>
-          <CockpitView
+          <ConnectionsView
             coreReady={coreReady}
             health={health}
-            healthError={healthError}
+            runtimeCapabilities={runtimeCapabilities}
             onRequestPairing={() => setView("chat")}
-            onOpenOperations={() => setView("operations")}
+            onDisconnect={revokeRuntime}
           />
         </>
       )}
-      {view === "agents" && placeholder("Agents", "Agent roster and mandates will land in a later track. Navigation stays in-app.")}
-      {view === "plugins" && placeholder("Plugins & Connections", "Provider identity and extension lifecycle land in Track B. No browser authority shortcut is used here.")}
-      {view === "files" && placeholder("Files & Data", "Artifact and vault browsing remains core-mediated.")}
-      {view === "browser" && placeholder("Browser", "Approved browser capability routing remains owned by the paired core.")}
-      {view === "automations" && placeholder("Automations", "Automation controls will reuse core task and objective contracts.")}
-      {view === "activity" && placeholder("Activity", "Receipt and event activity will project from the paired core.")}
-      {view === "settings" && placeholder("Settings", "Workspace settings stay local to this encrypted client surface.")}
     </WorkspaceShell>
   );
 }
