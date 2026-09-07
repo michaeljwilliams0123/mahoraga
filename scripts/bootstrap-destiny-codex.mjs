@@ -6,12 +6,15 @@ import path from "node:path";
 import {
   buildDestinyCodexBinding,
   createSignedReceiptTrustFromBinding,
-  findCodexCloudTaskByTitle,
+  findCodexCloudTaskByProbeId,
 } from "../src/codex-connection-identity.mjs";
+import { signDestinyTriggerEvidence } from "../src/destiny-trigger-signing.mjs";
 import { fingerprintPublicKeySpki } from "../src/destiny-trigger-trust.mjs";
 
+const TRIGGER_ID = "destiny-event-dispatch-v1";
+const REPOSITORY = "michaeljwilliams0123/mahoraga";
 const options = parseOptions(process.argv.slice(2));
-const expectedTitle = required("expected-title");
+const probeId = required("probe-id");
 const codexHome = path.resolve(options.get("codex-home") ?? process.env.CODEX_HOME ?? path.join(os.homedir(), ".codex"));
 const stateDir = path.resolve(options.get("state-dir") ?? path.join(os.homedir(), ".mahoraga", "destiny-codex"));
 
@@ -30,32 +33,50 @@ const key = await ensureReceiptKey(stateDir);
 const cloudPayload = options.has("cloud-list-file")
   ? JSON.parse(await readFile(path.resolve(options.get("cloud-list-file")), "utf8"))
   : readCloudTasks();
-const task = findCodexCloudTaskByTitle(cloudPayload, expectedTitle);
+const task = findCodexCloudTaskByProbeId(cloudPayload, probeId);
+const observedAt = new Date().toISOString();
 const binding = buildDestinyCodexBinding({
   accountId,
   installationId,
   task,
   receiptKeyFingerprint: key.fingerprint,
+  observedAt,
 });
-const receiptTrust = createSignedReceiptTrustFromBinding(binding);
+const receiptTrust = createSignedReceiptTrustFromBinding(binding, { keyId: TRIGGER_ID });
+const readiness = signDestinyTriggerEvidence({
+  schemaVersion: 1,
+  triggerId: TRIGGER_ID,
+  repository: REPOSITORY,
+  status: "ready",
+  observedAt,
+  zeroCreditEligible: true,
+  probeId,
+  codexCloudTaskId: binding.codexCloudTaskId,
+  codexTaskReference: binding.codexTaskReference,
+  codexAccountFingerprint: binding.codexAccountFingerprint,
+  codexInstallationFingerprint: binding.codexInstallationFingerprint,
+  codexEnvironmentFingerprint: binding.codexEnvironmentFingerprint,
+}, {
+  privateKeyPkcs8: key.privateKeyPkcs8,
+  publicKeySpki: key.publicKeySpki,
+  keyId: TRIGGER_ID,
+});
 
 await mkdir(stateDir, { recursive: true });
-const bindingPath = path.join(stateDir, "binding.json");
-const trustPath = path.join(stateDir, "trust-snippet.json");
-await writeFile(bindingPath, `${JSON.stringify(binding, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-await writeFile(trustPath, `${JSON.stringify(receiptTrust, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+await writeJson(path.join(stateDir, "binding.json"), binding);
+await writeJson(path.join(stateDir, "trust-snippet.json"), receiptTrust);
+await writeJson(path.join(stateDir, "readiness.json"), readiness);
 
 console.log(JSON.stringify({
   ready: true,
-  expectedTaskTitle: expectedTitle,
+  probeId,
   codexCloudTaskId: binding.codexCloudTaskId,
   codexTaskReference: binding.codexTaskReference,
   codexAccountFingerprint: binding.codexAccountFingerprint,
   codexInstallationFingerprint: binding.codexInstallationFingerprint,
   codexEnvironmentFingerprint: binding.codexEnvironmentFingerprint,
   receiptKeyFingerprint: binding.receiptKeyFingerprint,
-  bindingPath,
-  trustPath,
+  files: ["binding.json", "trust-snippet.json", "readiness.json", "receipt-public-key.pem"],
 }));
 
 function readCloudTasks() {
@@ -68,9 +89,8 @@ function readCloudTasks() {
       stdio: ["ignore", "pipe", "pipe"],
       maxBuffer: 4 * 1024 * 1024,
     });
-  } catch (error) {
-    const detail = typeof error?.stderr === "string" ? error.stderr.trim() : "";
-    throw new Error(detail ? `destiny-codex-cloud-list-failed:${detail}` : "destiny-codex-cloud-list-failed");
+  } catch {
+    throw new Error("destiny-codex-cloud-list-failed");
   }
   try {
     return JSON.parse(stdout);
@@ -87,17 +107,27 @@ async function ensureReceiptKey(directory) {
   const publicExists = await isFile(publicKeyPath);
   if (privateExists !== publicExists) throw new Error("destiny-codex-receipt-keypair-incomplete");
 
+  let privateKeyPkcs8;
   let publicKeySpki;
   if (privateExists) {
+    privateKeyPkcs8 = await readFile(privateKeyPath, "utf8");
     publicKeySpki = await readFile(publicKeyPath, "utf8");
   } else {
     const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-    const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" });
+    privateKeyPkcs8 = privateKey.export({ type: "pkcs8", format: "pem" });
     publicKeySpki = publicKey.export({ type: "spki", format: "pem" });
-    await writeFile(privateKeyPath, privateKeyPem, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await writeFile(privateKeyPath, privateKeyPkcs8, { encoding: "utf8", mode: 0o600, flag: "wx" });
     await writeFile(publicKeyPath, publicKeySpki, { encoding: "utf8", mode: 0o644, flag: "wx" });
   }
-  return Object.freeze({ publicKeyPath, privateKeyPath, fingerprint: fingerprintPublicKeySpki(publicKeySpki) });
+  return Object.freeze({
+    privateKeyPkcs8,
+    publicKeySpki,
+    fingerprint: fingerprintPublicKeySpki(publicKeySpki),
+  });
+}
+
+async function writeJson(file, value) {
+  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 
 function parseOptions(tokens) {
