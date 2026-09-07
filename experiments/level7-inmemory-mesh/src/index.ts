@@ -65,7 +65,7 @@ async function executeMetamorphicRuntime(): Promise<void> {
       taskQueue.pushTaskStream(generatedMockPayload);
     }, INGEST_MS);
 
-    // 4. Autonomous metamorphic optimization cycle
+    // 4. Autonomous metamorphic optimization cycle (fail-closed: verify before swap)
     let mutationIndex = 1;
     armInterval(() => {
       void (async () => {
@@ -78,19 +78,20 @@ async function executeMetamorphicRuntime(): Promise<void> {
             optimizationEnvelope.evolvedSource
           );
           const moduleInst = MetamorphicCompilerPipeline.evaluateModule(compiled, targetNodeId);
-          workspace.mountInMemoryNode(
+          // Keep prior good mount until candidate verifies; only then swap.
+          const evaluationOutput = await workspace.mountVerifiedVariant(
             targetNodeId,
             optimizationEnvelope.evolvedSource,
-            moduleInst.execute
+            moduleInst.execute,
+            50
           );
           threadSyncMatrix.atomicSwapActiveVariant(mutationIndex);
-          const evaluationOutput = await workspace.invokeMemoryPointer(targetNodeId, 50);
           console.log(
-            `[Verification Success] Active memory pointer mutation output: ${evaluationOutput}`
+            `[Verification Success] Fail-closed swap committed; invoke(50) => ${evaluationOutput}`
           );
         } catch (err) {
           console.error(
-            "[Mutation Dropped] Logic validation failure detected inside sandbox. Reverting function pointer state.",
+            "[Mutation Dropped] Verify failed — prior good pointer kept (fail-closed, no live swap).",
             err
           );
         }
