@@ -21,7 +21,7 @@ export function parseMainProtectionContract(source) {
   if (value.deletionAllowed !== false) fail("main-protection-deletion-forbidden");
   if (value.forcePushAllowed !== false) fail("main-protection-force-push-forbidden");
   if (value.requirePullRequest !== true) fail("main-protection-pull-request-required");
-  const liveEnforcementRequired = value.liveEnforcementRequired !== false;
+  if (typeof value.liveEnforcementRequired !== "boolean") fail("main-protection-live-enforcement-invalid");
   return Object.freeze({
     schemaVersion: 1,
     targetRef: "refs/heads/main",
@@ -30,7 +30,7 @@ export function parseMainProtectionContract(source) {
     deletionAllowed: false,
     forcePushAllowed: false,
     requirePullRequest: true,
-    liveEnforcementRequired,
+    liveEnforcementRequired: value.liveEnforcementRequired,
   });
 }
 
@@ -42,21 +42,20 @@ export function evaluateLiveMainProtection({ rulesets = [], contract } = {}) {
   }
   if (!Array.isArray(rulesets)) return blocked("live-rulesets-invalid");
 
-  const covering = rulesets.filter((ruleset) => isActiveMainRuleset(ruleset));
-  if (covering.length === 0) {
-    if (expected.liveEnforcementRequired === false) {
-      return Object.freeze({
-        ok: true,
-        status: "advisory-unprotected",
-        reason: "live-main-protection-temporarily-advisory",
-        rulesetIds: Object.freeze([]),
-        requiredContexts: expected.requiredContexts,
-        creditCost: 0,
-        paidFallback: false,
-      });
-    }
-    return blocked("main-unprotected");
+  if (rulesets.length === 0 && expected.liveEnforcementRequired === false) {
+    return Object.freeze({
+      ok: true,
+      status: "advisory-unprotected",
+      reason: "live-main-protection-temporarily-advisory",
+      rulesetIds: Object.freeze([]),
+      requiredContexts: expected.requiredContexts,
+      creditCost: 0,
+      paidFallback: false,
+    });
   }
+
+  const covering = rulesets.filter((ruleset) => isActiveMainRuleset(ruleset));
+  if (covering.length === 0) return blocked("main-unprotected");
 
   const merged = mergeRules(covering);
   if (merged.deletionAllowed !== false) return blocked("main-deletion-not-blocked");
