@@ -1,9 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
+const missing = async (path) => {
+  try {
+    await access(new URL(path, root));
+    return false;
+  } catch {
+    return true;
+  }
+};
 
 test("highest quality provider configuration remains bounded for future core-routed capability use", async () => {
   const source = await read("lib/runtime-config.ts");
@@ -28,22 +36,26 @@ test("browser capability implementation remains isolated and approval-gated but 
 });
 
 test("UI is an encrypted client and has no direct model transport or provider selector", async () => {
-  const source = await read("components/workspace.tsx");
+  const [source, shell] = await Promise.all([
+    read("components/workspace.tsx"),
+    read("components/workspace/workspace-shell.tsx"),
+  ]);
   assert.match(source, /new RuntimeRelay\(\)/);
   assert.match(source, /\/api\/health/);
-  assert.match(source, /issues\/new\?template=codex-cloud-task\.yml/);
+  assert.match(shell, /issues\/new\?template=codex-cloud-task\.yml/);
   assert.match(source, /Pair runtime/);
   assert.doesNotMatch(source, /useChat\(|DefaultChatTransport|sendMessage\(|conversationRoute|Cloud Pro/);
 });
 
 test("one Vercel workspace connects to the authoritative core through the paired encrypted relay", async () => {
-  const [workspace, relay, health] = await Promise.all([
+  const [workspace, chat, relay, health] = await Promise.all([
     read("components/workspace.tsx"),
+    read("components/workspace/chat-view.tsx"),
     read("lib/runtime-relay.ts"),
     read("app/api/health/route.ts"),
   ]);
-  assert.match(workspace, /Zero-Codex route/);
-  assert.match(workspace, /Pair runtime/);
+  assert.match(chat, /Zero-Codex route/);
+  assert.match(chat, /Pair runtime/);
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
@@ -60,11 +72,10 @@ test("one Vercel workspace connects to the authoritative core through the paired
 
 test("accessible task starters only prepare the composer and preserve core authority", async () => {
   const source = await read("components/workspace.tsx");
-  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task"]) {
+  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task", "Inspect fleet cycle"]) {
     assert.match(source, new RegExp(`title: "${label}"`));
   }
-  assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*composer\.current\?\.focus\(\);\s*\}/);
-  assert.match(source, /type="button"[\s\S]*aria-label=\{`Start: \$\{starter\.title\}`\}[\s\S]*onClick=\{\(\) => chooseStarter\(starter\.prompt\)\}/);
+  assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*setView\("chat"\);\s*composer\.current\?\.focus\(\);\s*\}/);
   const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
   assert.doesNotMatch(handler, /submit|sendMessage|fetch|setTaskMode|setConversationRoute/);
 });
@@ -77,4 +88,62 @@ test("direct cloud conversation endpoint is retired fail-closed", async () => {
   assert.match(health, /automaticPaidFallback:\s*false/);
   assert.match(health, /directConversationExecution:\s*false/);
   assert.match(health, /directProviderSelection:\s*false/);
+});
+
+test("operations is core-mediated, not a browser GitHub authority route", async () => {
+  assert.equal(await missing("app/api/fleet-status/route.ts"), true);
+  const [relay, operationsView, workspace] = await Promise.all([
+    read("lib/runtime-relay.ts"),
+    read("components/workspace/operations-view.tsx"),
+    read("components/workspace.tsx"),
+  ]);
+  assert.match(relay, /operationsSnapshot|operations-snapshot/);
+  assert.match(relay, /operationsAction|operations-action/);
+  assert.doesNotMatch(relay, /api\.github\.com/);
+  assert.doesNotMatch(operationsView, /api\.github\.com|\/api\/fleet-status/);
+  assert.doesNotMatch(workspace, /api\.github\.com|\/api\/fleet-status/);
+  assert.match(operationsView, /Pair runtime to load Operations/);
+  assert.match(operationsView, /operationsAction\(/);
+  assert.match(operationsView, /Confirm as owner/);
+  assert.match(operationsView, /will not self-approve/);
+  assert.doesNotMatch(operationsView, /confirmationToken:\s*["']auto["']/i);
+  assert.doesNotMatch(operationsView, /confirm:\s*true\s*,\s*\/\/\s*auto/i);
+});
+
+test("canonical workspace navigation labels are exact and in-app", async () => {
+  const [types, nav, shell] = await Promise.all([
+    read("components/workspace/workspace-types.ts"),
+    read("components/workspace/workspace-nav.tsx"),
+    read("components/workspace/workspace-shell.tsx"),
+  ]);
+  for (const label of [
+    "Chat",
+    "Operations",
+    "Agents",
+    "Plugins & Connections",
+    "Files & Data",
+    "Browser",
+    "Automations",
+    "Activity",
+    "Settings",
+  ]) {
+    assert.match(types, new RegExp(`label: "${label}"`));
+  }
+  assert.match(nav, /WORKSPACE_NAV_ITEMS/);
+  assert.match(nav, /setView\(item\.id\)/);
+  assert.doesNotMatch(nav, /href=["']https?:/);
+  assert.match(shell, /WorkspaceNav/);
+});
+
+test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fallback", async () => {
+  const [workspace, chat] = await Promise.all([
+    read("components/workspace.tsx"),
+    read("components/workspace/chat-view.tsx"),
+  ]);
+  assert.match(workspace, /new RuntimeRelay\(\)/);
+  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
+  assert.match(chat, /Zero-Codex route · no paid fallback/);
+  assert.match(chat, /Pair runtime/);
+  assert.doesNotMatch(workspace, /useChat\(|DefaultChatTransport|Cloud Pro/);
 });

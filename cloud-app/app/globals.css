@@ -31,8 +31,8 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .brand-row span { margin-top: 1px; color: #8f9196; font-size: 11px; } .mobile-close { display: none; margin-left: auto; border: 0; background: transparent; }
 .new-chat { display: flex; align-items: center; gap: 9px; width: 100%; padding: 11px 12px; border: 1px solid #343538; border-radius: 11px; background: #202123; font-size: 13px; cursor: pointer; transition: background .15s ease; }
 .new-chat:hover { background: #28292c; } .side-nav { display: grid; gap: 3px; margin-top: 18px; }
-.side-nav a { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 9px; color: #b7b8bb; font-size: 13px; text-decoration: none; transition: background .15s ease, color .15s ease; }
-.side-nav a:hover, .side-nav a.active { background: #222326; color: #f4f4f4; } .sidebar-spacer { flex: 1; }
+.side-nav a, .side-nav button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border: 0; border-radius: 9px; background: transparent; color: #b7b8bb; font-size: 13px; text-align: left; text-decoration: none; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.side-nav a:hover, .side-nav a.active, .side-nav button:hover, .side-nav button.active { background: #222326; color: #f4f4f4; } .sidebar-spacer { flex: 1; }
 .privacy-card { display: flex; gap: 10px; padding: 12px; border: 1px solid #2e3c36; border-radius: 12px; background: #19231f; color: #a9dec6; }
 .privacy-card svg { flex: 0 0 auto; margin-top: 2px; } .privacy-card strong, .privacy-card span { display: block; }
 .privacy-card strong { font-size: 12px; } .privacy-card span { margin-top: 4px; color: #86a999; font-size: 10px; line-height: 1.45; }

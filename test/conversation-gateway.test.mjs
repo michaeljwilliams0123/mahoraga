@@ -75,3 +75,32 @@ test("gateway rejects a conflicting retry without creating a second message", (t
   assert.equal(database.listConversationMessages(first.run.conversationId).length, 1);
   assert.equal(database.listTasks().length, 1);
 });
+
+test("operationsSnapshot and operationsAction fail closed when relay handlers are missing", (t) => {
+  const { gateway } = fixture(t);
+  assert.throws(() => gateway.operationsSnapshot(), /gateway-relay-action-unavailable/);
+  assert.throws(() => gateway.operationsAction({ actionId: "runtime.health-check", idempotencyKey: "x" }), /gateway-relay-action-unavailable/);
+});
+
+test("operationsSnapshot and operationsAction call supplied relay handlers", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-conversation-gateway-ops-"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+  const calls = [];
+  const gateway = createConversationGateway({
+    database,
+    manifest: { version: "test" },
+    supervisor: { status: () => [] },
+    capabilityResolver: () => [],
+    submitTask: () => { throw new Error("unused"); },
+    relayHandlers: {
+      operationsSnapshot: (_input, context) => { calls.push(["snapshot", context?.mechanism ?? null]); return { generatedAt: "t", tasks: { active: 0, waiting: 0, failed: 0 } }; },
+      operationsAction: (input) => { calls.push(["action", input.actionId]); return { ok: true, receiptId: "ops-1", confirmationRequired: false, actionId: input.actionId, result: null }; },
+    },
+  });
+  assert.deepEqual(gateway.operationsSnapshot({ mechanism: "owner-paired-relay" }), { generatedAt: "t", tasks: { active: 0, waiting: 0, failed: 0 } });
+  assert.deepEqual(await gateway.operationsAction({ actionId: "runtime.health-check", idempotencyKey: "g1" }), {
+    ok: true, receiptId: "ops-1", confirmationRequired: false, actionId: "runtime.health-check", result: null,
+  });
+  assert.deepEqual(calls, [["snapshot", "owner-paired-relay"], ["action", "runtime.health-check"]]);
+});
