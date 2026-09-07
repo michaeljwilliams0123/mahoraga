@@ -20,7 +20,7 @@ export function WorkspaceShell({
           <div className="brand-mark">M</div>
           <div>
             <strong>Mahoraga</strong>
-            <span>Unified workspace</span>
+            <span>Cloud control workspace</span>
           </div>
           <button className="mobile-close" onClick={() => setSidebarOpen(false)} aria-label="Close navigation">
             <X size={18} />
@@ -43,10 +43,10 @@ export function WorkspaceShell({
         <div className="privacy-card">
           <ShieldCheck size={18} />
           <div>
-            <strong>One core authority</strong>
+            <strong>Single browser surface</strong>
             <span>
-              The Vercel workspace is an encrypted client. Policy, routing, verification, and execution authority remain with the paired
-              Mahoraga core.
+              Chat, Control Center, Operations, and Connections share one encrypted client. Policy, routing, verification, and execution
+              authority remain with the paired Mahoraga core.
             </span>
           </div>
         </div>
