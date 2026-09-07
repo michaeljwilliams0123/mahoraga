@@ -94,8 +94,9 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Use the workspace
 
-- **Talk to and operate Mahoraga:** `https://mahoraga-cloud-workspace.vercel.app/` is the
-  single browser UI. Use Chat for conversation, Control Center for deployment/core status,
+- **Talk to and operate Mahoraga:** `https://mahoraga-workspace.vercel.app/` is the
+  single canonical browser UI, served by the canonical Vercel project `mahoraga-workspace`.
+  Use Chat for conversation, Control Center for deployment/core status,
   Operations for core-mediated actions, and Connections for relay/capability readiness.
 - Pair an explicitly chosen runtime from the workspace when local workers or task state are needed.
   No browser extension is installed.
