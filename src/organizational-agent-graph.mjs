@@ -114,6 +114,7 @@ export function buildOrganizationalAgentGraph({
     workloadGaps,
     createdAt,
   });
+  const effectiveUnits = normalizeUnits([...normalizedUnits, ...plans.map((plan) => plan.unit)]);
   let sharedFeatIds = [];
   if (featLedger != null) {
     if (!featLedger || featLedger.schemaVersion !== 1 || typeof featLedger.sourceFingerprint !== 'string' || !Array.isArray(featLedger.feats)) {
@@ -125,7 +126,7 @@ export function buildOrganizationalAgentGraph({
   const graphCore = {
     entityId: normalizedEntityId,
     parentAgentId: normalizedParent,
-    units: normalizedUnits,
+    units: effectiveUnits,
     plans,
     sharedFeatIds: [...sharedFeatIds].sort(),
   };
