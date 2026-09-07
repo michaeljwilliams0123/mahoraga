@@ -9,6 +9,7 @@ test("objective planner remains stable for a healthy observed world", () => {
     taskCounts: { completed: 3 },
     objectives: [{ id: "obj-1", status: "running" }],
     repository: { verified: true, head: "a".repeat(40) },
+    providers: [{ id: "primary-codex-builder", state: "custom-production-state", error: null }],
   }, { now: Date.parse("2026-09-06T20:00:00Z") });
 
   assert.equal(objectivePlannerVersion(), "objective-planner-v1");
@@ -37,6 +38,34 @@ test("objective planner emits bounded read-only actions for degraded evidence", 
     "task-failures-present",
     "objective-failures-present",
   ]);
+});
+
+test("objective planner emits one deterministic read-only action for provider errors", () => {
+  const plan = planWorldStateActions({
+    workers: [], activeLeases: [], taskCounts: {}, objectives: [],
+    repository: { verified: true },
+    providers: [
+      { id: "zeta-provider", state: "production-custom", error: "quota-exhausted" },
+      { id: "healthy-provider", state: "anything", error: null },
+      { id: "alpha-provider", state: "staged", error: "authentication-pending" },
+      { id: "empty-error-provider", state: "unknown", error: "" },
+    ],
+  }, { now: Date.parse("2026-09-06T20:00:00Z") });
+
+  assert.equal(plan.state, "attention-required");
+  assert.equal(plan.actionCount, 1);
+  assert.deepEqual(plan.actions[0], {
+    id: "inspect-provider-errors",
+    intent: "provider.gap",
+    priority: "high",
+    reasonCode: "provider-errors-present",
+    completionCriteria: "provider-errors-classified",
+    authority: "world-state-observer",
+    mutation: false,
+    evidence: { count: 2, providerIds: ["alpha-provider", "zeta-provider"] },
+  });
+  assert.equal("command" in plan.actions[0], false);
+  assert.equal("execute" in plan.actions[0], false);
 });
 
 test("objective planner ignores malformed counts and non-expired leases", () => {
