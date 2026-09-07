@@ -2,9 +2,9 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: mahoraga-git-mesh-config
+  name: {{ include "mahoraga-l7.fullname" . }}-git-mesh-config
   labels:
-    mahoraga.experiment: level7-inmemory-mesh
+    {{- include "mahoraga-l7.labels" . | nindent 4 }}
 data:
   app.ini: |
     APP_NAME = Mahoraga Level 7 Evolution Ledger (EXPERIMENT)

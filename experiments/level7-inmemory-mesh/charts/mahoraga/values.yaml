@@ -14,10 +14,18 @@ inmemoryGit:
     limits:
       cpu: "1"
       memory: 1Gi
+  probes:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
 
 backup:
+  # When true, create backup PVC and mount it for snapshot persist (tmpfs /data stays volatile).
+  enabled: true
   storage: 5Gi
   storageClassName: ""
+  mountPath: /data/mahoraga-snapshots
 
 # Local SLM / Ollama hooks are intentionally omitted from this scaffold.
 experiment:
