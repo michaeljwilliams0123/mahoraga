@@ -1,7 +1,7 @@
 const TASK_ID = /^dct-[a-f0-9]{24}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const OWNER = /^[A-Za-z0-9_.-]+$/;
-const MARKER = /<!-- MAHORAGA_DESTINY_TASK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_TASK_V1 -->/;
+const MARKER = /<!-- MAHORAGA_DESTINY_TASK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_TASK_V1 -->/g;
 
 function opaque(value, code, max = 512) {
   if (typeof value !== "string") throw new TypeError(code);
@@ -19,11 +19,12 @@ export function parseDestinyGithubTaskIssue(issue, { repository, owner }) {
   if (issue.pull_request != null) throw new TypeError("destiny-github-task-pr-invalid");
   if (issue.user?.login !== owner) throw new TypeError("destiny-github-task-author-invalid");
   if (typeof issue.body !== "string") throw new TypeError("destiny-github-task-body-invalid");
-  const match = MARKER.exec(issue.body);
-  if (!match) throw new TypeError("destiny-github-task-marker-missing");
+  const matches = [...issue.body.matchAll(MARKER)];
+  if (matches.length === 0) throw new TypeError("destiny-github-task-marker-missing");
+  if (matches.length !== 1) throw new TypeError("destiny-github-task-marker-ambiguous");
 
   let payload;
-  try { payload = JSON.parse(match[1]); } catch { throw new TypeError("destiny-github-task-json-invalid"); }
+  try { payload = JSON.parse(matches[0][1]); } catch { throw new TypeError("destiny-github-task-json-invalid"); }
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new TypeError("destiny-github-task-json-invalid");
   if (payload.schemaVersion !== 1 || payload.kind !== "destiny-codex-task") throw new TypeError("destiny-github-task-schema-invalid");
   if (typeof payload.taskId !== "string" || !TASK_ID.test(payload.taskId)) throw new TypeError("destiny-github-task-id-invalid");
