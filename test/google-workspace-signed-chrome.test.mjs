@@ -16,6 +16,7 @@ import {
 async function workers() {
   const manifest = await loadManifest();
   return {
+    manifest,
     google: manifest.workers.find((item) => item.id === "google-workspace"),
     chrome: manifest.workers.find((item) => item.id === "signed-chrome"),
   };
@@ -121,21 +122,23 @@ test("signed Chrome open stores no URL path, query, browser profile, or page-con
   assert.equal(serialized.toLowerCase().includes("profile"), false);
 });
 
-test("manifest keeps Google Workspace and signed Chrome as attended bounded workers", async () => {
-  const { google, chrome } = await workers();
+test("effective manifest exposes Google Workspace and signed Chrome as attended first-class workers and connections", async () => {
+  const { manifest, google, chrome } = await workers();
   assert.deepEqual(google.capabilities, ["google.health", "google.open"]);
   assert.equal(google.routing.requiresAttendedDesktop, true);
-  assert.equal(google.adapter.directGoogleApiAuthentication, false);
-  assert.equal(google.adapter.remoteDebuggingAllowed, false);
+  assert.equal(google.policy.directGoogleApiAuthentication, false);
+  assert.equal(google.policy.remoteDebuggingAllowed, false);
   assert.equal(chrome.routing.requiresAttendedDesktop, true);
   assert.deepEqual(chrome.capabilities, ["chrome.health", "chrome.open"]);
-  assert.equal(chrome.adapter.remoteDebuggingAllowed, false);
-  assert.equal(chrome.adapter.profileExportAllowed, false);
+  assert.equal(chrome.policy.remoteDebuggingAllowed, false);
+  assert.equal(chrome.policy.profileExportAllowed, false);
+  assert.ok(manifest.connections.some((item) => item.id === "google-workspace" && item.capabilities.includes("google.open")));
+  assert.ok(manifest.connections.some((item) => item.id === "google-chrome-signed-session" && item.capabilities.includes("chrome.open")));
 });
 
-test("manifest rejects Google host widening and Chrome debugging/profile-export widening", async () => {
+test("effective manifest rejects Google host widening and Chrome debugging/profile-export widening", async () => {
   const manifest = structuredClone(await loadManifest());
-  const google = manifest.workers.find((item) => item.id === "google-workspace").adapter;
+  const google = manifest.workers.find((item) => item.id === "google-workspace").policy;
   google.allowedHostSuffixes.push("google.com");
   assert.throws(() => validateManifest(manifest), /Google Workspace adapter boundary/);
   google.allowedHostSuffixes.pop();
@@ -143,7 +146,7 @@ test("manifest rejects Google host widening and Chrome debugging/profile-export 
   assert.throws(() => validateManifest(manifest), /Google Workspace adapter boundary/);
 
   const next = structuredClone(await loadManifest());
-  const chrome = next.workers.find((item) => item.id === "signed-chrome").adapter;
+  const chrome = next.workers.find((item) => item.id === "signed-chrome").policy;
   chrome.remoteDebuggingAllowed = true;
   assert.throws(() => validateManifest(next), /Signed Chrome adapter boundary/);
   chrome.remoteDebuggingAllowed = false;
@@ -151,7 +154,7 @@ test("manifest rejects Google host widening and Chrome debugging/profile-export 
   assert.throws(() => validateManifest(next), /Signed Chrome adapter boundary/);
 });
 
-test("signed Chrome implementation cannot introduce DevTools/CDP or profile export", async () => {
+test("signed Chrome implementation cannot introduce DevTools/CDP or browser-state export", async () => {
   const source = await readFile(new URL("../src/signed-chrome-worker.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /remote-debugging|DevToolsActivePort|9222|chrome-debugging|user-data-dir|profile-directory|document\.cookie|Login Data|Cookies/i);
 });
