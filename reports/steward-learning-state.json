@@ -1,0 +1,266 @@
+{
+  "schemaVersion": 1,
+  "zeroCredit": true,
+  "learningMode": "deterministic-compounding-growth",
+  "sourceFingerprint": "d15cbaaa5e2789879bcc1bf42f7845582b202b9a2b106b21af888fda454ed9a3",
+  "stateFingerprint": "8cd78d3ce5a00618fa853be09fdb9720a921266151ffabda74e79b45fabe6fd7",
+  "childAgentCount": 9,
+  "featLedger": {
+    "schemaVersion": 1,
+    "sourceFingerprint": "d15cbaaa5e2789879bcc1bf42f7845582b202b9a2b106b21af888fda454ed9a3",
+    "feats": [],
+    "reusableFeatIds": [],
+    "byAgent": {}
+  },
+  "compounding": {
+    "schemaVersion": 1,
+    "kind": "level8-growth-compounding-loop",
+    "observedAt": "2026-09-05T06:50:00.000Z",
+    "sourceFingerprint": "313af1b0f2fff0f42e9fc2cb1ddac2573cb2e4ae0c2ba44e7fe4bae2142fb99d",
+    "fingerprint": "e4aaf902b8f93c312ff64ce9cc61286dc8be88655d190cc33a133ae3881f2477",
+    "memory": {
+      "schemaVersion": 1,
+      "records": [
+        {
+          "schemaVersion": 1,
+          "memoryId": "mem-08b01c2f5a261d832ea4dd2468d4251f",
+          "memoryClass": "observation",
+          "subject": "signed-browser-session",
+          "statement": "Signed-in Chrome session control is not active.",
+          "provenance": "entity-inference",
+          "confidence": 0.9,
+          "freshness": "current",
+          "objectiveIds": [
+            "obj-signed-browser-session"
+          ],
+          "evidenceRefs": [
+            "gap-signed-browser-session"
+          ],
+          "capability": "signed-browser-session",
+          "supersedes": [],
+          "observedAt": "2026-09-05T06:50:00.000Z",
+          "zeroCredit": true,
+          "providerRequired": false
+        },
+        {
+          "schemaVersion": 1,
+          "memoryId": "mem-921b8c33453e596ad6feac29e961b47d",
+          "memoryClass": "observation",
+          "subject": "local-reasoner",
+          "statement": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
+          "provenance": "entity-inference",
+          "confidence": 0.85,
+          "freshness": "current",
+          "objectiveIds": [
+            "obj-local-reasoner"
+          ],
+          "evidenceRefs": [
+            "gap-local-reasoner"
+          ],
+          "capability": "local-reasoner",
+          "supersedes": [],
+          "observedAt": "2026-09-05T06:50:00.000Z",
+          "zeroCredit": true,
+          "providerRequired": false
+        },
+        {
+          "schemaVersion": 1,
+          "memoryId": "mem-9dc678c52e842461c985bad644650a68",
+          "memoryClass": "observation",
+          "subject": "microsoft-durable-queue",
+          "statement": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
+          "provenance": "entity-inference",
+          "confidence": 0.9,
+          "freshness": "current",
+          "objectiveIds": [
+            "obj-microsoft-durable-queue"
+          ],
+          "evidenceRefs": [
+            "gap-microsoft-durable-queue"
+          ],
+          "capability": "microsoft-durable-queue",
+          "supersedes": [],
+          "observedAt": "2026-09-05T06:50:00.000Z",
+          "zeroCredit": true,
+          "providerRequired": false
+        }
+      ],
+      "activeMemoryIds": [
+        "mem-08b01c2f5a261d832ea4dd2468d4251f",
+        "mem-921b8c33453e596ad6feac29e961b47d",
+        "mem-9dc678c52e842461c985bad644650a68"
+      ],
+      "supersededMemoryIds": [],
+      "fingerprint": "dfcae31c2597e6642044098684ca44018aca5ffbc9cd6e3c92061c7ca4a9ff3e",
+      "zeroCredit": true,
+      "providerRequired": false
+    },
+    "objectives": [
+      {
+        "schemaVersion": 1,
+        "objectiveId": "obj-microsoft-durable-queue",
+        "title": "Close microsoft-durable-queue capability gap",
+        "origin": "capability-gap",
+        "state": "candidate",
+        "fingerprint": "4d0d5a3e7cd250c3dc80120b4d40638449491fcea4487a17fe0abf1bc6a58563",
+        "createdAt": "2026-09-05T06:50:00.000Z",
+        "updatedAt": "2026-09-05T06:50:00.000Z",
+        "missionAlignment": 95,
+        "impact": 90,
+        "urgency": 85,
+        "confidence": 90,
+        "dependencyReadiness": 80,
+        "reversibility": 85,
+        "costEfficiency": 100,
+        "capabilityReadiness": 70,
+        "evidenceQuality": 80
+      },
+      {
+        "schemaVersion": 1,
+        "objectiveId": "obj-signed-browser-session",
+        "title": "Close signed-browser-session capability gap",
+        "origin": "capability-gap",
+        "state": "candidate",
+        "fingerprint": "77ecd6fdbd710f1fe65d57bc97c511778fb0c8d886384da97aedefbc385928f0",
+        "createdAt": "2026-09-05T06:50:00.000Z",
+        "updatedAt": "2026-09-05T06:50:00.000Z",
+        "missionAlignment": 95,
+        "impact": 90,
+        "urgency": 85,
+        "confidence": 90,
+        "dependencyReadiness": 80,
+        "reversibility": 85,
+        "costEfficiency": 100,
+        "capabilityReadiness": 70,
+        "evidenceQuality": 80
+      },
+      {
+        "schemaVersion": 1,
+        "objectiveId": "obj-local-reasoner",
+        "title": "Close local-reasoner capability gap",
+        "origin": "capability-gap",
+        "state": "candidate",
+        "fingerprint": "d8a03b2d2404bd909ff36ffec8814ce7b27b3f404c0fb6e24926b2e28c09d56b",
+        "createdAt": "2026-09-05T06:50:00.000Z",
+        "updatedAt": "2026-09-05T06:50:00.000Z",
+        "missionAlignment": 95,
+        "impact": 75,
+        "urgency": 65,
+        "confidence": 85,
+        "dependencyReadiness": 80,
+        "reversibility": 85,
+        "costEfficiency": 100,
+        "capabilityReadiness": 70,
+        "evidenceQuality": 80
+      }
+    ],
+    "organization": {
+      "schemaVersion": 1,
+      "entityId": "mahoraga",
+      "parentAgentId": "mahoraga-steward",
+      "units": [
+        {
+          "schemaVersion": 1,
+          "unitId": "local-reasoner",
+          "role": "local-reasoner",
+          "mission": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
+          "capabilities": [
+            "local-reasoner"
+          ],
+          "workloadClasses": [
+            "reasoning"
+          ],
+          "persistent": true,
+          "authority": "internal-function",
+          "sharedMemory": true,
+          "sharedFeatLedger": true,
+          "zeroCredit": true,
+          "providerRequired": false,
+          "createdAt": "2026-09-05T06:50:00.000Z"
+        },
+        {
+          "schemaVersion": 1,
+          "unitId": "microsoft-durable-queue",
+          "role": "microsoft-durable-queue",
+          "mission": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
+          "capabilities": [
+            "microsoft-durable-queue"
+          ],
+          "workloadClasses": [
+            "work-systems"
+          ],
+          "persistent": true,
+          "authority": "internal-function",
+          "sharedMemory": true,
+          "sharedFeatLedger": true,
+          "zeroCredit": true,
+          "providerRequired": false,
+          "createdAt": "2026-09-05T06:50:00.000Z"
+        },
+        {
+          "schemaVersion": 1,
+          "unitId": "signed-browser-session",
+          "role": "signed-browser-session",
+          "mission": "Signed-in Chrome session control is not active.",
+          "capabilities": [
+            "signed-browser-session"
+          ],
+          "workloadClasses": [
+            "browser"
+          ],
+          "persistent": true,
+          "authority": "internal-function",
+          "sharedMemory": true,
+          "sharedFeatLedger": true,
+          "zeroCredit": true,
+          "providerRequired": false,
+          "createdAt": "2026-09-05T06:50:00.000Z"
+        }
+      ],
+      "plans": [],
+      "plannedUnits": [],
+      "sharedFeatIds": [],
+      "singularAuthority": true,
+      "authority": "mahoraga-parent-only",
+      "sharedInstitutionalMemory": true,
+      "sharedFeatLedger": true,
+      "zeroCredit": true,
+      "providerRequired": false,
+      "fingerprint": "14682debdd8276b7dc2406ca9478db9ef55174f7b574b622e5ab0569ae0e982d"
+    },
+    "featLedger": {
+      "schemaVersion": 1,
+      "sourceFingerprint": "313af1b0f2fff0f42e9fc2cb1ddac2573cb2e4ae0c2ba44e7fe4bae2142fb99d",
+      "feats": [],
+      "reusableFeatIds": [],
+      "byAgent": {}
+    },
+    "promotedCapabilities": [],
+    "growthMetrics": {
+      "activeMemoryCount": 3,
+      "objectiveCount": 3,
+      "plannedUnitCount": 0,
+      "organizationUnitCount": 3,
+      "reusableFeatCount": 0,
+      "promotedCapabilityCount": 0
+    },
+    "zeroCredit": true,
+    "providerRequired": false,
+    "creditCost": 0,
+    "paidFallback": false
+  },
+  "parentAccess": {
+    "allChildFeats": true,
+    "featIds": [],
+    "reusableFeatIds": [],
+    "promotedCapabilities": [],
+    "institutionalMemory": true,
+    "objectiveEconomy": true
+  },
+  "agentFactory": {
+    "schemaVersion": 1,
+    "plannedCount": 0,
+    "plans": [],
+    "zeroCredit": true
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "entityId": "mahoraga",
+  "parentAgentId": "mahoraga-steward",
+  "units": [
+    {
+      "schemaVersion": 1,
+      "unitId": "local-reasoner",
+      "role": "local-reasoner",
+      "mission": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
+      "capabilities": [
+        "local-reasoner"
+      ],
+      "workloadClasses": [
+        "reasoning"
+      ],
+      "persistent": true,
+      "authority": "internal-function",
+      "sharedMemory": true,
+      "sharedFeatLedger": true,
+      "zeroCredit": true,
+      "providerRequired": false,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "unitId": "microsoft-durable-queue",
+      "role": "microsoft-durable-queue",
+      "mission": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
+      "capabilities": [
+        "microsoft-durable-queue"
+      ],
+      "workloadClasses": [
+        "work-systems"
+      ],
+      "persistent": true,
+      "authority": "internal-function",
+      "sharedMemory": true,
+      "sharedFeatLedger": true,
+      "zeroCredit": true,
+      "providerRequired": false,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    },
+    {
+      "schemaVersion": 1,
+      "unitId": "signed-browser-session",
+      "role": "signed-browser-session",
+      "mission": "Signed-in Chrome session control is not active.",
+      "capabilities": [
+        "signed-browser-session"
+      ],
+      "workloadClasses": [
+        "browser"
+      ],
+      "persistent": true,
+      "authority": "internal-function",
+      "sharedMemory": true,
+      "sharedFeatLedger": true,
+      "zeroCredit": true,
+      "providerRequired": false,
+      "createdAt": "2026-09-05T06:50:00.000Z"
+    }
+  ],
+  "plans": [],
+  "plannedUnits": [],
+  "sharedFeatIds": [],
+  "singularAuthority": true,
+  "authority": "mahoraga-parent-only",
+  "sharedInstitutionalMemory": true,
+  "sharedFeatLedger": true,
+  "zeroCredit": true,
+  "providerRequired": false,
+  "fingerprint": "14682debdd8276b7dc2406ca9478db9ef55174f7b574b622e5ab0569ae0e982d"
+}
