@@ -11,7 +11,7 @@
 - **Singular browser UI:** `cloud-app/` is the one deployable browser UI and contains Chat, Control Center, Operations, and Connections. `operator-deck/` remains a non-deployable TypeScript reference/control-library layer; preserve it but never recreate it as a second browser app.
 - **Authority boundary:** the browser remains a client of the paired Mahoraga core. No direct browser GitHub authority, direct provider selection, paid fallback, or automatic owner confirmation.
 - **Protect main:** ruleset `22327855` is active. Required repository checks are Verify (ubuntu-latest) and Verify (windows-latest). Never squash-merge a blocked PR.
-- **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. `Verify unified Vercel workspace` may run as an observational/deterministic workspace build job and must not become a required protection context. Do not confuse a provider quota/deployment signal with the repository build check.
+- **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. `Verify unified Vercel workspace` may run as an observational job and must not gate merge. Do not confuse a provider quota/deployment signal with the repository build check.
 
 ## Review transport policy
 
