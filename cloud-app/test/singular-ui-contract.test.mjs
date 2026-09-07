@@ -51,8 +51,14 @@ test("health route publishes non-secret deployment identity", async () => {
   assert.match(health, /VERCEL_URL/);
 });
 
-test("Vercel Git deployment is not globally disabled", async () => {
-  const config = await read("../vercel.json");
-  assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*false/);
-  assert.match(config, /"deploymentEnabled"\s*:\s*true/);
+test("both Vercel entrypoints enable Git deployment and root build targets nested Next output", async () => {
+  const [rootConfig, appConfig] = await Promise.all([
+    read("../vercel.json"),
+    read("vercel.json"),
+  ]);
+  for (const config of [rootConfig, appConfig]) {
+    assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*false/);
+    assert.match(config, /"deploymentEnabled"\s*:\s*true/);
+  }
+  assert.match(rootConfig, /"outputDirectory"\s*:\s*"cloud-app\/\.next"/);
 });
