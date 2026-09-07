@@ -2,7 +2,7 @@ import { deriveRelaySession, openFrame, sealFrame } from "./relay-client.mjs";
 
 const DEFAULT_RELAY_URL = "wss://relay.mahoraga.app/pair/local";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
-const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement"]);
+const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement", "operations-snapshot", "operations-action"]);
 
 export function createRelayRuntimePeer({
   relayUrl = DEFAULT_RELAY_URL,
@@ -15,7 +15,7 @@ export function createRelayRuntimePeer({
   if (relayUrl !== DEFAULT_RELAY_URL) fail("relay-runtime-url-invalid");
   if (!pairing || !pairing.privateKey || !pairing.publicKey || !pairing.publicOffer) fail("relay-runtime-pairing-invalid");
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(deviceId)) fail("relay-runtime-device-invalid");
-  if (!gateway || ["createRun", "chat", "tasks", "messages", "messageContent", "taskAction", "replay", "cancelRun", "capabilities"].some((name) => typeof gateway[name] !== "function")) fail("relay-runtime-gateway-invalid");
+  if (!gateway || ["createRun", "chat", "tasks", "messages", "messageContent", "taskAction", "operationsSnapshot", "operationsAction", "replay", "cancelRun", "capabilities"].some((name) => typeof gateway[name] !== "function")) fail("relay-runtime-gateway-invalid");
   if (typeof localAccessToken !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) fail("relay-runtime-access-token-invalid");
   if (typeof WebSocketImpl !== "function") fail("relay-runtime-websocket-invalid");
 
@@ -138,6 +138,8 @@ export function createRelayRuntimePeer({
     if (type === "cancel") return gateway.cancelRun(payload?.runId);
     if (type === "capabilities") return { capabilities: gateway.capabilities() };
     if (type === "improvement") return { improvement: gateway.getImprovement?.(payload?.id) ?? null };
+    if (type === "operations-snapshot") return gateway.operationsSnapshot(context);
+    if (type === "operations-action") return gateway.operationsAction(payload, context);
     throw error("relay-runtime-request-invalid");
   }
 }

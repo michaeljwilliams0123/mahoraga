@@ -4,8 +4,17 @@ import { readFile } from "node:fs/promises";
 
 const read = (relative) => readFile(new URL(`../${relative}`, import.meta.url), "utf8");
 
+async function readWorkspaceSurface() {
+  const [workspace, shell, chatView] = await Promise.all([
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/components/workspace/workspace-shell.tsx"),
+    read("cloud-app/components/workspace/chat-view.tsx"),
+  ]);
+  return `${workspace}\n${shell}\n${chatView}`;
+}
+
 test("unified workspace delegates conversation authority to one Mahoraga core", async () => {
-  const source = await read("cloud-app/components/workspace.tsx");
+  const source = await readWorkspaceSurface();
   assert.doesNotMatch(source, /type Route\s*=\s*"cloud"\s*\|\s*"runtime"/);
   assert.doesNotMatch(source, /setConversationRoute\("cloud"\)/);
   assert.doesNotMatch(source, /setConversationRoute\("runtime"\)/);
@@ -39,8 +48,8 @@ test("runtime relay keeps decrypted content in browser memory and rejects attach
 });
 
 test("single workspace exposes pairing, cancellation, files, and live status without a route selector", async () => {
-  const source = await read("cloud-app/components/workspace.tsx");
-  for (const marker of ["Pair runtime", "Revoke", "Attach files", "Stop response", "aria-live=\"polite\""]) {
+  const source = await readWorkspaceSurface();
+  for (const marker of ["Pair runtime", "Revoke", "Attach files", "Stop response", 'aria-live="polite"']) {
     assert.match(source, new RegExp(marker));
   }
   assert.doesNotMatch(source, />Cloud Pro</);
@@ -48,7 +57,7 @@ test("single workspace exposes pairing, cancellation, files, and live status wit
 });
 
 test("starter actions are keyboard controls that never auto-submit or change routing authority", async () => {
-  const source = await read("cloud-app/components/workspace.tsx");
+  const source = await readWorkspaceSurface();
   assert.equal((source.match(/title: "(?:Analyze a dataset|Improve a repository|Approved browser task)"/g) ?? []).length, 3);
   assert.match(source, /type="button"[\s\S]*onClick=\{\(\) => chooseStarter\(starter\.prompt\)\}/);
   const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";

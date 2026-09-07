@@ -22,6 +22,8 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     messages(conversationId, context = {}) { return relayCall(relayHandlers, "messages", conversationId, context); },
     messageContent(input, context = {}) { return relayCall(relayHandlers, "messageContent", input, context); },
     taskAction(input, context = {}) { return relayCall(relayHandlers, "taskAction", input, context); },
+    operationsSnapshot(context = {}) { return relayCall(relayHandlers, "operationsSnapshot", null, context); },
+    operationsAction(input, context = {}) { return relayCall(relayHandlers, "operationsAction", input, context); },
 
     createRun(input, context = {}) {
       const request = validateRunInput(input);

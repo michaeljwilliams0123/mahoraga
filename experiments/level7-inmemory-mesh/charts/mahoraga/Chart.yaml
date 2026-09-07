@@ -1,0 +1,10 @@
+apiVersion: v2
+name: mahoraga-l7-experiment
+description: EXPERIMENT ONLY — Level 7 in-memory mesh (Forgejo/tmpfs git + backup PVC stubs). Not a production Mahoraga release.
+type: application
+version: 0.1.0
+appVersion: "experiment"
+keywords:
+  - mahoraga
+  - level7
+  - experiment

@@ -6,10 +6,19 @@ import { ROOT } from "../src/config.mjs";
 
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
+async function readWorkspaceSurface() {
+  const [workspace, shell, chatView] = await Promise.all([
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/components/workspace/workspace-shell.tsx"),
+    read("cloud-app/components/workspace/chat-view.tsx"),
+  ]);
+  return `${workspace}\n${shell}\n${chatView}`;
+}
+
 test("the single workspace is a credential-free encrypted client of one Mahoraga core", async () => {
   const [config, workspace, relay, chatRoute, docs] = await Promise.all([
     read("cloud-app/next.config.ts"),
-    read("cloud-app/components/workspace.tsx"),
+    readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
     read("cloud-app/app/api/chat/route.ts"),
     read("docs/CLOUD-WORKSPACE.md"),

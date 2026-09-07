@@ -26,6 +26,7 @@ import { autonomyAllowedPaths } from "./autonomy-execution-scope.mjs";
 import { readRepositoryHead } from "./repository-worker.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
+import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
 
 export const DEFAULT_WORKSPACE_URL = "https://mahoraga-cloud-workspace.vercel.app/";
 
@@ -465,6 +466,7 @@ export function coordinationPayload(manifest, database) {
 }
 
 function createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy, repositoryHeadReader }) {
+  const operationsActionLedger = new Map();
   return Object.freeze({
     async chat(body, context) {
       if (Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
@@ -507,6 +509,26 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       if (!existing || existing.conversationId !== conversationId) throw relayError("task-not-found");
       const task = body.action === "retry" ? database.retryTask(taskId) : database.cancelTask(taskId);
       return { task };
+    },
+    async operationsSnapshot(_input, _context) {
+      let headSha = null;
+      try {
+        const value = await repositoryHeadReader();
+        const normalized = String(value ?? "").trim().toLowerCase();
+        headSha = /^[a-f0-9]{40}$/.test(normalized) ? normalized : null;
+      } catch {
+        headSha = null;
+      }
+      return operationsSnapshot({ database, manifest, supervisor, headSha, now: () => new Date().toISOString() });
+    },
+    async operationsAction(input, _context) {
+      return executeOperationsAction(input, {
+        database,
+        manifest,
+        supervisor,
+        repositoryHeadReader,
+        actionLedger: operationsActionLedger,
+      });
     },
   });
 }

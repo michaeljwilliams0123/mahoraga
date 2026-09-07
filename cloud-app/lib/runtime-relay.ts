@@ -51,6 +51,42 @@ export type RuntimeChatResult = {
   decision: { mode?: string; execution?: string };
 };
 
+export type RuntimeOperationsSnapshot = {
+  generatedAt: string;
+  runtime: {
+    version: string;
+    productionBaseline: string;
+    rollbackTarget: string;
+    healthy?: boolean;
+    tone?: string;
+  };
+  repository: { branch: string; headSha: string | null; cleanState: string };
+  workers: Array<{ id: string; state: string; capabilities: string[]; tone?: string }>;
+  tasks: { active: number; waiting: number; failed: number };
+  objectives: { active: number; waiting: number };
+  repairs: { activeIncidents: number; lastRepairState: string };
+  verification: { state: string; exactHeadSha: string | null };
+  update: { candidate: { id: string; state: string } | null; activationState: string; rollbackReady: boolean };
+};
+
+export type RuntimeOperationsActionInput = {
+  actionId: "task.cancel" | "task.retry" | "repair.request" | "repository.verify" | "runtime.health-check";
+  idempotencyKey: string;
+  taskId?: string;
+  incidentId?: string;
+  confirmationToken?: string;
+  confirm?: boolean;
+};
+
+export type RuntimeOperationsActionResult = {
+  ok: boolean;
+  confirmationRequired: boolean;
+  confirmationToken?: string;
+  actionId: string;
+  receiptId: string;
+  result: Record<string, unknown> | null;
+};
+
 export class RuntimeRelay {
   private socket: WebSocket | null = null;
   private session: RelaySession | null = null;
@@ -122,6 +158,12 @@ export class RuntimeRelay {
   async capabilities() {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
     return Array.isArray(value.capabilities) ? value.capabilities : [];
+  }
+  async operationsSnapshot() {
+    return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
+  }
+  async operationsAction(input: RuntimeOperationsActionInput) {
+    return this.call<RuntimeOperationsActionResult>("operations-action", { ...input });
   }
 
   async revoke() {

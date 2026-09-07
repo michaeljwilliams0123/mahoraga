@@ -1,0 +1,20 @@
+{{- if .Values.backup.enabled }}
+# EXPERIMENT ONLY — optional PVC for serializing volatile snapshots off tmpfs.
+# Runtime Node experiment defaults to ./var/snapshots on the local host instead.
+# Mounted into Forgejo at .Values.backup.mountPath; /data git state stays on tmpfs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "mahoraga-l7.fullname" . }}-backup
+  labels:
+    {{- include "mahoraga-l7.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage | quote }}
+  {{- if .Values.backup.storageClassName }}
+  storageClassName: {{ .Values.backup.storageClassName | quote }}
+  {{- end }}
+{{- end }}
