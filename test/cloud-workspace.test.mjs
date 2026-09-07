@@ -29,7 +29,7 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   assert.doesNotMatch(workspace, /DefaultChatTransport|useChat\(/);
   assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);
   assert.match(workspace, /RuntimeRelay/);
-  assert.match(workspace, /One core authority/);
+  assert.match(workspace, /authority remain with the paired Mahoraga core/i);
   assert.match(chatRoute, /core-gateway-required/);
   assert.doesNotMatch(chatRoute, /streamText|@ai-sdk\/gateway|cloudBrowserTool/);
   assert.match(docs, /single Vercel-hosted workspace/i);
