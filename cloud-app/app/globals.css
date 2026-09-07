@@ -180,3 +180,13 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
   .cockpit-root { flex-direction: column; }
   .cockpit-chat { width: 100%; min-height: 280px; border-left: 0; border-top: 1px solid #1e293b; }
 }
+
+.cockpit-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.8fr); gap: 12px; }
+.cockpit-gateways { display: grid; gap: 12px; }
+.cockpit-gateways article { border: 1px solid #1e293b; border-radius: 12px; background: #0f172a; padding: 14px; }
+.cockpit-gateways header { display: flex; justify-content: space-between; gap: 8px; align-items: center; margin-bottom: 8px; color: #e2e8f0; }
+.cockpit-spark { border: 1px solid #1e293b; border-radius: 12px; background: #0f172a; padding: 12px; }
+.cockpit-spark svg { width: 100%; height: 160px; display: block; }
+@media (max-width: 960px) {
+  .cockpit-grid { grid-template-columns: 1fr; }
+}

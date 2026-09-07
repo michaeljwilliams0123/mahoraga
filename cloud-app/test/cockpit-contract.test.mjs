@@ -26,4 +26,12 @@ describe("cockpit pressure-test contract", () => {
     assert.match(workspace, /CockpitView/);
     assert.match(workspace, /view === "cockpit"/);
   });
+
+  it("keeps gateway cards fail-closed for OAuth and fake rollback", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+    assert.match(cockpit, /HARD_DENIES\.googleOAuthOnConsole/);
+    assert.match(cockpit, /HARD_DENIES\.fakeRollbackApi/);
+    assert.match(cockpit, /TelemetrySparkline/);
+    assert.match(cockpit, /COCKPIT_PANEL_IDS/);
+  });
 });

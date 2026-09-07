@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
+  COCKPIT_PANEL_IDS,
   HARD_DENIES,
   mapHealthRoute,
   type CockpitPanelId,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/cockpit";
 import { AstSandbox } from "./AstSandbox";
 import { LocalChatSidebar } from "./LocalChatSidebar";
+import { TelemetrySparkline } from "./TelemetrySparkline";
 
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
@@ -46,7 +48,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
     return {
       id: "cloud",
       title: "CLOUD",
-      tone: health?.ok ? "ok" : healthErrorTone(health),
+      tone: health?.ok ? "ok" : health ? "warn" : "neutral",
       summary: "Vercel cloud-app health is observational only — no fake rollback API.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
@@ -73,10 +75,6 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
   };
 }
 
-function healthErrorTone(health: ObservationalHealthCard | null): CockpitPanelModel["tone"] {
-  return health ? "warn" : "neutral";
-}
-
 export function CommandCockpit({
   coreReady,
   healthJson,
@@ -96,14 +94,13 @@ export function CommandCockpit({
     return mapped.ok ? mapped.value : null;
   }, [healthJson]);
 
-  const panels = useMemo(
-    () => ({
-      mesh: panelFromHealth("mesh", healthCard, coreReady),
-      cloud: panelFromHealth("cloud", healthCard, coreReady),
-      workspace: panelFromHealth("workspace", healthCard, coreReady),
-    }),
-    [healthCard, coreReady],
-  );
+  const panels = useMemo(() => {
+    const next = {} as Record<CockpitPanelId, CockpitPanelModel>;
+    for (const id of COCKPIT_PANEL_IDS) {
+      next[id] = panelFromHealth(id, healthCard, coreReady);
+    }
+    return next;
+  }, [healthCard, coreReady]);
 
   const active = panels[tab];
 
@@ -133,42 +130,58 @@ export function CommandCockpit({
         </header>
 
         <nav className="cockpit-tabs" aria-label="Cockpit panels">
-          {(Object.keys(panels) as CockpitPanelId[]).map((id) => (
+          {COCKPIT_PANEL_IDS.map((id) => (
             <button key={id} type="button" className={tab === id ? "active" : undefined} onClick={() => setTab(id)}>
               {panels[id].title}
             </button>
           ))}
         </nav>
 
-        <section className={`cockpit-panel tone-${active.tone}`} aria-label={`${active.title} panel`}>
-          <h3>{active.title}</h3>
-          <p>{active.summary}</p>
-          <dl>
-            {active.lines.map((line) => (
-              <div key={line.label}>
-                <dt>{line.label}</dt>
-                <dd>{line.value}</dd>
-              </div>
-            ))}
-          </dl>
-          {!coreReady && (
+        <div className="cockpit-grid">
+          <section className={`cockpit-panel tone-${active.tone}`} aria-label={`${active.title} panel`}>
+            <h3>{active.title}</h3>
+            <p>{active.summary}</p>
+            <dl>
+              {active.lines.map((line) => (
+                <div key={line.label}>
+                  <dt>{line.label}</dt>
+                  <dd>{line.value}</dd>
+                </div>
+              ))}
+            </dl>
             <div className="cockpit-actions">
-              <button type="button" onClick={onRequestPairing}>
-                Pair runtime
-              </button>
-              <button type="button" className="secondary" onClick={onOpenOperations}>
-                Open Operations
-              </button>
-            </div>
-          )}
-          {coreReady && (
-            <div className="cockpit-actions">
+              {!coreReady && (
+                <button type="button" onClick={onRequestPairing}>
+                  Pair runtime
+                </button>
+              )}
               <button type="button" className="secondary" onClick={onOpenOperations}>
                 Core mutations → Operations
               </button>
             </div>
-          )}
-        </section>
+          </section>
+
+          <section className="cockpit-gateways" aria-label="Integration gateways">
+            <article>
+              <header>
+                <strong>Vercel Edge</strong>
+                <span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span>
+              </header>
+              <p>Observational health only. Fake rollback APIs are hard-denied.</p>
+              <p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p>
+            </article>
+            <article>
+              <header>
+                <strong>Workspace Gateway</strong>
+                <span className="cockpit-pill warn">FAIL_CLOSED</span>
+              </header>
+              <p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p>
+              <p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p>
+            </article>
+          </section>
+        </div>
+
+        <TelemetrySparkline />
 
         <section className="cockpit-helpers" aria-label="Automation helpers">
           <h3>Automation helpers</h3>
@@ -184,7 +197,7 @@ export function CommandCockpit({
           {copied && <p className="cockpit-muted">Clipboard: {copied === "copy-failed" ? "copy failed" : "helper command copied"}</p>}
           <ul className="cockpit-denies">
             <li>{HARD_DENIES.browserFleetAuthority}</li>
-            <li>{HARD_DENIES.fakeRollbackApi}</li>
+            <li>{HARD_DENIES.inboundTunnels}</li>
             <li>{HARD_DENIES.nextPublicLoopback}</li>
           </ul>
         </section>
