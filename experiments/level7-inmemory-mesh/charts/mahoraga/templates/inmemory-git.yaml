@@ -1,0 +1,100 @@
+# EXPERIMENT ONLY — Forgejo/Gitea with tmpfs volumes. Do not use in production Mahoraga.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mahoraga-l7.fullname" . }}-git
+  labels:
+    app: mahoraga-inmemory-git
+    {{- include "mahoraga-l7.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mahoraga-inmemory-git
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: mahoraga-inmemory-git
+        {{- include "mahoraga-l7.labels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: forgejo
+          image: "{{ .Values.inmemoryGit.image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: ssh
+              containerPort: 2222
+          env:
+            - name: USER_UID
+              value: "1000"
+            - name: USER_GID
+              value: "1000"
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.inmemoryGit.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.inmemoryGit.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.inmemoryGit.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.inmemoryGit.probes.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: {{ .Values.inmemoryGit.probes.initialDelaySeconds }}
+            periodSeconds: {{ .Values.inmemoryGit.probes.periodSeconds }}
+            timeoutSeconds: {{ .Values.inmemoryGit.probes.timeoutSeconds }}
+            failureThreshold: {{ .Values.inmemoryGit.probes.failureThreshold }}
+          volumeMounts:
+            - name: git-data
+              mountPath: /data
+            - name: git-mesh-config
+              mountPath: /data/gitea/conf/app.ini
+              subPath: app.ini
+            {{- if .Values.backup.enabled }}
+            # Snapshot persist path only — volatile git working tree stays on tmpfs git-data.
+            - name: backup-snapshots
+              mountPath: {{ .Values.backup.mountPath | quote }}
+            {{- end }}
+          resources:
+            requests:
+              memory: "{{ .Values.inmemoryGit.resources.requests.memory }}"
+              cpu: "{{ .Values.inmemoryGit.resources.requests.cpu }}"
+            limits:
+              memory: "{{ .Values.inmemoryGit.resources.limits.memory }}"
+              cpu: "{{ .Values.inmemoryGit.resources.limits.cpu }}"
+      volumes:
+        - name: git-data
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ .Values.inmemoryGit.tmpfsSize }}"
+        - name: git-mesh-config
+          configMap:
+            name: {{ include "mahoraga-l7.fullname" . }}-git-mesh-config
+        {{- if .Values.backup.enabled }}
+        - name: backup-snapshots
+          persistentVolumeClaim:
+            claimName: {{ include "mahoraga-l7.fullname" . }}-backup
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "mahoraga-l7.fullname" . }}-git
+  labels:
+    app: mahoraga-inmemory-git
+    {{- include "mahoraga-l7.labels" . | nindent 4 }}
+spec:
+  selector:
+    app: mahoraga-inmemory-git
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+    - name: ssh
+      port: 2222
+      targetPort: ssh

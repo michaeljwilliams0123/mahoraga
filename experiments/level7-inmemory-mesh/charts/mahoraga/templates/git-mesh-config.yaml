@@ -1,0 +1,32 @@
+# EXPERIMENT ONLY — Forgejo/Gitea app.ini with sqlite :memory:
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mahoraga-l7.fullname" . }}-git-mesh-config
+  labels:
+    {{- include "mahoraga-l7.labels" . | nindent 4 }}
+data:
+  app.ini: |
+    APP_NAME = Mahoraga Level 7 Evolution Ledger (EXPERIMENT)
+    RUN_MODE = prod
+
+    [repository]
+    # Restrict repository syncing to high-speed local memory mount frames
+    ROOT = /data/git/repositories
+    DEFAULT_BRANCH = main
+
+    [server]
+    SSH_PORT = 2222
+    HTTP_PORT = 3000
+    DISABLE_ROUTER_LOG = true
+    # EXPERIMENT: bind only inside cluster / local mesh
+    DOMAIN = mahoraga-inmemory-git
+    ROOT_URL = http://mahoraga-inmemory-git:3000/
+
+    [database]
+    # Use an in-memory SQLite state loop to eliminate database file locking lag
+    DB_TYPE = sqlite3
+    PATH = :memory:
+
+    [security]
+    INSTALL_LOCK = true

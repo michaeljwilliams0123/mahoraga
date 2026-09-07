@@ -160,3 +160,12 @@ Mahoraga may observe incidents, propose a candidate, write a regression test,
 and report verification evidence. Its declared policy permits verified automatic
 activation with rollback after the required gates; this alpha branch itself is
 not activated and cannot use documentation as promotion evidence.
+
+## Experiment: Level 7 in-memory mesh
+
+An **EXPERIMENT ONLY** isolated scaffold lives under
+[`experiments/level7-inmemory-mesh/`](experiments/level7-inmemory-mesh/).
+It is not production Mahoraga, not a cutover, and must not be merged without
+explicit review. See that directory README and OVERRIDE.md for the 2026-09-07
+ECOSYSTEM-LOCK / Production Runbook override notes.
+
