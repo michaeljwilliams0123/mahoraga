@@ -1,0 +1,1 @@
+export const LEVEL8_MEMORY_SCHEMA_VERSION = 1;
