@@ -32,7 +32,7 @@ Strict up-to-date. No bypass actors. A file in git is not branch protection.
 
 ## Deployment truth
 
-The canonical Vercel project is `mahoraga-workspace`. Root `vercel.json` enables Git-driven deployment so a verified merge to `main` can update that workspace. Historical Vercel projects linked to the repository are non-canonical and must not be used as production truth.
+The canonical Vercel project is `mahoraga-workspace`, rooted at `cloud-app/`. `cloud-app/vercel.json` keeps Git-driven deployment enabled for that project. Root `vercel.json` disables Git-driven deployment for the retired repository-root Vercel target, while retaining a canonical-project guard as defense in depth. Historical Vercel projects linked to the repository are non-canonical and must not be used as production truth.
 
 The browser health route publishes non-secret deployment identity (`VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`), and Control Center renders the commit SHA so stale production is visible immediately.
 

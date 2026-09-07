@@ -7,15 +7,17 @@ const expectedIgnoreCommand = `if [ "$VERCEL_PROJECT_ID" = "${canonicalProjectId
 const root = new URL("../", import.meta.url);
 const read = (path) => readFile(new URL(path, root), "utf8");
 
-test("only the canonical Vercel project may continue a Git-triggered build", async () => {
+test("legacy repo-root Vercel Git deployment is disabled and canonical app deployment stays enabled", async () => {
   const [rootConfigSource, appConfigSource] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
   ]);
 
-  for (const source of [rootConfigSource, appConfigSource]) {
-    const config = JSON.parse(source);
-    assert.equal(config.git?.deploymentEnabled, true);
-    assert.equal(config.ignoreCommand, expectedIgnoreCommand);
-  }
+  const rootConfig = JSON.parse(rootConfigSource);
+  const appConfig = JSON.parse(appConfigSource);
+
+  assert.equal(rootConfig.git?.deploymentEnabled, false);
+  assert.equal(appConfig.git?.deploymentEnabled, true);
+  assert.equal(rootConfig.ignoreCommand, expectedIgnoreCommand);
+  assert.equal(appConfig.ignoreCommand, expectedIgnoreCommand);
 });
