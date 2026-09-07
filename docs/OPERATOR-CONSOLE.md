@@ -40,8 +40,9 @@ Strict up-to-date. No bypass actors. A file in git is not branch protection.
 
 GitHub is the evolution/source plane. The browser build is now host-neutral:
 `/api/health` prefers `MAHORAGA_*` deployment metadata and retains Vercel
-variables only as compatibility fallback. Control Center renders the hosting
-provider, environment, Git ref, and exact deployed SHA.
+variables only as compatibility fallback, while also recognizing Netlify's
+deployment metadata. Control Center renders the hosting provider, environment,
+Git ref, and exact deployed SHA.
 
 The Vercel project `mahoraga-workspace` is the last verified production host,
 but Vercel Git deployment is frozen while the account quota is exhausted.

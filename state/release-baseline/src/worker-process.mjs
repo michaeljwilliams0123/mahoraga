@@ -9,6 +9,8 @@ import { executeCodexBuilderCapability } from "./codex-builder-worker.mjs";
 import { executeWorkspaceAgentCapability } from "./workspace-agent-worker.mjs";
 import { executeDesktopCapability } from "./desktop-worker.mjs";
 import { executeMicrosoft365Capability } from "./microsoft365-worker.mjs";
+import { executeGoogleWorkspaceCapability } from "./google-workspace-worker.mjs";
+import { executeSignedChromeCapability } from "./signed-chrome-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
@@ -110,6 +112,8 @@ async function execute(capability, task) {
   if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
   if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
   if (capability.startsWith("m365.")) return executeMicrosoft365Capability(capability, task, worker);
+  if (capability.startsWith("google.")) return executeGoogleWorkspaceCapability(capability, task, worker);
+  if (capability.startsWith("chrome.")) return executeSignedChromeCapability(capability, task, worker);
   switch (capability) {
     case "assistant.health":
       return probeQuestionModel();
@@ -160,6 +164,8 @@ function classifyError(error) {
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
   if (/microsoft-queue|dataverse/i.test(error?.message ?? "")) return "microsoft-queue-provider-failed";
   if (/m365|microsoft 365/i.test(error?.message ?? "")) return "microsoft365-provider-failed";
+  if (/google-workspace/i.test(error?.message ?? "")) return "google-workspace-provider-failed";
+  if (/chrome/i.test(error?.message ?? "")) return "signed-chrome-provider-failed";
   if (/desktop/i.test(error?.message ?? "")) return "desktop-provider-failed";
   if (/copilot/i.test(error?.message ?? "")) return "copilot-provider-failed";
   if (/codex/i.test(error?.message ?? "")) return "codex-builder-unavailable";

@@ -4,6 +4,8 @@
 It is a thin encrypted client of the authoritative Mahoraga core: one
 conversation surface, one pairing view, and no browser-side provider or brain
 selector. No second local or Pages UI remains.
+The workspace source is host-neutral; a hosting provider never becomes a second
+execution plane or authority boundary.
 
 The last verified production project is Vercel `mahoraga-workspace` and the
 current canonical production address remains

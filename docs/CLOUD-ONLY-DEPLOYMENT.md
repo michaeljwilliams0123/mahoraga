@@ -74,7 +74,7 @@ MAHORAGA_GIT_COMMIT_REF=<git-ref>
 
 Vercel-specific variables remain fallback-only for the last verified Vercel
 site. An example for the Workers candidate is in
-[`../cloud-app/.env.hosting.example`](../cloud-app/.env.hosting.example).
+[`../cloud-app/hosting.env.example`](../cloud-app/hosting.env.example).
 
 The relay uses `MAHORAGA_OWNER_IDENTITY`, `MAHORAGA_WORKSPACE_ORIGIN`,
 `MAHORAGA_LOCAL_RELAY_TOKEN`, and the `RELAY_SESSIONS` Durable Object binding.

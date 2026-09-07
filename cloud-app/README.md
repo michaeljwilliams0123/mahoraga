@@ -1,12 +1,17 @@
 # Mahoraga Cloud Workspace
 
-`cloud-app/` is the **single cloud-hosted browser UI** for Mahoraga.
+`cloud-app/` is the **single browser UI source** for Mahoraga.
 
-Current verified production fallback: `https://mahoraga-workspace.vercel.app/`
+GitHub main is the code authority. The application is host-neutral: Netlify is
+the live fallback, Vercel Git auto-deployment is frozen while its quota is
+exhausted, and Cloudflare Workers is the designated replacement-host candidate.
+Every host deploys this same Next.js workspace and none gains execution authority
+over the paired core. See
+[`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
 
-The application is host-neutral. Vercel Git auto-deployment is frozen while its
-quota is exhausted, and Cloudflare Workers is the designated replacement-host
-candidate. See [`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
+Historical Vercel project: `mahoraga-workspace`
+
+Historical Vercel URL: `https://mahoraga-workspace.vercel.app/`
 
 It contains four complete in-app surfaces:
 
@@ -48,14 +53,14 @@ select providers directly and does not fall through to a paid model.
 including:
 
 - product and runtime candidate version
-- hosting provider and environment
-- deployed HTTPS URL
+- deployment provider and environment
+- deployed provider URL
 - deployed Git commit SHA
 - deployed Git ref
 - paired-core authority boundary and paid-fallback state
 
 Portable `MAHORAGA_*` deployment variables are preferred; Vercel variables are
-compatibility fallback for the existing deployment. See `.env.hosting.example`.
+compatibility fallback for the existing deployment. See `hosting.env.example`.
 Control Center renders the provider and deployed commit SHA so stale production
 can be identified directly from the UI.
 
@@ -67,4 +72,6 @@ npm run verify
 ```
 
 Repository-native exact-head verification remains the merge gate. External
-hosting provider status is not a PR completion requirement.
+hosting-provider status is not a PR completion requirement. Netlify is a
+deployment fallback only; it does not replace GitHub main as authority or the
+paired Mahoraga core as the execution plane.

@@ -4,9 +4,11 @@ import { runCreditFreeImprovementLoop } from "./credit-free-skill-compound.mjs";
 import { applyLocalReasonerGenerate, createLocalReasonerGenerate, thenable } from "./local-reasoner-generate.mjs";
 import { putTransientResult } from "./local-reasoner-channel.mjs";
 import { admitUnattendedFoundry } from "./unattended-foundry-admit.mjs";
+import { runGrowthCompoundingLoop } from "./growth-compounding-loop.mjs";
 
 export const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
 export const UNATTENDED_CYCLE_SCHEMA_VERSION = 1;
+const PRIORITY = Object.freeze({ p0: "critical", p1: "high", p2: "medium", p3: "low" });
 
 export function runUnattendedCreditFreeCycle({
   priorReceipts = [],
@@ -17,6 +19,10 @@ export function runUnattendedCreditFreeCycle({
   foundryRegistry = null,
   parentAgentId = foundryRegistry?.parentAgentId ?? "mahoraga",
   existingAgents = foundryRegistry?.agents ?? [],
+  memoryRecords = [],
+  existingObjectives = [],
+  existingUnits = [],
+  feats = [],
   ...heartbeatOptions
 } = {}) {
   const heartbeat = runCreditFreeHeartbeat(heartbeatOptions);
@@ -40,6 +46,10 @@ export function runUnattendedCreditFreeCycle({
     parentAgentId,
     existingAgents,
     foundryRegistry,
+    memoryRecords,
+    existingObjectives,
+    existingUnits,
+    feats,
   }));
 }
 
@@ -56,13 +66,25 @@ export function asHeartbeatCliReceipt(cycle) {
       improvement: cycle.improvement,
       fleet: cycle.fleet,
       ledger: cycle.ledger,
+      growth: summarizeGrowth(cycle.growth),
       creditCost: 0,
       paidFallback: false,
     }),
   });
 }
 
-function assembleCycle({ heartbeat, generation, priorReceipts, parentAgentId, existingAgents, foundryRegistry }) {
+function assembleCycle({
+  heartbeat,
+  generation,
+  priorReceipts,
+  parentAgentId,
+  existingAgents,
+  foundryRegistry,
+  memoryRecords,
+  existingObjectives,
+  existingUnits,
+  feats,
+}) {
   if (heartbeat.creditCost !== 0 || heartbeat.paidFallback !== false) fail("unattended-paid-contamination");
   if (generation && (generation.creditCost !== 0 || generation.paidFallback !== false)) fail("unattended-paid-contamination");
 
@@ -75,12 +97,24 @@ function assembleCycle({ heartbeat, generation, priorReceipts, parentAgentId, ex
     parentAgentId: resolvedParent,
     existingAgents: resolvedAgents,
   });
+  const growth = runGrowthCompoundingLoop({
+    entityId: "mahoraga",
+    parentAgentId: resolvedParent,
+    agents: resolvedAgents,
+    feats,
+    gaps: growthGapsFromLearning(ledger.learning),
+    memoryRecords,
+    existingObjectives,
+    existingUnits,
+    now: heartbeat.observedAt,
+  });
   const admission = admitUnattendedFoundry({
     registry: foundryRegistry,
     parentAgentId: resolvedParent,
     plans: improvement.skills.foundryPlans,
   });
   if (admission.fleet.creditCost !== 0 || admission.fleet.paidFallback !== false) fail("unattended-paid-contamination");
+  if (growth.creditCost !== 0 || growth.paidFallback !== false) fail("unattended-paid-contamination");
 
   return Object.freeze({
     schemaVersion: UNATTENDED_CYCLE_SCHEMA_VERSION,
@@ -92,12 +126,37 @@ function assembleCycle({ heartbeat, generation, priorReceipts, parentAgentId, ex
     heartbeat,
     generation,
     improvement: summarizeImprovement(improvement),
+    growth,
     fleet: admission.fleet,
     registry: admission.registry,
     ledger: summarizeLedger(ledger),
     creditCost: 0,
     paidFallback: false,
   });
+}
+
+function growthGapsFromLearning(learning) {
+  if (!learning || !Array.isArray(learning.gaps)) return [];
+  return learning.gaps.map((gap) => {
+    const priority = PRIORITY[gap?.priority] ?? "medium";
+    const id = typeof gap?.id === "string" ? gap.id : "unknown-gap";
+    return {
+      id,
+      state: gap?.state === "refused" ? "refused" : "open",
+      priority,
+      summary: typeof gap?.summary === "string" && gap.summary ? gap.summary : `Resolve ${id}.`,
+      dependency: typeof gap?.dependency === "string" && gap.dependency ? gap.dependency : "local-runtime",
+      workloadClass: inferWorkloadClass(id),
+    };
+  });
+}
+
+function inferWorkloadClass(id) {
+  if (id.includes("research")) return "research";
+  if (id.includes("artifact")) return "analysis";
+  if (id.includes("repository") || id.includes("verify")) return "engineering";
+  if (id.includes("destiny")) return "coordination";
+  return "operations";
 }
 
 function persistGeneration(heartbeat, generation, now) {
@@ -126,6 +185,22 @@ function summarizeImprovement(improvement) {
     refuseCount: improvement.skills.refuseCount,
     foundryPlanCount: improvement.skills.foundryPlans.length,
     methodIds: Object.freeze([...improvement.skills.methodIds]),
+    creditCost: 0,
+    paidFallback: false,
+  });
+}
+
+function summarizeGrowth(growth) {
+  if (!growth) return null;
+  return Object.freeze({
+    kind: growth.kind,
+    fingerprint: growth.fingerprint,
+    activeMemoryCount: growth.growthMetrics.activeMemoryCount,
+    objectiveCount: growth.growthMetrics.objectiveCount,
+    plannedUnitCount: growth.growthMetrics.plannedUnitCount,
+    reusableFeatCount: growth.growthMetrics.reusableFeatCount,
+    promotedCapabilities: Object.freeze([...growth.promotedCapabilities]),
+    zeroCredit: true,
     creditCost: 0,
     paidFallback: false,
   });

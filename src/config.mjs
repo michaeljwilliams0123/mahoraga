@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadProductIdentity } from "./product-identity.mjs";
+import { applyGoogleCapabilityManifest, validateGoogleCapabilityWorkers } from "./google-capability-manifest.mjs";
 import * as legacy from "./config-legacy.mjs";
 
 export const ROOT = legacy.ROOT;
@@ -48,6 +49,7 @@ export function validateManifest(value) {
     if (worker.version !== undefined) throw new TypeError("Legacy worker version is not allowed; use implementation revision.");
     boundedRevision(worker.implementationRevision, "worker implementation revision");
   }
+  validateGoogleCapabilityWorkers(value);
 
   const shadow = structuredClone(value);
   const protocols = shadow.protocols;
@@ -100,7 +102,7 @@ export function normalizeManifestCompatibility(value, identity = null) {
       }
     }
   }
-  return next;
+  return applyGoogleCapabilityManifest(next);
 }
 
 function validateProtocols(value) {

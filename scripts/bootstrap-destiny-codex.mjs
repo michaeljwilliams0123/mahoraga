@@ -61,11 +61,21 @@ const readiness = signDestinyTriggerEvidence({
   publicKeySpki: key.publicKeySpki,
   keyId: TRIGGER_ID,
 });
+const privateRoute = {
+  schemaVersion: 1,
+  kind: "destiny-codex-private-route",
+  repository: REPOSITORY,
+  environmentId: task.environmentId,
+  codexAccountFingerprint: binding.codexAccountFingerprint,
+  receiptKeyFingerprint: binding.receiptKeyFingerprint,
+  boundAt: observedAt,
+};
 
 await mkdir(stateDir, { recursive: true });
 await writeJson(path.join(stateDir, "binding.json"), binding);
 await writeJson(path.join(stateDir, "trust-snippet.json"), receiptTrust);
 await writeJson(path.join(stateDir, "readiness.json"), readiness);
+await writeJson(path.join(stateDir, "route-private.json"), privateRoute);
 
 console.log(JSON.stringify({
   ready: true,
@@ -83,7 +93,7 @@ function readCloudTasks() {
   const executable = process.env.CODEX_BIN ?? "codex";
   let stdout;
   try {
-    stdout = execFileSync(executable, ["cloud", "list", "--json", "--limit", "100"], {
+    stdout = execFileSync(executable, ["cloud", "list", "--json", "--limit", "20"], {
       encoding: "utf8",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],

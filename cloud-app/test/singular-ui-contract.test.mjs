@@ -63,15 +63,14 @@ test("health route publishes host-neutral deployment identity with Vercel fallba
 });
 
 test("Vercel entrypoints are frozen while hosting migrates away from exhausted quota", async () => {
-  const [rootConfig, appConfig] = await Promise.all([
+  const [rootConfigSource, appConfigSource] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
   ]);
-  for (const config of [rootConfig, appConfig]) {
-    assert.match(config, /"deploymentEnabled"\s*:\s*false/);
-    assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*true/);
+  for (const config of [JSON.parse(rootConfigSource), JSON.parse(appConfigSource)]) {
+    assert.equal(config.git?.deploymentEnabled, false);
   }
-  assert.match(rootConfig, /"outputDirectory"\s*:\s*"cloud-app\/\.next"/);
+  assert.equal(JSON.parse(rootConfigSource).outputDirectory, "cloud-app/.next");
 });
 
 test("repository declares only the canonical Vercel workspace alias", async () => {

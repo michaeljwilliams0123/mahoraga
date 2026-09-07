@@ -32,7 +32,8 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   assert.match(workspace, /authority remain with the paired Mahoraga core/i);
   assert.match(chatRoute, /core-gateway-required/);
   assert.doesNotMatch(chatRoute, /streamText|@ai-sdk\/gateway|cloudBrowserTool/);
-  assert.match(docs, /single Vercel-hosted workspace/i);
+  assert.match(docs, /single cloud-hosted workspace and only browser UI/i);
+  assert.match(docs, /host-neutral/i);
   assert.match(docs, /No second local or Pages UI/i);
 });
 
