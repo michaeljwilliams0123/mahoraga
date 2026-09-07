@@ -5,6 +5,7 @@
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)"
   ],
+  "liveEnforcementRequired": false,
   "strictExactHead": true,
   "deletionAllowed": false,
   "forcePushAllowed": false,
