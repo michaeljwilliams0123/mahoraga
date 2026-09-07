@@ -2,17 +2,17 @@
 param(
     [Parameter(Mandatory = $true)]
     [int]$IssueNumber,
+    [string]$EnvironmentId,
     [string]$CodexHome,
     [string]$StateDir
 )
 
 $ErrorActionPreference = 'Stop'
 $bridge = Join-Path $PSScriptRoot 'destiny-codex-github-bridge.mjs'
-if (-not (Test-Path -LiteralPath $bridge -PathType Leaf)) {
-    throw "Destiny Codex GitHub bridge was not found: $bridge"
-}
+if (-not (Test-Path -LiteralPath $bridge -PathType Leaf)) { throw "Destiny Codex GitHub bridge was not found: $bridge" }
 $node = Get-Command node -ErrorAction Stop
 $arguments = @($bridge, '--issue-number', [string]$IssueNumber)
+if ($EnvironmentId) { $arguments += @('--environment-id', $EnvironmentId) }
 if ($CodexHome) { $arguments += @('--codex-home', $CodexHome) }
 if ($StateDir) { $arguments += @('--state-dir', $StateDir) }
 & $node.Source @arguments
