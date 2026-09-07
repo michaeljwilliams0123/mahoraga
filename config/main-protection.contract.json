@@ -8,5 +8,6 @@
   "strictExactHead": true,
   "deletionAllowed": false,
   "forcePushAllowed": false,
-  "requirePullRequest": true
+  "requirePullRequest": true,
+  "liveEnforcementRequired": false
 }
