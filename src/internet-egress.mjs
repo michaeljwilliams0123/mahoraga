@@ -116,6 +116,7 @@ export function createInternetEgressController({
     const receipt = Object.freeze({
       schemaVersion: 1,
       kind: "internet-egress-check-in",
+      state: "checked-in",
       leaseId: lease.leaseId,
       objectiveId: lease.objectiveId,
       targetHost: lease.targetHost,
