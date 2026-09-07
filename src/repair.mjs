@@ -117,6 +117,7 @@ export const ESSENTIAL_FILES = [
   "src/workspace-agent-worker.mjs",
   "src/update-contract.mjs",
   "docs/CLOUD-WORKSPACE.md",
+  "docs/CLOUDFLARE-WORKERS-CUTOVER.md",
   "docs/ECOSYSTEM-LOCK.md",
   "docs/CLOUD-ONLY-DEPLOYMENT.md",
   "docs/DESTINY-CODEX-RELAY.md",

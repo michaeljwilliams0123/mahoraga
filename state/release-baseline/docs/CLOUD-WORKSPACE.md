@@ -1,16 +1,20 @@
 # Unified Mahoraga workspace
 
-`cloud-app/` is Mahoraga's single Vercel-hosted workspace and only browser UI.
+`cloud-app/` is Mahoraga's single cloud-hosted workspace and only browser UI.
 It is a thin encrypted client of the authoritative Mahoraga core: one
 conversation surface, one pairing view, and no browser-side provider or brain
 selector. No second local or Pages UI remains.
+The workspace source is host-neutral; a hosting provider never becomes a second
+execution plane or authority boundary.
 
-The canonical production project is `mahoraga-workspace` and the canonical
-production address is `https://mahoraga-workspace.vercel.app/`. A separately
-managed custom domain may replace it by setting `MAHORAGA_WORKSPACE_URL` on the
-runtime. The loopback root redirects to that HTTPS address; the loopback process
-remains the API, encrypted-relay, Conversation Gateway, policy/router, and
-execution service—not another frontend.
+The last verified production project is Vercel `mahoraga-workspace` and the
+current canonical production address remains
+`https://mahoraga-workspace.vercel.app/` until a replacement host passes the
+exact-commit activation gate. A separately managed custom domain may replace it
+by setting `MAHORAGA_WORKSPACE_URL` on the runtime. The loopback root redirects
+to the canonical HTTPS address; the loopback process remains the API,
+encrypted-relay, Conversation Gateway, policy/router, and execution service—not
+another frontend.
 
 ## Single-core execution
 
@@ -58,18 +62,30 @@ authority.
    close the session and invalidate the paired device.
 
 Pairing state, decrypted messages, and conversation content live only in the
-browser tab. They are not written to local storage, a Vercel database, GitHub,
-or relay logs. The relay sees ciphertext; message plaintext is decrypted only
-at the paired endpoints.
+browser tab. They are not written to local storage, a hosting-provider database,
+GitHub, or relay logs. The relay sees ciphertext; message plaintext is decrypted
+only at the paired endpoints.
 
 ## Deployment and verification
 
-The Vercel Git integration owns previews and production promotion for the
-canonical `mahoraga-workspace` project with `cloud-app/` as its root. Other
-historical Vercel projects linked to the repository are non-canonical and must
-not be treated as production truth. Every pull request may also run the
-repository's `Verify unified Vercel workspace` job. That job is observational:
-it must not gate PR completion.
+GitHub is the source/evolution plane for the single workspace. Vercel Git
+auto-deployment is frozen while the Vercel account is quota-exhausted, so a
+verified merge to `main` updates repository truth but does not imply that the
+last verified Vercel deployment advanced to that commit. Historical duplicate
+Vercel projects remain non-canonical.
+
+Cloudflare Workers is the designated Vercel-independent hosting candidate. It
+hosts only the browser application; it must not expose the local runtime or
+create a Cloudflare Tunnel. The runtime continues to initiate outbound encrypted
+relay connectivity. See [`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
+
+The workspace health route accepts portable non-secret `MAHORAGA_*` deployment
+metadata and falls back to Vercel deployment variables for the current fallback
+site. Control Center renders the host provider, environment, Git ref, and commit
+SHA so stale production is visible directly.
+
+Every pull request may still run the repository's observational unified cloud
+workspace job; Vercel status/bot output must not gate PR completion.
 
 ```bash
 cd cloud-app
@@ -81,10 +97,10 @@ That command type-checks, runs the workspace contract tests, and performs a
 production Next.js build. `GET /api/health` reports the client/core boundary and
 never claims direct browser-side provider authority.
 
-GitHub Pages and the legacy `cloud/` and `web/` entry points are retired. A
-main-branch merge is sufficient for the canonical connected Vercel project to
-produce the production deployment; autonomous integration no longer dispatches
-a separate Pages workflow.
+GitHub Pages and the legacy `cloud/` and `web/` entry points remain retired. A
+new hosting provider becomes canonical only after its root page, health metadata,
+exact Git SHA, encrypted relay pairing, and no-paid-fallback boundary are all
+verified.
 
 The remaining infrastructure choices and secret-free owner inputs are listed in
 [`CLOUD-ONLY-DEPLOYMENT.md`](CLOUD-ONLY-DEPLOYMENT.md).

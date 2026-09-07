@@ -9,6 +9,7 @@ export type Health = {
   product?: string;
   version?: string;
   deployment?: {
+    provider?: string;
     environment?: string;
     url?: string | null;
     commitSha?: string | null;

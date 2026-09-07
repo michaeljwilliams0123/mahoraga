@@ -2,9 +2,12 @@
 
 `cloud-app/` is the **single browser UI source** for Mahoraga.
 
-GitHub main is the code authority. Vercel remains an optional deployment target and
-Netlify is the live fallback when Vercel capacity is unavailable. Both hosts deploy
-this same Next.js workspace and neither gains execution authority over the paired core.
+GitHub main is the code authority. The application is host-neutral: Netlify is
+the live fallback, Vercel Git auto-deployment is frozen while its quota is
+exhausted, and Cloudflare Workers is the designated replacement-host candidate.
+Every host deploys this same Next.js workspace and none gains execution authority
+over the paired core. See
+[`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
 
 Historical Vercel project: `mahoraga-workspace`
 
@@ -13,7 +16,7 @@ Historical Vercel URL: `https://mahoraga-workspace.vercel.app/`
 It contains four complete in-app surfaces:
 
 - **Chat** — encrypted RuntimeRelay conversation path using `creditPolicy: zero-codex`.
-- **Control Center** — cloud deployment identity, deployed Git SHA, paired-core state, routing policy, and capability readiness.
+- **Control Center** — host provider, cloud deployment identity, deployed Git SHA, paired-core state, routing policy, and capability readiness.
 - **Operations** — core-mediated runtime/repository/repair actions with owner confirmation where required.
 - **Connections** — encrypted relay pairing plus capability/worker readiness reported by the paired core.
 
@@ -21,7 +24,7 @@ It contains four complete in-app surfaces:
 
 ## Runtime
 
-- Next.js App Router on Vercel or Netlify
+- Next.js 16 App Router with provider-neutral deployment metadata
 - React 19 / TypeScript
 - fixed `wss://relay.mahoraga.app/pair` endpoint for encrypted runtime pairing
 - ECDH + HKDF + AES-GCM relay framing in the browser client
@@ -31,17 +34,23 @@ It contains four complete in-app surfaces:
 - browser direct GitHub authority disabled
 - attachments remain fail-closed until the core artifact bridge is available
 
-The ordinary conversation route requires the paired Mahoraga core. The browser is a client, not an alternate execution plane.
+The ordinary conversation route requires the paired Mahoraga core. The browser
+is a client, not an alternate execution plane. Hosting the browser on Workers
+does not expose or proxy the core runtime.
 
 ## Privacy and authority
 
-Policy, routing, verification, execution, repair, and consequential mutation authority remain with the paired core. The relay broker cannot read encrypted RuntimeRelay frame plaintext.
+Policy, routing, verification, execution, repair, and consequential mutation
+authority remain with the paired core. The relay broker cannot read encrypted
+RuntimeRelay frame plaintext.
 
-The browser does not auto-confirm owner-gated Operations actions. It does not select providers directly and does not fall through to a paid model.
+The browser does not auto-confirm owner-gated Operations actions. It does not
+select providers directly and does not fall through to a paid model.
 
 ## Deployment identity
 
-`GET /api/health` exposes only non-secret deployment and boundary metadata, including:
+`GET /api/health` exposes only non-secret deployment and boundary metadata,
+including:
 
 - product and runtime candidate version
 - deployment provider and environment
@@ -50,7 +59,10 @@ The browser does not auto-confirm owner-gated Operations actions. It does not se
 - deployed Git ref
 - paired-core authority boundary and paid-fallback state
 
-Control Center renders the deployed commit SHA so stale production can be identified directly from the UI.
+Portable `MAHORAGA_*` deployment variables are preferred; Vercel variables are
+compatibility fallback for the existing deployment. See `hosting.env.example`.
+Control Center renders the provider and deployed commit SHA so stale production
+can be identified directly from the UI.
 
 ## Verification
 
@@ -59,4 +71,7 @@ npm ci
 npm run verify
 ```
 
-Repository-native exact-head verification remains the merge gate. Vercel output is optional and non-gating. Netlify is a deployment fallback only; it does not replace GitHub main as authority or the paired Mahoraga core as the execution plane.
+Repository-native exact-head verification remains the merge gate. External
+hosting-provider status is not a PR completion requirement. Netlify is a
+deployment fallback only; it does not replace GitHub main as authority or the
+paired Mahoraga core as the execution plane.

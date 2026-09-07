@@ -17,11 +17,12 @@ async function readWorkspaceSurface() {
   return `${workspace}\n${shell}\n${chatView}\n${workspaceTypes}`;
 }
 
-test("Vercel is the only Mahoraga browser interaction surface", async () => {
-  const [workspace, relay, docs] = await Promise.all([
+test("one host-neutral cloud workspace is the only Mahoraga browser interaction surface", async () => {
+  const [workspace, relay, docs, cutover] = await Promise.all([
     readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
     read("docs/CLOUD-WORKSPACE.md"),
+    read("docs/CLOUDFLARE-WORKERS-CUTOVER.md"),
   ]);
   assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
   assert.match(workspace, /Single browser surface/);
@@ -31,7 +32,11 @@ test("Vercel is the only Mahoraga browser interaction surface", async () => {
   assert.match(workspace, /Zero-Codex route/);
   assert.match(workspace, /Pair runtime/);
   assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
-  assert.match(docs, /single Vercel-hosted workspace/i);
+  assert.match(docs, /single cloud-hosted workspace/i);
+  assert.match(docs, /Cloudflare Workers/);
+  assert.match(docs, /https:\/\/mahoraga-workspace\.vercel\.app\//);
+  assert.match(cutover, /Workers yes, Tunnel no/i);
+  assert.match(cutover, /no inbound\s+route to `127\.0\.0\.1:4782`/i);
 });
 
 test("retired static and loopback UI entry points are absent", async () => {

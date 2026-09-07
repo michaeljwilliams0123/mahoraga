@@ -29,7 +29,15 @@ test("verification keeps repository gates while dedicated Vercel workspace verif
   assert.match(verify, /ubuntu-latest/);
   assert.match(verify, /windows-latest/);
   assert.match(verify, /npm run verify/);
+
+  // A dedicated workspace job may be retained for local static verification only,
+  // but it must be observational while external Vercel capacity is unavailable.
+  if (/Verify unified Vercel workspace/.test(verify)) {
+    assert.match(verify, /workspace:[\s\S]*?continue-on-error:\s*true/);
+  }
+
   assert.match(vercel, /"framework": "nextjs"/);
+  assert.match(vercel, /"deploymentEnabled"\s*:\s*false/);
   const scripts = JSON.parse(packageSource).scripts;
   assert.match(scripts["verify:conversation-plane"], /conversation-plane-smoke/);
   assert.match(scripts["verify:conversation-plane"], /relay-deployment-contract/);

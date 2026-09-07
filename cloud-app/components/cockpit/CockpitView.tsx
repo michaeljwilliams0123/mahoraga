@@ -18,6 +18,7 @@ export function CockpitView({
 }: CockpitViewProps) {
   const routable = runtimeCapabilities.filter((capability) => capability.routable);
   const workers = new Set(runtimeCapabilities.flatMap((capability) => capability.workerIds));
+  const deploymentProvider = health?.deployment?.provider ?? "unknown";
   const deploymentCommit = health?.deployment?.commitSha;
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const paidFallback = health?.routing?.automaticPaidFallback === true;
@@ -33,8 +34,8 @@ export function CockpitView({
       </div>
 
       <p>
-        This is the canonical Mahoraga browser UI. It reports cloud deployment identity and paired-core readiness without taking execution
-        authority away from the Mahoraga core.
+        This is the canonical Mahoraga browser UI. It reports host-neutral cloud deployment identity and paired-core readiness without taking
+        execution authority away from the Mahoraga core.
       </p>
 
       {healthError && (
@@ -49,6 +50,10 @@ export function CockpitView({
           <span>
             {health?.product ?? "Mahoraga"} {health?.version ?? "unknown"} · {deploymentEnvironment}
           </span>
+        </div>
+        <div>
+          <strong>Host provider</strong>
+          <span>{deploymentProvider}</span>
         </div>
         <div>
           <strong>Git identity</strong>

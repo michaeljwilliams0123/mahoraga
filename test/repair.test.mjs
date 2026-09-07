@@ -96,6 +96,7 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "src/observational-memory.mjs",
     "src/generated-code-safety.mjs",
     "src/evolution-controller.mjs",
+    "docs/CLOUDFLARE-WORKERS-CUTOVER.md",
     "relay/core.mjs",
     "relay/cloudflare-worker.mjs",
     "relay/wrangler.toml",
