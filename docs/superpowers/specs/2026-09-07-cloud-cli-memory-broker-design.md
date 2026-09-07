@@ -86,7 +86,7 @@ The broker:
 - Validates the task schema, source, actor, repository, expiry, nonce, command size, requested base SHA, and policy version.
 - Claims each task exactly once.
 - Selects the worker adapter and allocates an execution lease.
-- Emits GitLab job logs and immutable artifacts.
+- Emits GitLab job logs and digest-chained artifacts whose hashes are copied into the durable receipt.
 - Updates D1 through the authenticated ingress API after each state transition.
 - Never treats its mirrored source tree as GitHub merge truth.
 
@@ -107,7 +107,7 @@ Each job:
 2. Creates a fresh fixed working directory.
 3. Mints a short-lived GitHub App installation token.
 4. Clones only the approved GitHub repository and checks out the requested base or head SHA.
-5. Runs the raw shell command through `bash --noprofile --norc` with a hard timeout and bounded output.
+5. Runs the raw shell command through `bash --noprofile --norc -euo pipefail` with a hard timeout and bounded output.
 6. Captures status, diff metadata, tests, commits, branch, PR, and exact-head verification.
 7. Revokes or abandons the short-lived token and destroys the worktree at job completion.
 
@@ -174,7 +174,8 @@ An authenticated raw shell that receives repository-write credentials can theore
 - strict runtime and output ceilings;
 - immutable receipts;
 - immediate kill switch;
-- branch protection and separate landing policy.
+- branch protection and separate landing policy;
+- server-side GitHub rulesets that prohibit force pushes and branch deletion on `main` and the cloud-worker branch namespace, without granting the App bypass authority.
 
 ## 7. Git and pull-request policy
 
@@ -192,7 +193,7 @@ Raw shell jobs may:
 Raw shell jobs may not:
 
 - push directly to `main`;
-- force-push;
+- force-push or delete protected worker branches; these prohibitions are enforced by server-side GitHub rulesets because a raw shell cannot reliably enforce a client-side Git wrapper;
 - use administrator merge or bypass protections;
 - modify GitHub rulesets or repository administration;
 - write secrets into repository files, logs, issues, PRs, comments, or artifacts;
@@ -214,6 +215,8 @@ The shell process never calls `gh pr merge` directly. A separate landing job may
 10. The task has not expired and the global stop state is clear.
 
 A changed head invalidates every prior observation and landing decision. Protected-path changes stop at a bootstrap PR for owner review. Landing never uses admin mode, force, ruleset changes, or direct `main` pushes.
+
+Automatic-landing authority derives from the versioned Mahoraga manifest and current repository policy, not from memory or the raw shell command. `CLOUD_CLI_AUTO_LAND_ENABLED=false` revokes that authority immediately for new landing attempts.
 
 ## 9. Durable project memory
 
