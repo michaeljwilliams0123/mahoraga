@@ -1,6 +1,6 @@
 /**
  * Thin re-export of Deck-owned pure cockpit helpers.
- * Does not re-export panels/automation-adapter (those pull fleet server modules).
+ * Exposes only dependency-light modules safe for the cloud workspace.
  */
 export * from "../../operator-deck/src/lib/cockpit/types";
 export * from "../../operator-deck/src/lib/cockpit/denies";

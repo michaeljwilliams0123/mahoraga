@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { resolve } from "node:path";
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -14,6 +15,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  turbopack: {
+    root: resolve(import.meta.dirname, ".."),
+  },
   experimental: {
     // Allow importing pure operator-deck/src/lib/cockpit helpers (Deck-owned).
     externalDir: true,
