@@ -61,9 +61,9 @@ export function normalizeRedditEvolutionSignal(payload, { allowedUser = DEFAULT_
     body,
     tags,
     metrics: Object.freeze({
-      score: boundedMetric(payload.score),
-      commentCount: boundedMetric(payload.commentCount ?? payload.numComments),
-      upvoteRatioBps: normalizeRatioBps(payload.upvoteRatio),
+      score: boundedMetric(payload.score ?? payload.metrics?.score),
+      commentCount: boundedMetric(payload.commentCount ?? payload.numComments ?? payload.metrics?.commentCount),
+      upvoteRatioBps: normalizeRatioBps(payload.upvoteRatio ?? (Number.isSafeInteger(payload.metrics?.upvoteRatioBps) ? payload.metrics.upvoteRatioBps / 10_000 : undefined)),
     }),
     references,
     automation: Object.freeze({
@@ -126,6 +126,7 @@ export function planRedditEvolutionInput(signal) {
 }
 
 export function normalizeRedditReference(value) {
+  if (isRecord(value) && typeof value.url === "string") return normalizeRedditReference(value.url);
   if (typeof value !== "string" || value.length < 1 || value.length > 500) throw intakeError("reddit-reference-invalid");
   let url;
   try { url = new URL(value); } catch { throw intakeError("reddit-reference-invalid"); }
