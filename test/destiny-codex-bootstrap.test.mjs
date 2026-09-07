@@ -76,6 +76,15 @@ test("Destiny bootstrap binds the account-side GitHub probe and emits signed rea
     const readiness = JSON.parse(await readFile(path.join(stateDir, "readiness.json"), "utf8"));
     assert.equal(readiness.codexAccountFingerprint, result.codexAccountFingerprint);
     assert.equal(evaluateDestinyTriggerReadiness(manifest, readiness, { now: readiness.observedAt }).ready, true);
+
+    const privateRoute = JSON.parse(await readFile(path.join(stateDir, "route-private.json"), "utf8"));
+    assert.equal(privateRoute.schemaVersion, 2);
+    assert.equal(privateRoute.environmentId, rawEnvironmentId);
+    assert.equal(privateRoute.codexAccountFingerprint, result.codexAccountFingerprint);
+    assert.equal(privateRoute.codexEnvironmentFingerprint, result.codexEnvironmentFingerprint);
+    assert.equal(privateRoute.receiptKeyFingerprint, result.receiptKeyFingerprint);
+    assert.equal(privateRoute.boundAt, readiness.observedAt);
+
     assert.match(await readFile(path.join(stateDir, "receipt-private-key.pem"), "utf8"), /BEGIN PRIVATE KEY/);
   } finally {
     await rm(root, { recursive: true, force: true });
