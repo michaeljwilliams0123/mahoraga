@@ -103,6 +103,7 @@ export const ESSENTIAL_FILES = [
   "src/openclaw-adapter.mjs",
   "src/mcp-host-manager.mjs",
   "src/evidence-compiler.mjs",
+  "src/internet-egress.mjs",
   "src/bounded-execution.mjs",
   "src/observational-memory.mjs",
   "src/generated-code-safety.mjs",
