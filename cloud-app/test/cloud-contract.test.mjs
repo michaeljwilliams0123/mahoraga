@@ -22,17 +22,13 @@ test("highest quality provider configuration remains bounded for future core-rou
 });
 
 test("browser capability implementation remains isolated and approval-gated but is not chat-route authority", async () => {
-  const [toolSource, routeSource] = await Promise.all([
-    read("lib/browser-tool.ts"),
-    read("app/api/chat/route.ts"),
-  ]);
+  const toolSource = await read("lib/browser-tool.ts");
   assert.match(toolSource, /needsApproval:\s*true/);
   assert.match(toolSource, /isolated:\s*true/);
   assert.match(toolSource, /extensionsEnabled:\s*false/);
   assert.match(toolSource, /localFileAccess:\s*false/);
   assert.match(toolSource, /browser-domain-not-allowed/);
-  assert.match(routeSource, /core-gateway-required/);
-  assert.doesNotMatch(routeSource, /cloudBrowserTool|streamText|@ai-sdk\/gateway/);
+  assert.equal(await missing("app/api/chat/route.ts"), true);
 });
 
 test("UI is an encrypted client and has no direct model transport or provider selector", async () => {
@@ -75,16 +71,14 @@ test("accessible task starters only prepare the composer and preserve core autho
   for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task", "Inspect fleet cycle"]) {
     assert.match(source, new RegExp(`title: "${label}"`));
   }
-  assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*setView\("chat"\);\s*composer\.current\?\.focus\(\);\s*\}/);
+  assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*navigate\("chat"\);\s*composer\.current\?\.focus\(\);\s*\}/);
   const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
   assert.doesNotMatch(handler, /submit|sendMessage|fetch|setTaskMode|setConversationRoute/);
 });
 
 test("direct cloud conversation endpoint is retired fail-closed", async () => {
-  const [route, health] = await Promise.all([read("app/api/chat/route.ts"), read("app/api/health/route.ts")]);
-  assert.match(route, /status:\s*409/);
-  assert.match(route, /core-gateway-required/);
-  assert.doesNotMatch(route, /MAX_TOTAL_FILE_BYTES|CLOUD_MAX_STEPS|CLOUD_MAX_OUTPUT_TOKENS|compactConversation|streamText/);
+  const health = await read("app/api/health/route.ts");
+  assert.equal(await missing("app/api/chat/route.ts"), true);
   assert.match(health, /automaticPaidFallback:\s*false/);
   assert.match(health, /directConversationExecution:\s*false/);
   assert.match(health, /directProviderSelection:\s*false/);

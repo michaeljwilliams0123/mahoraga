@@ -1,7 +1,7 @@
 # Integrated operator surface
 
 Mahoraga has one browser UI: the `cloud-app/` workspace. The last verified
-production deployment remains `https://mahoraga-workspace.vercel.app/` while a
+production deployment is `https://michaeljwilliams0123.github.io/mahoraga/` while a
 provider-neutral Cloudflare Workers replacement is staged and verified.
 
 The former operator-console concept is integrated into that workspace rather

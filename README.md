@@ -14,7 +14,7 @@ incident-only repair records.
 
 ## Quick access
 
-- **Live Mahoraga workspace:** https://mahoraga-workspace.vercel.app/
+- **Live Mahoraga workspace:** https://michaeljwilliams0123.github.io/mahoraga/
 - **Vercel project dashboard:** https://vercel.com/michaeljwilliams0123-9969/mahoraga-workspace
 - **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
 - **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
