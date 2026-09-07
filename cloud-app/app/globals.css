@@ -120,3 +120,63 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
   .file-limit { max-width: 105px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .capability-grid article { grid-template-columns: 35px minmax(0,1fr); } .status-badge { grid-column: 2; justify-self: start; }
 }
+
+
+/* Mahoraga.v2 Cockpit pressure-test */
+.cockpit-wrap { padding: 0 !important; background: transparent !important; border: 0 !important; }
+.cockpit-root { display: flex; min-height: calc(100vh - 64px); background: #020617; color: #34d399; font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: 12px; }
+.cockpit-main { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow: auto; }
+.cockpit-header { display: flex; justify-content: space-between; gap: 12px; align-items: end; border-bottom: 1px solid #1e293b; padding-bottom: 12px; }
+.cockpit-header h2 { margin: 0; color: #e2e8f0; letter-spacing: 0.08em; font-size: 14px; }
+.cockpit-eyebrow { display: block; color: #64748b; text-transform: uppercase; letter-spacing: 0.12em; font-size: 10px; margin-bottom: 4px; }
+.cockpit-header-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+.cockpit-tabs { display: flex; gap: 8px; }
+.cockpit-tabs button { background: #0f172a; color: #94a3b8; border: 1px solid #1e293b; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.cockpit-tabs button.active { color: #6ee7b7; border-color: #059669; background: #022c22; }
+.cockpit-panel { border: 1px solid #1e293b; border-radius: 12px; background: #0f172a; padding: 14px; }
+.cockpit-panel h3 { margin: 0 0 8px; color: #e2e8f0; }
+.cockpit-panel.tone-ok { border-color: #065f46; }
+.cockpit-panel.tone-warn { border-color: #854d0e; }
+.cockpit-panel.tone-danger { border-color: #7f1d1d; }
+.cockpit-panel.tone-steel { border-color: #334155; }
+.cockpit-panel dl { display: grid; gap: 8px; margin: 12px 0 0; }
+.cockpit-panel dl > div { display: grid; grid-template-columns: 140px 1fr; gap: 8px; }
+.cockpit-panel dt { color: #64748b; }
+.cockpit-panel dd { margin: 0; color: #cbd5e1; word-break: break-word; }
+.cockpit-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.cockpit-actions button, .cockpit-helper-grid button, .cockpit-chat-form input { font: inherit; }
+.cockpit-actions button { background: #064e3b; color: #a7f3d0; border: 1px solid #059669; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.cockpit-actions button.secondary { background: #111827; color: #93c5fd; border-color: #1d4ed8; }
+.cockpit-helpers { border: 1px solid #1e293b; border-radius: 12px; background: #0f172a; padding: 14px; }
+.cockpit-helpers h3 { margin: 0 0 6px; color: #e2e8f0; }
+.cockpit-helper-grid { display: grid; gap: 8px; margin-top: 10px; }
+.cockpit-helper-grid button { text-align: left; background: #020617; border: 1px solid #1e293b; border-radius: 8px; padding: 10px; color: #cbd5e1; cursor: pointer; }
+.cockpit-helper-grid strong { display: block; color: #6ee7b7; margin-bottom: 4px; }
+.cockpit-denies { margin: 12px 0 0; padding-left: 16px; color: #fca5a5; }
+.cockpit-muted { color: #64748b; margin: 4px 0 0; }
+.cockpit-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 8px; border: 1px solid #334155; color: #94a3b8; font-size: 10px; }
+.cockpit-pill.ok { color: #6ee7b7; border-color: #059669; background: #022c22; }
+.cockpit-pill.warn { color: #fde68a; border-color: #a16207; background: #422006; }
+.cockpit-pill.danger { color: #fecaca; border-color: #b91c1c; background: #450a0a; }
+.cockpit-pill.steel { color: #cbd5e1; border-color: #475569; }
+.cockpit-sandbox { border: 1px solid #1e293b; border-radius: 12px; background: #020617; padding: 10px; min-height: 220px; display: flex; flex-direction: column; gap: 8px; }
+.cockpit-sandbox-head { display: flex; justify-content: space-between; color: #94a3b8; border-bottom: 1px solid #1e293b; padding-bottom: 6px; }
+.cockpit-sandbox-editor { flex: 1; width: 100%; min-height: 180px; resize: vertical; background: #020617; color: #34d399; border: 1px solid #1e293b; border-radius: 8px; padding: 10px; font: inherit; }
+.cockpit-chat { width: 300px; border-left: 1px solid #1e293b; background: #0b1220; display: flex; flex-direction: column; }
+.cockpit-chat-head { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #1e293b; color: #e2e8f0; }
+.cockpit-dot { width: 8px; height: 8px; border-radius: 50%; background: #64748b; }
+.cockpit-dot.ok { background: #10b981; }
+.cockpit-dot.warn { background: #f59e0b; }
+.cockpit-chat > .cockpit-muted { padding: 0 12px; }
+.cockpit-chat-stream { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.cockpit-bubble { border: 1px solid #1e293b; border-radius: 8px; padding: 8px; max-width: 92%; }
+.cockpit-bubble span { display: block; font-size: 10px; opacity: 0.6; margin-bottom: 2px; }
+.cockpit-bubble p { margin: 0; white-space: pre-wrap; }
+.cockpit-bubble.user { margin-left: auto; background: #020617; color: #cbd5e1; }
+.cockpit-bubble.bot { background: #022c22; border-color: #065f46; color: #6ee7b7; }
+.cockpit-chat-form { padding: 10px; border-top: 1px solid #1e293b; }
+.cockpit-chat-form input { width: 100%; background: #020617; color: #34d399; border: 1px solid #1e293b; border-radius: 8px; padding: 8px; }
+@media (max-width: 960px) {
+  .cockpit-root { flex-direction: column; }
+  .cockpit-chat { width: 100%; min-height: 280px; border-left: 0; border-top: 1px solid #1e293b; }
+}

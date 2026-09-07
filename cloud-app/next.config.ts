@@ -14,6 +14,10 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  experimental: {
+    // Allow importing pure operator-deck/src/lib/cockpit helpers (Deck-owned).
+    externalDir: true,
+  },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
