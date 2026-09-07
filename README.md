@@ -12,6 +12,18 @@ sensitive surfaces, server-derived authority, typed receipts, evidence-backed
 routing, isolated Codex worktrees, an encrypted local content vault, and
 incident-only repair records.
 
+## Quick access
+
+- **Live Mahoraga workspace:** https://mahoraga-workspace.vercel.app/
+- **Vercel project dashboard:** https://vercel.com/michaeljwilliams0123-9969/mahoraga-workspace
+- **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
+- **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
+- **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
+- **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
+
+The live workspace link above is the single canonical browser deployment. Historical
+Vercel projects are non-canonical and should not be used as production truth.
+
 ## AI agents — do not JavaScript-rewrite this repository
 
 ChatGPT, Copilot, and Codex must follow
@@ -94,8 +106,9 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Use the workspace
 
-- **Talk to and operate Mahoraga:** `https://mahoraga-cloud-workspace.vercel.app/` is the
-  single browser UI. Use Chat for conversation, Control Center for deployment/core status,
+- **Talk to and operate Mahoraga:** `https://mahoraga-workspace.vercel.app/` is the
+  single canonical browser UI, served by the canonical Vercel project `mahoraga-workspace`.
+  Use Chat for conversation, Control Center for deployment/core status,
   Operations for core-mediated actions, and Connections for relay/capability readiness.
 - Pair an explicitly chosen runtime from the workspace when local workers or task state are needed.
   No browser extension is installed.

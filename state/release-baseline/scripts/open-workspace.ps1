@@ -1,6 +1,6 @@
 param(
     [ValidatePattern('^https://[A-Za-z0-9.-]+/?$')]
-    [string]$WorkspaceUri = 'https://mahoraga-cloud-workspace.vercel.app/'
+    [string]$WorkspaceUri = 'https://mahoraga-workspace.vercel.app/'
 )
 
 $ErrorActionPreference = 'Stop'

@@ -62,3 +62,21 @@ test("both Vercel entrypoints enable Git deployment and root build targets neste
   }
   assert.match(rootConfig, /"outputDirectory"\s*:\s*"cloud-app\/\.next"/);
 });
+
+test("repository declares only the canonical Vercel workspace alias", async () => {
+  const sources = await Promise.all([
+    read("../README.md"),
+    read("README.md"),
+    read("../docs/CLOUD-WORKSPACE.md"),
+    read("../docs/CLOUD-ONLY-DEPLOYMENT.md"),
+    read("../docs/OPERATOR-CONSOLE.md"),
+    read("../operator-deck/README.md"),
+    read("../scripts/open-workspace.ps1"),
+  ]);
+  for (const source of sources) {
+    assert.match(source, /https:\/\/mahoraga-workspace\.vercel\.app\//);
+    assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app/);
+    assert.doesNotMatch(source, /mahoraga-workspace-prod\.vercel\.app/);
+    assert.doesNotMatch(source, /mahoraga-workspace-app\.vercel\.app/);
+  }
+});
