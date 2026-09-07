@@ -62,14 +62,14 @@ test("health route publishes host-neutral deployment identity with Vercel fallba
   assert.match(health, /VERCEL_URL/);
 });
 
-test("both Vercel entrypoints enable Git deployment and root build targets nested Next output", async () => {
+test("Vercel entrypoints are frozen while hosting migrates away from exhausted quota", async () => {
   const [rootConfig, appConfig] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
   ]);
   for (const config of [rootConfig, appConfig]) {
-    assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*false/);
-    assert.match(config, /"deploymentEnabled"\s*:\s*true/);
+    assert.match(config, /"deploymentEnabled"\s*:\s*false/);
+    assert.doesNotMatch(config, /"deploymentEnabled"\s*:\s*true/);
   }
   assert.match(rootConfig, /"outputDirectory"\s*:\s*"cloud-app\/\.next"/);
 });
