@@ -4,6 +4,9 @@ import { ROOT } from "./config.mjs";
 import { applyAgentFoundryPlans, validateChildAgentManifest } from "./agent-foundry.mjs";
 import { appendHeartbeatReceipt, createHeartbeatLedger } from "./heartbeat-ledger.mjs";
 import { emptyFoundryRegistry, snapshotFoundryFleet } from "./unattended-foundry-admit.mjs";
+import { reconcileInstitutionalMemory } from "./institutional-memory.mjs";
+import { reconcileObjectiveEconomy } from "./objective-economy.mjs";
+import { validateOrganizationUnit } from "./organizational-agent-graph.mjs";
 
 export const UNATTENDED_CYCLE_MEMORY_KIND = "unattended-cycle-memory";
 export const UNATTENDED_CYCLE_MEMORY_SCHEMA_VERSION = 1;
@@ -23,7 +26,7 @@ export const UNATTENDED_CYCLE_MEMORY_CACHE = Object.freeze({
   gitWrite: false,
 });
 const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
-
+const EMPTY_MEMORY_TIME = "1970-01-01T00:00:00.000Z";
 const FORBIDDEN_CONTENT_KEYS = new Set(["prompt", "response", "content", "messages", "chat"]);
 
 export function emptyUnattendedCycleMemory(parentAgentId = "mahoraga") {
@@ -33,6 +36,11 @@ export function emptyUnattendedCycleMemory(parentAgentId = "mahoraga") {
     receipts: [],
     registry,
     lastObservedAt: null,
+    institutionalMemory: emptyInstitutionalMemory(),
+    objectives: [],
+    organizationUnits: [],
+    promotedCapabilities: [],
+    growthFingerprint: null,
   });
 }
 
@@ -72,6 +80,11 @@ export function validateUnattendedCycleMemory(value) {
     receipts: [...ledger.receipts],
     registry,
     lastObservedAt: ledger.lastObservedAt ?? value.lastObservedAt ?? null,
+    institutionalMemory: normalizeInstitutionalMemory(value.institutionalMemory),
+    objectives: normalizeObjectives(value.objectives),
+    organizationUnits: normalizeOrganizationUnits(value.organizationUnits),
+    promotedCapabilities: normalizePromotedCapabilities(value.promotedCapabilities),
+    growthFingerprint: normalizeGrowthFingerprint(value.growthFingerprint),
   });
 }
 
@@ -87,11 +100,17 @@ export function rememberUnattendedCycle(memory, cycle) {
   const receipts = [...current.receipts];
   appendHeartbeatReceipt(receipts, cycle.heartbeat);
   const registry = normalizeRegistry(cycle.registry, parentAgentId);
+  const growth = cycle.growth ?? null;
   return freezeMemory({
     parentAgentId,
     receipts,
     registry,
     lastObservedAt: cycle.observedAt,
+    institutionalMemory: growth?.memory ?? current.institutionalMemory,
+    objectives: growth?.objectives ?? current.objectives,
+    organizationUnits: growth?.organization?.units ?? current.organizationUnits,
+    promotedCapabilities: growth?.promotedCapabilities ?? current.promotedCapabilities,
+    growthFingerprint: growth?.fingerprint ?? current.growthFingerprint,
   });
 }
 
@@ -118,6 +137,11 @@ export function summarizeUnattendedCycleMemory(memory, { persisted = false } = {
     parentAgentId: current.parentAgentId,
     receiptCount: current.receipts.length,
     agentCount: current.registry.agents.length,
+    institutionalMemoryCount: current.institutionalMemory.records.length,
+    objectiveCount: current.objectives.length,
+    organizationUnitCount: current.organizationUnits.length,
+    promotedCapabilityCount: current.promotedCapabilities.length,
+    growthFingerprint: current.growthFingerprint,
     lastObservedAt: current.lastObservedAt,
     persisted: persisted === true,
     creditCost: 0,
@@ -170,7 +194,64 @@ function normalizeRegistry(registry, parentAgentId) {
   return validated;
 }
 
-function freezeMemory({ parentAgentId, receipts, registry, lastObservedAt }) {
+function normalizeInstitutionalMemory(value) {
+  if (value == null) return emptyInstitutionalMemory();
+  if (!value || typeof value !== "object" || Array.isArray(value) || !Array.isArray(value.records)) fail("unattended-institutional-memory-invalid");
+  const normalized = reconcileInstitutionalMemory({ records: value.records, incoming: [], now: EMPTY_MEMORY_TIME });
+  if (typeof value.fingerprint === "string" && value.fingerprint !== normalized.fingerprint) fail("unattended-institutional-memory-fingerprint-invalid");
+  return normalized;
+}
+
+function normalizeObjectives(value) {
+  if (value == null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 4_096) fail("unattended-objectives-invalid");
+  return reconcileObjectiveEconomy([], value);
+}
+
+function normalizeOrganizationUnits(value) {
+  if (value == null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 512) fail("unattended-organization-units-invalid");
+  const byId = new Map();
+  for (const raw of value) {
+    const unit = validateOrganizationUnit(raw);
+    const current = byId.get(unit.unitId);
+    if (current && JSON.stringify(current) !== JSON.stringify(unit)) fail("unattended-organization-unit-conflict");
+    byId.set(unit.unitId, unit);
+  }
+  return Object.freeze([...byId.values()].sort((a, b) => a.unitId.localeCompare(b.unitId)));
+}
+
+function normalizePromotedCapabilities(value) {
+  if (value == null) return Object.freeze([]);
+  if (!Array.isArray(value) || value.length > 512 || new Set(value).size !== value.length) fail("unattended-promoted-capabilities-invalid");
+  const normalized = value.map((item) => {
+    if (typeof item !== "string" || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(item)) fail("unattended-promoted-capabilities-invalid");
+    return item;
+  });
+  return Object.freeze(normalized.sort());
+}
+
+function normalizeGrowthFingerprint(value) {
+  if (value == null) return null;
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) fail("unattended-growth-fingerprint-invalid");
+  return value;
+}
+
+function emptyInstitutionalMemory() {
+  return reconcileInstitutionalMemory({ records: [], incoming: [], now: EMPTY_MEMORY_TIME });
+}
+
+function freezeMemory({
+  parentAgentId,
+  receipts,
+  registry,
+  lastObservedAt,
+  institutionalMemory,
+  objectives,
+  organizationUnits,
+  promotedCapabilities,
+  growthFingerprint,
+}) {
   const fleet = snapshotFoundryFleet(registry, []);
   return Object.freeze({
     schemaVersion: UNATTENDED_CYCLE_MEMORY_SCHEMA_VERSION,
@@ -179,6 +260,11 @@ function freezeMemory({ parentAgentId, receipts, registry, lastObservedAt }) {
     receipts: Object.freeze([...receipts]),
     registry,
     fleet,
+    institutionalMemory: normalizeInstitutionalMemory(institutionalMemory),
+    objectives: normalizeObjectives(objectives),
+    organizationUnits: normalizeOrganizationUnits(organizationUnits),
+    promotedCapabilities: normalizePromotedCapabilities(promotedCapabilities),
+    growthFingerprint: normalizeGrowthFingerprint(growthFingerprint),
     lastObservedAt,
     creditCost: 0,
     paidFallback: false,
