@@ -10,7 +10,7 @@ The directory preserves bounded, reusable operator concepts and compatibility he
 
 ## Canonical operator surface
 
-Use `https://mahoraga-cloud-workspace.vercel.app/` for all browser interaction:
+Use `https://mahoraga-workspace.vercel.app/` for all browser interaction. The canonical Vercel project is `mahoraga-workspace`; historical duplicate projects are not user-facing production surfaces.
 
 - **Chat** — encrypted RuntimeRelay conversation path using the zero-Codex policy.
 - **Control Center** — cloud deployment identity, Git SHA, core status, routing policy, and capability readiness.

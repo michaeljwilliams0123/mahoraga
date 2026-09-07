@@ -5,7 +5,7 @@ plane is separated for security and durability:
 
 | Plane | Deployment | Responsibility |
 | --- | --- | --- |
-| Workspace | Vercel project rooted at `cloud-app/` | The only browser UI, explicit Cloud Pro, files, research, approvals, and connection state |
+| Workspace | Canonical Vercel project `mahoraga-workspace`, rooted at `cloud-app/` | The only browser UI, explicit Cloud Pro, files, research, approvals, and connection state |
 | Encrypted relay | Cloudflare Worker + Durable Object at `relay.mahoraga.app` | Owner/origin authentication, replay protection, and ciphertext forwarding only |
 | Runtime engine | Long-running remote container/VM with a persistent volume | Deterministic workers, task state, Git coordination, and zero-Codex provider routing |
 | Repository ledger | GitHub Actions and pull requests | Deterministic task staging, Primary Codex activation, Secondary fallback, verification, and audit receipts |
@@ -20,9 +20,12 @@ ledger is migrated to a serverless database and durable workflow system.
 
 Provide choices and connector authorization, not secret values in chat or Git:
 
-1. **Vercel project access:** reconnect or authorize the `mahoraga-cloud-workspace`
-   project, confirm `cloud-app/` is its root, and choose the canonical production
-   domain. Git integration should create a preview for every pull request.
+1. **Vercel project access:** authorize the canonical `mahoraga-workspace`
+   project, confirm `cloud-app/` is its root, and use
+   `https://mahoraga-workspace.vercel.app/` as the production origin unless a
+   separately managed custom domain replaces it. Git integration should create
+   previews for the canonical project; historical duplicate projects are not
+   production truth.
 2. **Workspace access policy:** choose Vercel Authentication or another approved
    identity boundary for production and previews. The Cloudflare relay origin
    must match the exact canonical production origin.
@@ -60,8 +63,9 @@ after the owner writes the activation mention on the prepared draft pull request
 
 ## Production acceptance
 
-- The canonical Vercel URL loads the unified workspace and no Pages, `cloud/`,
-  `web/`, or loopback frontend is deployable.
+- `https://mahoraga-workspace.vercel.app/` loads the unified workspace and no
+  Pages, `cloud/`, `web/`, loopback frontend, or historical duplicate Vercel
+  project is treated as the canonical deployment.
 - The default route is `zero-codex`; a missing provider produces a bounded
   unavailable state and no model invocation.
 - Cloud Pro runs only after explicit selection and respects the fixed context,

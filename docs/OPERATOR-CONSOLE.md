@@ -1,6 +1,6 @@
 # Integrated operator surface
 
-Mahoraga has one browser UI: the Vercel `cloud-app/` workspace at `https://mahoraga-cloud-workspace.vercel.app/`.
+Mahoraga has one browser UI: the canonical Vercel `cloud-app/` workspace at `https://mahoraga-workspace.vercel.app/`.
 
 The former operator-console concept is now integrated into that workspace rather than deployed as a second application.
 
@@ -32,7 +32,9 @@ Strict up-to-date. No bypass actors. A file in git is not branch protection.
 
 ## Deployment truth
 
-Root `vercel.json` enables Git-driven deployment again so a verified merge to `main` can update the canonical workspace. The browser health route publishes non-secret deployment identity (`VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`), and Control Center renders the commit SHA so stale production is visible immediately.
+The canonical Vercel project is `mahoraga-workspace`. Root `vercel.json` enables Git-driven deployment so a verified merge to `main` can update that workspace. Historical Vercel projects linked to the repository are non-canonical and must not be used as production truth.
+
+The browser health route publishes non-secret deployment identity (`VERCEL_ENV`, `VERCEL_URL`, `VERCEL_GIT_COMMIT_SHA`, `VERCEL_GIT_COMMIT_REF`), and Control Center renders the commit SHA so stale production is visible immediately.
 
 Vercel bot/review output remains non-blocking for PR completion; repository-native exact-head verification is the code gate.
 
