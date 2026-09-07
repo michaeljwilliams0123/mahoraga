@@ -17,6 +17,9 @@ export function parseMainProtectionContract(source) {
   for (const context of REQUIRED_CONTEXTS) {
     if (!value.requiredContexts.includes(context)) fail("main-protection-contexts-invalid");
   }
+  const liveEnforcementRequired = value.liveEnforcementRequired === undefined
+    ? true
+    : checkedBoolean(value.liveEnforcementRequired, "main-protection-live-enforcement-invalid");
   if (value.strictExactHead !== true) fail("main-protection-strict-required");
   if (value.deletionAllowed !== false) fail("main-protection-deletion-forbidden");
   if (value.forcePushAllowed !== false) fail("main-protection-force-push-forbidden");
@@ -25,6 +28,7 @@ export function parseMainProtectionContract(source) {
     schemaVersion: 1,
     targetRef: "refs/heads/main",
     requiredContexts: Object.freeze([...REQUIRED_CONTEXTS]),
+    liveEnforcementRequired,
     strictExactHead: true,
     deletionAllowed: false,
     forcePushAllowed: false,
@@ -41,6 +45,18 @@ export function evaluateLiveMainProtection({ rulesets = [], contract } = {}) {
   if (!Array.isArray(rulesets)) return blocked("live-rulesets-invalid");
 
   const covering = rulesets.filter((ruleset) => isActiveMainRuleset(ruleset));
+  if (covering.length === 0 && expected.liveEnforcementRequired === false) {
+    return Object.freeze({
+      ok: true,
+      status: "advisory-unprotected",
+      reason: "live-main-protection-temporarily-advisory",
+      rulesetIds: Object.freeze([]),
+      requiredContexts: expected.requiredContexts,
+      strictExactHead: expected.strictExactHead,
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
   if (covering.length === 0) return blocked("main-unprotected");
 
   const merged = mergeRules(covering);
@@ -117,6 +133,11 @@ function blocked(reason, extra = {}) {
     paidFallback: false,
     ...extra,
   });
+}
+
+function checkedBoolean(value, code) {
+  if (typeof value !== "boolean") fail(code);
+  return value;
 }
 
 function fail(code) {
