@@ -24,7 +24,7 @@ All execution, mutation, provider selection, and consequential actions remain ow
 
 ## Deployment policy
 
-Root `vercel.json` currently disables Git deployments. After the UI passes exact-head verification, change `git.deploymentEnabled` from `false` to a branch map that disables feature-branch previews while allowing `main` production deployment. Unspecified branches default to true in Vercel, so the map must explicitly disable the active UI feature branch and leave `main` enabled for this release path; subsequent branch-preview policy should remain non-gating and must never become a PR completion requirement.
+Root `vercel.json` currently disables all Git deployments. After the UI contracts are implemented, restore Git-driven deployment by setting `git.deploymentEnabled` to `true`. This allows the repository's existing Vercel integration to update the canonical workspace again after merges to `main`; preview/build activity must remain non-gating and must never become a PR completion requirement.
 
 ## Documentation truth
 
