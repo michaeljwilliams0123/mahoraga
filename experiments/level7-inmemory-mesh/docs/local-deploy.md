@@ -41,7 +41,15 @@ helm uninstall mahoraga-l7 -n mahoraga-l7
 
 Dashboard stub: `dashboards/mahoraga-metrics.json`.
 
-Metric names (`mahoraga_active_mesh_connections`, `mahoraga_queue_depth`, `mahoraga_structural_entropy`, `mahoraga_mutations_committed_total`) are **aspirational** until the L7 Mesh runtime emits them. Do not treat empty panels as a cluster failure.
+Aligned to Mesh metric names:
+
+- `mahoraga_l7_queue_depth`
+- `mahoraga_l7_active_variant`
+- `mahoraga_l7_snapshot_count`
+- `mahoraga_l7_mutation_ok_total`
+- `mahoraga_l7_mutation_fail_total`
+
+These require a Prometheus scrape of the L7 Mesh runtime exporter. Empty panels mean scrape/emitter gap, not a Helm failure.
 
 ## Guards
 

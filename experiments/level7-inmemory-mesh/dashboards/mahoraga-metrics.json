@@ -27,52 +27,12 @@
         "y": 0
       },
       "id": 1,
-      "title": "Active Cluster Mesh Nodes",
-      "type": "stat",
-      "datasource": "Prometheus",
-      "targets": [
-        {
-          "expr": "mahoraga_active_mesh_connections",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 3
-              }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 0
-      },
-      "id": 2,
       "title": "In-Memory Task Queue Depth",
       "type": "gauge",
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "mahoraga_queue_depth",
+          "expr": "mahoraga_l7_queue_depth",
           "refId": "A"
         }
       ],
@@ -103,27 +63,106 @@
     {
       "collapsed": false,
       "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "id": 2,
+      "title": "Active Variant",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "mahoraga_l7_active_variant",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "title": "Snapshot Count",
+      "type": "stat",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "expr": "mahoraga_l7_snapshot_count",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
         "y": 4
       },
-      "id": 3,
-      "title": "System Structural Entropy & Efficiency",
+      "id": 4,
+      "title": "Mutation OK Total",
       "type": "timeseries",
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "mahoraga_structural_entropy",
-          "legendFormat": "Entropy Index (0.0 = Peak Performance)",
+          "expr": "mahoraga_l7_mutation_ok_total",
+          "legendFormat": "ok",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "custom": {
-            "drawStyle": "line",
-            "lineInterpolation": "smooth"
+            "drawStyle": "bars"
           }
         }
       }
@@ -136,14 +175,14 @@
         "x": 12,
         "y": 4
       },
-      "id": 4,
-      "title": "Cumulative Metamorphic Mutations",
+      "id": 5,
+      "title": "Mutation Fail Total",
       "type": "timeseries",
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "mahoraga_mutations_committed_total",
-          "legendFormat": "Consensus Verified Commits",
+          "expr": "mahoraga_l7_mutation_fail_total",
+          "legendFormat": "fail",
           "refId": "A"
         }
       ],
@@ -162,8 +201,8 @@
   "tags": [
     "mahoraga",
     "level-7",
-    "singularity",
-    "experiment"
+    "experiment",
+    "l7-mesh"
   ],
   "time": {
     "from": "now-15m",
@@ -177,5 +216,6 @@
     ]
   },
   "title": "Mahoraga Level 7 Matrix Observability (EXPERIMENT)",
-  "version": 1
+  "version": 2,
+  "uid": "mahoraga-l7-experiment"
 }
