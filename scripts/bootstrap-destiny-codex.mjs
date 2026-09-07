@@ -38,8 +38,9 @@ const readiness = signDestinyTriggerEvidence({
   codexInstallationFingerprint: binding.codexInstallationFingerprint, codexEnvironmentFingerprint: binding.codexEnvironmentFingerprint,
 }, { privateKeyPkcs8: key.privateKeyPkcs8, publicKeySpki: key.publicKeySpki, keyId: TRIGGER_ID });
 const privateRoute = {
-  schemaVersion: 1, kind: "destiny-codex-private-route", repository: REPOSITORY,
+  schemaVersion: 2, kind: "destiny-codex-private-route", repository: REPOSITORY,
   environmentId: task.environmentId, codexAccountFingerprint: binding.codexAccountFingerprint,
+  codexEnvironmentFingerprint: binding.codexEnvironmentFingerprint,
   receiptKeyFingerprint: binding.receiptKeyFingerprint, boundAt: observedAt,
 };
 
