@@ -3,13 +3,22 @@ import { classifyAutonomyProvider, selectCreditFreeExecutionPlane } from "./cred
 export const CREDIT_FREE_OPERATOR_ACTORS = Object.freeze(["grok-github-mcp", "github-operator", "chatgpt-github-mcp"]);
 export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
   "inspect",
+  "create",
+  "modify",
+  "administer",
   "repair",
   "comment",
   "assign",
   "merge-exact-head",
   "close-superseded",
 ]);
-export const HOST_MUTATING_OPERATOR_ACTIONS = Object.freeze(["repair", "merge-exact-head"]);
+export const HOST_MUTATING_OPERATOR_ACTIONS = Object.freeze([
+  "create",
+  "modify",
+  "administer",
+  "repair",
+  "merge-exact-head",
+]);
 
 const MCP_CREDIT_FREE_SPENDING = Object.freeze(["zero", "credit-free", "deterministic"]);
 const MCP_METERED_SPENDING = Object.freeze(["licensed-cloud", "metered", "metered-cloud"]);
