@@ -1,0 +1,17 @@
+# EXPERIMENT ONLY — optional PVC for serializing volatile snapshots off tmpfs.
+# Runtime Node experiment defaults to ./var/snapshots on the local host instead.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mahoraga-l7-backup-pvc
+  labels:
+    mahoraga.experiment: level7-inmemory-mesh
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.storage | quote }}
+  {{- if .Values.backup.storageClassName }}
+  storageClassName: {{ .Values.backup.storageClassName | quote }}
+  {{- end }}

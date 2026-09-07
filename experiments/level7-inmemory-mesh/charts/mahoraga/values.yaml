@@ -1,0 +1,25 @@
+# EXPERIMENT ONLY — minimal values for Level 7 in-memory mesh chart stubs.
+# Not a production Mahoraga Helm release.
+
+nameOverride: mahoraga-l7-experiment
+fullnameOverride: mahoraga-l7-experiment
+
+inmemoryGit:
+  image: codeberg.org/forgejo/forgejo:8
+  tmpfsSize: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+backup:
+  storage: 5Gi
+  storageClassName: ""
+
+# Local SLM / Ollama hooks are intentionally omitted from this scaffold.
+experiment:
+  label: level7-inmemory-mesh
+  production: false

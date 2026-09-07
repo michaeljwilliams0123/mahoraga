@@ -1,0 +1,72 @@
+# EXPERIMENT ONLY — Forgejo/Gitea with tmpfs volumes. Do not use in production Mahoraga.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mahoraga-inmemory-git
+  labels:
+    app: mahoraga-inmemory-git
+    mahoraga.experiment: level7-inmemory-mesh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mahoraga-inmemory-git
+  template:
+    metadata:
+      labels:
+        app: mahoraga-inmemory-git
+        mahoraga.experiment: level7-inmemory-mesh
+    spec:
+      containers:
+        - name: forgejo
+          image: "{{ .Values.inmemoryGit.image }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+            - name: ssh
+              containerPort: 2222
+          env:
+            - name: USER_UID
+              value: "1000"
+            - name: USER_GID
+              value: "1000"
+          volumeMounts:
+            - name: git-data
+              mountPath: /data
+            - name: git-mesh-config
+              mountPath: /data/gitea/conf/app.ini
+              subPath: app.ini
+          resources:
+            requests:
+              memory: "{{ .Values.inmemoryGit.resources.requests.memory }}"
+              cpu: "{{ .Values.inmemoryGit.resources.requests.cpu }}"
+            limits:
+              memory: "{{ .Values.inmemoryGit.resources.limits.memory }}"
+              cpu: "{{ .Values.inmemoryGit.resources.limits.cpu }}"
+      volumes:
+        - name: git-data
+          emptyDir:
+            medium: Memory
+            sizeLimit: "{{ .Values.inmemoryGit.tmpfsSize }}"
+        - name: git-mesh-config
+          configMap:
+            name: mahoraga-git-mesh-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mahoraga-inmemory-git
+  labels:
+    app: mahoraga-inmemory-git
+    mahoraga.experiment: level7-inmemory-mesh
+spec:
+  selector:
+    app: mahoraga-inmemory-git
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+    - name: ssh
+      port: 2222
+      targetPort: ssh

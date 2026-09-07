@@ -1,0 +1,22 @@
+{
+  "name": "@mahoraga/level7-inmemory-mesh",
+  "version": "0.0.1-experiment",
+  "private": true,
+  "description": "EXPERIMENT ONLY — Level 7 in-memory mesh scaffold (isolated; not production Mahoraga)",
+  "type": "commonjs",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist var/snapshots/*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "typescript": "^5.9.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0"
+  }
+}
