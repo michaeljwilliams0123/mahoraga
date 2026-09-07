@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string]$ExpectedTaskTitle,
+    [string]$ProbeId,
 
     [string]$CodexHome,
     [string]$StateDir,
@@ -15,7 +15,7 @@ if (-not (Test-Path -LiteralPath $bootstrap -PathType Leaf)) {
 }
 
 $node = Get-Command node -ErrorAction Stop
-$arguments = @($bootstrap, '--expected-title', $ExpectedTaskTitle)
+$arguments = @($bootstrap, '--probe-id', $ProbeId)
 if ($CodexHome) { $arguments += @('--codex-home', $CodexHome) }
 if ($StateDir) { $arguments += @('--state-dir', $StateDir) }
 if ($CloudListFile) { $arguments += @('--cloud-list-file', $CloudListFile) }
