@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { buildAgentFeatLedger, validateAgentFeat } from './agent-feat-ledger.mjs';
 import { validateChildAgentManifest } from './agent-foundry.mjs';
-import { createObjectiveCandidate, reconcileObjectiveEconomy } from './objective-economy.mjs';
+import { createObjectiveCandidate, reconcileObjectiveEconomy, validateObjectiveCandidate } from './objective-economy.mjs';
 import { createInstitutionalMemoryRecord, reconcileInstitutionalMemory } from './institutional-memory.mjs';
 import { buildOrganizationalAgentGraph, validateOrganizationUnit } from './organizational-agent-graph.mjs';
 
@@ -31,6 +31,7 @@ export function runGrowthCompoundingLoop({
   const normalizedFeats = feats.map(validateAgentFeat).sort((a, b) => a.featId.localeCompare(b.featId));
   const normalizedGaps = gaps.map(normalizeGap).sort((a, b) => priorityRank(a.priority) - priorityRank(b.priority) || a.id.localeCompare(b.id));
   const normalizedUnits = existingUnits.map(validateOrganizationUnit).sort((a, b) => a.unitId.localeCompare(b.unitId));
+  const normalizedExistingObjectives = existingObjectives.map(validateObjectiveCandidate);
 
   const sourceFingerprint = digest({
     entityId,
@@ -39,12 +40,14 @@ export function runGrowthCompoundingLoop({
     feats: normalizedFeats,
     gaps: normalizedGaps,
     memoryIds: memoryRecords.map((record) => record?.memoryId ?? null).sort(),
-    objectiveIds: existingObjectives.map((objective) => objective?.objectiveId ?? null).sort(),
+    objectives: normalizedExistingObjectives.map(objectiveIdentity).sort((a, b) => a.objectiveId.localeCompare(b.objectiveId)),
     unitIds: normalizedUnits.map((unit) => unit.unitId),
   });
   const featLedger = buildAgentFeatLedger({ sourceFingerprint, feats: normalizedFeats });
-  const objectiveCandidates = normalizedGaps.filter(actionableGap).map((gap) => objectiveFromGap(gap, timestamp));
-  const objectives = reconcileObjectiveEconomy(objectiveCandidates, existingObjectives);
+  const objectiveCandidates = normalizedGaps
+    .filter(actionableGap)
+    .map((gap) => stableObjectiveFromGap(gap, timestamp, normalizedExistingObjectives));
+  const objectives = reconcileObjectiveEconomy(objectiveCandidates, normalizedExistingObjectives);
   const incomingMemory = normalizedGaps.filter(actionableGap).map((gap) => memoryFromGap(gap, timestamp));
   const memory = reconcileInstitutionalMemory({ records: memoryRecords, incoming: incomingMemory, now: timestamp });
   const organization = buildOrganizationalAgentGraph({
@@ -60,7 +63,7 @@ export function runGrowthCompoundingLoop({
   const fingerprint = digest({
     sourceFingerprint,
     memory: memory.fingerprint,
-    objectives: objectives.map((objective) => [objective.objectiveId, objective.state]),
+    objectives: objectives.map(objectiveIdentity),
     organization: organization.fingerprint,
     promotedCapabilities,
   });
@@ -80,6 +83,7 @@ export function runGrowthCompoundingLoop({
       activeMemoryCount: memory.activeMemoryIds.length,
       objectiveCount: objectives.length,
       plannedUnitCount: organization.plans.length,
+      organizationUnitCount: organization.units.length,
       reusableFeatCount: featLedger.reusableFeatIds.length,
       promotedCapabilityCount: promotedCapabilities.length,
     },
@@ -88,6 +92,13 @@ export function runGrowthCompoundingLoop({
     creditCost: 0,
     paidFallback: false,
   });
+}
+
+function stableObjectiveFromGap(gap, timestamp, existingObjectives) {
+  const candidate = objectiveFromGap(gap, timestamp);
+  const existing = existingObjectives.find((objective) => objective.fingerprint === candidate.fingerprint);
+  if (!existing) return candidate;
+  return JSON.stringify(objectiveIdentity(existing)) === JSON.stringify(objectiveIdentity(candidate)) ? existing : candidate;
 }
 
 function objectiveFromGap(gap, timestamp) {
@@ -107,6 +118,26 @@ function objectiveFromGap(gap, timestamp) {
     evidenceQuality: 80,
     state: 'candidate',
   }, { now: () => new Date(timestamp) });
+}
+
+function objectiveIdentity(objective) {
+  const value = validateObjectiveCandidate(objective);
+  return {
+    objectiveId: value.objectiveId,
+    title: value.title,
+    origin: value.origin,
+    missionAlignment: value.missionAlignment,
+    impact: value.impact,
+    urgency: value.urgency,
+    confidence: value.confidence,
+    dependencyReadiness: value.dependencyReadiness,
+    reversibility: value.reversibility,
+    costEfficiency: value.costEfficiency,
+    capabilityReadiness: value.capabilityReadiness,
+    evidenceQuality: value.evidenceQuality,
+    state: value.state,
+    fingerprint: value.fingerprint,
+  };
 }
 
 function memoryFromGap(gap, timestamp) {
