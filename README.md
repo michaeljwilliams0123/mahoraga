@@ -21,8 +21,11 @@ incident-only repair records.
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
-The live workspace link above is the single canonical browser deployment. Historical
-Vercel projects are non-canonical and should not be used as production truth.
+GitHub main is the code authority for the live workspace. Vercel remains the historical
+primary deployment target, but it is optional and non-gating. When Vercel capacity is
+unavailable, the verified same workspace may be mirrored through the Netlify fallback
+without changing paired-core execution authority. Historical Vercel projects remain
+non-canonical and should not be used as production truth.
 
 ## AI agents — do not JavaScript-rewrite this repository
 
@@ -38,8 +41,9 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Release truth
 
-- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. There is one Vercel browser UI:
-  `cloud-app/`, containing Chat, Control Center, Operations, and Connections.
+- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. There is one browser UI source:
+  `cloud-app/`, containing Chat, Control Center, Operations, and Connections. It may be
+  deployed by Vercel or the Netlify fallback from verified GitHub main.
   See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/README.md`](operator-deck/README.md).
 - Active production baseline: `3.6.0`; this document does not claim it has been
   replaced or restarted.
@@ -74,7 +78,7 @@ ChatGPT, Copilot, and Codex must follow
 - Provider-neutral browser, signed-Chrome, and Windows desktop capability
   contracts. Mahoraga maps supported behavior without copying proprietary
   plugin implementations.
-- One Vercel-hosted workspace provides Chat, Control Center, Operations, and Connections
+- One provider-neutral workspace source provides Chat, Control Center, Operations, and Connections
   against an explicitly paired Mahoraga runtime. The browser is an encrypted client;
   policy, routing, verification, and execution authority remain with the paired core.
   The loopback process remains an API and encrypted execution service; GitHub Pages and
@@ -106,8 +110,9 @@ ChatGPT, Copilot, and Codex must follow
 
 ## Use the workspace
 
-- **Talk to and operate Mahoraga:** `https://mahoraga-workspace.vercel.app/` is the
-  single canonical browser UI, served by the canonical Vercel project `mahoraga-workspace`.
+- **Talk to and operate Mahoraga:** `cloud-app/` is the single canonical browser UI source.
+  The current Vercel URL remains usable while service capacity exists; the same verified GitHub
+  main workspace may also be deployed through the Netlify fallback when Vercel is unavailable.
   Use Chat for conversation, Control Center for deployment/core status,
   Operations for core-mediated actions, and Connections for relay/capability readiness.
 - Pair an explicitly chosen runtime from the workspace when local workers or task state are needed.
