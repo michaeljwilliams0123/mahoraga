@@ -3,6 +3,7 @@
   "framework": "nextjs",
   "installCommand": "npm ci --prefix cloud-app",
   "buildCommand": "npm run build --prefix cloud-app",
+  "outputDirectory": "cloud-app/.next",
   "git": {
     "deploymentEnabled": true
   }
