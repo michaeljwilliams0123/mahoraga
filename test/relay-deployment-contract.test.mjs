@@ -21,13 +21,21 @@ test("release packages and attests the host-neutral relay without embedded crede
   assert.match(cli, /MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN/);
 });
 
-test("verification binds the relay and unified Vercel workspace to checked-out source", async () => {
+test("verification binds the relay and unified cloud workspace to checked-out source", async () => {
   const [verify, vercel, packageSource] = await Promise.all([read(".github/workflows/verify.yml"), read("cloud-app/vercel.json"), read("package.json")]);
   assert.match(verify, /npm run verify:conversation-plane/);
-  assert.match(verify, /Verify unified Vercel workspace/);
-  assert.match(verify, /working-directory: cloud-app/);
+  assert.match(verify, /ubuntu-latest/);
+  assert.match(verify, /windows-latest/);
   assert.match(verify, /npm run verify/);
+
+  // A dedicated workspace job may be retained for local static verification only,
+  // but it must be observational while external Vercel capacity is unavailable.
+  if (/Verify unified Vercel workspace/.test(verify)) {
+    assert.match(verify, /workspace:[\s\S]*?continue-on-error:\s*true/);
+  }
+
   assert.match(vercel, /"framework": "nextjs"/);
+  assert.match(vercel, /"deploymentEnabled"\s*:\s*false/);
   const scripts = JSON.parse(packageSource).scripts;
   assert.match(scripts["verify:conversation-plane"], /conversation-plane-smoke/);
   assert.match(scripts["verify:conversation-plane"], /relay-deployment-contract/);
