@@ -1,0 +1,10 @@
+[build]
+base = "cloud-app"
+command = "npm run build"
+publish = ".next"
+
+[build.environment]
+NODE_VERSION = "24"
+
+[context.production]
+command = "npm run build"
