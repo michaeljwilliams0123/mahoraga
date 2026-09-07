@@ -3,6 +3,6 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@microsoft/dataverse": "1.0.72"
+    "@microsoft/dataverse": "1.0.77"
   }
 }
