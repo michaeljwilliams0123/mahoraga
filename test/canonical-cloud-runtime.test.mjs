@@ -7,9 +7,18 @@ import { canonicalWorkspaceUrl, DEFAULT_WORKSPACE_URL } from "../src/server.mjs"
 
 const read = (relative) => readFile(path.join(ROOT, relative), "utf8");
 
+async function readWorkspaceSurface() {
+  const [workspace, shell, chatView] = await Promise.all([
+    read("cloud-app/components/workspace.tsx"),
+    read("cloud-app/components/workspace/workspace-shell.tsx"),
+    read("cloud-app/components/workspace/chat-view.tsx"),
+  ]);
+  return `${workspace}\n${shell}\n${chatView}`;
+}
+
 test("Vercel is the only Mahoraga browser interaction surface", async () => {
   const [workspace, relay, docs] = await Promise.all([
-    read("cloud-app/components/workspace.tsx"),
+    readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
     read("docs/CLOUD-WORKSPACE.md"),
   ]);
@@ -33,7 +42,7 @@ test("retired static and loopback UI entry points are absent", async () => {
 
 test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and not a route selector", async () => {
   const [workspace, relay, chatRoute] = await Promise.all([
-    read("cloud-app/components/workspace.tsx"),
+    readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
     read("cloud-app/app/api/chat/route.ts"),
   ]);
