@@ -10,6 +10,7 @@ import { SharedMemoryMatrix } from "./core/SharedMemoryMatrix";
 import { PersistenceDaemon } from "./core/PersistenceDaemon";
 import { RestoreBootstrap } from "./core/RestoreBootstrap";
 import { TaskStreamQueue } from "./core/TaskStreamQueue";
+import { MetricsRegistry } from "./core/MetricsRegistry";
 
 const MUTATION_MS = Number(process.env.L7_MUTATION_MS || 10_000);
 const INGEST_MS = Number(process.env.L7_INGEST_MS || 250);
@@ -36,6 +37,8 @@ async function executeMetamorphicRuntime(): Promise<void> {
       Number.isFinite(requestedWorkers) ? requestedWorkers : 0
     );
     const taskQueue = new TaskStreamQueue();
+    const metrics = new MetricsRegistry();
+    metrics.setActiveVariant(threadSyncMatrix.getActiveVariantIndex());
 
     // 1. Crash Recovery Layer
     const recoveryEngine = new RestoreBootstrap(workspace);
@@ -58,11 +61,13 @@ async function executeMetamorphicRuntime(): Promise<void> {
     backupDaemon.startSnapshotingLoop();
     // Immediate first checkpoint for observability during short smokes
     await backupDaemon.checkpointOnce();
+    metrics.setSnapshotCount(workspace.listNodeIds().length);
 
     // 3. Mock telemetry ingestion
     armInterval(() => {
       const generatedMockPayload = Math.floor(Math.random() * 100);
       taskQueue.pushTaskStream(generatedMockPayload);
+      metrics.setQueueDepth(taskQueue.getQueueDepth());
     }, INGEST_MS);
 
     // 4. Autonomous metamorphic optimization cycle (fail-closed: verify before swap)
@@ -86,10 +91,13 @@ async function executeMetamorphicRuntime(): Promise<void> {
             50
           );
           threadSyncMatrix.atomicSwapActiveVariant(mutationIndex);
+          metrics.setActiveVariant(mutationIndex);
+          metrics.incMutationOk();
           console.log(
             `[Verification Success] Fail-closed swap committed; invoke(50) => ${evaluationOutput}`
           );
         } catch (err) {
+          metrics.incMutationFail();
           console.error(
             "[Mutation Dropped] Verify failed — prior good pointer kept (fail-closed, no live swap).",
             err
@@ -112,9 +120,18 @@ async function executeMetamorphicRuntime(): Promise<void> {
           console.error(`[Execution Fault] Task [${nextJob.taskId}] failed inside sandboxed pointer.`);
         } finally {
           taskQueue.markTaskComplete();
+          metrics.setQueueDepth(taskQueue.getQueueDepth());
         }
       })();
     }, DRAIN_MS);
+
+    // 6. Periodic metrics flush / log of contracted names
+    armInterval(() => {
+      metrics.setQueueDepth(taskQueue.getQueueDepth());
+      metrics.setActiveVariant(threadSyncMatrix.getActiveVariantIndex());
+      metrics.setSnapshotCount(workspace.listNodeIds().length);
+      console.log(`[L7 Metrics] ${JSON.stringify(metrics.snapshot())}`);
+    }, Math.max(SNAPSHOT_MS, 5_000));
 
     console.log(
       `[L7] Mesh loops armed (mutation=${MUTATION_MS}ms ingest=${INGEST_MS}ms drain=${DRAIN_MS}ms snapshot=${SNAPSHOT_MS}ms).`

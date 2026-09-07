@@ -11,6 +11,8 @@ import { PersistenceDaemon } from "./core/PersistenceDaemon";
 import { RestoreBootstrap } from "./core/RestoreBootstrap";
 import { DeepASTEngine } from "./metamorphic/DeepASTEngine";
 import { MetamorphicCompilerPipeline } from "./metamorphic/CompilerPipeline";
+import { MetricsRegistry, L7_METRIC_NAMES } from "./core/MetricsRegistry";
+import { TaskStreamQueue } from "./core/TaskStreamQueue";
 
 const TARGET = "node_core_compute";
 const BASELINE = `export const execute = async (n: any) => { return n * 2; };`;
@@ -34,6 +36,8 @@ async function main(): Promise<void> {
 
   const workspace = new VolatileWorkspaceEngine();
   const astEngine = new DeepASTEngine(TARGET);
+  const metrics = new MetricsRegistry();
+  const queue = new TaskStreamQueue();
 
   // 1) Mount baseline
   const initialJs = MetamorphicCompilerPipeline.compileToMemory(BASELINE);
@@ -44,6 +48,9 @@ async function main(): Promise<void> {
     await fail(`baseline invoke(21) expected 42, got ${String(boot)}`);
   }
   console.log(`[smoke] mount OK invoke(21)=${boot}`);
+  queue.pushTaskStream(21);
+  metrics.setQueueDepth(queue.getQueueDepth());
+  metrics.setActiveVariant(1);
 
   // 2) One fail-closed mutation via DeepASTEngine + CompilerPipeline
   const currentText = workspace.readMemoryText(TARGET);
@@ -57,6 +64,8 @@ async function main(): Promise<void> {
     50
   );
   console.log(`[smoke] mutate+verify OK invoke(50)=${mutatedOut}`);
+  metrics.incMutationOk();
+  metrics.setActiveVariant(2);
 
   const afterMutate = await workspace.invokeMemoryPointer(TARGET, 7);
   if (afterMutate !== 14) {
@@ -69,6 +78,7 @@ async function main(): Promise<void> {
   const snapPath = path.join(snapshotDir, `${TARGET}_stable_bkp.ts`);
   await fs.access(snapPath);
   console.log(`[smoke] checkpoint OK ${snapPath}`);
+  metrics.setSnapshotCount(workspace.listNodeIds().length);
 
   // 4) Clear + restore via RestoreBootstrap
   workspace.clearAllMounts();
@@ -97,7 +107,38 @@ async function main(): Promise<void> {
     /* ignore */
   }
 
-  console.log("[smoke] PASS mount → mutate → checkpoint → restore");
+
+  const snap = metrics.snapshot();
+  const required = [
+    L7_METRIC_NAMES.queueDepth,
+    L7_METRIC_NAMES.activeVariant,
+    L7_METRIC_NAMES.snapshotCount,
+    L7_METRIC_NAMES.mutationOk,
+    L7_METRIC_NAMES.mutationFail
+  ];
+  for (const name of required) {
+    if (!(name in snap)) {
+      await fail(`missing metric ${name}`);
+    }
+  }
+  if (snap[L7_METRIC_NAMES.queueDepth] < 1) {
+    await fail(`expected queue_depth >= 1, got ${snap[L7_METRIC_NAMES.queueDepth]}`);
+  }
+  if (snap[L7_METRIC_NAMES.mutationOk] < 1) {
+    await fail(`expected mutation_ok >= 1, got ${snap[L7_METRIC_NAMES.mutationOk]}`);
+  }
+  if (snap[L7_METRIC_NAMES.snapshotCount] < 1) {
+    await fail(`expected snapshot_count >= 1, got ${snap[L7_METRIC_NAMES.snapshotCount]}`);
+  }
+  const prom = metrics.renderPrometheus();
+  for (const name of required) {
+    if (!prom.includes(name)) {
+      await fail(`prometheus text missing ${name}`);
+    }
+  }
+  console.log(`[smoke] metrics OK ${JSON.stringify(snap)}`);
+
+  console.log("[smoke] PASS mount → mutate → checkpoint → restore (+ metrics emit)");
   process.exit(0);
 }
 
