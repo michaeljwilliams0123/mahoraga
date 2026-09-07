@@ -66,8 +66,11 @@ test("both Vercel entrypoints enable Git deployment and root build targets neste
 test("repository declares only the canonical Vercel workspace alias", async () => {
   const sources = await Promise.all([
     read("../README.md"),
+    read("README.md"),
     read("../docs/CLOUD-WORKSPACE.md"),
+    read("../docs/CLOUD-ONLY-DEPLOYMENT.md"),
     read("../docs/OPERATOR-CONSOLE.md"),
+    read("../operator-deck/README.md"),
     read("../scripts/open-workspace.ps1"),
   ]);
   for (const source of sources) {
