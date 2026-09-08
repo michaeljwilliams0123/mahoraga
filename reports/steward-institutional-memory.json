@@ -1,77 +1,9 @@
 {
   "schemaVersion": 1,
-  "records": [
-    {
-      "schemaVersion": 1,
-      "memoryId": "mem-08b01c2f5a261d832ea4dd2468d4251f",
-      "memoryClass": "observation",
-      "subject": "signed-browser-session",
-      "statement": "Signed-in Chrome session control is not active.",
-      "provenance": "entity-inference",
-      "confidence": 0.9,
-      "freshness": "current",
-      "objectiveIds": [
-        "obj-signed-browser-session"
-      ],
-      "evidenceRefs": [
-        "gap-signed-browser-session"
-      ],
-      "capability": "signed-browser-session",
-      "supersedes": [],
-      "observedAt": "2026-09-05T06:50:00.000Z",
-      "zeroCredit": true,
-      "providerRequired": false
-    },
-    {
-      "schemaVersion": 1,
-      "memoryId": "mem-921b8c33453e596ad6feac29e961b47d",
-      "memoryClass": "observation",
-      "subject": "local-reasoner",
-      "statement": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
-      "provenance": "entity-inference",
-      "confidence": 0.85,
-      "freshness": "current",
-      "objectiveIds": [
-        "obj-local-reasoner"
-      ],
-      "evidenceRefs": [
-        "gap-local-reasoner"
-      ],
-      "capability": "local-reasoner",
-      "supersedes": [],
-      "observedAt": "2026-09-05T06:50:00.000Z",
-      "zeroCredit": true,
-      "providerRequired": false
-    },
-    {
-      "schemaVersion": 1,
-      "memoryId": "mem-9dc678c52e842461c985bad644650a68",
-      "memoryClass": "observation",
-      "subject": "microsoft-durable-queue",
-      "statement": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
-      "provenance": "entity-inference",
-      "confidence": 0.9,
-      "freshness": "current",
-      "objectiveIds": [
-        "obj-microsoft-durable-queue"
-      ],
-      "evidenceRefs": [
-        "gap-microsoft-durable-queue"
-      ],
-      "capability": "microsoft-durable-queue",
-      "supersedes": [],
-      "observedAt": "2026-09-05T06:50:00.000Z",
-      "zeroCredit": true,
-      "providerRequired": false
-    }
-  ],
-  "activeMemoryIds": [
-    "mem-08b01c2f5a261d832ea4dd2468d4251f",
-    "mem-921b8c33453e596ad6feac29e961b47d",
-    "mem-9dc678c52e842461c985bad644650a68"
-  ],
+  "records": [],
+  "activeMemoryIds": [],
   "supersededMemoryIds": [],
-  "fingerprint": "dfcae31c2597e6642044098684ca44018aca5ffbc9cd6e3c92061c7ca4a9ff3e",
+  "fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "zeroCredit": true,
   "providerRequired": false
 }

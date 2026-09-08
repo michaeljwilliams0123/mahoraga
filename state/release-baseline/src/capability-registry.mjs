@@ -1,9 +1,9 @@
 import { capabilityClass, deriveCapabilityReadiness, isCapabilityRoutable } from "./capability-readiness.mjs";
+import { projectOpenAiCapabilityRoutes } from "./openai-route-registry.mjs";
 
-export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.now()) {
+export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.now(), context = {}) {
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
-
-  return manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
+  const staticRoutes = manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
     const runtimeState = stateByWorker.get(worker.id);
     const recorded = runtimeState?.readiness?.find((item) => item.capability === capability);
     const readiness = deriveCapabilityReadiness({
@@ -49,25 +49,27 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       dataClasses: [...worker.dataClasses],
       executionPlane: worker.executionPlane,
       healthProbe: worker.healthProbe,
+      economicTier: economicTierForCostClass(worker.costClass),
     };
   }));
+  return staticRoutes.concat(pairedRouteEntries(context, now));
 }
 
-export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = Date.now() } = {}) {
+export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = Date.now(), ...context } = {}) {
   const allowedCosts = manifest.costModes[task.requestedMode];
   if (!allowedCosts) return { candidates: [], reason: "unknown-cost-mode" };
 
   const interfaceRank = new Map(manifest.routingPolicy.interfaceOrder.map((value, index) => [value, index]));
   const availabilityRank = new Map(manifest.routingPolicy.availabilityOrder.map((value, index) => [value, index]));
   const allowedWorkers = new Set(task.allowedWorkerIds ?? []);
-  const matching = buildCapabilityRegistry(manifest, workerStates, now)
+  const matching = buildCapabilityRegistry(manifest, workerStates, now, context)
     .filter((entry) => entry.capability === task.capability && entry.enabled)
     .sort((left, right) => compareRoutes(left, right, { interfaceRank, availabilityRank, allowedCosts }));
   const staticEligible = matching.filter((entry) =>
-    (allowedWorkers.size === 0 || allowedWorkers.has(entry.workerId)) &&
-    entry.dataClasses.includes(task.dataClass) &&
-    allowedCosts.includes(entry.costClass) &&
-    entry.reliability >= manifest.routingPolicy.minimumReliability);
+    (allowedWorkers.size === 0 || allowedWorkers.has(entry.workerId))
+      && entry.dataClasses.includes(task.dataClass)
+      && allowedCosts.includes(entry.costClass)
+      && entry.reliability >= manifest.routingPolicy.minimumReliability);
 
   if (staticEligible.length === 0) {
     const reason = matching.length > 0 && allowedWorkers.size > 0 && !matching.some((entry) => allowedWorkers.has(entry.workerId))
@@ -91,13 +93,14 @@ export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = 
 }
 
 function compareRoutes(left, right, { interfaceRank, availabilityRank, allowedCosts }) {
-  return rank(interfaceRank, left.interfaceType) - rank(interfaceRank, right.interfaceType) ||
-    allowedCosts.indexOf(left.costClass) - allowedCosts.indexOf(right.costClass) ||
-    rank(availabilityRank, sortableAvailability(left)) - rank(availabilityRank, sortableAvailability(right)) ||
-    left.workload - right.workload ||
-    left.latencyMs - right.latencyMs ||
-    right.reliability - left.reliability ||
-    left.workerId.localeCompare(right.workerId);
+  return economicTier(left) - economicTier(right)
+    || rank(interfaceRank, left.interfaceType) - rank(interfaceRank, right.interfaceType)
+    || allowedCosts.indexOf(left.costClass) - allowedCosts.indexOf(right.costClass)
+    || rank(availabilityRank, sortableAvailability(left)) - rank(availabilityRank, sortableAvailability(right))
+    || left.workload - right.workload
+    || left.latencyMs - right.latencyMs
+    || right.reliability - left.reliability
+    || left.workerId.localeCompare(right.workerId);
 }
 
 function sortableAvailability(entry) {
@@ -115,4 +118,37 @@ function normalizeProcessStatus(status) {
 
 function rank(index, value) {
   return index.has(value) ? index.get(value) : Number.MAX_SAFE_INTEGER;
+}
+
+function pairedRouteEntries(context, now) {
+  if (Array.isArray(context?.pairedCapabilityRoutes)) return context.pairedCapabilityRoutes.map(normalizeProjectedRoute);
+  if (context?.openAiRouteRegistry) {
+    return projectOpenAiCapabilityRoutes({
+      registry: context.openAiRouteRegistry,
+      routeStatuses: context.openAiRouteStatuses ?? [],
+      observedAt: new Date(now).toISOString(),
+    }).map(normalizeProjectedRoute);
+  }
+  return [];
+}
+
+function normalizeProjectedRoute(route) {
+  return {
+    ...route,
+    healthProbe: null,
+    economicTier: Number.isSafeInteger(route.economicTier) ? route.economicTier : economicTierForCostClass(route.costClass),
+  };
+}
+
+function economicTier(entry) {
+  return Number.isSafeInteger(entry.economicTier) ? entry.economicTier : economicTierForCostClass(entry.costClass);
+}
+
+function economicTierForCostClass(costClass) {
+  if (costClass === "deterministic") return 0;
+  if (costClass === "local-model") return 1;
+  if (costClass === "cloud-open-weight") return 2;
+  if (costClass === "licensed-cloud") return 3;
+  if (costClass === "metered-cloud") return 4;
+  return Number.MAX_SAFE_INTEGER;
 }

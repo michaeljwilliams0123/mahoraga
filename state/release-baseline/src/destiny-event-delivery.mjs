@@ -1,3 +1,5 @@
+import { observeGithubTransportIdentity } from "./github-transport-observation.mjs";
+
 const OWNER_EVENTS = Object.freeze(["opened", "synchronize", "reopened", "edited"]);
 const ACTOR_TYPES = Object.freeze(["owner", "github-app", "bot", "other"]);
 const EVENT_NAMES = Object.freeze(["pull_request", "workflow_dispatch", "issue_comment"]);
@@ -36,121 +38,46 @@ export function classifyDestinyEventActor({ actorLogin, owner, actorType } = {})
 export function classifyGithubValidationDelivery(input = {}) {
   const event = requireObject(input, "destiny-delivery-event-invalid");
   const actor = classifyDestinyEventActor(event);
+  const transportObservation = transportObservationFromEvent(event);
   const eventName = event.eventName;
   const action = event.action ?? null;
   if (!EVENT_NAMES.includes(eventName)) {
-    return frozen({
-      hop: "github-validation",
-      schedules: false,
-      reason: "destiny-delivery-event-unsupported",
-      recovery: "none",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "github-validation", schedules: false, reason: "destiny-delivery-event-unsupported", recovery: "none", transportObservation });
   }
   if (eventName === "workflow_dispatch") {
-    return frozen({
-      hop: "github-validation",
-      schedules: true,
-      reason: "explicit-workflow-dispatch",
-      recovery: "none",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "github-validation", schedules: true, reason: "explicit-workflow-dispatch", recovery: "none", transportObservation });
   }
   if (eventName === "pull_request" && OWNER_EVENTS.includes(action) && actor === "owner") {
-    return frozen({
-      hop: "github-validation",
-      schedules: true,
-      reason: `owner-${action}-pr-schedules`,
-      recovery: "none",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "github-validation", schedules: true, reason: `owner-${action}-pr-schedules`, recovery: "none", transportObservation });
   }
   if (eventName === "pull_request" && action === "opened" && (actor === "github-app" || actor === "bot")) {
-    return frozen({
-      hop: "github-validation",
-      schedules: false,
-      reason: "app-created-pr-check-suite-gap",
-      recovery: "workflow_dispatch",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "github-validation", schedules: false, reason: "app-created-pr-check-suite-gap", recovery: "workflow_dispatch", transportObservation });
   }
   if (eventName === "pull_request" && OWNER_EVENTS.includes(action) && actor !== "owner") {
-    return frozen({
-      hop: "github-validation",
-      schedules: false,
-      reason: "non-owner-pr-event-unproven",
-      recovery: "workflow_dispatch",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "github-validation", schedules: false, reason: "non-owner-pr-event-unproven", recovery: "workflow_dispatch", transportObservation });
   }
-  return frozen({
-    hop: "github-validation",
-    schedules: false,
-    reason: "destiny-delivery-event-not-validation",
-    recovery: "none",
-    creditCost: 0,
-    paidFallback: false,
-  });
+  return deliveryResult({ hop: "github-validation", schedules: false, reason: "destiny-delivery-event-not-validation", recovery: "none", transportObservation });
 }
 
 export function classifyExternalDestinyDelivery(input = {}) {
   const event = requireObject(input, "destiny-delivery-event-invalid");
+  const transportObservation = transportObservationFromEvent(event);
   if (event.zeroCreditEligible !== true) {
-    return frozen({
-      hop: "external-destiny",
-      delivers: false,
-      reason: "destiny-trigger-zero-credit-not-eligible",
-      recovery: "hold-planned",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "external-destiny", delivers: false, reason: "destiny-trigger-zero-credit-not-eligible", recovery: "hold-planned", transportObservation });
   }
   const actor = classifyDestinyEventActor(event);
   const eventName = event.eventName;
   const action = event.action ?? null;
   if (eventName === "pull_request" && action === "opened" && actor === "owner") {
-    return frozen({
-      hop: "external-destiny",
-      delivers: true,
-      reason: "owner-opened-pr-destiny-eligible",
-      recovery: "none",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "external-destiny", delivers: true, reason: "owner-opened-pr-destiny-eligible", recovery: "none", transportObservation });
   }
   if (eventName === "pull_request" && action === "opened" && (actor === "github-app" || actor === "bot")) {
-    return frozen({
-      hop: "external-destiny",
-      delivers: false,
-      reason: "app-created-pr-supported-path-restriction",
-      recovery: "owner-authored-envelope",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "external-destiny", delivers: false, reason: "app-created-pr-supported-path-restriction", recovery: "owner-authored-envelope", transportObservation });
   }
   if (eventName === "pull_request" && (action === "synchronize" || action === "reopened" || action === "edited")) {
-    return frozen({
-      hop: "external-destiny",
-      delivers: false,
-      reason: `destiny-delivery-${action}-does-not-retrigger`,
-      recovery: "none",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return deliveryResult({ hop: "external-destiny", delivers: false, reason: `destiny-delivery-${action}-does-not-retrigger`, recovery: "none", transportObservation });
   }
-  return frozen({
-    hop: "external-destiny",
-    delivers: false,
-    reason: "destiny-delivery-event-not-external",
-    recovery: "none",
-    creditCost: 0,
-    paidFallback: false,
-  });
+  return deliveryResult({ hop: "external-destiny", delivers: false, reason: "destiny-delivery-event-not-external", recovery: "none", transportObservation });
 }
 
 export function classifyDestinyEventDelivery(input = {}) {
@@ -165,6 +92,7 @@ export function classifyDestinyEventDelivery(input = {}) {
     destinyDelivery,
     githubEventId: typeof input.githubEventId === "string" ? input.githubEventId : null,
     destinyDeliveryId: typeof input.destinyDeliveryId === "string" ? input.destinyDeliveryId : null,
+    transportObservation: transportObservationFromEvent(input),
     creditCost: 0,
     paidFallback: false,
   });
@@ -174,20 +102,9 @@ export function admitDestinyDelivery({ deliveryId, seenDeliveryIds = [] } = {}) 
   if (typeof deliveryId !== "string" || deliveryId.length < 1 || deliveryId.length > 128) fail("destiny-delivery-id-invalid");
   const seen = Array.isArray(seenDeliveryIds) ? seenDeliveryIds : fail("destiny-delivery-seen-invalid");
   if (seen.includes(deliveryId)) {
-    return frozen({
-      admitted: false,
-      reason: "duplicate-delivery-suppressed",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return frozen({ admitted: false, reason: "duplicate-delivery-suppressed", creditCost: 0, paidFallback: false });
   }
-  return frozen({
-    admitted: true,
-    reason: "accepted",
-    deliveryId,
-    creditCost: 0,
-    paidFallback: false,
-  });
+  return frozen({ admitted: true, reason: "accepted", deliveryId, creditCost: 0, paidFallback: false });
 }
 
 export function nextDestinyDeliveryRetry({
@@ -204,12 +121,7 @@ export function nextDestinyDeliveryRetry({
   if (!Number.isFinite(created) || !Number.isFinite(current)) fail("destiny-delivery-time-invalid");
   if (current < created) fail("destiny-delivery-time-invalid");
   if (current - created > ttlMs) {
-    return frozen({
-      action: "dead-letter",
-      reason: "destiny-delivery-expired",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return frozen({ action: "dead-letter", reason: "destiny-delivery-expired", creditCost: 0, paidFallback: false });
   }
   if (lastFailureReason === "app-created-pr-check-suite-gap" || lastFailureReason === "app-created-pr-supported-path-restriction") {
     return frozen({
@@ -221,22 +133,10 @@ export function nextDestinyDeliveryRetry({
     });
   }
   if (attempt >= maxAttempts) {
-    return frozen({
-      action: "dead-letter",
-      reason: "destiny-delivery-retry-exhausted",
-      creditCost: 0,
-      paidFallback: false,
-    });
+    return frozen({ action: "dead-letter", reason: "destiny-delivery-retry-exhausted", creditCost: 0, paidFallback: false });
   }
   const backoffMs = Math.min(BACKOFF_BASE_MS * (2 ** attempt), BACKOFF_CAP_MS);
-  return frozen({
-    action: "retry",
-    reason: "bounded-backoff",
-    attempt: attempt + 1,
-    backoffMs,
-    creditCost: 0,
-    paidFallback: false,
-  });
+  return frozen({ action: "retry", reason: "bounded-backoff", attempt: attempt + 1, backoffMs, creditCost: 0, paidFallback: false });
 }
 
 export function destinyEventDeliveryMatrix() {
@@ -249,6 +149,7 @@ export function destinyEventDeliveryMatrix() {
         actorType,
         actorLogin: actorType === "owner" ? "michaeljwilliams0123" : "destiny-codex-trigger[bot]",
         owner: "michaeljwilliams0123",
+        repository: "michaeljwilliams0123/mahoraga",
         eventName: "pull_request",
         action,
         zeroCreditEligible: true,
@@ -259,8 +160,39 @@ export function destinyEventDeliveryMatrix() {
     actorType: "owner",
     actorLogin: "michaeljwilliams0123",
     owner: "michaeljwilliams0123",
+    repository: "michaeljwilliams0123/mahoraga",
     eventName: "workflow_dispatch",
     zeroCreditEligible: true,
   }));
   return frozen(rows);
+}
+
+function deliveryResult(fields) {
+  return frozen({
+    ...fields,
+    creditCost: 0,
+    paidFallback: false,
+    ...(fields.transportObservation ? { transportObservation: fields.transportObservation } : {}),
+  });
+}
+
+function transportObservationFromEvent(event) {
+  try {
+    return observeGithubTransportIdentity({
+      eventName: event.eventName,
+      action: event.action ?? null,
+      repository: event.repository,
+      repositoryId: event.repositoryId ?? null,
+      senderLogin: event.actorLogin,
+      senderId: event.actorId ?? null,
+      githubAppSlug: event.githubAppSlug ?? null,
+      githubAppId: event.githubAppId ?? null,
+      installationId: event.installationId ?? null,
+      pullRequest: event.pullRequest ?? null,
+      issueNumber: event.issueNumber ?? null,
+      deliveryId: event.githubEventId ?? event.destinyDeliveryId ?? null,
+    });
+  } catch {
+    return null;
+  }
 }
