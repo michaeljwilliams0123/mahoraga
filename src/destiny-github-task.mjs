@@ -5,7 +5,7 @@ const WORK_TASK_ID = /^dwt-[a-f0-9]{24}$/;
 const DIGEST = /^[a-f0-9]{64}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const OWNER = /^[A-Za-z0-9_.-]+$/;
-const CODEX_MARKER = /<!-- MAHORAGA_DESTINY_TASK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_TASK_V1 -->/;
+const CODEX_MARKER = /<!-- MAHORAGA_DESTINY_TASK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_TASK_V1 -->/g;
 const WORK_MARKER = /<!-- MAHORAGA_DESTINY_WORK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_WORK_V1 -->/g;
 const WORK_MARKER_OPEN = "<!-- MAHORAGA_DESTINY_WORK_V1";
 const WORK_MARKER_CLOSE = "MAHORAGA_DESTINY_WORK_V1 -->";
@@ -79,10 +79,11 @@ export function parseDestinyGithubTaskIssue(issue, { repository, owner }) {
   if (issue.pull_request != null) throw new TypeError("destiny-github-task-pr-invalid");
   if (issue.user?.login !== owner) throw new TypeError("destiny-github-task-author-invalid");
   if (typeof issue.body !== "string") throw new TypeError("destiny-github-task-body-invalid");
-  const match = CODEX_MARKER.exec(issue.body);
-  if (!match) throw new TypeError("destiny-github-task-marker-missing");
+  const matches = [...issue.body.matchAll(CODEX_MARKER)];
+  if (matches.length === 0) throw new TypeError("destiny-github-task-marker-missing");
+  if (matches.length !== 1) throw new TypeError("destiny-github-task-marker-ambiguous");
 
-  const payload = parseJsonObject(match[1], "destiny-github-task-json-invalid");
+  const payload = parseJsonObject(matches[0][1], "destiny-github-task-json-invalid");
   if (payload.schemaVersion !== 1 || payload.kind !== "destiny-codex-task") throw new TypeError("destiny-github-task-schema-invalid");
   if (typeof payload.taskId !== "string" || !CODEX_TASK_ID.test(payload.taskId)) throw new TypeError("destiny-github-task-id-invalid");
   if (payload.repository !== repository) throw new TypeError("destiny-github-task-repository-mismatch");

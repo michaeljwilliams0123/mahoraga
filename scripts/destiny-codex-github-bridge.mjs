@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fingerprintCodexAccountId } from "../src/codex-connection-identity.mjs";
+import { fingerprintCodexAccountId, fingerprintCodexEnvironmentId } from "../src/codex-connection-identity.mjs";
 import { buildCodexCloudExecArgs, parseDestinyGithubTaskIssue } from "../src/destiny-github-task.mjs";
 
 const REPOSITORY = "michaeljwilliams0123/mahoraga";
@@ -21,9 +21,10 @@ const route = await readRoute(path.join(stateDir, "route-private.json"));
 let environmentId;
 let bootstrapRoute = false;
 if (route) {
-  if (route.schemaVersion !== 1 || route.kind !== "destiny-codex-private-route" || route.repository !== REPOSITORY || typeof route.environmentId !== "string") throw new Error("destiny-codex-private-route-invalid");
+  if (route.schemaVersion !== 2 || route.kind !== "destiny-codex-private-route" || route.repository !== REPOSITORY || typeof route.environmentId !== "string" || typeof route.codexEnvironmentFingerprint !== "string") throw new Error("destiny-codex-private-route-invalid");
   if (currentAccountFingerprint !== route.codexAccountFingerprint) throw new Error("destiny-codex-account-binding-mismatch");
   environmentId = route.environmentId;
+  if (fingerprintCodexEnvironmentId(environmentId) !== route.codexEnvironmentFingerprint) throw new Error("destiny-codex-environment-fingerprint-mismatch");
   if (options.has("environment-id") && options.get("environment-id") !== environmentId) throw new Error("destiny-codex-environment-binding-mismatch");
 } else {
   environmentId = options.get("environment-id");

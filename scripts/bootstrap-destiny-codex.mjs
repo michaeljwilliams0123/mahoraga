@@ -62,11 +62,12 @@ const readiness = signDestinyTriggerEvidence({
   keyId: TRIGGER_ID,
 });
 const privateRoute = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   kind: "destiny-codex-private-route",
   repository: REPOSITORY,
   environmentId: task.environmentId,
   codexAccountFingerprint: binding.codexAccountFingerprint,
+  codexEnvironmentFingerprint: binding.codexEnvironmentFingerprint,
   receiptKeyFingerprint: binding.receiptKeyFingerprint,
   boundAt: observedAt,
 };
