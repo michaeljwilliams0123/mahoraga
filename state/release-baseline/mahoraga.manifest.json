@@ -78,7 +78,7 @@
     "microsoftQueueWorker": false,
     "authenticatedExecutionPlane": true,
     "openAIProvider": false,
-    "a2aFederation": false,
+    "a2aFederation": true,
     "persistentDiscourse": true,
     "humanWaitState": true
   },
