@@ -12,6 +12,7 @@ export function createTwinRelayRemotePeer({
   localAccessToken,
   maximumEventIds = 512,
   onEvent = null,
+  journal = null,
   now = () => Date.now(),
   WebSocketImpl = globalThis.WebSocket,
 } = {}) {
@@ -22,9 +23,10 @@ export function createTwinRelayRemotePeer({
   if (typeof localAccessToken !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) fail("twin-relay-access-token-invalid");
   if (!Number.isSafeInteger(maximumEventIds) || maximumEventIds < 1 || maximumEventIds > 4096) fail("twin-relay-inbox-limit-invalid");
   if (onEvent !== null && typeof onEvent !== "function") fail("twin-relay-handler-invalid");
+  if (journal !== null && !isTwinJournal(journal)) fail("twin-relay-journal-invalid");
   if (typeof now !== "function" || typeof WebSocketImpl !== "function") fail("twin-relay-runtime-invalid");
 
-  const inbox = createTwinInbox({ peerId, maximumEventIds });
+  const inbox = journal ?? createTwinInbox({ peerId, maximumEventIds });
   let socket = null;
   let remotePairing = null;
   let session = null;
@@ -170,6 +172,7 @@ export function createTwinRelayRemotePeer({
 }
 
 function socketReady(value) { return Boolean(value && (value.readyState === 1 || value.readyState === value.OPEN)); }
+function isTwinJournal(value) { return Boolean(value && typeof value.accept === "function" && typeof value.snapshot === "function"); }
 function slug(value, code) { if (typeof value !== "string" || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(value)) fail(code); }
 function token(value, code) { if (typeof value !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(value)) fail(code); }
 function error(code) { const value = new TypeError(code); value.code = code; return value; }
