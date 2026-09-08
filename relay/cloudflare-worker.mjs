@@ -2,24 +2,29 @@ import { createRelayBroker } from "./core.mjs";
 
 const STATE_KEY = "relay-broker-v1";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
+const TWIN_RELAY_PROTOCOL = "mahoraga-twin-v1";
 const CANONICAL_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io";
 
 export function createCloudflareRelayHandler() {
   return Object.freeze({
     async fetch(request, env) {
       const url = new URL(request.url);
-      if (!new Set(["/pair", "/pair/local"]).has(url.pathname) || url.search) return fixed(404, "not-found");
+      if (!new Set(["/pair", "/pair/local", "/pair/twin"]).has(url.pathname) || url.search) return fixed(404, "not-found");
       if (!validEnvironment(env)) return fixed(503, "relay-environment-unavailable");
       const local = url.pathname === "/pair/local";
+      const twin = url.pathname === "/pair/twin";
       const owner = request.headers.get("cf-access-authenticated-user-email");
-      if (local ? !localProtocolAuthorized(request, env.MAHORAGA_LOCAL_RELAY_TOKEN) : owner !== env.MAHORAGA_OWNER_IDENTITY) return fixed(403, "owner-required");
-      if (!local && !workspaceOrigins(env).includes(request.headers.get("origin"))) return fixed(403, "origin-required");
+      if (local && !protocolAuthorized(request, env.MAHORAGA_LOCAL_RELAY_TOKEN, LOCAL_RELAY_PROTOCOL)) return fixed(403, "owner-required");
+      if (twin && !protocolAuthorized(request, env.MAHORAGA_LOCAL_RELAY_TOKEN, TWIN_RELAY_PROTOCOL)) return fixed(403, "owner-required");
+      if (!local && !twin && owner !== env.MAHORAGA_OWNER_IDENTITY) return fixed(403, "owner-required");
+      if (!local && !twin && !workspaceOrigins(env).includes(request.headers.get("origin"))) return fixed(403, "origin-required");
       if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") return fixed(426, "websocket-required", { Upgrade: "websocket" });
       if (!env.RELAY_SESSIONS || typeof env.RELAY_SESSIONS.idFromName !== "function") return fixed(503, "relay-session-namespace-unavailable");
       const id = env.RELAY_SESSIONS.idFromName(env.MAHORAGA_OWNER_IDENTITY);
       const headers = new Headers(request.headers);
       headers.set("cf-access-authenticated-user-email", env.MAHORAGA_OWNER_IDENTITY);
       headers.set("x-mahoraga-relay-role", local ? "local" : "remote");
+      if (twin) headers.set("x-mahoraga-relay-trusted-peer", "true");
       return env.RELAY_SESSIONS.get(id).fetch(new Request(request, { headers }));
     },
   });
@@ -50,14 +55,16 @@ export class RelayDurableObject {
     server.addEventListener("close", () => this.#closed(server, request));
     server.addEventListener("error", () => this.#closed(server, request));
     const local = request.headers.get("x-mahoraga-relay-role") === "local";
-    return new Response(null, { status: 101, webSocket: client, headers: local ? { "Sec-WebSocket-Protocol": LOCAL_RELAY_PROTOCOL } : undefined });
+    const twin = trustedPeer(request);
+    const responseHeaders = local ? { "Sec-WebSocket-Protocol": LOCAL_RELAY_PROTOCOL } : twin ? { "Sec-WebSocket-Protocol": TWIN_RELAY_PROTOCOL } : undefined;
+    return new Response(null, { status: 101, webSocket: client, headers: responseHeaders });
   }
 
   async #message(socket, request, event) {
     let input;
     try { input = JSON.parse(String(event.data)); } catch { return send(socket, { accepted: false, error: "relay-message-invalid" }); }
     const owner = request.headers.get("cf-access-authenticated-user-email");
-    const origin = request.headers.get("origin");
+    const origin = trustedPeer(request) ? CANONICAL_PAGES_ORIGIN : request.headers.get("origin");
     try {
       let result;
       if (input.action === "pair-local") {
@@ -106,7 +113,8 @@ export class RelayDurableObject {
 
   #closed(socket, request) {
     const role = this.roles.get(socket); if (!role || !this.broker) return;
-    try { this.broker.unregisterSocket({ owner: request.headers.get("cf-access-authenticated-user-email"), origin: request.headers.get("origin"), sessionId: role.sessionId, side: role.side, socket }); } catch { /* socket cleanup is best effort */ }
+    const origin = trustedPeer(request) ? CANONICAL_PAGES_ORIGIN : request.headers.get("origin");
+    try { this.broker.unregisterSocket({ owner: request.headers.get("cf-access-authenticated-user-email"), origin, sessionId: role.sessionId, side: role.side, socket }); } catch { /* socket cleanup is best effort */ }
     this.roles.delete(socket);
   }
 
@@ -140,10 +148,11 @@ function validEnvironment(env) {
 function workspaceOrigins(env) {
   return [...new Set([env.MAHORAGA_WORKSPACE_ORIGIN, CANONICAL_PAGES_ORIGIN])];
 }
-function localProtocolAuthorized(request, token) {
+function protocolAuthorized(request, token, protocol) {
   const values = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((value) => value.trim());
-  return values.includes(LOCAL_RELAY_PROTOCOL) && values.includes(`mahoraga-auth-${token}`);
+  return values.includes(protocol) && values.includes(`mahoraga-auth-${token}`);
 }
+function trustedPeer(request) { return request.headers.get("x-mahoraga-relay-trusted-peer") === "true"; }
 function exact(value, allowed) {
   if (!value || typeof value !== "object" || Object.keys(value).length !== allowed.length || Object.keys(value).some((key) => !allowed.includes(key))) throw relayMessageError("relay-message-fields-invalid");
 }

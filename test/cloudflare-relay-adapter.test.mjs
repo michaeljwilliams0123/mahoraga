@@ -20,6 +20,35 @@ test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-We
   assert.equal((await handler.fetch(pagesHttp, env)).status, 426);
   const localWithoutToken = new Request("https://relay.example/pair/local", { headers: { upgrade: "websocket" } });
   assert.equal((await handler.fetch(localWithoutToken, env)).status, 403);
+  const twinWithoutToken = new Request("https://relay.example/pair/twin", { headers: { upgrade: "websocket" } });
+  assert.equal((await handler.fetch(twinWithoutToken, env)).status, 403);
+});
+
+test("Cloudflare relay exposes a dedicated owner-token twin path without browser-origin authority", async () => {
+  let forwardedRequest = null;
+  const handler = createCloudflareRelayHandler();
+  const twinEnv = {
+    ...env,
+    RELAY_SESSIONS: {
+      idFromName(value) { assert.equal(value, env.MAHORAGA_OWNER_IDENTITY); return "owner-do"; },
+      get(value) {
+        assert.equal(value, "owner-do");
+        return { async fetch(request) { forwardedRequest = request; return new Response("ok", { status: 200 }); } };
+      },
+    },
+  };
+  const request = new Request("https://relay.example/pair/twin", {
+    headers: {
+      upgrade: "websocket",
+      "sec-websocket-protocol": `mahoraga-twin-v1, mahoraga-auth-${env.MAHORAGA_LOCAL_RELAY_TOKEN}`,
+    },
+  });
+  const response = await handler.fetch(request, twinEnv);
+  assert.equal(response.status, 200);
+  assert.equal(forwardedRequest.headers.get("x-mahoraga-relay-role"), "remote");
+  assert.equal(forwardedRequest.headers.get("x-mahoraga-relay-trusted-peer"), "true");
+  assert.equal(forwardedRequest.headers.get("cf-access-authenticated-user-email"), env.MAHORAGA_OWNER_IDENTITY);
+  assert.equal(forwardedRequest.headers.get("origin"), null);
 });
 
 test("Cloudflare relay adapter exposes no generic proxy route", async () => {
