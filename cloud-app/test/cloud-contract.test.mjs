@@ -55,7 +55,7 @@ test("one Vercel workspace connects to the authoritative core through the paired
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
-  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.match(relay, /ECDH/);
   assert.match(relay, /HKDF/);
   assert.match(relay, /AES-GCM/);

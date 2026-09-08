@@ -629,7 +629,7 @@ function setHeaders(response, manifest) {
   const versions = compatibilityVersions(manifest);
   response.setHeader("Cache-Control", "no-store");
   response.setHeader("X-Content-Type-Options", "nosniff");
-  response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com https://relay.mahoraga.app wss://relay.mahoraga.app; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
+  response.setHeader("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self' https://api.github.com https://mahoraga-relay.mahoraga-mjw0123.workers.dev wss://mahoraga-relay.mahoraga-mjw0123.workers.dev; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'");
   response.setHeader("X-Mahoraga-Runtime-Version", manifest.version);
   response.setHeader("X-Mahoraga-Control-Center-Version", versions.controlCenter);
 }

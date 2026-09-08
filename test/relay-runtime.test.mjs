@@ -34,7 +34,7 @@ test("runtime relay peer pairs, decrypts a request, and returns an encrypted gat
   const peer = createRelayRuntimePeer({ pairing: localPairing, gateway, localAccessToken: "t".repeat(48), WebSocketImpl: class { constructor(url, protocols) { socket = new FakeSocket(url, protocols); sockets.push(socket); return socket; } } });
   await peer.connect();
   assert.equal(peer.status().sessionId, assignedSessionId);
-  assert.equal(socket.url, "wss://relay.mahoraga.app/pair/local");
+  assert.equal(socket.url, "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair/local");
   assert.deepEqual(socket.protocols, ["mahoraga-local-v1", `mahoraga-auth-${"t".repeat(48)}`]);
   const remoteSession = await deriveRelaySession(remotePairing.privateKey, localPairing.publicKey, remotePairing.context);
   remoteSession.sessionId = assignedSessionId;
