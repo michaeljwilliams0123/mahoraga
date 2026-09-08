@@ -15,6 +15,7 @@ export function createLoopbackGenerateInvoke({
   fetchImpl = globalThis.fetch,
   timeoutMs = 1500,
   modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN,
+  now = () => new Date(),
 } = {}) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10_000) {
     fail("loopback-timeout-invalid");
@@ -29,7 +30,7 @@ export function createLoopbackGenerateInvoke({
     if (!endpoint) return frozen("hold", "loopback-endpoint-unavailable", worldDigest);
 
     try {
-      const model = await resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain });
+      const model = await resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain, now });
       if (model.cloudTagged) return frozen("refused", "ollama-cloud-not-credit-free", worldDigest);
       const raw = await postGenerate({
         endpoint,
@@ -78,13 +79,18 @@ function selectEndpoint(probe) {
   return null;
 }
 
-async function resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain }) {
+async function resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain, now }) {
   const body = await getJson(endpoint.catalog, fetchImpl, timeoutMs);
   const models = endpoint.id === "lm-studio" ? catalogModels(body?.data, "id") : catalogModels(body?.models, "name");
   if (models.length === 0) fail("loopback-model-missing");
+  const observedAt = typeof now === "function" ? now() : now;
   const evaluated = models.map((model) => ({
     model,
-    decision: evaluateRuntimeModelAdmission({ provider: endpoint.id, digest: model.digest, sizeBytes: model.sizeBytes }, modelSupplyChain),
+    decision: evaluateRuntimeModelAdmission(
+      { provider: endpoint.id, digest: model.digest, sizeBytes: model.sizeBytes },
+      modelSupplyChain,
+      { now: observedAt },
+    ),
   }));
   const selected = evaluated.find((item) => item.decision.admitted);
   if (!selected) fail(evaluated[0].decision.reason);

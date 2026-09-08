@@ -7,8 +7,21 @@ import {
   observeLocalReasonerReady,
   probeLocalReasoner,
 } from "../src/local-reasoner-provider.mjs";
+import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
 
 const ADMITTED_SHA256 = "a".repeat(64);
+const RUNTIME_SHA256 = "d".repeat(64);
+const NOW = "2020-01-01T12:00:00.000Z";
+const INSPECTION_METADATA = {
+  scannerId: "mahoraga-static-model-scan-v1",
+  artifactSha256: ADMITTED_SHA256,
+  artifactSizeBytes: 42,
+  trustRemoteCode: false,
+  pickleDetected: false,
+  executableCodeDetected: false,
+  inspectedAt: "2020-01-01T11:00:00.000Z",
+  expiresAt: "2020-01-02T11:00:00.000Z",
+};
 const ADMITTED_POLICY = {
   schemaVersion: 1,
   policyId: "test-model-supply-chain-v1",
@@ -31,6 +44,8 @@ const ADMITTED_POLICY = {
       trustRemoteCode: false,
     },
     artifact: { format: "gguf", sha256: ADMITTED_SHA256, sizeBytes: 42 },
+    inspection: { ...INSPECTION_METADATA, receiptSha256: modelInspectionReceiptSha256(INSPECTION_METADATA) },
+    runtimeBindings: [{ provider: "ollama", digest: RUNTIME_SHA256, sizeBytes: 420 }],
   }],
 };
 
@@ -40,11 +55,12 @@ test("loopback probe covers Ollama and LM Studio without retaining model identif
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "private-ollama-alpha", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "private-ollama-alpha", digest: `sha256:${RUNTIME_SHA256}`, size: 420 }] }) };
       }
       return { ok: true, status: 200, json: async () => ({ data: [{ id: "private-model-alpha" }, { id: "private-model-beta" }] }) };
     },
     modelSupplyChain: ADMITTED_POLICY,
+    now: NOW,
   });
 
   assert.equal(result.verified, true);
@@ -88,11 +104,12 @@ test("Ollama-only loopback is sufficient to mark the local reasoner live", async
   const result = await probeLocalReasoner({
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${RUNTIME_SHA256}`, size: 420 }] }) };
       }
       throw new Error("lm studio down");
     },
     modelSupplyChain: ADMITTED_POLICY,
+    now: NOW,
   });
   assert.equal(result.verified, true);
   assert.equal(result.providerHealth.ollama.availability, "healthy");
@@ -101,11 +118,12 @@ test("Ollama-only loopback is sufficient to mark the local reasoner live", async
   assert.equal(await observeLocalReasonerReady({
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${RUNTIME_SHA256}`, size: 420 }] }) };
       }
       throw new Error("lm studio down");
     },
     modelSupplyChain: ADMITTED_POLICY,
+    now: NOW,
   }), true);
 });
 

@@ -8,7 +8,7 @@ export const LOCAL_REASONER_ENDPOINTS = Object.freeze({
   lmStudio: LM_STUDIO_MODELS_URL,
 });
 
-export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000, modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN } = {}) {
+export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000, modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN, now = new Date() } = {}) {
   if (typeof fetchImpl !== "function") return unavailableAggregate("fetch-unavailable");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10000) throw new TypeError("local-reasoner-timeout-invalid");
 
@@ -17,13 +17,13 @@ export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeout
       url: OLLAMA_TAGS_URL,
       fetchImpl,
       timeoutMs,
-      inspect: (body) => inspectModels(body?.models, "ollama", modelSupplyChain),
+      inspect: (body) => inspectModels(body?.models, "ollama", modelSupplyChain, now),
     }),
     probeEndpoint({
       url: LM_STUDIO_MODELS_URL,
       fetchImpl,
       timeoutMs,
-      inspect: (body) => inspectModels(body?.data, "lm-studio", modelSupplyChain),
+      inspect: (body) => inspectModels(body?.data, "lm-studio", modelSupplyChain, now),
     }),
   ]);
 
@@ -100,13 +100,13 @@ async function probeEndpoint({ url, fetchImpl, timeoutMs, inspect }) {
   }
 }
 
-function inspectModels(value, provider, modelSupplyChain) {
+function inspectModels(value, provider, modelSupplyChain, now) {
   const models = Array.isArray(value) ? value.slice(0, 1000) : [];
   const decisions = models.map((model) => evaluateRuntimeModelAdmission({
     provider,
     digest: model?.digest,
     sizeBytes: model?.size,
-  }, modelSupplyChain));
+  }, modelSupplyChain, { now }));
   const admittedModelCount = decisions.filter((decision) => decision.admitted).length;
   const errorCode = models.length === 0
     ? null
