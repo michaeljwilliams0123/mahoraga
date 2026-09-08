@@ -1,22 +1,43 @@
 import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 import { ROOT } from "./config.mjs";
+import { capabilityIndex } from "./router.mjs";
+import { buildUniversalCapabilityGraph } from "./universal-capability-graph.mjs";
 
 const execFileAsync = promisify(execFile);
 
 // Read-only reconciliation evidence for the planner and unified workspace.
 export async function observeWorldState({ manifest, database, supervisor }) {
+  const observedAt = new Date().toISOString();
   const tasks = database.listTasks(500);
   const activeLeases = tasks.filter((task) => ["running", "verifying"].includes(task.status)).map((task) => ({ id: task.id, workerId: task.assignedWorker, leaseExpiresAt: task.leaseExpiresAt, taskArea: task.taskArea }));
   const repository = await gitEvidence();
+  const workers = supervisor.status();
+  const capabilityGraph = buildUniversalCapabilityGraph({
+    capabilityRoutes: capabilityIndex(manifest, workers, Date.parse(observedAt)),
+    agents: await loadBoundedFoundryAgents(),
+    observedAt,
+  });
   return {
-    observedAt: new Date().toISOString(),
+    observedAt,
     runtime: { host: manifest.runtime.host, port: manifest.runtime.port, ...supervisor.health() },
-    workers: supervisor.status(), recordedWorkers: database.listWorkerState(), activeLeases,
+    workers, recordedWorkers: database.listWorkerState(), activeLeases,
     taskCounts: countBy(tasks, (task) => task.status), objectives: database.listObjectives(100),
-    repository, browser: supervisor.status().find((worker) => worker.workerId === "browser") ?? null,
+    repository, browser: workers.find((worker) => worker.workerId === "browser") ?? null,
     providers: manifest.connections.map((connection) => ({ id: connection.id, state: connection.state, authenticationState: connection.authenticationState, capabilities: connection.capabilities, latencyMs: connection.latencyMs, error: connection.error })),
+    capabilityGraph,
   };
+}
+
+async function loadBoundedFoundryAgents() {
+  try {
+    const registry = JSON.parse(await readFile(path.join(ROOT, "coordination", "agent-factory", "registry.json"), "utf8"));
+    return Array.isArray(registry?.agents) ? registry.agents : [];
+  } catch {
+    return [];
+  }
 }
 
 async function gitEvidence() {

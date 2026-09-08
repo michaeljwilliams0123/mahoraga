@@ -59,6 +59,11 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const repositoryCapability = status.capabilities.find((item) => item.capability === "repository.inspect");
   assert.equal(repositoryCapability.routable, true);
   assert.equal(status.routingPolicy.interfaceOrder[0], "native-api");
+  const world = await (await fetch(`${base}/api/world-state`, { headers: AUTH })).json();
+  assert.equal(world.capabilityGraph.kind, "universal-capability-graph");
+  assert.equal(world.capabilityGraph.nodes.some((node) => node.id === "capability:system.health" && node.routable), true);
+  assert.equal(world.capabilityGraph.creditCost, 0);
+  assert.equal(world.capabilityGraph.paidFallback, false);
   const workspaceRedirect = await fetch(base, { redirect: "manual" });
   assert.equal(workspaceRedirect.status, 307);
   assert.equal(workspaceRedirect.headers.get("location"), DEFAULT_WORKSPACE_URL);
