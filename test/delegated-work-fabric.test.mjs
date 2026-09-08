@@ -4,6 +4,7 @@ import {
   buildUniversalCapabilityGraph,
   validateUniversalCapabilityGraph,
 } from "../src/universal-capability-graph.mjs";
+import { planDelegatedWork } from "../src/delegated-work-fabric.mjs";
 
 const NOW = "2026-09-08T18:00:00.000Z";
 
@@ -104,4 +105,99 @@ test("graph validation rejects content-bearing and dangling records", () => {
     ...structuredClone(graph),
     edges: [{ ...graph.edges[0], to: "capability:missing" }],
   }), /capability-graph-edge-invalid/);
+});
+
+function filesystemRequest(overrides = {}) {
+  return {
+    workId: "work-desktop-hash",
+    objectiveId: "objective-wave-8",
+    workClass: "assigned",
+    capability: "desktop.filesystem",
+    dataClass: "local-only",
+    authorityRef: "authority-wave-8",
+    attendedSessionRef: "session-wave-8",
+    preferredAgentId: "desktop-steward",
+    ...overrides,
+  };
+}
+
+function desktopGraph(routeOverrides = {}) {
+  return buildUniversalCapabilityGraph({
+    capabilityRoutes: [desktopRoute(routeOverrides)],
+    agents: [desktopAgent()],
+    observedAt: NOW,
+  });
+}
+
+test("delegation selects a verified Windows route and binds objective authority", () => {
+  const plan = planDelegatedWork({ graph: desktopGraph(), requests: [filesystemRequest()] });
+
+  assert.deepEqual(plan.assigned, [{
+    workId: "work-desktop-hash",
+    objectiveId: "objective-wave-8",
+    workClass: "assigned",
+    capability: "desktop.filesystem",
+    workerId: "desktop",
+    agentId: "desktop-steward",
+    authorityRef: "authority-wave-8",
+    attendedSessionRef: "session-wave-8",
+    evidenceLevel: "verified",
+    executionPlane: "local",
+  }]);
+  assert.deepEqual(plan.waiting, []);
+  assert.deepEqual(plan.blocked, []);
+  assert.equal(plan.creditCost, 0);
+  assert.equal(plan.paidFallback, false);
+  assert.equal(Object.isFrozen(plan), true);
+});
+
+test("delegation waits for stale evidence without widening the route", () => {
+  const plan = planDelegatedWork({
+    graph: desktopGraph({ routable: false, evidenceLevel: "observed", routingReason: "canary-stale" }),
+    requests: [filesystemRequest()],
+  });
+
+  assert.deepEqual(plan.assigned, []);
+  assert.equal(plan.waiting[0].reason, "canary-stale");
+  assert.equal(plan.waiting[0].workId, "work-desktop-hash");
+});
+
+test("delegation blocks incompatible data, missing attendance, and undeclared agents", () => {
+  assert.equal(planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [filesystemRequest({ dataClass: "public" })],
+  }).blocked[0].reason, "data-class-not-supported");
+  assert.equal(planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [filesystemRequest({ attendedSessionRef: null })],
+  }).blocked[0].reason, "attended-session-required");
+  assert.equal(planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [filesystemRequest({ preferredAgentId: "unknown-agent" })],
+  }).blocked[0].reason, "agent-capability-not-declared");
+});
+
+test("delegation rejects missing objective authority, duplicate work, and unknown fields", () => {
+  assert.throws(() => planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [filesystemRequest({ authorityRef: null })],
+  }), /delegation-authority-required/);
+  assert.throws(() => planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [filesystemRequest(), filesystemRequest()],
+  }), /delegation-work-duplicate/);
+  assert.throws(() => planDelegatedWork({
+    graph: desktopGraph(),
+    requests: [{ ...filesystemRequest(), prompt: "do not persist me" }],
+  }), /delegation-request-invalid/);
+});
+
+test("delegation supports all six Level 8 work classes deterministically", () => {
+  const classes = ["assigned", "derived", "preventive", "opportunity", "institutional", "evolution"];
+  const requests = classes.map((workClass, index) => filesystemRequest({ workId: `work-${index + 1}`, workClass }));
+  const reversed = planDelegatedWork({ graph: desktopGraph(), requests: [...requests].reverse() });
+  const ordered = planDelegatedWork({ graph: desktopGraph(), requests });
+
+  assert.deepEqual(reversed, ordered);
+  assert.deepEqual(ordered.assigned.map((item) => item.workId), ["work-1", "work-2", "work-3", "work-4", "work-5", "work-6"]);
 });
