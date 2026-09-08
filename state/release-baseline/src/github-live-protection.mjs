@@ -14,8 +14,10 @@ export function parseLiveRulesetsResponse(response, contract) {
     if (!Array.isArray(response.payload)) fail("live-rulesets-invalid");
     return response.payload;
   }
-  if (response.status === 403 && expected.liveEnforcementRequired === false
-    && response.payload?.message === PRIVATE_RULESET_PLAN_MESSAGE) return Object.freeze([]);
+  if (expected.liveEnforcementRequired === false) {
+    if (response.status === 403 && response.payload?.message === PRIVATE_RULESET_PLAN_MESSAGE) return Object.freeze([]);
+    if (response.status === 404 && response.payload?.message === "Not Found") return Object.freeze([]);
+  }
   fail("live-protection-unobserved");
 }
 
