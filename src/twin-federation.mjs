@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 const REPOSITORY = "michaeljwilliams0123/mahoraga";
 const DESCRIPTOR_KEYS = new Set([
   "schemaVersion",
@@ -10,6 +12,22 @@ const DESCRIPTOR_KEYS = new Set([
   "capabilities",
   "createdAt",
 ]);
+const EVENT_INPUT_KEYS = new Set([
+  "federationId",
+  "originPeerId",
+  "targetPeerId",
+  "sequence",
+  "kind",
+  "repository",
+  "baseCommit",
+  "headCommit",
+  "capability",
+  "payloadDigest",
+  "createdAt",
+]);
+const EVENT_KEYS = new Set(["schemaVersion", "eventId", ...EVENT_INPUT_KEYS]);
+const EVENT_KINDS = new Set(["presence", "update", "handoff", "receipt"]);
+const HANDOFF_CAPABILITIES = new Set(["twin.analyze", "twin.review", "twin.build"]);
 
 export function createTwinDescriptor(input, { createdAt = new Date().toISOString() } = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) fail("twin-descriptor-invalid");
@@ -69,6 +87,113 @@ export function validateTwinDescriptor(value) {
   });
 }
 
+export function createTwinEvent(input) {
+  exactObject(input, EVENT_INPUT_KEYS, "twin-event-invalid");
+  const content = normalizeEventContent(input);
+  const value = {
+    schemaVersion: 1,
+    eventId: twinEventId(content),
+    ...content,
+  };
+  return validateTwinEvent(value);
+}
+
+export function validateTwinEvent(value) {
+  exactObject(value, EVENT_KEYS, "twin-event-invalid");
+  if (value.schemaVersion !== 1) fail("twin-event-invalid");
+  const content = normalizeEventContent(value);
+  if (value.eventId !== twinEventId(content)) fail("twin-event-id-invalid");
+  return deepFreeze({ schemaVersion: 1, eventId: value.eventId, ...content });
+}
+
+export function createTwinInbox({ peerId: localPeerId, maximumEventIds = 256 } = {}) {
+  peerId(localPeerId);
+  if (!Number.isSafeInteger(maximumEventIds) || maximumEventIds < 1 || maximumEventIds > 4096) fail("twin-inbox-limit-invalid");
+  const highestSequenceByOrigin = new Map();
+  const eventIds = [];
+  const eventIdSet = new Set();
+
+  return Object.freeze({
+    accept(rawEvent) {
+      const event = validateTwinEvent(rawEvent);
+      if (event.targetPeerId !== "*" && event.targetPeerId !== localPeerId) {
+        return Object.freeze({ accepted: false, applied: false, reason: "not-target" });
+      }
+      if (eventIdSet.has(event.eventId)) {
+        return Object.freeze({ accepted: true, applied: false, reason: "duplicate" });
+      }
+      const highest = highestSequenceByOrigin.get(event.originPeerId) ?? 0;
+      if (event.sequence <= highest) {
+        return Object.freeze({ accepted: true, applied: false, reason: "stale" });
+      }
+      highestSequenceByOrigin.set(event.originPeerId, event.sequence);
+      eventIds.push(event.eventId);
+      eventIdSet.add(event.eventId);
+      while (eventIds.length > maximumEventIds) {
+        eventIdSet.delete(eventIds.shift());
+      }
+      return Object.freeze({ accepted: true, applied: true, reason: "accepted" });
+    },
+    snapshot() {
+      const sequenceEntries = [...highestSequenceByOrigin.entries()].sort(([left], [right]) => left.localeCompare(right));
+      return deepFreeze({
+        peerId: localPeerId,
+        highestSequenceByOrigin: Object.fromEntries(sequenceEntries),
+        eventIds: [...eventIds],
+      });
+    },
+  });
+}
+
+function normalizeEventContent(value) {
+  slug(value.federationId, "twin-federation-invalid");
+  peerId(value.originPeerId);
+  if (value.targetPeerId !== "*") peerId(value.targetPeerId);
+  if (value.targetPeerId === value.originPeerId) fail("twin-event-self-target-invalid");
+  if (!Number.isSafeInteger(value.sequence) || value.sequence < 1) fail("twin-event-sequence-invalid");
+  if (!EVENT_KINDS.has(value.kind)) fail("twin-event-kind-invalid");
+  if (value.repository !== REPOSITORY) fail("twin-repository-invalid");
+  sha(value.baseCommit, "twin-base-commit-invalid");
+  sha(value.headCommit, "twin-head-commit-invalid");
+  if (value.kind === "handoff") {
+    if (!HANDOFF_CAPABILITIES.has(value.capability)) fail("twin-handoff-capability-invalid");
+  } else if (value.capability !== null) {
+    fail("twin-event-capability-invalid");
+  }
+  digest(value.payloadDigest, "twin-payload-digest-invalid");
+  timestamp(value.createdAt, "twin-created-at-invalid");
+  return {
+    federationId: value.federationId,
+    originPeerId: value.originPeerId,
+    targetPeerId: value.targetPeerId,
+    sequence: value.sequence,
+    kind: value.kind,
+    repository: value.repository,
+    baseCommit: value.baseCommit,
+    headCommit: value.headCommit,
+    capability: value.capability,
+    payloadDigest: value.payloadDigest,
+    createdAt: value.createdAt,
+  };
+}
+
+function twinEventId(content) {
+  const canonical = [
+    content.federationId,
+    content.originPeerId,
+    content.targetPeerId,
+    content.sequence,
+    content.kind,
+    content.repository,
+    content.baseCommit,
+    content.headCommit,
+    content.capability,
+    content.payloadDigest,
+    content.createdAt,
+  ];
+  return `twe_${createHash("sha256").update(JSON.stringify(canonical), "utf8").digest("hex")}`;
+}
+
 function normalizeCapabilities(value) {
   if (!Array.isArray(value) || value.length > 64 || new Set(value).size !== value.length) fail("twin-capabilities-invalid");
   return value.map((item) => capability(item)).sort();
@@ -91,6 +216,11 @@ function slug(value, code) {
 
 function sha(value, code) {
   if (typeof value !== "string" || !/^[a-f0-9]{40}$/.test(value)) fail(code);
+  return value;
+}
+
+function digest(value, code) {
+  if (typeof value !== "string" || !/^[a-f0-9]{64}$/.test(value)) fail(code);
   return value;
 }
 
