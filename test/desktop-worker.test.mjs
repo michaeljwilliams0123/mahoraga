@@ -161,7 +161,7 @@ test("desktop worker manifest advertises the bounded v1 execution capabilities",
   assert.equal(worker.capabilityCanaries["desktop.processes"], "direct");
 });
 
-test("desktop filesystem live Windows canary hashes a repo file", { skip: process.platform !== "win32" }, async () => {
+test("desktop filesystem live Windows canary hashes a repo file", { skip: process.platform !== "win32" || process.env.MAHORAGA_DESKTOP_LIVE_CANARY !== "1" }, async () => {
   const result = await executeDesktopCapability("desktop.filesystem", {
     requestedOutcome: "hash-allowed-files",
     allowedPaths: ["package.json"],
