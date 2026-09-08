@@ -1,7 +1,7 @@
 # Destiny Mobile Dual-Administrator Handoff
 
 Repository: `michaeljwilliams0123/mahoraga`
-Last refreshed: 2026-09-07
+Last refreshed: 2026-09-08
 
 ## Use this as context, then verify live state
 
@@ -32,15 +32,32 @@ Preserve or improve these properties:
 - fail-closed behavior for missing, stale, ambiguous, or inconsistent identity evidence;
 - outbound-only GitHub/OpenAI connectivity with no public inbound listener.
 
-## Current work
+## Authoritative sources
 
+Use this file only as the mobile entry point. For implementation details, follow:
+
+- `AGENTS.md` and `.github/copilot-instructions.md` for repository-wide execution policy;
+- `docs/DESTINY-CODEX-GITHUB-BRIDGE.md` for Destiny-local deterministic binding and dispatch;
+- `docs/DESTINY-EVENT-DISPATCH-LANE.md` for the GitHub event lane;
+- `docs/DESTINY-CODEX-RELAY.md` for the separately named ciphertext relay;
+- `docs/PRODUCTION-STATUS.md` for release/runtime truth.
+
+Do not duplicate those contracts here. When they disagree, current verified code and repository policy win; update the authoritative document and this pointer in the same change when ownership moves.
+
+## Live state at 2026-09-08
+
+- `main` was observed at `201c1db7ef7ff0d0f8d0408b375287b4af9952f1`.
+- Exact-head `Verify Mahoraga` run `34231619187` completed successfully on that SHA.
+- The same-head Pages deployment failed; deployment health is therefore not inferred from source verification.
 - PR #181 is merged and established account/device/environment fingerprinting and signed-receipt trust primitives.
+- PR #184 is closed without merge. Its useful bridge/handoff work was consolidated into later `main`; do not reopen or merge the stale branch as a unit.
+- There were no open pull requests when this snapshot was taken.
 - Issue #183 remains the dormant Destiny binding probe. Opening it does not invoke Codex.
 - Probe ID: `destiny-bind-pr181-20260907-a1b2c3d4`.
 - Task ID: `dct-f7f65cb1ea8149db6d55ea5a`.
-- The earlier #184 branch became heavily behind `main`; current hardening is being consolidated from the latest `main` rather than forcing stale branch history forward.
+- Repository visibility was observed as private; do not assume the historical Pages URL is reachable.
 
-Re-check all of these facts before relying on them.
+Re-check every snapshot fact before acting.
 
 ## Repository improvement mission
 
