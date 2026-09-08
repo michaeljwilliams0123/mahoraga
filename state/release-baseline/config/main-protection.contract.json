@@ -9,5 +9,5 @@
   "deletionAllowed": false,
   "forcePushAllowed": false,
   "requirePullRequest": true,
-  "liveEnforcementRequired": true
+  "liveEnforcementRequired": false
 }

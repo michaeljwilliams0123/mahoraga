@@ -46,9 +46,12 @@ emitting file contents. Account-level controls and their compatibility with the
 outbound control workflow are documented in
 [`GITHUB-SECURITY-BASELINE.md`](GITHUB-SECURITY-BASELINE.md).
 
-Live `main` protection is GitHub-native ruleset `22502690`. Required exact-head
-checks are `Verify (ubuntu-latest)` and `Verify (windows-latest)`.
-`Verify unified Vercel workspace` may run, but must not gate PR completion.
-Force-push and deletion are blocked. The
+The current private-repository plan does not provide live GitHub ruleset
+enforcement. Required operational exact-head checks remain
+`Verify (ubuntu-latest)` and `Verify (windows-latest)`. Do not merge until both
+pass on the PR's current head and `main` has not advanced. `Verify unified
+Vercel workspace` may run, but must not gate PR completion. Server-side
+force-push, deletion, pull-request, and required-check enforcement requires a
+GitHub plan that supports rulesets for private repositories. The
 incumbent trust epoch lives at `state/incumbent-trust-epoch.json` and is read
 only from trusted `main`.
