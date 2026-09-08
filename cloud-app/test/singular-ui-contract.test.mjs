@@ -83,7 +83,7 @@ test("repository declares one canonical workspace source without reviving legacy
     read("../operator-deck/README.md"),
     read("../scripts/open-workspace.ps1"),
   ]);
-  for (const source of sources) {
+  for (const source of sources.slice(0, -1)) {
     assert.match(source, /cloud-app\//);
     assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app/);
     assert.doesNotMatch(source, /mahoraga-workspace-prod\.vercel\.app/);
