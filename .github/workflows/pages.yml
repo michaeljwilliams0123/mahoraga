@@ -49,16 +49,44 @@ jobs:
           NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health
         run: npm run build
 
+      - name: Check Pages site availability
+        id: pages_site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
+          http_code="$(curl -sS -o /tmp/pages-site.json -w '%{http_code}' \
+            -u "x-access-token:${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api_url}")"
+
+          case "${http_code}" in
+            200)
+              echo "available=true" >> "${GITHUB_OUTPUT}"
+              ;;
+            404)
+              echo "::warning::Pages site is not enabled for ${GITHUB_REPOSITORY}; skipping Pages deployment."
+              echo "available=false" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unable to determine Pages site status (HTTP ${http_code})."
+              cat /tmp/pages-site.json
+              exit 1
+              ;;
+          esac
+
       - name: Configure Pages
+        if: steps.pages_site.outputs.available == 'true'
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
-        with:
-          enablement: true
 
       - name: Upload workspace artifact
+        if: steps.pages_site.outputs.available == 'true'
         uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: cloud-app/out
 
       - name: Deploy exact main workspace
+        if: steps.pages_site.outputs.available == 'true'
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4
