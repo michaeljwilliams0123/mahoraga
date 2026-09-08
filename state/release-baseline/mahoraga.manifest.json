@@ -596,7 +596,7 @@
     {
       "id": "desktop",
       "label": "Desktop Worker",
-      "version": "1.1.0",
+      "version": "1.2.0",
       "enabled": true,
       "costClass": "deterministic",
       "dataClasses": [
@@ -607,7 +607,10 @@
       ],
       "capabilities": [
         "desktop.inspect",
-        "desktop.interact"
+        "desktop.interact",
+        "desktop.powershell",
+        "desktop.filesystem",
+        "desktop.processes"
       ],
       "acceptedTaskTypes": [
         "desktop"
@@ -617,7 +620,10 @@
       "healthProbe": "desktop.inspect",
       "capabilityCanaries": {
         "desktop.inspect": "health",
-        "desktop.interact": "provider-derived"
+        "desktop.interact": "provider-derived",
+        "desktop.powershell": "provider-derived",
+        "desktop.filesystem": "provider-derived",
+        "desktop.processes": "direct"
       },
       "executionPlane": "local",
       "routing": {

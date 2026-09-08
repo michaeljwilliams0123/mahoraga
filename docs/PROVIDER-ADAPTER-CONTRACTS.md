@@ -91,24 +91,27 @@ copied or attached.
 3. Windows UI Automation.
 4. Visual computer use.
 
-The Desktop Worker process contract now exists in `src/desktop-worker.mjs` and is
-wired into the isolated worker process. Its fixed application allowlist is
-Chrome, Edge, Excel, Word, PowerPoint, and Visio. `desktop.inspect` observes only
-whether the session is interactive plus allowlisted process/window counts; it
-does not persist window titles, document content, screenshots, or arbitrary
-process details.
+The Desktop Worker process contract in `src/desktop-worker.mjs` is wired into the
+isolated worker process and enabled in the canonical manifest. Its fixed application
+allowlist covers Chrome, Edge, Excel, Word, PowerPoint, Visio, Outlook, and Teams.
+`desktop.inspect` records only attended-session state plus bounded process/window
+counts; it never stores window titles, document content, screenshots, or command lines.
 
-The first production-bounded `desktop.interact` action is `focus-window`. The
-task must select an allowlisted application through its fixed task-area alias,
-exactly one top-level window must be present, and the worker re-observes the
-foreground handle after the action. Caller-selected executable paths, arbitrary
-PowerShell, click/type sequences, and unrestricted UI automation are rejected.
+`desktop.interact` remains intentionally narrow: `focus-window` requires exactly one
+allowlisted top-level application window and re-verifies the foreground handle. The
+v1.2 worker also exposes three bounded read/diagnostic surfaces: `desktop.powershell`
+selects only fixed named diagnostics (`system-info` or `disk-free`),
+`desktop.filesystem` hashes a bounded set of repository-relative files without
+persisting their path or content, and `desktop.processes` returns capped telemetry only
+for allowlisted applications. Filesystem inputs cross the PowerShell boundary through
+an explicit process-environment envelope after Node-side path validation rather than
+through shell interpolation.
 
-The worker remains disabled in the production manifest until an attended Windows
-session validates this process contract and the user activates it. This separates
-the now-implemented code/allowlist/receipt gap from the remaining live-machine
-activation gap.
-
+Caller-selected executables, scripts, shell text, arbitrary filesystem roots, file
+content, command lines, click/type sequences, and unrestricted UI automation remain
+rejected. The attended Windows activation was verified with live canaries for session
+inspection, both fixed diagnostics, repository-file hashing, and allowlisted process
+telemetry; cross-platform GitHub verification remains the production promotion gate.
 ## Persistent discourse
 
 Every assignment can own a conversation. Messages are durable, survive restart,
