@@ -9,21 +9,20 @@ test("PR verification checks out, scans public Internet evidence, and checks bac
   const lease = controller.checkOut({
     objectiveId: "pr-internet-egress-canary",
     purpose: "Verify owner-approved outbound public Internet scanning from Mahoraga PR validation",
-    url: "https://raw.githubusercontent.com/michaeljwilliams0123/mahoraga/main/package.json",
+    url: "https://example.com/",
   });
 
   assert.equal(lease.state, "checked-out");
-  assert.equal(lease.targetHost, "raw.githubusercontent.com");
+  assert.equal(lease.targetHost, "example.com");
 
   const result = await controller.read(lease.leaseId);
   assert.equal(result.status, 200);
-  const observed = JSON.parse(result.bytes.toString("utf8"));
-  assert.equal(observed.name, "project-mahoraga-v2");
-  assert.equal(typeof observed.version, "string");
+  const observed = result.bytes.toString("utf8");
+  assert.match(observed, /<title>Example Domain<\/title>/);
 
   const receipt = controller.checkIn(lease.leaseId, result);
   assert.equal(receipt.state, "checked-in");
-  assert.equal(receipt.targetHost, "raw.githubusercontent.com");
+  assert.equal(receipt.targetHost, "example.com");
   assert.equal(receipt.status, 200);
   assert.match(receipt.sha256, /^[a-f0-9]{64}$/);
   assert.equal(receipt.creditCost, 0);
