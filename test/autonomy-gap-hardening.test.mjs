@@ -62,6 +62,7 @@ test("automatic release accepts only trusted verification of still-current main"
   assert.match(source, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/git\/ref\/heads\/main"/);
   assert.match(source, /--jq '\.object\.sha'/);
   assert.doesNotMatch(source, /git fetch origin main/);
+  assert.doesNotMatch(source, /git rev-parse origin\/main/);
   assert.match(source, /stale-verified-main/);
 
   const baseline = await readFile(path.join(ROOT, "state", "release-baseline", ".github", "workflows", "release.yml"), "utf8");
