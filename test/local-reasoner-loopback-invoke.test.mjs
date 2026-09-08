@@ -4,9 +4,107 @@ import crypto from "node:crypto";
 import { createLoopbackGenerateInvoke, loopbackGenerateUrls } from "../src/local-reasoner-loopback-invoke.mjs";
 import { listTransientResults } from "../src/local-reasoner-channel.mjs";
 import { runUnattendedCreditFreeCycle } from "../src/unattended-credit-free-cycle.mjs";
+import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
 
 const DIGEST = "ab".repeat(32);
 const NOW = new Date("2026-09-05T14:00:00.000Z");
+const SUPPLY_NOW = "2020-01-01T12:00:00.000Z";
+const ARTIFACT_SHA256 = "a".repeat(64);
+const MODEL_SHA256 = "e".repeat(64);
+const MODEL_SIZE = 420;
+const INSPECTION_METADATA = {
+  scannerId: "mahoraga-static-model-scan-v1",
+  artifactSha256: ARTIFACT_SHA256,
+  artifactSizeBytes: 42,
+  trustRemoteCode: false,
+  pickleDetected: false,
+  executableCodeDetected: false,
+  inspectedAt: "2020-01-01T11:00:00.000Z",
+  expiresAt: "2020-01-02T11:00:00.000Z",
+};
+const ADMITTED_POLICY = {
+  schemaVersion: 1,
+  policyId: "test-loopback-supply-chain-v1",
+  upstream: { provider: "huggingface", origin: "https://huggingface.co", immutableRevisionRequired: true, trustRemoteCode: false },
+  allowedFormats: ["safetensors", "gguf"],
+  runtimeProviders: ["ollama", "lm-studio"],
+  admissions: [{
+    id: "test-loopback-model",
+    state: "admitted",
+    source: {
+      provider: "huggingface",
+      repository: "owner/model",
+      revision: "f".repeat(40),
+      artifactPath: "weights/model.gguf",
+      trustRemoteCode: false,
+    },
+    artifact: { format: "gguf", sha256: ARTIFACT_SHA256, sizeBytes: 42 },
+    inspection: { ...INSPECTION_METADATA, receiptSha256: modelInspectionReceiptSha256(INSPECTION_METADATA) },
+    runtimeBindings: [{ provider: "ollama", digest: MODEL_SHA256, sizeBytes: MODEL_SIZE }],
+  }],
+};
+
+test("loopback invoke never posts generation for a catalog model outside the admitted supply chain", async () => {
+  let postCount = 0;
+  const invoke = createLoopbackGenerateInvoke({
+    probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).includes("/api/tags")) {
+        return { ok: true, json: async () => ({ models: [{ name: "untrusted-runtime-model", digest: `sha256:${"d".repeat(64)}`, size: 42 }] }) };
+      }
+      if (init.method === "POST") postCount += 1;
+      return { ok: true, arrayBuffer: async () => new Uint8Array([1]) };
+    },
+  });
+
+  const held = await invoke({ worldDigest: DIGEST });
+  assert.equal(held.status, "hold");
+  assert.equal(held.reason, "model-supply-chain-unadmitted");
+  assert.equal(postCount, 0);
+  assert.equal(JSON.stringify(held).includes("untrusted-runtime-model"), false);
+});
+
+test("LM Studio catalogs without immutable digest metadata hold before generation", async () => {
+  let postCount = 0;
+  const invoke = createLoopbackGenerateInvoke({
+    probe: { verified: true, providerHealth: { lmStudio: { availability: "healthy", modelCount: 1 } } },
+    modelSupplyChain: ADMITTED_POLICY,
+    now: () => SUPPLY_NOW,
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).includes("/v1/models")) return { ok: true, json: async () => ({ data: [{ id: "local-private-model" }] }) };
+      if (init.method === "POST") postCount += 1;
+      return { ok: true, arrayBuffer: async () => new Uint8Array([1]) };
+    },
+  });
+
+  const held = await invoke({ worldDigest: DIGEST });
+  assert.equal(held.status, "hold");
+  assert.equal(held.reason, "model-supply-chain-digest-missing");
+  assert.equal(postCount, 0);
+  assert.equal(JSON.stringify(held).includes("local-private-model"), false);
+});
+
+test("expired inspection evidence holds before any loopback generation request", async () => {
+  let postCount = 0;
+  const invoke = createLoopbackGenerateInvoke({
+    probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
+    modelSupplyChain: ADMITTED_POLICY,
+    now: () => "2020-01-03T12:00:00.000Z",
+    fetchImpl: async (url, init = {}) => {
+      if (String(url).includes("/api/tags")) {
+        return { ok: true, json: async () => ({ models: [{ name: "expired-model", digest: `sha256:${MODEL_SHA256}`, size: MODEL_SIZE }] }) };
+      }
+      if (init.method === "POST") postCount += 1;
+      return { ok: true, arrayBuffer: async () => new Uint8Array([1]) };
+    },
+  });
+
+  const held = await invoke({ worldDigest: DIGEST });
+  assert.equal(held.status, "hold");
+  assert.equal(held.reason, "model-supply-chain-inspection-expired");
+  assert.equal(postCount, 0);
+  assert.equal(JSON.stringify(held).includes("expired-model"), false);
+});
 
 test("loopback invoke holds when the probe is not verified", async () => {
   const invoke = createLoopbackGenerateInvoke({ probe: { verified: false } });
@@ -36,7 +134,7 @@ test("loopback invoke hashes discarded body and never returns content keys", asy
     fetchImpl: async (url, init = {}) => {
       assert.match(String(url), /^http:\/\/127\.0\.0\.1/);
       if (String(url) === urls.ollamaTags) {
-        return { ok: true, json: async () => ({ models: [{ name: "qwen2.5:7b" }] }) };
+        return { ok: true, json: async () => ({ models: [{ name: "qwen2.5:7b", digest: `sha256:${MODEL_SHA256}`, size: MODEL_SIZE }] }) };
       }
       assert.equal(String(url), urls.ollamaGenerate);
       assert.equal(init.method, "POST");
@@ -45,6 +143,8 @@ test("loopback invoke hashes discarded body and never returns content keys", asy
       assert.equal(payload.stream, false);
       return { ok: true, arrayBuffer: async () => body };
     },
+    modelSupplyChain: ADMITTED_POLICY,
+    now: () => SUPPLY_NOW,
   });
   const produced = await invoke({ worldDigest: DIGEST });
   assert.equal(produced.status, "ok");
@@ -61,7 +161,9 @@ test("loopback invoke hashes discarded body and never returns content keys", asy
 test("cloud-named catalog models refuse instead of becoming a recovery path", async () => {
   const invoke = createLoopbackGenerateInvoke({
     probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
-    fetchImpl: async () => ({ ok: true, json: async () => ({ models: [{ name: "llama3-cloud" }] }) }),
+    fetchImpl: async () => ({ ok: true, json: async () => ({ models: [{ name: "llama3-cloud", digest: `sha256:${MODEL_SHA256}`, size: MODEL_SIZE }] }) }),
+    modelSupplyChain: ADMITTED_POLICY,
+    now: () => SUPPLY_NOW,
   });
   const refused = await invoke({ worldDigest: DIGEST });
   assert.equal(refused.status, "refused");
@@ -96,10 +198,12 @@ test("verified loopback invoke stores only status plus digest on the transient c
     probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
     fetchImpl: async (url) => {
       if (String(url).includes("/api/tags")) {
-        return { ok: true, json: async () => ({ models: [{ name: "phi3:mini" }] }) };
+        return { ok: true, json: async () => ({ models: [{ name: "phi3:mini", digest: `sha256:${MODEL_SHA256}`, size: MODEL_SIZE }] }) };
       }
       return { ok: true, arrayBuffer: async () => body };
     },
+    modelSupplyChain: ADMITTED_POLICY,
+    now: () => SUPPLY_NOW,
   });
   const cycle = await Promise.resolve(runUnattendedCreditFreeCycle({
     now: NOW,
