@@ -104,18 +104,20 @@ test("Destiny Work task envelope fails closed on duplicate, broadened, or unsafe
   assert.throws(() => parseDestinyWorkTaskPullRequest(workPr({}, { base: { repo: { full_name: "other/repo" } } }), { repository, owner }), /destiny-work-task-repository-mismatch/);
 });
 
-test("Destiny Work completion receipt is content-free and replay-safe", () => {
+test("Destiny Work completion receipt is content-free and bound to the immutable task envelope", () => {
   const task = parseDestinyWorkTaskPullRequest(workPr(), { repository, owner });
   const receipt = buildDestinyWorkReceipt(task);
   assert.deepEqual(receipt, {
     schemaVersion: 1,
     kind: "destiny-work-receipt",
     taskId: workTaskId,
+    taskDigest: receipt.taskDigest,
     status: "completed",
     executorLane: "destiny-work-event",
   });
+  assert.match(receipt.taskDigest, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(receipt).includes(objective), false);
-  assert.deepEqual(validateDestinyWorkReceipt(receipt, workTaskId), receipt);
+  assert.deepEqual(validateDestinyWorkReceipt(receipt, task), receipt);
   assert.deepEqual(planDestinyWorkExecution(task, { existingReceipt: receipt }), {
     execute: false,
     reason: "already-completed",
@@ -123,6 +125,10 @@ test("Destiny Work completion receipt is content-free and replay-safe", () => {
     receiptPath: `coordination/destiny-work-receipts/${workTaskId}.json`,
   });
 
-  assert.throws(() => validateDestinyWorkReceipt({ ...receipt, taskId: "dwt-aaaaaaaaaaaaaaaaaaaaaaaa" }, workTaskId), /destiny-work-receipt-task-mismatch/);
-  assert.throws(() => validateDestinyWorkReceipt({ ...receipt, objective }, workTaskId), /destiny-work-receipt-schema-invalid/);
+  assert.throws(() => validateDestinyWorkReceipt({ ...receipt, taskId: "dwt-aaaaaaaaaaaaaaaaaaaaaaaa" }, task), /destiny-work-receipt-task-mismatch/);
+  assert.throws(() => validateDestinyWorkReceipt({ ...receipt, objective }, task), /destiny-work-receipt-schema-invalid/);
+
+  const conflictingTask = parseDestinyWorkTaskPullRequest(workPr({ objective: "A different objective reusing the same task id." }), { repository, owner });
+  assert.throws(() => validateDestinyWorkReceipt(receipt, conflictingTask), /destiny-work-receipt-task-digest-mismatch/);
+  assert.throws(() => planDestinyWorkExecution(conflictingTask, { existingReceipt: receipt }), /destiny-work-receipt-task-digest-mismatch/);
 });
