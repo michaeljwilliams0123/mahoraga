@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "policyId": "mahoraga-model-supply-chain-v1",
+  "upstream": {
+    "provider": "huggingface",
+    "origin": "https://huggingface.co",
+    "immutableRevisionRequired": true,
+    "trustRemoteCode": false
+  },
+  "allowedFormats": [
+    "safetensors",
+    "gguf"
+  ],
+  "runtimeProviders": [
+    "ollama",
+    "lm-studio"
+  ],
+  "admissions": []
+}

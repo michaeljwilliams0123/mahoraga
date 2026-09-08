@@ -8,22 +8,52 @@ import {
   probeLocalReasoner,
 } from "../src/local-reasoner-provider.mjs";
 
+const ADMITTED_SHA256 = "a".repeat(64);
+const ADMITTED_POLICY = {
+  schemaVersion: 1,
+  policyId: "test-model-supply-chain-v1",
+  upstream: {
+    provider: "huggingface",
+    origin: "https://huggingface.co",
+    immutableRevisionRequired: true,
+    trustRemoteCode: false,
+  },
+  allowedFormats: ["safetensors", "gguf"],
+  runtimeProviders: ["ollama", "lm-studio"],
+  admissions: [{
+    id: "test-admitted-model",
+    state: "admitted",
+    source: {
+      provider: "huggingface",
+      repository: "owner/model",
+      revision: "c".repeat(40),
+      artifactPath: "weights/model.gguf",
+      trustRemoteCode: false,
+    },
+    artifact: { format: "gguf", sha256: ADMITTED_SHA256, sizeBytes: 42 },
+  }],
+};
+
 test("loopback probe covers Ollama and LM Studio without retaining model identifiers", async () => {
   const calls = [];
   const result = await probeLocalReasoner({
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "private-ollama-alpha" }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "private-ollama-alpha", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
       }
       return { ok: true, status: 200, json: async () => ({ data: [{ id: "private-model-alpha" }, { id: "private-model-beta" }] }) };
     },
+    modelSupplyChain: ADMITTED_POLICY,
   });
 
   assert.equal(result.verified, true);
   assert.equal(result.providerHealth.modelCount, 3);
+  assert.equal(result.providerHealth.admittedModelCount, 1);
   assert.equal(result.providerHealth.ollama.modelCount, 1);
+  assert.equal(result.providerHealth.ollama.admittedModelCount, 1);
   assert.equal(result.providerHealth.lmStudio.modelCount, 2);
+  assert.equal(result.providerHealth.lmStudio.admittedModelCount, 0);
   assert.equal(result.providerHealth.executionEnabled, false);
   assert.equal(calls.length, 2);
   assert.deepEqual(calls.map((call) => call.url).sort(), [LOCAL_REASONER_ENDPOINTS.lmStudio, LOCAL_REASONER_ENDPOINTS.ollama].sort());
@@ -58,10 +88,11 @@ test("Ollama-only loopback is sufficient to mark the local reasoner live", async
   const result = await probeLocalReasoner({
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen" }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
       }
       throw new Error("lm studio down");
     },
+    modelSupplyChain: ADMITTED_POLICY,
   });
   assert.equal(result.verified, true);
   assert.equal(result.providerHealth.ollama.availability, "healthy");
@@ -70,10 +101,11 @@ test("Ollama-only loopback is sufficient to mark the local reasoner live", async
   assert.equal(await observeLocalReasonerReady({
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
-        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen" }] }) };
+        return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${ADMITTED_SHA256}`, size: 42 }] }) };
       }
       throw new Error("lm studio down");
     },
+    modelSupplyChain: ADMITTED_POLICY,
   }), true);
 });
 
@@ -84,4 +116,25 @@ test("local reasoning execution remains explicitly disabled until transient resu
     promptPersistenceAllowed: false,
     responsePersistenceAllowed: false,
   });
+});
+
+test("loaded loopback models stay unverified without an admitted immutable digest", async () => {
+  const result = await probeLocalReasoner({
+    fetchImpl: async (url) => {
+      if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ models: [{ name: "untrusted-local-name", digest: `sha256:${"a".repeat(64)}`, size: 42 }] }),
+        };
+      }
+      return { ok: true, status: 200, json: async () => ({ data: [] }) };
+    },
+  });
+
+  assert.equal(result.verified, false);
+  assert.equal(result.providerHealth.availability, "configured");
+  assert.equal(result.providerHealth.errorCode, "model-supply-chain-unadmitted");
+  assert.match(result.summary, /no admitted models/i);
+  assert.equal(JSON.stringify(result).includes("untrusted-local-name"), false);
 });

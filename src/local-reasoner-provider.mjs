@@ -1,3 +1,5 @@
+import { DEFAULT_MODEL_SUPPLY_CHAIN, evaluateRuntimeModelAdmission } from "./model-supply-chain.mjs";
+
 const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
 const LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models";
 
@@ -6,7 +8,7 @@ export const LOCAL_REASONER_ENDPOINTS = Object.freeze({
   lmStudio: LM_STUDIO_MODELS_URL,
 });
 
-export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000 } = {}) {
+export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000, modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN } = {}) {
   if (typeof fetchImpl !== "function") return unavailableAggregate("fetch-unavailable");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10000) throw new TypeError("local-reasoner-timeout-invalid");
 
@@ -15,17 +17,18 @@ export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeout
       url: OLLAMA_TAGS_URL,
       fetchImpl,
       timeoutMs,
-      count: (body) => (Array.isArray(body?.models) ? body.models.length : 0),
+      inspect: (body) => inspectModels(body?.models, "ollama", modelSupplyChain),
     }),
     probeEndpoint({
       url: LM_STUDIO_MODELS_URL,
       fetchImpl,
       timeoutMs,
-      count: (body) => (Array.isArray(body?.data) ? body.data.length : 0),
+      inspect: (body) => inspectModels(body?.data, "lm-studio", modelSupplyChain),
     }),
   ]);
 
   const modelCount = Math.min(ollama.modelCount + lmStudio.modelCount, 1000);
+  const admittedModelCount = Math.min(ollama.admittedModelCount + lmStudio.admittedModelCount, 1000);
   const verified = ollama.verified || lmStudio.verified;
   const seen = ollama.availability !== "unavailable" || lmStudio.availability !== "unavailable";
   const availability = verified ? "healthy" : seen ? "configured" : "unavailable";
@@ -39,6 +42,7 @@ export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeout
       endpointClass: "localhost",
       authentication: "not-required-loopback",
       modelCount,
+      admittedModelCount,
       ollama: sanitizeEndpoint(ollama),
       lmStudio: sanitizeEndpoint(lmStudio),
       executionEnabled: false,
@@ -69,7 +73,7 @@ export function localReasonerExecutionBoundary() {
   });
 }
 
-async function probeEndpoint({ url, fetchImpl, timeoutMs, count }) {
+async function probeEndpoint({ url, fetchImpl, timeoutMs, inspect }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -80,39 +84,59 @@ async function probeEndpoint({ url, fetchImpl, timeoutMs, count }) {
       signal: controller.signal,
     });
     if (!response?.ok) {
-      return endpoint(false, 0, "unavailable", `http-${boundedStatus(response?.status)}`);
+      return endpoint(false, 0, "unavailable", `http-${boundedStatus(response?.status)}`, 0);
     }
     let body;
     try { body = await response.json(); }
-    catch { return endpoint(false, 0, "unavailable", "invalid-json"); }
-    const modelCount = Math.min(Math.max(0, Number(count(body)) || 0), 1000);
-    return endpoint(modelCount > 0, modelCount, modelCount > 0 ? "healthy" : "configured", null);
+    catch { return endpoint(false, 0, "unavailable", "invalid-json", 0); }
+    const observation = inspect(body);
+    const modelCount = observation.modelCount;
+    return endpoint(observation.admittedModelCount > 0, modelCount, observation.admittedModelCount > 0 ? "healthy" : "configured", observation.errorCode, observation.admittedModelCount);
   } catch (error) {
-    if (error?.name === "AbortError") return endpoint(false, 0, "unavailable", "timeout");
-    return endpoint(false, 0, "unavailable", "connection-unavailable");
+    if (error?.name === "AbortError") return endpoint(false, 0, "unavailable", "timeout", 0);
+    return endpoint(false, 0, "unavailable", "connection-unavailable", 0);
   } finally {
     clearTimeout(timer);
   }
 }
 
-function endpoint(verified, modelCount, availability, errorCode) {
-  return { verified, modelCount, availability, errorCode };
+function inspectModels(value, provider, modelSupplyChain) {
+  const models = Array.isArray(value) ? value.slice(0, 1000) : [];
+  const decisions = models.map((model) => evaluateRuntimeModelAdmission({
+    provider,
+    digest: model?.digest,
+    sizeBytes: model?.size,
+  }, modelSupplyChain));
+  const admittedModelCount = decisions.filter((decision) => decision.admitted).length;
+  const errorCode = models.length === 0
+    ? null
+    : decisions.find((decision) => decision.reason === "model-supply-chain-digest-missing")?.reason
+      ?? decisions[0]?.reason
+      ?? "model-supply-chain-unadmitted";
+  return { modelCount: models.length, admittedModelCount, errorCode: admittedModelCount > 0 ? null : errorCode };
+}
+
+function endpoint(verified, modelCount, availability, errorCode, admittedModelCount) {
+  return { verified, modelCount, admittedModelCount, availability, errorCode };
 }
 
 function sanitizeEndpoint(value) {
   return Object.freeze({
     availability: value.availability,
     modelCount: value.modelCount,
+    admittedModelCount: value.admittedModelCount,
     errorCode: value.errorCode,
   });
 }
 
 function summarize(verified, ollama, lmStudio, modelCount) {
   if (verified) {
-    return `Loopback local reasoner is responsive (${modelCount} loaded model(s) across Ollama/LM Studio); reasoning execution remains disabled until a transient result channel is available.`;
+    return `Loopback local reasoner is responsive (${modelCount} loaded model(s) across Ollama/LM Studio, including an admitted immutable artifact); reasoning execution remains disabled until a transient result channel is available.`;
   }
   if (ollama.availability === "configured" || lmStudio.availability === "configured") {
-    return "Loopback local reasoner responded but reported no loaded models.";
+    return modelCount > 0
+      ? "Loopback local reasoner responded but reported no admitted models."
+      : "Loopback local reasoner responded but reported no loaded models.";
   }
   return "Ollama and LM Studio loopback providers are not ready for local reasoning.";
 }
@@ -133,8 +157,9 @@ function unavailableAggregate(errorCode) {
       endpointClass: "localhost",
       authentication: "not-required-loopback",
       modelCount: 0,
-      ollama: { availability: "unavailable", modelCount: 0, errorCode },
-      lmStudio: { availability: "unavailable", modelCount: 0, errorCode },
+      admittedModelCount: 0,
+      ollama: { availability: "unavailable", modelCount: 0, admittedModelCount: 0, errorCode },
+      lmStudio: { availability: "unavailable", modelCount: 0, admittedModelCount: 0, errorCode },
       executionEnabled: false,
       responseContentPersisted: false,
       errorCode,

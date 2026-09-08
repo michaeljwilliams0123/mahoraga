@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { DEFAULT_MODEL_SUPPLY_CHAIN, evaluateRuntimeModelAdmission } from "./model-supply-chain.mjs";
 
 const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
 const OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate";
@@ -13,6 +14,7 @@ export function createLoopbackGenerateInvoke({
   probe = null,
   fetchImpl = globalThis.fetch,
   timeoutMs = 1500,
+  modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN,
 } = {}) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10_000) {
     fail("loopback-timeout-invalid");
@@ -27,7 +29,7 @@ export function createLoopbackGenerateInvoke({
     if (!endpoint) return frozen("hold", "loopback-endpoint-unavailable", worldDigest);
 
     try {
-      const model = await resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs });
+      const model = await resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain });
       if (model.cloudTagged) return frozen("refused", "ollama-cloud-not-credit-free", worldDigest);
       const raw = await postGenerate({
         endpoint,
@@ -43,6 +45,9 @@ export function createLoopbackGenerateInvoke({
       }
       if (error?.code === "loopback-timeout") {
         return frozen("hold", "loopback-generate-timeout", worldDigest);
+      }
+      if (typeof error?.code === "string" && error.code.startsWith("model-supply-chain-")) {
+        return frozen("hold", error.code, worldDigest);
       }
       return frozen("hold", "loopback-generate-unavailable", worldDigest);
     }
@@ -73,13 +78,17 @@ function selectEndpoint(probe) {
   return null;
 }
 
-async function resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs }) {
+async function resolveEphemeralModel({ endpoint, fetchImpl, timeoutMs, modelSupplyChain }) {
   const body = await getJson(endpoint.catalog, fetchImpl, timeoutMs);
-  const names = endpoint.id === "lm-studio"
-    ? namesFrom(body?.data, "id")
-    : namesFrom(body?.models, "name");
-  if (names.length === 0) fail("loopback-model-missing");
-  const name = names[0];
+  const models = endpoint.id === "lm-studio" ? catalogModels(body?.data, "id") : catalogModels(body?.models, "name");
+  if (models.length === 0) fail("loopback-model-missing");
+  const evaluated = models.map((model) => ({
+    model,
+    decision: evaluateRuntimeModelAdmission({ provider: endpoint.id, digest: model.digest, sizeBytes: model.sizeBytes }, modelSupplyChain),
+  }));
+  const selected = evaluated.find((item) => item.decision.admitted);
+  if (!selected) fail(evaluated[0].decision.reason);
+  const name = selected.model.name;
   if (CLOUD_NAME.test(name)) fail("ollama-cloud-not-credit-free");
   return { name, cloudTagged: false };
 }
@@ -154,11 +163,15 @@ async function readBytes(response) {
   fail("loopback-generate-empty");
 }
 
-function namesFrom(list, key) {
+function catalogModels(list, key) {
   if (!Array.isArray(list)) return [];
   return list
-    .map((item) => (item && typeof item === "object" ? item[key] : null))
-    .filter((name) => typeof name === "string" && name.length > 0 && name.length <= 128)
+    .map((item) => (item && typeof item === "object" ? {
+      name: item[key],
+      digest: item.digest,
+      sizeBytes: item.size,
+    } : null))
+    .filter((item) => item && typeof item.name === "string" && item.name.length > 0 && item.name.length <= 128)
     .slice(0, 8);
 }
 
