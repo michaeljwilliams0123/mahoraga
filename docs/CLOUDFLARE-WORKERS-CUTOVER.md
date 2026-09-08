@@ -18,7 +18,7 @@ successful Vercel build.
 GitHub main
   -> Cloudflare Workers build/deploy
   -> Mahoraga browser workspace
-  -> encrypted relay at relay.mahoraga.app
+  -> encrypted relay at mahoraga-relay.mahoraga-mjw0123.workers.dev
   -> outbound-connected authoritative Mahoraga core
 ```
 

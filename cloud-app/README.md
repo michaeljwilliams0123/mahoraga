@@ -26,7 +26,7 @@ It contains four complete in-app surfaces:
 
 - Next.js 16 App Router with provider-neutral deployment metadata
 - React 19 / TypeScript
-- fixed `wss://relay.mahoraga.app/pair` endpoint for encrypted runtime pairing
+- fixed `wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair` endpoint for encrypted runtime pairing
 - ECDH + HKDF + AES-GCM relay framing in the browser client
 - zero-Codex conversation policy with no automatic paid-model fallback
 - direct cloud conversation execution disabled

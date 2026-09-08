@@ -1,6 +1,6 @@
 import { deriveRelaySession, openFrame, sealFrame } from "./relay-client.mjs";
 
-const DEFAULT_RELAY_URL = "wss://relay.mahoraga.app/pair/local";
+const DEFAULT_RELAY_URL = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair/local";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
 const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement", "operations-snapshot", "operations-action"]);
 

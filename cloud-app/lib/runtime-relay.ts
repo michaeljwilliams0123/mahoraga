@@ -1,6 +1,6 @@
 "use client";
 
-const RELAY_ORIGIN = "wss://relay.mahoraga.app/pair";
+const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();

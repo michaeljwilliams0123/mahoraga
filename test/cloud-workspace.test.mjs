@@ -22,8 +22,8 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
     read("cloud-app/lib/runtime-relay.ts"),
     read("docs/CLOUD-WORKSPACE.md"),
   ]);
-  assert.match(config, /wss:\/\/relay\.mahoraga\.app/);
-  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.match(config, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev/);
+  assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.doesNotMatch(`${workspace}\n${relay}`, /github_pat_|gh[pousr]_|OPENAI_API_KEY|localStorage|sessionStorage/);
   assert.doesNotMatch(workspace, /DefaultChatTransport|useChat\(/);
   assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);

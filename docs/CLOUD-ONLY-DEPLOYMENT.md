@@ -6,7 +6,7 @@ plane is separated for security and durability:
 | Plane | Deployment | Responsibility |
 | --- | --- | --- |
 | Workspace | Host-neutral `cloud-app/`; GitHub Pages publishes current approved `main`, Cloudflare Workers is the migration candidate | The only browser UI, files, research, approvals, and connection state |
-| Encrypted relay | Cloudflare Worker + Durable Object at `relay.mahoraga.app` | Owner/origin authentication, replay protection, and ciphertext forwarding only |
+| Encrypted relay | Cloudflare Worker + Durable Object at `mahoraga-relay.mahoraga-mjw0123.workers.dev` | Owner/origin authentication, replay protection, and ciphertext forwarding only |
 | Runtime engine | Long-running remote container/VM with a persistent volume | Deterministic workers, task state, Git coordination, and zero-Codex provider routing |
 | Repository ledger | GitHub Actions and pull requests | Deterministic task staging, verification, integration, and audit receipts |
 
@@ -51,7 +51,7 @@ Provide choices and connector authorization, not secret values in chat or Git:
 6. **Cloud browser provider:** authorize an isolated browser service and provide
    the domain allowlist. No local Chrome extension or local-file access is used.
 7. **Cloudflare relay access:** retain the account configuration that owns
-   `relay.mahoraga.app`, the `RELAY_SESSIONS` Durable Object, and its access
+   `mahoraga-relay.mahoraga-mjw0123.workers.dev`, the `RELAY_SESSIONS` Durable Object, and its access
    policy. Browser hosting and relay responsibilities remain separately bounded.
 8. **Data policy:** choose conversation retention, runtime backup interval,
    region, and maximum attachment retention.

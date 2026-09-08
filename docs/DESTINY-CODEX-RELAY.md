@@ -6,11 +6,11 @@ The Destiny Codex relay is an optional ciphertext-only path between the canonica
 
 - Cloudflare Access authenticates the one owner identity before the browser WebSocket reaches the Worker.
 - `MAHORAGA_OWNER_IDENTITY` contains the exact Access-authenticated owner identity.
-- `MAHORAGA_WORKSPACE_ORIGIN` contains the exact canonical HTTPS Vercel workspace origin allowed to pair remotely.
+- `MAHORAGA_WORKSPACE_ORIGIN` contains the exact canonical GitHub Pages origin allowed to pair remotely.
 - `MAHORAGA_LOCAL_RELAY_TOKEN` is a high-entropy Worker secret that authenticates only the outbound local WebSocket. Configure the same value on the runtime as `MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN`; never place it in a pairing offer, browser asset, log, or commit.
 - `RELAY_SESSIONS` is the Durable Object namespace binding; it is configuration, not user input.
 - Deploy credentials belong only in a protected deployment environment. Recommended secret names are `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`; never commit their values or expose them to the Pages application.
-- The browser connects only to `wss://relay.mahoraga.app`. Change that origin only through a reviewed source and CSP update.
+- The browser connects only to `wss://mahoraga-relay.mahoraga-mjw0123.workers.dev`. Change that origin only through a reviewed source and CSP update.
 
 The relay sees owner/origin routing metadata, device/pairing/session identifiers, counters, IVs, and ciphertext. It never receives conversation plaintext, model responses, provider credentials, local paths, tool inputs, or raw connector/plugin results.
 
