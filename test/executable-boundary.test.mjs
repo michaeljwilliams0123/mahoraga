@@ -48,3 +48,12 @@ test("Windows launchers derive the user profile without a committed username", a
     assert.match(value, /GetFolderPath\('UserProfile'\)/);
   }
 });
+
+test("desktop worker keeps command and path selection bounded", async () => {
+  const desktop = await source("src/desktop-worker.mjs");
+  assert.match(desktop, /const POWERSHELL_SCRIPTS = Object\.freeze/);
+  assert.match(desktop, /desktopFilesystemPaths\(task\)/);
+  assert.match(desktop, /MAHORAGA_DESKTOP_RELATIVE/);
+  assert.doesNotMatch(desktop, /task\?\.(?:command|executable|shell|scriptText|program)/);
+  assert.doesNotMatch(desktop, /MAHORAGA_DESKTOP_(?:COMMAND|EXECUTABLE|SHELL|POWERSHELL_PATH)/);
+});
