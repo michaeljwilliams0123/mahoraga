@@ -46,7 +46,7 @@ test("security baseline attests live exact-head main protection", async () => {
   const baseline = await source("docs/GITHUB-SECURITY-BASELINE.md");
   assert.match(baseline, /does not change repository visibility/);
   assert.match(baseline, /Secret scanning, push protection, Dependabot alerts/i);
-  assert.match(baseline, /22327855/);
+  assert.match(baseline, /22502690/);
   assert.match(baseline, /blocks deletion and force-push/);
   assert.match(baseline, /github-live-protection\.mjs/);
   assert.match(baseline, /incumbent-trust-epoch\.json/);

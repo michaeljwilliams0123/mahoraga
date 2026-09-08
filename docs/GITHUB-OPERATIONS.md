@@ -46,7 +46,7 @@ emitting file contents. Account-level controls and their compatibility with the
 outbound control workflow are documented in
 [`GITHUB-SECURITY-BASELINE.md`](GITHUB-SECURITY-BASELINE.md).
 
-Live `main` protection is GitHub-native ruleset `22327855`. Required exact-head
+Live `main` protection is GitHub-native ruleset `22502690`. Required exact-head
 checks are `Verify (ubuntu-latest)` and `Verify (windows-latest)`.
 `Verify unified Vercel workspace` may run, but must not gate PR completion.
 Force-push and deletion are blocked. The

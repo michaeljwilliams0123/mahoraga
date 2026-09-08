@@ -27,7 +27,7 @@ Live `main` protection is attested by `node scripts/github-live-protection.mjs`
 against `config/main-protection.contract.json`. Repository-only `github:audit`
 success is not proof of live settings.
 
-Ruleset `22327855` (`Protect main — exact-head Verify`) is the live GitHub-native
+Ruleset `22502690` (`Protect main - exact-head Verify`) is the live GitHub-native
 gate. It blocks deletion and force-push, requires a pull request, and requires
 exact-head success of:
 
@@ -41,7 +41,7 @@ context, is required.
 No actor may bypass the ruleset. Autonomous integration still squash-merges
 eligible PRs through the GitHub pull-request merge API after those checks pass.
 
-Account-level controls last verified 2026-08-24 and re-checked 2026-09-05:
+Account-level controls last verified 2026-08-24 and re-checked 2026-09-07:
 
 1. Secret scanning, push protection, Dependabot alerts/security updates, private
    vulnerability reporting, and CodeQL default setup are enabled.
@@ -68,4 +68,3 @@ Every GitHub Action reference is pinned to an immutable, signature-verified
 commit SHA with its major version retained in a comment for reviewability.
 Dependabot remains responsible for proposing future GitHub Actions updates, and
 the live Actions allowlist remains restricted to GitHub-owned actions.
-
