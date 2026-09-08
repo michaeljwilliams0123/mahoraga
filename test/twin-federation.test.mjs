@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { createRelayBroker } from "../relay/core.mjs";
 import {
   cloneTwinDescriptor,
   createTwinDescriptor,
@@ -210,4 +212,15 @@ test("handoff refuses cross-federation peers and unsupported capabilities", () =
     sequence: 1,
     createdAt,
   }), /twin-handoff-capability-invalid/);
+});
+
+test("federation activation requires the prepared flag and supports two relay device sessions", () => {
+  const manifest = JSON.parse(readFileSync(new URL("../mahoraga.manifest.json", import.meta.url), "utf8"));
+  assert.equal(manifest.featureFlags.a2aFederation, true);
+
+  const owner = "owner@example.com";
+  const broker = createRelayBroker({ ownerIdentity: owner, allowedOrigin: "https://michaeljwilliams0123.github.io", now: () => 0 });
+  const primarySession = broker.pairLocal({ owner, deviceId: "mahoraga-primary", pairingId: "pair-primary" });
+  const twinSession = broker.pairLocal({ owner, deviceId: "mahoraga-twin-1", pairingId: "pair-twin-1" });
+  assert.notEqual(primarySession.sessionId, twinSession.sessionId);
 });
