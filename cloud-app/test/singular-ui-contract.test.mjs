@@ -73,7 +73,7 @@ test("Vercel entrypoints are frozen while hosting migrates away from exhausted q
   assert.equal(JSON.parse(rootConfigSource).outputDirectory, "cloud-app/.next");
 });
 
-test("repository declares only the canonical GitHub Pages workspace", async () => {
+test("repository declares one canonical workspace source without reviving legacy deployments", async () => {
   const sources = await Promise.all([
     read("../README.md"),
     read("README.md"),
@@ -84,9 +84,13 @@ test("repository declares only the canonical GitHub Pages workspace", async () =
     read("../scripts/open-workspace.ps1"),
   ]);
   for (const source of sources) {
-    assert.match(source, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+    assert.match(source, /cloud-app\//);
     assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app/);
     assert.doesNotMatch(source, /mahoraga-workspace-prod\.vercel\.app/);
     assert.doesNotMatch(source, /mahoraga-workspace-app\.vercel\.app/);
   }
+
+  const rootReadme = sources[0];
+  assert.match(rootReadme, /Deployment availability is observed[\s\S]*separately from source verification/);
+  assert.match(rootReadme, /former Pages URL[\s\S]*must not be presented as live/);
 });
