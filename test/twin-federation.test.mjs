@@ -4,9 +4,13 @@ import {
   cloneTwinDescriptor,
   createTwinDescriptor,
   validateTwinDescriptor,
+  createTwinEvent,
+  validateTwinEvent,
+  createTwinInbox,
 } from "../src/twin-federation.mjs";
 
 const sha = "803baa806ad64cc2e3b4b5be75f4dcecf21e3bf1";
+const sha2 = "1111111111111111111111111111111111111111";
 const createdAt = "2026-09-08T01:30:00.000Z";
 
 function primary(overrides = {}) {
@@ -18,6 +22,23 @@ function primary(overrides = {}) {
     capabilities: ["twin.review", "twin.analyze", "twin.build"],
     ...overrides,
   }, { createdAt });
+}
+
+function twinEvent(overrides = {}) {
+  return createTwinEvent({
+    federationId: "mahoraga-federation",
+    originPeerId: "mahoraga-primary",
+    targetPeerId: "mahoraga-twin-1",
+    sequence: 1,
+    kind: "presence",
+    repository: "michaeljwilliams0123/mahoraga",
+    baseCommit: sha,
+    headCommit: sha,
+    capability: null,
+    payloadDigest: "a".repeat(64),
+    createdAt,
+    ...overrides,
+  });
 }
 
 test("creates an immutable primary twin descriptor bound to Mahoraga", () => {
@@ -69,4 +90,50 @@ test("rejects credential-shaped or unknown descriptor fields", () => {
 test("rejects clone identity collisions", () => {
   const source = primary();
   assert.throws(() => cloneTwinDescriptor(source, { peerId: source.peerId }, { createdAt }), /twin-peer-collision/);
+});
+
+test("creates immutable deterministic presence, update, handoff, and receipt events", () => {
+  for (const kind of ["presence", "update", "handoff", "receipt"]) {
+    const capability = kind === "handoff" ? "twin.review" : null;
+    const event = twinEvent({ kind, capability, headCommit: kind === "update" ? sha2 : sha });
+    const replay = twinEvent({ kind, capability, headCommit: kind === "update" ? sha2 : sha });
+    assert.match(event.eventId, /^twe_[a-f0-9]{64}$/);
+    assert.equal(event.eventId, replay.eventId);
+    assert.equal(event.kind, kind);
+    assert.equal(Object.isFrozen(event), true);
+    assert.deepEqual(validateTwinEvent(event), event);
+  }
+});
+
+test("twin inbox applies a targeted event once and suppresses duplicate echo", () => {
+  const inbox = createTwinInbox({ peerId: "mahoraga-twin-1", maximumEventIds: 8 });
+  const event = twinEvent();
+  assert.deepEqual(inbox.accept(event), { accepted: true, applied: true, reason: "accepted" });
+  assert.deepEqual(inbox.accept(event), { accepted: true, applied: false, reason: "duplicate" });
+  assert.deepEqual(inbox.snapshot(), {
+    peerId: "mahoraga-twin-1",
+    highestSequenceByOrigin: { "mahoraga-primary": 1 },
+    eventIds: [event.eventId],
+  });
+});
+
+test("twin inbox ignores stale origin sequences and events for a different peer", () => {
+  const inbox = createTwinInbox({ peerId: "mahoraga-twin-1", maximumEventIds: 8 });
+  const newest = twinEvent({ sequence: 4, kind: "update", headCommit: sha2 });
+  const stale = twinEvent({ sequence: 3, payloadDigest: "b".repeat(64) });
+  const other = twinEvent({ sequence: 5, targetPeerId: "mahoraga-other", payloadDigest: "c".repeat(64) });
+  assert.equal(inbox.accept(newest).applied, true);
+  assert.deepEqual(inbox.accept(stale), { accepted: true, applied: false, reason: "stale" });
+  assert.deepEqual(inbox.accept(other), { accepted: false, applied: false, reason: "not-target" });
+});
+
+test("broadcast twin events are accepted by the addressed federation peer", () => {
+  const inbox = createTwinInbox({ peerId: "mahoraga-twin-1", maximumEventIds: 2 });
+  const first = twinEvent({ targetPeerId: "*", sequence: 1 });
+  const second = twinEvent({ targetPeerId: "*", sequence: 2, payloadDigest: "b".repeat(64) });
+  const third = twinEvent({ targetPeerId: "*", sequence: 3, payloadDigest: "c".repeat(64) });
+  assert.equal(inbox.accept(first).applied, true);
+  assert.equal(inbox.accept(second).applied, true);
+  assert.equal(inbox.accept(third).applied, true);
+  assert.deepEqual(inbox.snapshot().eventIds, [second.eventId, third.eventId]);
 });
