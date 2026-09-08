@@ -38,9 +38,9 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     "cloud-app/app/page.tsx",
     "cloud-app/components/workspace.tsx",
     "cloud-app/vercel.json",
+    ".github/workflows/pages.yml",
   ];
   const retiredWorkspaceFiles = [
-    ".github/workflows/pages.yml",
     "cloud/index.html",
     "cloud/app.js",
     "web/index.html",
@@ -50,10 +50,10 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
   const retainedLegacyFiles = retiredWorkspaceFiles.filter((file) => fileSet.has(file));
   const workspaceHealthy = missingWorkspaceFiles.length === 0 && retainedLegacyFiles.length === 0;
   add(
-    "single-vercel-workspace",
+    "single-cloud-workspace",
     workspaceHealthy,
     "blocking",
-    workspaceHealthy ? "Vercel is the sole browser UI and legacy Pages or loopback entry points are absent." : "The single Vercel workspace contract is incomplete.",
+    workspaceHealthy ? "cloud-app is the sole browser UI source and legacy duplicate entry points are absent." : "The single cloud workspace contract is incomplete.",
     workspaceHealthy ? undefined : { files: [...missingWorkspaceFiles, ...retainedLegacyFiles] },
   );
 

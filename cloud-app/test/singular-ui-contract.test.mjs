@@ -73,7 +73,7 @@ test("Vercel entrypoints are frozen while hosting migrates away from exhausted q
   assert.equal(JSON.parse(rootConfigSource).outputDirectory, "cloud-app/.next");
 });
 
-test("repository declares only the canonical Vercel workspace alias", async () => {
+test("repository declares only the canonical GitHub Pages workspace", async () => {
   const sources = await Promise.all([
     read("../README.md"),
     read("README.md"),
@@ -84,7 +84,7 @@ test("repository declares only the canonical Vercel workspace alias", async () =
     read("../scripts/open-workspace.ps1"),
   ]);
   for (const source of sources) {
-    assert.match(source, /https:\/\/mahoraga-workspace\.vercel\.app\//);
+    assert.match(source, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
     assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app/);
     assert.doesNotMatch(source, /mahoraga-workspace-prod\.vercel\.app/);
     assert.doesNotMatch(source, /mahoraga-workspace-app\.vercel\.app/);

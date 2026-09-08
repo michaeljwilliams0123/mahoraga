@@ -34,26 +34,28 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
   assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
   assert.match(docs, /single cloud-hosted workspace/i);
   assert.match(docs, /Cloudflare Workers/);
-  assert.match(docs, /https:\/\/mahoraga-workspace\.vercel\.app\//);
+  assert.match(docs, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
   assert.match(cutover, /Workers yes, Tunnel no/i);
   assert.match(cutover, /no inbound\s+route to `127\.0\.0\.1:4782`/i);
 });
 
-test("retired static and loopback UI entry points are absent", async () => {
+test("legacy static and loopback UI entry points are absent while Pages derives the single cloud-app", async () => {
   for (const relative of [
     "cloud/index.html", "cloud/app.js", "cloud/styles.css",
     "web/index.html", "web/app.js", "web/autonomy-workspace.html",
-    ".github/workflows/pages.yml",
   ]) {
     await assert.rejects(access(path.join(ROOT, relative)), { code: "ENOENT" });
   }
+  const pages = await read(".github/workflows/pages.yml");
+  assert.match(pages, /working-directory: cloud-app/);
+  assert.match(pages, /MAHORAGA_PAGES_EXPORT:\s*"1"/);
+  assert.match(pages, /actions\/deploy-pages@/);
 });
 
 test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and not a route selector", async () => {
-  const [workspace, relay, chatRoute] = await Promise.all([
+  const [workspace, relay] = await Promise.all([
     readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
-    read("cloud-app/app/api/chat/route.ts"),
   ]);
   assert.match(relay, /ECDH/);
   assert.match(relay, /HKDF/);
@@ -63,6 +65,6 @@ test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and 
   assert.doesNotMatch(workspace, /conversationRoute|DefaultChatTransport|useChat\(/);
   assert.match(workspace, /runtimePollGeneration/);
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
-  assert.match(chatRoute, /core-gateway-required/);
+  await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
   assert.doesNotMatch(`${workspace}\n${relay}`, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });

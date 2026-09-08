@@ -16,11 +16,10 @@ async function readWorkspaceSurface() {
 }
 
 test("the single workspace is a credential-free encrypted client of one Mahoraga core", async () => {
-  const [config, workspace, relay, chatRoute, docs] = await Promise.all([
+  const [config, workspace, relay, docs] = await Promise.all([
     read("cloud-app/next.config.ts"),
     readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
-    read("cloud-app/app/api/chat/route.ts"),
     read("docs/CLOUD-WORKSPACE.md"),
   ]);
   assert.match(config, /wss:\/\/relay\.mahoraga\.app/);
@@ -29,25 +28,28 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   assert.doesNotMatch(workspace, /DefaultChatTransport|useChat\(/);
   assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);
   assert.match(workspace, /RuntimeRelay/);
+  assert.match(workspace, /workspace.*control-center.*operations.*connections/s);
   assert.match(workspace, /authority remain with the paired Mahoraga core/i);
-  assert.match(chatRoute, /core-gateway-required/);
-  assert.doesNotMatch(chatRoute, /streamText|@ai-sdk\/gateway|cloudBrowserTool/);
+  await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
   assert.match(docs, /single cloud-hosted workspace and only browser UI/i);
   assert.match(docs, /host-neutral/i);
-  assert.match(docs, /No second local or Pages UI/i);
+  assert.match(docs, /Pages publishes this same source/i);
 });
 
-test("legacy Pages, static cloud, and loopback UI entry points stay retired", async () => {
-  for (const relative of [".github/workflows/pages.yml", "cloud/index.html", "web/index.html"]) {
+test("legacy duplicate UI entry points stay retired and Pages publishes cloud-app", async () => {
+  for (const relative of ["cloud/index.html", "web/index.html"]) {
     await assert.rejects(access(path.join(ROOT, relative)), { code: "ENOENT" });
   }
-  const [server, integration] = await Promise.all([
+  const [server, integration, pages] = await Promise.all([
     read("src/server.mjs"),
     read(".github/workflows/autonomous-integration.yml"),
+    read(".github/workflows/pages.yml"),
   ]);
-  assert.match(server, /interactionSurface: "vercel-workspace"/);
+  assert.match(server, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
   assert.match(server, /localUiRetired: true/);
-  assert.doesNotMatch(integration, /pages\.yml|DEPLOY_PAGES/);
+  assert.match(pages, /cloud-app/);
+  assert.match(pages, /deploy-pages/);
+  assert.doesNotMatch(integration, /DEPLOY_PAGES/);
 });
 
 test("cloud gateway workflow is owner-only, event-file parsed, and model-free", async () => {

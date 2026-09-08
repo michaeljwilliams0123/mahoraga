@@ -1,8 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 
 const read = (relative) => readFile(new URL(`../${relative}`, import.meta.url), "utf8");
+const missing = async (relative) => {
+  try {
+    await access(new URL(`../${relative}`, import.meta.url));
+    return false;
+  } catch {
+    return true;
+  }
+};
 
 async function readWorkspaceSurface() {
   const [workspace, shell, chatView] = await Promise.all([
@@ -30,12 +38,7 @@ test("unified workspace delegates conversation authority to one Mahoraga core", 
 });
 
 test("cloud chat endpoint cannot remain a second user-addressable orchestration brain", async () => {
-  const source = await read("cloud-app/app/api/chat/route.ts");
-  assert.doesNotMatch(source, /import \{ gateway \} from "@ai-sdk\/gateway"/);
-  assert.doesNotMatch(source, /\bstreamText\s*\(/);
-  assert.doesNotMatch(source, /gateway\.tools\.perplexitySearch/);
-  assert.doesNotMatch(source, /cloudBrowserTool/);
-  assert.match(source, /core|gateway/i);
+  assert.equal(await missing("cloud-app/app/api/chat/route.ts"), true);
 });
 
 test("runtime relay keeps decrypted content in browser memory and rejects attachments", async () => {

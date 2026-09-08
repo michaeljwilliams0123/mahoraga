@@ -25,6 +25,7 @@ const SECRET = /(?:\bsk-[A-Za-z0-9_-]{16,}|\bgithub_pat_[A-Za-z0-9_]{16,}|\bgh[p
 const PRIVATE_ECHO = /(?:prompt|answer|transcript|chat|conversation|credential|password|browser history)/i;
 const ALLOWED_ORIGINS = new Set([
   "https://mahoraga-cloud-workspace.vercel.app",
+  "https://michaeljwilliams0123.github.io",
 ]);
 
 export class CloudGatewayContractError extends TypeError {

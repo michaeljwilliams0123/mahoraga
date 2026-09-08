@@ -1,4 +1,4 @@
-export const dynamic = "force-dynamic";
+export const dynamic = "force-static";
 
 function deploymentUrl() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_URL?.trim();

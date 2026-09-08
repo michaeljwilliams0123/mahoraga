@@ -5,7 +5,7 @@ plane is separated for security and durability:
 
 | Plane | Deployment | Responsibility |
 | --- | --- | --- |
-| Workspace | Host-neutral `cloud-app/`; current verified fallback is Vercel `mahoraga-workspace`, Cloudflare Workers is the migration candidate | The only browser UI, files, research, approvals, and connection state |
+| Workspace | Host-neutral `cloud-app/`; GitHub Pages publishes current approved `main`, Cloudflare Workers is the migration candidate | The only browser UI, files, research, approvals, and connection state |
 | Encrypted relay | Cloudflare Worker + Durable Object at `relay.mahoraga.app` | Owner/origin authentication, replay protection, and ciphertext forwarding only |
 | Runtime engine | Long-running remote container/VM with a persistent volume | Deterministic workers, task state, Git coordination, and zero-Codex provider routing |
 | Repository ledger | GitHub Actions and pull requests | Deterministic task staging, verification, integration, and audit receipts |
@@ -18,10 +18,10 @@ its authenticated outbound encrypted relay connection.
 
 ## Hosting transition
 
-The last verified production browser address remains
-`https://mahoraga-workspace.vercel.app/`. Vercel Git auto-deployment is frozen
-while the account is quota-exhausted, so repository evolution continues without
-spending or waiting on Vercel build capacity.
+The production browser address is
+`https://michaeljwilliams0123.github.io/mahoraga/`. Its Pages workflow rebuilds
+the single `cloud-app/` source after every approved `main` update. Vercel is
+paused and non-canonical.
 
 Cloudflare Workers is the designated replacement-host candidate. This means
 Workers hosting, not Cloudflare Tunnel: no `cloudflared` tunnel, ngrok, reverse
@@ -35,7 +35,7 @@ Provide choices and connector authorization, not secret values in chat or Git:
 1. **Cloudflare Workers project access:** import `michaeljwilliams0123/mahoraga`
    through Workers Builds with `cloud-app/` as the application root, or authorize
    an equivalent protected deployment path. Do not commit account tokens.
-2. **Workspace production origin:** keep the current verified Vercel origin until
+2. **Workspace production origin:** keep the current verified GitHub Pages origin until
    the Workers root, health route, exact Git SHA, and encrypted pairing canary all
    pass. Then choose the verified Workers/custom domain in a separate cutover.
 3. **Workspace access policy:** choose an approved identity boundary for
@@ -87,11 +87,11 @@ direct GitHub mutation authority.
 
 ## Production acceptance
 
-- The currently canonical `https://mahoraga-workspace.vercel.app/` remains a
-  bounded fallback until another host passes the exact-commit activation gate.
+- The canonical `https://michaeljwilliams0123.github.io/mahoraga/` is rebuilt
+  from each approved `main` head.
 - A replacement host loads the same unified Chat, Control Center, Operations,
   and Connections workspace and reports its provider plus exact Git SHA.
-- No Pages, `cloud/`, `web/`, loopback frontend, historical duplicate Vercel
+- No legacy `cloud/`, `web/`, loopback frontend, historical duplicate Vercel
   project, or tunnel is treated as canonical production.
 - The default route is `zero-codex`; a missing provider produces a bounded
   unavailable state and no paid model invocation.

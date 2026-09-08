@@ -26,6 +26,13 @@ import type {
 
 const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 const TERMINAL_TASK_STATES = new Set(["succeeded", "failed", "cancelled", "rejected"]);
+const VIEW_HASH: Record<WorkspaceView, string> = {
+  chat: "workspace",
+  cockpit: "control-center",
+  operations: "operations",
+  connections: "connections",
+};
+const HASH_VIEW = new Map(Object.entries(VIEW_HASH).map(([view, hash]) => [hash, view as WorkspaceView]));
 
 const starters: Starter[] = [
   { icon: Database, title: "Analyze a dataset", prompt: "Analyze the attached dataset. Find material patterns, anomalies, competing explanations, data-quality limitations, and the three most important actions. Quantify every finding you can." },
@@ -81,12 +88,19 @@ export function Workspace() {
   const routeLabel = coreReady ? "Mahoraga core · encrypted · no paid fallback" : "Pair runtime to connect the Mahoraga core";
 
   useEffect(() => {
-    fetch("/api/health", { cache: "no-store" })
+    fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("health-failed");
         setHealth((await response.json()) as Health);
       })
       .catch(() => setHealthError(true));
+  }, []);
+
+  useEffect(() => {
+    const syncViewFromLocation = () => setView(HASH_VIEW.get(window.location.hash.slice(1)) ?? "chat");
+    syncViewFromLocation();
+    window.addEventListener("hashchange", syncViewFromLocation);
+    return () => window.removeEventListener("hashchange", syncViewFromLocation);
   }, []);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, runtimeBusy]);
@@ -109,8 +123,14 @@ export function Workspace() {
 
   function chooseStarter(prompt: string) {
     setInput(prompt);
-    setView("chat");
+    navigate("chat");
     composer.current?.focus();
+  }
+
+  function navigate(nextView: WorkspaceView) {
+    setView(nextView);
+    const nextHash = `#${VIEW_HASH[nextView]}`;
+    if (window.location.hash !== nextHash) window.location.hash = nextHash;
   }
 
   function addFiles(incoming: File[]) {
@@ -274,7 +294,7 @@ export function Workspace() {
   return (
     <WorkspaceShell
       view={view}
-      setView={setView}
+      setView={navigate}
       sidebarOpen={sidebarOpen}
       setSidebarOpen={setSidebarOpen}
       busy={busy}
@@ -331,9 +351,9 @@ export function Workspace() {
             health={health}
             healthError={healthError}
             runtimeCapabilities={runtimeCapabilities}
-            onRequestPairing={() => setView("chat")}
-            onOpenOperations={() => setView("operations")}
-            onOpenConnections={() => setView("connections")}
+            onRequestPairing={() => navigate("chat")}
+            onOpenOperations={() => navigate("operations")}
+            onOpenConnections={() => navigate("connections")}
           />
         </>
       )}
@@ -352,7 +372,7 @@ export function Workspace() {
           <OperationsView
             coreReady={coreReady}
             relay={pairedRelay}
-            onRequestPairing={() => setView("chat")}
+            onRequestPairing={() => navigate("chat")}
           />
         </>
       )}
@@ -372,7 +392,7 @@ export function Workspace() {
             coreReady={coreReady}
             health={health}
             runtimeCapabilities={runtimeCapabilities}
-            onRequestPairing={() => setView("chat")}
+            onRequestPairing={() => navigate("chat")}
             onDisconnect={revokeRuntime}
           />
         </>

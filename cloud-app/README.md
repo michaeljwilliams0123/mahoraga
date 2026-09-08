@@ -2,9 +2,9 @@
 
 `cloud-app/` is the **single browser UI source** for Mahoraga.
 
-GitHub main is the code authority. The application is host-neutral: Netlify is
-the live fallback, Vercel Git auto-deployment is frozen while its quota is
-exhausted, and Cloudflare Workers is the designated replacement-host candidate.
+GitHub main is the code authority. GitHub Pages publishes the current approved
+head at `https://michaeljwilliams0123.github.io/mahoraga/`; Vercel is paused, and
+Cloudflare Workers remains a replacement-host candidate.
 Every host deploys this same Next.js workspace and none gains execution authority
 over the paired core. See
 [`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
@@ -49,7 +49,8 @@ select providers directly and does not fall through to a paid model.
 
 ## Deployment identity
 
-`GET /api/health` exposes only non-secret deployment and boundary metadata,
+`GET /api/health` exposes only non-secret deployment and boundary metadata. The
+same route is prerendered for the Pages export,
 including:
 
 - product and runtime candidate version

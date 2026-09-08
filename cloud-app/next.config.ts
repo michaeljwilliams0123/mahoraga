@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 import { resolve } from "node:path";
 
+const pagesExport = process.env.MAHORAGA_PAGES_EXPORT === "1";
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "no-referrer" },
@@ -15,6 +17,15 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   agentRules: false,
   poweredByHeader: false,
+  ...(pagesExport
+    ? {
+        output: "export" as const,
+        basePath: "/mahoraga",
+        assetPrefix: "/mahoraga",
+        trailingSlash: true,
+        images: { unoptimized: true },
+      }
+    : {}),
   turbopack: {
     root: resolve(import.meta.dirname, ".."),
   },
