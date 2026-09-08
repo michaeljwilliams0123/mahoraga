@@ -145,6 +145,50 @@ export function createTwinInbox({ peerId: localPeerId, maximumEventIds = 256 } =
   });
 }
 
+export function classifyTwinConvergence({ localCommit, event: rawEvent } = {}) {
+  sha(localCommit, "twin-local-commit-invalid");
+  const event = validateTwinEvent(rawEvent);
+  if (localCommit === event.headCommit) return "in-sync";
+  if (event.kind !== "update") return "candidate-review";
+  if (localCommit === event.baseCommit) return "fast-forward-candidate";
+  return "reconciliation-required";
+}
+
+export function createTwinHandoff({
+  origin,
+  target,
+  capability: requestedCapability,
+  baseCommit,
+  headCommit,
+  objective,
+  sequence,
+  createdAt = new Date().toISOString(),
+} = {}) {
+  const source = validateTwinDescriptor(origin);
+  const destination = validateTwinDescriptor(target);
+  if (source.federationId !== destination.federationId) fail("twin-handoff-federation-mismatch");
+  if (source.repository !== destination.repository) fail("twin-handoff-repository-mismatch");
+  if (source.peerId === destination.peerId) fail("twin-event-self-target-invalid");
+  if (!HANDOFF_CAPABILITIES.has(requestedCapability)) fail("twin-handoff-capability-invalid");
+  if (!destination.capabilities.includes(requestedCapability)) fail("twin-handoff-capability-unavailable");
+  if (typeof objective !== "string" || objective.length < 1 || objective.length > 16384) fail("twin-handoff-objective-invalid");
+  sha(baseCommit, "twin-base-commit-invalid");
+  sha(headCommit, "twin-head-commit-invalid");
+  return createTwinEvent({
+    federationId: source.federationId,
+    originPeerId: source.peerId,
+    targetPeerId: destination.peerId,
+    sequence,
+    kind: "handoff",
+    repository: source.repository,
+    baseCommit,
+    headCommit,
+    capability: requestedCapability,
+    payloadDigest: createHash("sha256").update(objective, "utf8").digest("hex"),
+    createdAt,
+  });
+}
+
 function normalizeEventContent(value) {
   slug(value.federationId, "twin-federation-invalid");
   peerId(value.originPeerId);
