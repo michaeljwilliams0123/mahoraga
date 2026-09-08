@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { acceptPairingOffer, createPairingOffer, deriveRelaySession, openFrame, sealFrame } from "../src/relay-client.mjs";
 import { createRelayRuntimePeer } from "../src/relay-runtime.mjs";
+import { TwinEventJournal } from "../src/twin-event-journal.mjs";
 import { createTwinEvent } from "../src/twin-federation.mjs";
 import { createTwinRelayRemotePeer } from "../src/twin-relay-runtime.mjs";
 
@@ -41,6 +45,17 @@ function gateway() {
     operationsSnapshot: () => ({ generatedAt: createdAt }),
     operationsAction: () => ({ ok: true }),
   };
+}
+
+function durableJournal(t, localPeerId) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-twin-relay-journal-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return new TwinEventJournal(path.join(root, "twin.sqlite"), {
+    federationId,
+    localPeerId,
+    localCommit: baseCommit,
+    now: () => "2026-09-08T02:01:00.000Z",
+  });
 }
 
 test("twin remote peer pairs through the dedicated runtime relay path and sends encrypted events", async () => {
@@ -113,12 +128,13 @@ test("twin remote peer pairs through the dedicated runtime relay path and sends 
   peer.close();
 });
 
-test("twin remote peer accepts a primary event once and suppresses relay replay echo", async () => {
+test("twin remote peer accepts a primary event once and suppresses relay replay echo", async (t) => {
   const primaryPairing = await createPairingOffer({ now: () => 0 });
   const assignedSessionId = `rls-${"u".repeat(32)}`;
   let socket;
   let pairMessage;
   const applied = [];
+  const journal = durableJournal(t, "mahoraga-twin-1");
 
   class FakeSocket {
     static OPEN = 1;
@@ -163,6 +179,7 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
     peerId: "mahoraga-twin-1",
     localAccessToken: "t".repeat(48),
     now: () => 1,
+    journal,
     onEvent: (value, acceptance) => applied.push([value.eventId, acceptance.reason]),
     WebSocketImpl: class { constructor() { socket = new FakeSocket(); return socket; } },
   });
@@ -175,6 +192,7 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
   socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: firstFrame });
   await waitFor(() => applied.length === 1);
   assert.deepEqual(applied, [[incoming.eventId, "accepted"]]);
+  assert.deepEqual(journal.entries().map((entry) => entry.eventId), [incoming.eventId]);
 
   const replayFrame = await sealFrame(primarySession, { type: "twin-event", event: incoming }, { direction: "runtime-to-ui" });
   socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: replayFrame });
@@ -182,13 +200,15 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
   assert.equal(applied.length, 1);
   assert.equal(peer.status().connected, true);
   peer.close();
+  journal.close();
 });
 
-test("primary runtime can send and receive reciprocal twin events on its existing relay session", async () => {
+test("primary runtime can send and receive reciprocal twin events on its existing relay session", async (t) => {
   const primaryPairing = await createPairingOffer({ now: () => 0 });
   const remotePairing = await acceptPairingOffer(primaryPairing.publicOffer, { now: () => 1 });
   const assignedSessionId = `rls-${"v".repeat(32)}`;
   const applied = [];
+  const journal = durableJournal(t, "mahoraga-primary");
   let socket;
 
   class FakeSocket {
@@ -237,6 +257,7 @@ test("primary runtime can send and receive reciprocal twin events on its existin
     twin: {
       federationId,
       peerId: "mahoraga-primary",
+      journal,
       onEvent: (value, acceptance) => applied.push([value.eventId, acceptance.reason]),
     },
     WebSocketImpl: class { constructor(url, protocols) { socket = new FakeSocket(url, protocols); return socket; } },
@@ -260,7 +281,9 @@ test("primary runtime can send and receive reciprocal twin events on its existin
   socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: incomingFrame });
   await waitFor(() => applied.length === 1);
   assert.deepEqual(applied, [[incoming.eventId, "accepted"]]);
+  assert.deepEqual(journal.entries().map((entry) => entry.eventId), [incoming.eventId]);
   peer.close();
+  journal.close();
 });
 
 async function waitFor(check, timeoutMs = 1000) {

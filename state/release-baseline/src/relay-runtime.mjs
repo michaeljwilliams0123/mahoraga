@@ -178,22 +178,24 @@ export function createRelayRuntimePeer({
 
 function normalizeTwin(value) {
   if (value === null) return null;
-  const allowed = new Set(["federationId", "peerId", "maximumEventIds", "onEvent"]);
+  const allowed = new Set(["federationId", "peerId", "maximumEventIds", "onEvent", "journal"]);
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => !allowed.has(key))) fail("relay-runtime-twin-invalid");
   if (typeof value.federationId !== "string" || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(value.federationId)) fail("relay-runtime-twin-invalid");
   if (typeof value.peerId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(value.peerId)) fail("relay-runtime-twin-invalid");
   const maximumEventIds = value.maximumEventIds ?? 512;
   if (!Number.isSafeInteger(maximumEventIds) || maximumEventIds < 1 || maximumEventIds > 4096) fail("relay-runtime-twin-invalid");
   if (value.onEvent !== undefined && typeof value.onEvent !== "function") fail("relay-runtime-twin-invalid");
+  if (value.journal !== undefined && !isTwinJournal(value.journal)) fail("relay-runtime-twin-invalid");
   return Object.freeze({
     federationId: value.federationId,
     peerId: value.peerId,
     onEvent: value.onEvent ?? null,
-    inbox: createTwinInbox({ peerId: value.peerId, maximumEventIds }),
+    inbox: value.journal ?? createTwinInbox({ peerId: value.peerId, maximumEventIds }),
   });
 }
 
 function socketReady(value) { return Boolean(value && (value.readyState === 1 || value.readyState === value.OPEN)); }
+function isTwinJournal(value) { return Boolean(value && typeof value.accept === "function" && typeof value.snapshot === "function"); }
 function error(code) { const value = new TypeError(code); value.code = code; return value; }
 function publicCode(value) { const code = String(value?.code ?? value?.message ?? "relay-runtime-failed").toLowerCase().replace(/[^a-z0-9.-]+/g, "-").slice(0, 64); return /^[a-z]/.test(code) ? code : "relay-runtime-failed"; }
 function fail(code) { throw error(code); }
