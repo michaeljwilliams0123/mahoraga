@@ -1,4 +1,5 @@
 import { deriveRelaySession, openFrame, sealFrame } from "./relay-client.mjs";
+import { createTwinInbox, validateTwinEvent } from "./twin-federation.mjs";
 
 const DEFAULT_RELAY_URL = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair/local";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
@@ -10,6 +11,7 @@ export function createRelayRuntimePeer({
   deviceId = "primary-windows",
   gateway,
   localAccessToken,
+  twin = null,
   WebSocketImpl = globalThis.WebSocket,
 } = {}) {
   if (relayUrl !== DEFAULT_RELAY_URL) fail("relay-runtime-url-invalid");
@@ -19,6 +21,7 @@ export function createRelayRuntimePeer({
   if (typeof localAccessToken !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) fail("relay-runtime-access-token-invalid");
   if (typeof WebSocketImpl !== "function") fail("relay-runtime-websocket-invalid");
 
+  const twinState = normalizeTwin(twin);
   let socket = null;
   let session = null;
   let pairingResult = null;
@@ -35,6 +38,16 @@ export function createRelayRuntimePeer({
       connectPromise = connectInternal().finally(() => { connectPromise = null; });
       return connectPromise;
     },
+    async sendTwinEvent(rawEvent) {
+      if (!twinState) fail("relay-runtime-twin-unconfigured");
+      if (!socketReady(socket) || !session) fail("relay-runtime-not-connected");
+      const event = validateTwinEvent(rawEvent);
+      if (event.federationId !== twinState.federationId) fail("relay-runtime-twin-federation-mismatch");
+      if (event.originPeerId !== twinState.peerId) fail("relay-runtime-twin-origin-mismatch");
+      const frame = await sealFrame(session, { type: "twin-event", event }, { direction: "runtime-to-ui" });
+      socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
+      return Object.freeze({ accepted: true, eventId: event.eventId, sessionId: session.sessionId });
+    },
     close() {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
@@ -42,7 +55,15 @@ export function createRelayRuntimePeer({
       if (socket) socket.close?.(1000, "runtime-shutdown");
       socket = null; session = null; pairingResult = null;
     },
-    status() { return Object.freeze({ connected: Boolean(socketReady(socket) && session), sessionId: session?.sessionId ?? null, deviceId }); },
+    status() {
+      return Object.freeze({
+        connected: Boolean(socketReady(socket) && session),
+        sessionId: session?.sessionId ?? null,
+        deviceId,
+        twinPeerId: twinState?.peerId ?? null,
+      });
+    },
+    twinInboxSnapshot() { return twinState?.inbox.snapshot() ?? null; },
   };
   return Object.freeze(api);
 
@@ -107,20 +128,31 @@ export function createRelayRuntimePeer({
     let envelope; try { envelope = JSON.parse(String(event.data)); } catch { return; }
     if (envelope.type !== "frame" || !envelope.frame) return;
     let request;
+    try { request = await openFrame(session, envelope.frame); } catch { return; }
+    if (request?.type === "twin-event") {
+      await receiveTwinEvent(request.event);
+      return;
+    }
     try {
-      request = await openFrame(session, envelope.frame);
       if (!request || typeof request !== "object" || !ACTIONS.has(request.type) || typeof request.requestId !== "string") throw error("relay-runtime-request-invalid");
-    } catch { return; }
-    try {
       const result = await dispatch(request.type, request.payload);
       const frame = await sealFrame(session, { requestId: request.requestId, result }, { direction: "runtime-to-ui" });
       socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
     } catch (cause) {
       try {
-        const frame = await sealFrame(session, { requestId: request.requestId, error: publicCode(cause) }, { direction: "runtime-to-ui" });
+        const frame = await sealFrame(session, { requestId: request?.requestId ?? "invalid", error: publicCode(cause) }, { direction: "runtime-to-ui" });
         socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
       } catch { /* a closed peer ends this request */ }
     }
+  }
+
+  async function receiveTwinEvent(rawEvent) {
+    if (!twinState) return;
+    let event;
+    try { event = validateTwinEvent(rawEvent); } catch { return; }
+    if (event.federationId !== twinState.federationId || event.originPeerId === twinState.peerId) return;
+    const acceptance = twinState.inbox.accept(event);
+    if (acceptance.applied && twinState.onEvent) await twinState.onEvent(event, acceptance);
   }
 
   async function dispatch(type, payload) {
@@ -144,8 +176,24 @@ export function createRelayRuntimePeer({
   }
 }
 
-function socketReady(value) { return Boolean(value && (value.readyState === 1 || value.readyState === value.OPEN)); }
+function normalizeTwin(value) {
+  if (value === null) return null;
+  const allowed = new Set(["federationId", "peerId", "maximumEventIds", "onEvent"]);
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).some((key) => !allowed.has(key))) fail("relay-runtime-twin-invalid");
+  if (typeof value.federationId !== "string" || !/^[a-z0-9][a-z0-9-]{1,63}$/.test(value.federationId)) fail("relay-runtime-twin-invalid");
+  if (typeof value.peerId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(value.peerId)) fail("relay-runtime-twin-invalid");
+  const maximumEventIds = value.maximumEventIds ?? 512;
+  if (!Number.isSafeInteger(maximumEventIds) || maximumEventIds < 1 || maximumEventIds > 4096) fail("relay-runtime-twin-invalid");
+  if (value.onEvent !== undefined && typeof value.onEvent !== "function") fail("relay-runtime-twin-invalid");
+  return Object.freeze({
+    federationId: value.federationId,
+    peerId: value.peerId,
+    onEvent: value.onEvent ?? null,
+    inbox: createTwinInbox({ peerId: value.peerId, maximumEventIds }),
+  });
+}
 
+function socketReady(value) { return Boolean(value && (value.readyState === 1 || value.readyState === value.OPEN)); }
 function error(code) { const value = new TypeError(code); value.code = code; return value; }
 function publicCode(value) { const code = String(value?.code ?? value?.message ?? "relay-runtime-failed").toLowerCase().replace(/[^a-z0-9.-]+/g, "-").slice(0, 64); return /^[a-z]/.test(code) ? code : "relay-runtime-failed"; }
 function fail(code) { throw error(code); }
