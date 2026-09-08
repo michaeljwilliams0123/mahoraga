@@ -1,16 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPairingOffer, deriveRelaySession, openFrame, sealFrame } from "../src/relay-client.mjs";
+import { acceptPairingOffer, createPairingOffer, deriveRelaySession, openFrame, sealFrame } from "../src/relay-client.mjs";
+import { createRelayRuntimePeer } from "../src/relay-runtime.mjs";
 import { createTwinEvent } from "../src/twin-federation.mjs";
 import { createTwinRelayRemotePeer } from "../src/twin-relay-runtime.mjs";
 
 const createdAt = "2026-09-08T02:00:00.000Z";
 const baseCommit = "f8c0cb1d98061ffe129bfb1727089602e5559c2b";
 const headCommit = "1111111111111111111111111111111111111111";
+const federationId = "mahoraga-federation";
 
 function event(overrides = {}) {
   return createTwinEvent({
-    federationId: "mahoraga-federation",
+    federationId,
     originPeerId: "mahoraga-primary",
     targetPeerId: "mahoraga-twin-1",
     sequence: 1,
@@ -23,6 +25,22 @@ function event(overrides = {}) {
     createdAt,
     ...overrides,
   });
+}
+
+function gateway() {
+  return {
+    capabilities: () => [],
+    createRun: () => ({ run: { id: "run-twin" } }),
+    replay: () => [],
+    cancelRun: () => ({}),
+    chat: () => ({}),
+    tasks: () => [],
+    messages: () => [],
+    messageContent: () => ({ content: "" }),
+    taskAction: () => ({ task: null }),
+    operationsSnapshot: () => ({ generatedAt: createdAt }),
+    operationsAction: () => ({ ok: true }),
+  };
 }
 
 test("twin remote peer pairs through the dedicated runtime relay path and sends encrypted events", async () => {
@@ -70,8 +88,10 @@ test("twin remote peer pairs through the dedicated runtime relay path and sends 
 
   const peer = createTwinRelayRemotePeer({
     pairingOffer: primaryPairing.publicOffer,
+    federationId,
     peerId: "mahoraga-twin-1",
     localAccessToken: "t".repeat(48),
+    now: () => 1,
     WebSocketImpl: class { constructor(url, protocols) { socket = new FakeSocket(url, protocols); return socket; } },
   });
   await peer.connect();
@@ -82,13 +102,14 @@ test("twin remote peer pairs through the dedicated runtime relay path and sends 
   assert.equal(pairMessage.pairingId, primaryPairing.publicOffer.pairingId);
   assert.equal(pairMessage.code, primaryPairing.publicOffer.code);
 
-  await peer.send(event());
+  const outgoing = event({ originPeerId: "mahoraga-twin-1", targetPeerId: "mahoraga-primary" });
+  await peer.send(outgoing);
   const envelope = socket.sent.find((message) => message.action === "forward");
   assert.equal(envelope.from, "remote");
 
   const primarySession = await deriveRelaySession(primaryPairing.privateKey, pairMessage.devicePublicKey, primaryPairing.context);
   primarySession.sessionId = assignedSessionId;
-  assert.deepEqual(await openFrame(primarySession, envelope.frame), { type: "twin-event", event: event() });
+  assert.deepEqual(await openFrame(primarySession, envelope.frame), { type: "twin-event", event: outgoing });
   peer.close();
 });
 
@@ -138,8 +159,10 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
 
   const peer = createTwinRelayRemotePeer({
     pairingOffer: primaryPairing.publicOffer,
+    federationId,
     peerId: "mahoraga-twin-1",
     localAccessToken: "t".repeat(48),
+    now: () => 1,
     onEvent: (value, acceptance) => applied.push([value.eventId, acceptance.reason]),
     WebSocketImpl: class { constructor() { socket = new FakeSocket(); return socket; } },
   });
@@ -158,6 +181,85 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
   await new Promise((resolve) => setTimeout(resolve, 10));
   assert.equal(applied.length, 1);
   assert.equal(peer.status().connected, true);
+  peer.close();
+});
+
+test("primary runtime can send and receive reciprocal twin events on its existing relay session", async () => {
+  const primaryPairing = await createPairingOffer({ now: () => 0 });
+  const remotePairing = await acceptPairingOffer(primaryPairing.publicOffer, { now: () => 1 });
+  const assignedSessionId = `rls-${"v".repeat(32)}`;
+  const applied = [];
+  let socket;
+
+  class FakeSocket {
+    static OPEN = 1;
+    constructor(url, protocols) {
+      this.url = url;
+      this.protocols = protocols;
+      this.readyState = 0;
+      this.listeners = new Map();
+      this.sent = [];
+      queueMicrotask(() => { this.readyState = 1; this.emit("open"); });
+    }
+    addEventListener(type, listener) {
+      const list = this.listeners.get(type) ?? [];
+      list.push(listener);
+      this.listeners.set(type, list);
+    }
+    send(value) {
+      const message = JSON.parse(value);
+      this.sent.push(message);
+      if (message.action === "pair-local") {
+        queueMicrotask(() => this.emit("message", {
+          type: "paired",
+          accepted: true,
+          result: {
+            sessionId: assignedSessionId,
+            deviceId: "mahoraga-primary",
+            pairingId: primaryPairing.publicOffer.pairingId,
+            paired: true,
+            peerPublicKey: remotePairing.publicKey,
+          },
+        }));
+      }
+    }
+    close() { this.readyState = 3; this.emit("close"); }
+    emit(type, value) {
+      for (const listener of this.listeners.get(type) ?? []) listener({ data: JSON.stringify(value) });
+    }
+  }
+
+  const peer = createRelayRuntimePeer({
+    pairing: primaryPairing,
+    deviceId: "mahoraga-primary",
+    gateway: gateway(),
+    localAccessToken: "t".repeat(48),
+    twin: {
+      federationId,
+      peerId: "mahoraga-primary",
+      onEvent: (value, acceptance) => applied.push([value.eventId, acceptance.reason]),
+    },
+    WebSocketImpl: class { constructor(url, protocols) { socket = new FakeSocket(url, protocols); return socket; } },
+  });
+  await peer.connect();
+
+  const outgoing = event();
+  await peer.sendTwinEvent(outgoing);
+  const localEnvelope = socket.sent.find((message) => message.action === "forward" && message.from === "local");
+  const remoteSession = await deriveRelaySession(remotePairing.privateKey, primaryPairing.publicKey, remotePairing.context);
+  remoteSession.sessionId = assignedSessionId;
+  assert.deepEqual(await openFrame(remoteSession, localEnvelope.frame), { type: "twin-event", event: outgoing });
+
+  const incoming = event({
+    originPeerId: "mahoraga-twin-1",
+    targetPeerId: "mahoraga-primary",
+    sequence: 2,
+    payloadDigest: "b".repeat(64),
+  });
+  const incomingFrame = await sealFrame(remoteSession, { type: "twin-event", event: incoming }, { direction: "ui-to-runtime" });
+  socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: incomingFrame });
+  await waitFor(() => applied.length === 1);
+  assert.deepEqual(applied, [[incoming.eventId, "accepted"]]);
   peer.close();
 });
 
