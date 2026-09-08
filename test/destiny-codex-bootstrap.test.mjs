@@ -12,6 +12,7 @@ import {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(ROOT, "scripts", "bootstrap-destiny-codex.mjs");
+const BRIDGE = path.join(ROOT, "scripts", "destiny-codex-github-bridge.mjs");
 const probeId = "destiny-bind-pr181-20260907-a1b2c3d4";
 const rawAccountId = "account-destiny-integration-test";
 const rawInstallationId = "installation-destiny-integration-test";
@@ -76,6 +77,13 @@ test("Destiny bootstrap binds the account-side GitHub probe and emits signed rea
     const readiness = JSON.parse(await readFile(path.join(stateDir, "readiness.json"), "utf8"));
     assert.equal(readiness.codexAccountFingerprint, result.codexAccountFingerprint);
     assert.equal(evaluateDestinyTriggerReadiness(manifest, readiness, { now: readiness.observedAt }).ready, true);
+    const privateRoute = JSON.parse(await readFile(path.join(stateDir, "route-private.json"), "utf8"));
+    assert.equal(privateRoute.schemaVersion, 2);
+    assert.equal(privateRoute.environmentId, rawEnvironmentId);
+    assert.equal(privateRoute.codexAccountFingerprint, result.codexAccountFingerprint);
+    assert.equal(privateRoute.codexEnvironmentFingerprint, result.codexEnvironmentFingerprint);
+    assert.equal(privateRoute.receiptKeyFingerprint, result.receiptKeyFingerprint);
+    assert.equal(privateRoute.boundAt, readiness.observedAt);
     assert.match(await readFile(path.join(stateDir, "receipt-private-key.pem"), "utf8"), /BEGIN PRIVATE KEY/);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -102,4 +110,13 @@ test("Destiny bootstrap fails closed when the exact GitHub probe is not visible 
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+
+test("Destiny GitHub bridge revalidates route-v2 environment identity before dispatch", async () => {
+  const source = await readFile(BRIDGE, "utf8");
+  assert.match(source, /fingerprintCodexEnvironmentId/);
+  assert.match(source, /route\.schemaVersion !== 2/);
+  assert.match(source, /route\.codexEnvironmentFingerprint/);
+  assert.match(source, /destiny-codex-environment-fingerprint-mismatch/);
 });

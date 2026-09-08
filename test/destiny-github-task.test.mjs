@@ -68,6 +68,15 @@ test("GitHub task authorization and policy are fail-closed", () => {
   assert.throws(() => buildCodexCloudExecArgs("", parseDestinyGithubTaskIssue(issue(), { repository, owner })), /destiny-codex-environment-id-invalid/);
 });
 
+test("GitHub Codex task envelope rejects duplicate machine markers", () => {
+  const duplicate = issue();
+  duplicate.body = `${duplicate.body}\n${duplicate.body}`;
+  assert.throws(
+    () => parseDestinyGithubTaskIssue(duplicate, { repository, owner }),
+    /destiny-github-task-marker-ambiguous/,
+  );
+});
+
 test("Destiny Work PR marker parses into a bounded shared-owner execution lane", () => {
   const task = parseDestinyWorkTaskPullRequest(workPr(), { repository, owner });
   assert.deepEqual(task, {
