@@ -118,6 +118,7 @@ function normalizeRoute(value) {
     costClass: token(value.costClass, 64, "capability-graph-cost-invalid"),
     dataClasses: tokenList(value.dataClasses, 32, 64, "capability-graph-data-classes-invalid"),
     executionPlane: token(value.executionPlane, 96, "capability-graph-execution-plane-invalid"),
+    economicTier: value.economicTier === undefined ? economicTierForCostClass(value.costClass) : integer(value.economicTier, 0, 8, "capability-graph-cost-invalid"),
   };
   if (!route.routable && route.routingReason === null) fail("capability-graph-routing-reason-invalid");
   return deepFreeze(route);
@@ -196,6 +197,7 @@ function providesEdge(route) {
     latencyMs: route.latencyMs,
     workload: route.workload,
     costClass: route.costClass,
+    economicTier: route.economicTier,
   });
 }
 
@@ -238,7 +240,7 @@ function validateNode(value) {
 function validateEdge(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || !EDGE_TYPES.has(value.type)) fail("capability-graph-edge-invalid");
   if (value.type === "provides") {
-    exact(value, new Set(["id", "type", "from", "to", "workerId", "capability", "routable", "evidenceLevel", "routingReason", "dataClasses", "executionPlane", "permissionClass", "requiresAttendedDesktop", "reliability", "latencyMs", "workload", "costClass"]), "capability-graph-edge-invalid");
+    exact(value, new Set(["id", "type", "from", "to", "workerId", "capability", "routable", "evidenceLevel", "routingReason", "dataClasses", "executionPlane", "permissionClass", "requiresAttendedDesktop", "reliability", "latencyMs", "workload", "costClass", "economicTier"]), "capability-graph-edge-invalid");
     const workerId = slug(value.workerId, "capability-graph-edge-invalid");
     const capability = token(value.capability, 96, "capability-graph-edge-invalid");
     if (value.id !== `provides:${workerId}:${capability}` || value.from !== `worker:${workerId}` || value.to !== `capability:${capability}`) fail("capability-graph-edge-invalid");
@@ -253,6 +255,7 @@ function validateEdge(value) {
     integer(value.latencyMs, 0, 3_600_000, "capability-graph-edge-invalid");
     integer(value.workload, 0, 1024, "capability-graph-edge-invalid");
     token(value.costClass, 64, "capability-graph-edge-invalid");
+    integer(value.economicTier, 0, 8, "capability-graph-edge-invalid");
   } else {
     exact(value, new Set(["id", "type", "from", "to"]), "capability-graph-edge-invalid");
     if (value.id !== `${value.type}:${value.from}:${value.to}`) fail("capability-graph-edge-invalid");
@@ -340,4 +343,13 @@ function fail(code) {
   const error = new TypeError(code);
   error.code = code;
   throw error;
+}
+
+function economicTierForCostClass(costClass) {
+  if (costClass === "deterministic") return 0;
+  if (costClass === "local-model") return 1;
+  if (costClass === "cloud-open-weight") return 2;
+  if (costClass === "licensed-cloud") return 3;
+  if (costClass === "metered-cloud") return 4;
+  return 8;
 }

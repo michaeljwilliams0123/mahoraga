@@ -120,3 +120,12 @@ test("Destiny GitHub bridge revalidates route-v2 environment identity before dis
   assert.match(source, /route\.codexEnvironmentFingerprint/);
   assert.match(source, /destiny-codex-environment-fingerprint-mismatch/);
 });
+
+
+test("Destiny GitHub bridge writes pending and submitting lifecycle guards before cloud execution", async () => {
+  const source = await readFile(BRIDGE, "utf8");
+  assert.match(source, /planDestinyTaskSubmission/);
+  assert.match(source, /advanceDestinyTaskSubmission\(ledger, \{ taskId: task\.taskId, taskDigest, nextState: "submitting"/);
+  assert.match(source, /nextState: "failed-closed"/);
+  assert.match(source, /destinyGithubTaskDigest/);
+});

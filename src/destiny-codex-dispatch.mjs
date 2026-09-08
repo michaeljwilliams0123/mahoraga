@@ -34,6 +34,10 @@ const PROTECTED_PATHS = Object.freeze([
   "scripts/destiny-codex-dispatch.mjs",
 ]);
 
+
+const SUBMISSION_STATES = new Set(["pending", "submitting", "submitted", "failed-closed"]);
+const SUBMISSION_LEDGER_RECORD_KEYS = new Set(["taskId", "taskDigest", "routeId", "issueNumber", "state", "createdAt", "updatedAt", "taskUrl", "outputSha256"]);
+
 export const DESTINY_DISPATCH_PRIVACY = Object.freeze({
   chatAccess: false,
   conversationTranscriptIncluded: false,
@@ -207,3 +211,78 @@ function deepFreeze(value) {
   return value;
 }
 function fail(code) { const error = new TypeError(code); error.code = code; throw error; }
+
+export function validateDestinySubmissionLedger(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("destiny-submit-ledger-invalid");
+  const entries = Object.entries(value);
+  if (entries.length > 10_000) fail("destiny-submit-ledger-invalid");
+  const normalized = Object.fromEntries(entries.map(([taskId, record]) => [validateTaskId(taskId), validateSubmissionRecord(record, taskId)]));
+  return deepFreeze(normalized);
+}
+
+export function planDestinyTaskSubmission(ledgerInput, { taskId, taskDigest, routeId, issueNumber, now = new Date().toISOString() } = {}) {
+  const ledger = validateDestinySubmissionLedger(ledgerInput);
+  const normalizedTaskId = validateTaskId(taskId);
+  const digestValue = digest64(taskDigest, "destiny-submit-task-digest-invalid");
+  const route = token(routeId, 64, "destiny-submit-route-invalid");
+  const timestamp = normalizedTime(now, "destiny-submit-time-invalid");
+  const number = numberField(issueNumber, 1, 1_000_000_000, "destiny-submit-issue-number-invalid");
+  const current = ledger[normalizedTaskId] ?? null;
+  if (current) {
+    if (current.taskDigest !== digestValue) fail("submission-conflict");
+    if (current.routeId !== route || current.issueNumber !== number) fail("submission-conflict");
+    if (current.state === "submitted") return deepFreeze({ duplicate: true, record: current, ledger });
+    fail(current.state === "submitting" ? "submission-in-progress" : "submission-conflict");
+  }
+  const record = deepFreeze({ taskId: normalizedTaskId, taskDigest: digestValue, routeId: route, issueNumber: number, state: "pending", createdAt: timestamp, updatedAt: timestamp, taskUrl: null, outputSha256: null });
+  return deepFreeze({ duplicate: false, record, ledger: deepFreeze({ ...ledger, [normalizedTaskId]: record }) });
+}
+
+export function advanceDestinyTaskSubmission(ledgerInput, { taskId, taskDigest, nextState, now = new Date().toISOString(), taskUrl = null, outputSha256 = null } = {}) {
+  const ledger = validateDestinySubmissionLedger(ledgerInput);
+  const normalizedTaskId = validateTaskId(taskId);
+  const current = ledger[normalizedTaskId];
+  if (!current) fail("submission-conflict");
+  if (current.taskDigest !== digest64(taskDigest, "destiny-submit-task-digest-invalid")) fail("submission-conflict");
+  const state = allowedState(nextState);
+  if (!transitionAllowed(current.state, state)) fail("submission-conflict");
+  const record = validateSubmissionRecord({
+    ...current,
+    state,
+    updatedAt: normalizedTime(now, "destiny-submit-time-invalid"),
+    taskUrl: state === "submitted" ? nullableUrl(taskUrl, "destiny-submit-task-url-invalid") : null,
+    outputSha256: state === "submitted" ? digest64(outputSha256, "destiny-submit-output-invalid") : null,
+  }, normalizedTaskId);
+  return deepFreeze({ record, ledger: deepFreeze({ ...ledger, [normalizedTaskId]: record }) });
+}
+
+function validateSubmissionRecord(value, expectedTaskId) {
+  exact(value, SUBMISSION_LEDGER_RECORD_KEYS, "destiny-submit-ledger-invalid");
+  const record = {
+    taskId: validateTaskId(value.taskId),
+    taskDigest: digest64(value.taskDigest, "destiny-submit-ledger-invalid"),
+    routeId: token(value.routeId, 64, "destiny-submit-ledger-invalid"),
+    issueNumber: numberField(value.issueNumber, 1, 1_000_000_000, "destiny-submit-ledger-invalid"),
+    state: allowedState(value.state),
+    createdAt: normalizedTime(value.createdAt, "destiny-submit-ledger-invalid"),
+    updatedAt: normalizedTime(value.updatedAt, "destiny-submit-ledger-invalid"),
+    taskUrl: nullableUrl(value.taskUrl, "destiny-submit-ledger-invalid"),
+    outputSha256: nullableDigest64(value.outputSha256, "destiny-submit-ledger-invalid"),
+  };
+  if (record.taskId != expectedTaskId) fail("destiny-submit-ledger-invalid");
+  if (Date.parse(record.updatedAt) < Date.parse(record.createdAt)) fail("destiny-submit-ledger-invalid");
+  if (record.state === "submitted" && (!record.taskUrl || !record.outputSha256)) fail("destiny-submit-ledger-invalid");
+  if (record.state !== "submitted" && (record.taskUrl !== null || record.outputSha256 !== null)) fail("destiny-submit-ledger-invalid");
+  return deepFreeze(record);
+}
+
+function validateTaskId(value) {
+  if (typeof value !== "string" || !/^dct-[a-f0-9]{24}$/i.test(value)) fail("destiny-submit-task-id-invalid");
+  return value.toLowerCase();
+}
+function digest64(value, code) { if (typeof value !== "string" || !/^[a-f0-9]{64}$/i.test(value)) fail(code); return value.toLowerCase(); }
+function nullableDigest64(value, code) { return value === null ? null : digest64(value, code); }
+function numberField(value, min, max, code) { if (!Number.isSafeInteger(value) || value < min || value > max) fail(code); return value; }
+function nullableUrl(value, code) { if (value === null) return null; if (typeof value !== "string" || !/^https:\/\/[A-Za-z0-9./_?=&%-]+$/.test(value)) fail(code); return value; }
+function allowedState(value) { if (!SUBMISSION_STATES.has(value)) fail("destiny-submit-ledger-invalid"); return value; }
+function transitionAllowed(current, next) { return (current === "pending" && next === "submitting") || (current === "submitting" && ["submitted", "failed-closed"].includes(next)); }
