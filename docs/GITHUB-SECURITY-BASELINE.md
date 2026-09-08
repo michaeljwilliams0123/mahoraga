@@ -27,9 +27,9 @@ Live `main` protection is attested by `node scripts/github-live-protection.mjs`
 against `config/main-protection.contract.json`. Repository-only `github:audit`
 success is not proof of live settings.
 
-Ruleset `22502690` (`Protect main - exact-head Verify`) is the live GitHub-native
-gate. It blocks deletion and force-push, requires a pull request, and requires
-exact-head success of:
+The current private-repository plan reports rulesets as unavailable. Until a
+GitHub plan with private-repository ruleset support is enabled, exact-head
+success remains an operational merge requirement for:
 
 - `Verify (ubuntu-latest)`
 - `Verify (windows-latest)`
@@ -38,8 +38,9 @@ exact-head success of:
 The live-protection evaluator fails closed if that job, or any other extra
 context, is required.
 
-No actor may bypass the ruleset. Autonomous integration still squash-merges
-eligible PRs through the GitHub pull-request merge API after those checks pass.
+No actor may treat the missing server-side ruleset as permission to bypass
+these checks. Autonomous integration may squash-merge only after both exact-head
+checks pass and the candidate base is still current.
 
 Account-level controls last verified 2026-08-24 and re-checked 2026-09-07:
 

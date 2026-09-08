@@ -3,10 +3,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "../src/config.mjs";
-import { evaluateLiveMainProtection, parseMainProtectionContract } from "../src/github-live-protection.mjs";
+import { evaluateLiveMainProtection, parseLiveRulesetsResponse, parseMainProtectionContract } from "../src/github-live-protection.mjs";
 
 const contract = parseMainProtectionContract(await readFile(path.join(ROOT, "config/main-protection.contract.json"), "utf8"));
 const advisoryContract = Object.freeze({ ...contract, liveEnforcementRequired: false });
+const strictContract = Object.freeze({ ...contract, liveEnforcementRequired: true });
 
 function ruleset(overrides = {}) {
   return {
@@ -54,8 +55,18 @@ test("explicit advisory contract admits an intentionally absent ruleset", () => 
   assert.equal(report.paidFallback, false);
 });
 
+test("private free-plan ruleset unavailability is observable only in advisory mode", () => {
+  const response = {
+    status: 403,
+    payload: { message: "Upgrade to GitHub Pro or make this repository public to enable this feature." },
+  };
+  assert.deepEqual(parseLiveRulesetsResponse(response, advisoryContract), []);
+  assert.throws(() => parseLiveRulesetsResponse(response, strictContract), /live-protection-unobserved/);
+  assert.throws(() => parseLiveRulesetsResponse({ status: 403, payload: { message: "Forbidden" } }, advisoryContract), /live-protection-unobserved/);
+});
+
 test("strict live enforcement still fails closed when a ruleset is required", () => {
-  const report = evaluateLiveMainProtection({ rulesets: [], contract });
+  const report = evaluateLiveMainProtection({ rulesets: [], contract: strictContract });
   assert.equal(report.ok, false);
   assert.equal(report.status, "unprotected");
   assert.equal(report.reason, "main-unprotected");
@@ -115,12 +126,12 @@ test("live main protection fails closed when an observational job is a required 
   assert.equal(report.paidFallback, false);
 });
 
-test("tracked contract requires live exact-head Verify enforcement", () => {
+test("tracked contract preserves exact-head Verify policy while private-plan enforcement is unavailable", () => {
   assert.deepEqual(contract.requiredContexts, [
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)",
   ]);
-  assert.equal(contract.liveEnforcementRequired, true);
+  assert.equal(contract.liveEnforcementRequired, false);
   assert.equal(contract.strictExactHead, true);
   assert.equal(contract.deletionAllowed, false);
   assert.equal(contract.forcePushAllowed, false);

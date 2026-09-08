@@ -5,6 +5,19 @@ const REQUIRED_CONTEXTS = Object.freeze([
   "Verify (ubuntu-latest)",
   "Verify (windows-latest)",
 ]);
+const PRIVATE_RULESET_PLAN_MESSAGE = "Upgrade to GitHub Pro or make this repository public to enable this feature.";
+
+export function parseLiveRulesetsResponse(response, contract) {
+  const expected = parseMainProtectionContract(contract);
+  if (!response || typeof response !== "object" || Array.isArray(response) || !Number.isInteger(response.status)) fail("live-protection-unobserved");
+  if (response.status === 200) {
+    if (!Array.isArray(response.payload)) fail("live-rulesets-invalid");
+    return response.payload;
+  }
+  if (response.status === 403 && expected.liveEnforcementRequired === false
+    && response.payload?.message === PRIVATE_RULESET_PLAN_MESSAGE) return Object.freeze([]);
+  fail("live-protection-unobserved");
+}
 
 export function parseMainProtectionContract(source) {
   const value = typeof source === "string" ? JSON.parse(source) : source;

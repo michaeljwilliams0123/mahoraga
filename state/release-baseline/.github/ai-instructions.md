@@ -10,7 +10,7 @@
 - **Production rollback:** Windows runtime stays `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite, inactive-runtime smoke, and rollback drill are recorded. Do not activate `7.0.0-alpha.1` or `7.0.0-alpha.2` on Windows from browser UI work.
 - **Singular browser UI:** `cloud-app/` is the one deployable browser UI and contains Chat, Control Center, Operations, and Connections. `operator-deck/` remains a non-deployable TypeScript reference/control-library layer; preserve it but never recreate it as a second browser app.
 - **Authority boundary:** the browser remains a client of the paired Mahoraga core. No direct browser GitHub authority, direct provider selection, paid fallback, or automatic owner confirmation.
-- **Protect main:** ruleset `22502690` is active. Required repository checks are Verify (ubuntu-latest) and Verify (windows-latest). Never squash-merge a blocked PR.
+- **Protect main:** the current private-repository plan does not enforce a GitHub ruleset. Treat every PR as blocked until Verify (ubuntu-latest) and Verify (windows-latest) pass on its exact current head. Never squash-merge a blocked PR.
 - **Vercel boundary:** Vercel provider or deployment status is not a PR completion gate. `Verify unified Vercel workspace` may run as an observational job and must not gate merge. Do not confuse a provider quota/deployment signal with the repository build check.
 
 ## Review transport policy
