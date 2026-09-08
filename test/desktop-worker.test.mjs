@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DESKTOP_APPLICATIONS, desktopTarget, executeDesktopCapability } from "../src/desktop-worker.mjs";
-import { loadManifest } from "../src/config.mjs";
+import { loadManifest, ROOT } from "../src/config.mjs";
 
 test("desktop inspection fails closed off Windows without invoking a shell", async () => {
   let called = false;
@@ -95,7 +95,7 @@ test("desktop filesystem hashes only repo-relative allowlisted files", async () 
     calls += 1;
     assert.equal(args.includes("package.json"), false);
     assert.equal(options.env.MAHORAGA_DESKTOP_RELATIVE, "package.json");
-    assert.match(options.env.MAHORAGA_DESKTOP_ROOT, /mahoraga-desktop-worker-v1$/i);
+    assert.equal(options.env.MAHORAGA_DESKTOP_ROOT, ROOT);
     return { stdout: JSON.stringify({ verified: true, kind: "file", sizeBytes: 512, sha256: "a".repeat(64) }), stderr: "" };
   };
   const result = await executeDesktopCapability("desktop.filesystem", {
