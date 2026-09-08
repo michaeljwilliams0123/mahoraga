@@ -151,14 +151,11 @@ git commit -m "[PRIMARY] Add objective-scoped work delegation"
 
 **Files:**
 - Modify: `src/world-state-observer.mjs`
-- Modify: `src/server.mjs`
 - Modify: `src/repair.mjs`
-- Modify: `test/objective-planner.test.mjs`
 - Modify: `test/runtime.test.mjs`
 - Create: `state/release-baseline/src/universal-capability-graph.mjs`
 - Create: `state/release-baseline/src/delegated-work-fabric.mjs`
 - Modify: `state/release-baseline/src/world-state-observer.mjs`
-- Modify: `state/release-baseline/src/server.mjs`
 - Modify: `state/release-baseline/src/repair.mjs`
 
 **Interfaces:**
@@ -176,7 +173,7 @@ assert.equal(world.capabilityGraph.paidFallback, false);
 
 - [ ] **Step 2: Run RED**
 
-Run: `node --test --test-isolation=none test/objective-planner.test.mjs test/runtime.test.mjs`
+Run: `node --test --test-isolation=none --test-name-pattern "runtime serves the cockpit API" test/runtime.test.mjs`
 
 Expected: FAIL because world state has no `capabilityGraph`.
 
@@ -202,7 +199,7 @@ Expected: all essential source files have byte-identical mirrors.
 
 - [ ] **Step 5: Run focused and full verification**
 
-Run: `node --test --test-isolation=none test/delegated-work-fabric.test.mjs test/objective-planner.test.mjs test/runtime.test.mjs test/repair.test.mjs`
+Run: `node --test --test-isolation=none test/delegated-work-fabric.test.mjs test/runtime.test.mjs test/repair.test.mjs`
 
 Run: `$env:GH_TOKEN = gh auth token; try { npm run verify } finally { Remove-Item Env:GH_TOKEN -ErrorAction SilentlyContinue }`
 
