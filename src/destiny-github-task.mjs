@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto";
+
 const CODEX_TASK_ID = /^dct-[a-f0-9]{24}$/;
 const WORK_TASK_ID = /^dwt-[a-f0-9]{24}$/;
+const DIGEST = /^[a-f0-9]{64}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const OWNER = /^[A-Za-z0-9_.-]+$/;
 const CODEX_MARKER = /<!-- MAHORAGA_DESTINY_TASK_V1\r?\n([\s\S]{1,12000}?)\r?\nMAHORAGA_DESTINY_TASK_V1 -->/;
@@ -45,7 +48,27 @@ function validateParsedWorkTask(task) {
   if (!Number.isSafeInteger(task.pullRequest) || task.pullRequest < 1) throw new TypeError("destiny-work-task-pr-invalid");
   opaque(task.objective, "destiny-work-task-objective-invalid", 8000);
   if (task.attempts !== 1 || task.implementationOnly !== true || task.codeReview !== false) throw new TypeError("destiny-work-task-policy-invalid");
+  const keys = Object.keys(task).sort().join(",");
+  if (keys !== "attempts,codeReview,executorLane,implementationOnly,objective,pullRequest,repository,schemaVersion,taskId") {
+    throw new TypeError("destiny-work-task-invalid");
+  }
   return task;
+}
+
+function destinyWorkTaskDigest(task) {
+  const valid = validateParsedWorkTask(task);
+  const canonical = JSON.stringify({
+    schemaVersion: 1,
+    taskId: valid.taskId,
+    repository: valid.repository,
+    pullRequest: valid.pullRequest,
+    objective: opaque(valid.objective, "destiny-work-task-objective-invalid", 8000),
+    attempts: 1,
+    implementationOnly: true,
+    codeReview: false,
+    executorLane: WORK_LANE,
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
 export function parseDestinyGithubTaskIssue(issue, { repository, owner }) {
@@ -122,13 +145,14 @@ export function buildDestinyWorkReceipt(task) {
     schemaVersion: 1,
     kind: "destiny-work-receipt",
     taskId: valid.taskId,
+    taskDigest: destinyWorkTaskDigest(valid),
     status: "completed",
     executorLane: WORK_LANE,
   });
 }
 
-export function validateDestinyWorkReceipt(receiptInput, expectedTaskId) {
-  if (typeof expectedTaskId !== "string" || !WORK_TASK_ID.test(expectedTaskId)) throw new TypeError("destiny-work-task-id-invalid");
+export function validateDestinyWorkReceipt(receiptInput, expectedTask) {
+  const validTask = validateParsedWorkTask(expectedTask);
   const receipt = typeof receiptInput === "string"
     ? parseJsonObject(receiptInput, "destiny-work-receipt-json-invalid")
     : receiptInput;
@@ -137,9 +161,11 @@ export function validateDestinyWorkReceipt(receiptInput, expectedTaskId) {
     throw new TypeError("destiny-work-receipt-invalid");
   }
   if (typeof receipt.taskId !== "string" || !WORK_TASK_ID.test(receipt.taskId)) throw new TypeError("destiny-work-receipt-invalid");
-  if (receipt.taskId !== expectedTaskId) throw new TypeError("destiny-work-receipt-task-mismatch");
+  if (receipt.taskId !== validTask.taskId) throw new TypeError("destiny-work-receipt-task-mismatch");
+  if (typeof receipt.taskDigest !== "string" || !DIGEST.test(receipt.taskDigest)) throw new TypeError("destiny-work-receipt-invalid");
+  if (receipt.taskDigest !== destinyWorkTaskDigest(validTask)) throw new TypeError("destiny-work-receipt-task-digest-mismatch");
   const keys = Object.keys(receipt).sort().join(",");
-  if (keys !== "executorLane,kind,schemaVersion,status,taskId") throw new TypeError("destiny-work-receipt-schema-invalid");
+  if (keys !== "executorLane,kind,schemaVersion,status,taskDigest,taskId") throw new TypeError("destiny-work-receipt-schema-invalid");
   return Object.freeze({ ...receipt });
 }
 
@@ -147,7 +173,7 @@ export function planDestinyWorkExecution(task, { existingReceipt = null } = {}) 
   const valid = validateParsedWorkTask(task);
   const receiptPath = destinyWorkReceiptPath(valid.taskId);
   if (existingReceipt != null) {
-    validateDestinyWorkReceipt(existingReceipt, valid.taskId);
+    validateDestinyWorkReceipt(existingReceipt, valid);
     return Object.freeze({ execute: false, reason: "already-completed", taskId: valid.taskId, receiptPath });
   }
   return Object.freeze({ execute: true, reason: "pending", taskId: valid.taskId, receiptPath });
