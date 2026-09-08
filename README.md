@@ -14,18 +14,18 @@ incident-only repair records.
 
 ## Quick access
 
-- **Live Mahoraga workspace:** https://michaeljwilliams0123.github.io/mahoraga/
+- **Mahoraga workspace source:** `cloud-app/` on verified `main`. The former GitHub Pages URL is not a current availability guarantee after the repository's private transition.
 - **Vercel project dashboard:** https://vercel.com/michaeljwilliams0123-9969/mahoraga-workspace
 - **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
 - **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
-GitHub main is the code authority for the live workspace. Vercel remains the historical
-primary deployment target, but it is optional and non-gating. When Vercel capacity is
-unavailable, the verified same workspace may be mirrored through the Netlify fallback
-without changing paired-core execution authority. Historical Vercel projects remain
-non-canonical and should not be used as production truth.
+GitHub `main` is the code authority for the workspace. Deployment availability is observed
+separately from source verification: a green `Verify Mahoraga` run does not prove that Pages,
+Vercel, or a fallback host is live. Vercel remains optional and non-gating; historical Vercel
+projects are non-canonical. After the repository's private transition, the former Pages URL
+must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds.
 
 ## AI agents — do not JavaScript-rewrite this repository
 
