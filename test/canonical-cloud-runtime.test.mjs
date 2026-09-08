@@ -31,7 +31,7 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
   }
   assert.match(workspace, /Zero-Codex route/);
   assert.match(workspace, /Pair runtime/);
-  assert.match(relay, /wss:\/\/relay\.mahoraga\.app\/pair/);
+  assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.match(docs, /single cloud-hosted workspace/i);
   assert.match(docs, /Cloudflare Workers/);
   assert.match(docs, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
