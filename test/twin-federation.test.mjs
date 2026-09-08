@@ -7,10 +7,13 @@ import {
   createTwinEvent,
   validateTwinEvent,
   createTwinInbox,
+  classifyTwinConvergence,
+  createTwinHandoff,
 } from "../src/twin-federation.mjs";
 
 const sha = "803baa806ad64cc2e3b4b5be75f4dcecf21e3bf1";
 const sha2 = "1111111111111111111111111111111111111111";
+const sha3 = "2222222222222222222222222222222222222222";
 const createdAt = "2026-09-08T01:30:00.000Z";
 
 function primary(overrides = {}) {
@@ -136,4 +139,75 @@ test("broadcast twin events are accepted by the addressed federation peer", () =
   assert.equal(inbox.accept(second).applied, true);
   assert.equal(inbox.accept(third).applied, true);
   assert.deepEqual(inbox.snapshot().eventIds, [second.eventId, third.eventId]);
+});
+
+test("classifies same-head, fast-forward, divergent, and candidate-review convergence", () => {
+  assert.equal(classifyTwinConvergence({ localCommit: sha, event: twinEvent() }), "in-sync");
+  assert.equal(classifyTwinConvergence({
+    localCommit: sha,
+    event: twinEvent({ kind: "update", baseCommit: sha, headCommit: sha2 }),
+  }), "fast-forward-candidate");
+  assert.equal(classifyTwinConvergence({
+    localCommit: sha3,
+    event: twinEvent({ kind: "update", baseCommit: sha, headCommit: sha2 }),
+  }), "reconciliation-required");
+  assert.equal(classifyTwinConvergence({
+    localCommit: sha,
+    event: twinEvent({ kind: "handoff", capability: "twin.review", baseCommit: sha, headCommit: sha2 }),
+  }), "candidate-review");
+});
+
+test("creates content-free reciprocal analyze, review, and build handoffs", () => {
+  const origin = primary();
+  const target = cloneTwinDescriptor(origin, { peerId: "mahoraga-twin-1" }, { createdAt: "2026-09-08T01:31:00.000Z" });
+  for (const capability of ["twin.analyze", "twin.review", "twin.build"]) {
+    const event = createTwinHandoff({
+      origin,
+      target,
+      capability,
+      baseCommit: sha,
+      headCommit: sha2,
+      objective: `objective-${capability}`,
+      sequence: 7,
+      createdAt,
+    });
+    assert.equal(event.kind, "handoff");
+    assert.equal(event.originPeerId, origin.peerId);
+    assert.equal(event.targetPeerId, target.peerId);
+    assert.equal(event.capability, capability);
+    assert.match(event.payloadDigest, /^[a-f0-9]{64}$/);
+    assert.equal(Object.hasOwn(event, "objective"), false);
+  }
+});
+
+test("handoff refuses cross-federation peers and unsupported capabilities", () => {
+  const origin = primary();
+  const target = cloneTwinDescriptor(origin, { peerId: "mahoraga-twin-1" }, { createdAt: "2026-09-08T01:31:00.000Z" });
+  const foreign = createTwinDescriptor({
+    federationId: "foreign-federation",
+    peerId: "mahoraga-foreign",
+    repository: origin.repository,
+    commit: origin.commit,
+    capabilities: origin.capabilities,
+  }, { createdAt });
+  assert.throws(() => createTwinHandoff({
+    origin,
+    target: foreign,
+    capability: "twin.review",
+    baseCommit: sha,
+    headCommit: sha2,
+    objective: "review candidate",
+    sequence: 1,
+    createdAt,
+  }), /twin-handoff-federation-mismatch/);
+  assert.throws(() => createTwinHandoff({
+    origin,
+    target,
+    capability: "twin.deploy",
+    baseCommit: sha,
+    headCommit: sha2,
+    objective: "deploy candidate",
+    sequence: 1,
+    createdAt,
+  }), /twin-handoff-capability-invalid/);
 });
