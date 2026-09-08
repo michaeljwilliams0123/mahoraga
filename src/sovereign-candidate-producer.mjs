@@ -524,3 +524,63 @@ if (invoked && process.argv.includes("--scan-only")) {
   });
   process.stdout.write(`${JSON.stringify({ status: enhancement ? "actionable" : "no-actionable-work", enhancement, blockedGapIds: report.open.filter((item) => item.state === "blocked").map((item) => item.id).sort() })}\n`);
 }
+
+export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand = fixedCommand } = {}) {
+  return async function publishCandidate({ baseSha, headSha, branchName, changedFiles, title, summary } = {}) {
+    const repositoryIdentity = "michaeljwilliams0123/mahoraga";
+    if (!/^[a-f0-9]{40}$/.test(baseSha ?? "") || !/^[a-f0-9]{40}$/.test(headSha ?? "") || headSha === baseSha) {
+      throw codedError("candidate-commit-invalid");
+    }
+    if (!/^feature\/sovereign-evolution-[a-z0-9][a-z0-9-]{2,63}$/.test(branchName ?? "")) {
+      throw codedError("candidate-branch-invalid");
+    }
+    if (typeof title !== "string" || title.length < 3 || title.length > 120 || /[\r\n\u0000]/.test(title)) {
+      throw codedError("candidate-title-invalid");
+    }
+    if (typeof summary !== "string" || summary.length < 3 || summary.length > 1000 || /\u0000/.test(summary)) {
+      throw codedError("candidate-summary-invalid");
+    }
+    const declaredPaths = assertSafeCandidatePaths(changedFiles);
+    const localHead = command(runCommand, "git", ["rev-parse", "HEAD"], root);
+    const remoteMain = command(runCommand, "git", ["rev-parse", "origin/main"], root);
+    if (localHead !== baseSha || remoteMain !== baseSha) throw codedError("candidate-base-stale");
+    try {
+      command(runCommand, "git", ["cat-file", "-e", `${headSha}^{commit}`], root);
+      command(runCommand, "git", ["merge-base", "--is-ancestor", baseSha, headSha], root);
+    } catch {
+      throw codedError("candidate-head-not-descendant");
+    }
+    const actualPaths = splitLines(command(runCommand, "git", ["diff", "--name-only", `${baseSha}...${headSha}`], root));
+    requireExactPaths(actualPaths, declaredPaths);
+    assertSafeCandidatePaths(actualPaths);
+
+    const remote = command(runCommand, "git", ["ls-remote", "--heads", "origin", `refs/heads/${branchName}`], root);
+    if (remote) {
+      const remoteHead = remote.split(/\s+/)[0]?.toLowerCase();
+      if (remoteHead !== headSha) throw codedError("candidate-existing-head-conflict");
+    } else {
+      command(runCommand, "git", ["push", "origin", `${headSha}:refs/heads/${branchName}`], root);
+    }
+
+    let existingPrs;
+    try {
+      existingPrs = JSON.parse(command(runCommand, "gh", ["pr", "list", "--repo", repositoryIdentity, "--head", branchName, "--base", "main", "--state", "open", "--json", "number,headRefOid,baseRefOid,baseRefName,state"], root));
+    } catch {
+      throw codedError("candidate-existing-pr-invalid");
+    }
+    if (!Array.isArray(existingPrs)) throw codedError("candidate-existing-pr-invalid");
+    const enhancement = Object.freeze({ title, summary });
+    const pr = ensurePullRequest({
+      repositoryIdentity,
+      branchName,
+      baseSha,
+      headSha,
+      enhancement,
+      existingPrs,
+      root,
+      runCommand,
+    });
+    dispatchVerify({ repositoryIdentity, branchName, root, runCommand });
+    return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles: actualPaths });
+  };
+}

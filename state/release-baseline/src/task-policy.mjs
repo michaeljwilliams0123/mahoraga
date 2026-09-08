@@ -2,6 +2,7 @@ import { deriveTaskIntakeFromOmnichannelEnvelope } from "./omnichannel-intake.mj
 const POLICY_VERSION = "7.0.0-alpha.1";
 const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
+const CONTAINED_CAPABILITIES = new Set(["codex.execute", "self.evolve"]);
 const FORBIDDEN_CALLER_FIELDS = new Set([
   "capability", "dataClass", "executionPlane", "workerId", "allowedWorkerIds",
   "attendedRequired", "requestedMode", "excludedWorkerIds", "policyVersion", "authoritySessionId",
@@ -44,11 +45,11 @@ export function deriveTaskPolicy(input, {
   const attendedRequired = eligible.some((worker) => worker.routing?.requiresAttendedDesktop === true);
   if (attendedRequired && !attendedSession?.active) throw policyError("attended-session-required");
   const integrationLeaseId = request.integrationLeaseId ?? integrationLease?.leaseId ?? null;
-  if (intent !== "codex.execute" && (request.baseCommit !== undefined || request.allowedPaths !== undefined || request.integrationLeaseId !== undefined)) throw policyError("execution-cell-contract-not-allowed");
-  if (intent === "codex.execute" && !integrationLeaseId) throw policyError("integration-lease-required");
-  const baseCommit = intent === "codex.execute" ? normalizeCommit(request.baseCommit) : null;
-  const allowedPaths = intent === "codex.execute" ? normalizeAllowedPaths(request.allowedPaths) : [];
-  if (intent === "codex.execute") {
+  if (!CONTAINED_CAPABILITIES.has(intent) && (request.baseCommit !== undefined || request.allowedPaths !== undefined || request.integrationLeaseId !== undefined)) throw policyError("execution-cell-contract-not-allowed");
+  if (CONTAINED_CAPABILITIES.has(intent) && !integrationLeaseId) throw policyError("integration-lease-required");
+  const baseCommit = CONTAINED_CAPABILITIES.has(intent) ? normalizeCommit(request.baseCommit) : null;
+  const allowedPaths = CONTAINED_CAPABILITIES.has(intent) ? normalizeAllowedPaths(request.allowedPaths) : [];
+  if (CONTAINED_CAPABILITIES.has(intent)) {
     if (!integrationLease || integrationLease.leaseId !== integrationLeaseId || Date.parse(integrationLease.expiresAt) <= Date.now()) throw policyError("integration-lease-not-active");
     if (!allowedPaths.every((allowed) => integrationLease.paths.some((leased) => allowed === leased || allowed.startsWith(`${leased}/`)))) throw policyError("integration-lease-paths-insufficient");
   }
@@ -110,7 +111,7 @@ export function taskPolicyVersion() {
 
 function deriveDataClass(intent, request) {
   if (intent.startsWith("m365.") || intent === "provider.gap") return "enterprise";
-  if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.")) return "local-only";
+  if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.") || intent.startsWith("self.")) return "local-only";
   if (intent === "assistant.respond") return "personal";
   if (intent === "artifact.inspect") return request.contentReferences?.length ? "local-only" : "synthetic";
   return "synthetic";

@@ -19,6 +19,8 @@ export function classifyChatTurn({ mode = "auto", content = "", attachmentCount 
     return answerDecision(available, "ask-read-only");
   }
   if (mode === "auto" && INFORMATIONAL_QUESTION.test(text)) return answerDecision(available, "general-question");
+  const directedCapability = ownerCapabilityDirective(text, available);
+  if (directedCapability) return freeze({ mode: "act", execution: "capability", capability: directedCapability, intentKind: "owner-capability", reasonCode: "explicit-capability-request" });
   if (MUTATION_WORDS.test(text)) {
     return freeze({ mode: "act", execution: "objective", capability: null, intentKind: "autonomous-action", reasonCode: "explicit-action-request" });
   }
@@ -43,6 +45,17 @@ export function chatConversationTitle(content) {
   return (cleaned || text).replace(/[?.!]+$/, "").slice(0, 72);
 }
 
+function ownerCapabilityDirective(text, available) {
+  const capabilities = [...new Set(available)]
+    .filter((item) => typeof item === "string" && /^[a-z][a-z0-9-]{0,63}(?:\.[a-z][a-z0-9-]{0,63})+$/.test(item))
+    .sort((left, right) => right.length - left.length || left.localeCompare(right));
+  for (const capability of capabilities) {
+    const escaped = capability.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const explicit = new RegExp(`(?:^|\\s)(?:capability\\s*[:=]\\s*|\\/act\\s+|run\\s+|use\\s+|execute\\s+|invoke\\s+|call\\s+)${escaped}(?=\\s|$|[,;:.!?])`, "i");
+    if (explicit.test(text)) return capability;
+  }
+  return null;
+}
 function freeze(value) { return Object.freeze(value); }
 function answerDecision(available, reasonCode) {
   if (!available.includes("assistant.respond")) return freeze({ mode: "ask", execution: "unavailable", capability: null, intentKind: "answer", reasonCode: "answer-provider-unavailable" });

@@ -563,6 +563,30 @@ async function executeChatTurn({ database, manifest, artifactStore, autonomyPoli
     const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
     return { status: 202, value: { decision, conversation, task: null, objective: result.objective } };
   }
+  if (decision.execution === "capability") {
+    const contained = decision.capability === "codex.execute" || decision.capability === "self.evolve";
+    if (contained) {
+      const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
+      const result = body.conversationId
+        ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract, requestedCapability: decision.capability })
+        : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract, requestedCapability: decision.capability });
+      const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
+      return { status: 202, value: { decision, conversation, task: null, objective: result.objective } };
+    }
+    let conversation;
+    if (body.conversationId) {
+      conversation = database.getConversation(body.conversationId);
+      if (!conversation) return { status: 404, value: { error: "conversation-not-found" } };
+      database.addConversationMessage({ conversationId: conversation.id, role: "user", content: body.content, attachments });
+    } else {
+      conversation = database.createConversation({ title, initialMessage: body.content, attachments, classification: "local-only" });
+    }
+    const task = submitTask(database, manifest, {
+      intent: decision.capability, requestedOutcome: body.content, priority: "high",
+      taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
+    }, { source: "owner-chat", internal: true, attendedSession: context.attendedSession ?? null });
+    return { status: 202, value: { decision, conversation, task, objective: null } };
+  }
   let conversation;
   if (body.conversationId) {
     conversation = database.getConversation(body.conversationId);

@@ -128,3 +128,43 @@ test("owner-paired relay starts a credit-free protocol objective without spendin
   assert.equal(runtime.database.listConversations().length, 1);
   assert.equal(runtime.database.listObjectives().length, 1);
 });
+
+test("owner chat can target exact registered capabilities without opening public task authority", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-owner-capability-chat-"));
+  const expectedHead = "e".repeat(40);
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: Buffer.alloc(32, 47),
+    primaryCodexToken: TOKEN,
+    syncCoordinationMailbox: false,
+    repositoryHeadReader: async () => expectedHead,
+  });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+
+  const evolve = await fetch(`${base}/api/chat`, {
+    method: "POST", headers: AUTH,
+    body: JSON.stringify({ mode: "act", content: "run self.evolve to improve owner interaction", idempotencyKey: "owner-self-evolve-chat" }),
+  });
+  assert.equal(evolve.status, 202);
+  const evolveBody = await evolve.json();
+  assert.equal(evolveBody.decision.execution, "capability");
+  assert.equal(evolveBody.decision.capability, "self.evolve");
+  assert.equal(evolveBody.task, null);
+  assert.equal(evolveBody.objective.tasks.length, 1);
+  assert.equal(evolveBody.objective.tasks[0].definition.capability, "self.evolve");
+  assert.equal(evolveBody.objective.tasks[0].definition.baseCommit, expectedHead);
+  assert.equal(evolveBody.objective.tasks[0].definition.allowedPaths.includes("src"), true);
+  assert.equal(evolveBody.objective.tasks[0].definition.allowedPaths.includes("test"), true);
+
+  const verify = await fetch(`${base}/api/chat`, {
+    method: "POST", headers: AUTH,
+    body: JSON.stringify({ mode: "act", content: "run repository.verify now", idempotencyKey: "owner-repository-verify-chat" }),
+  });
+  assert.equal(verify.status, 202);
+  const verifyBody = await verify.json();
+  assert.equal(verifyBody.decision.execution, "capability");
+  assert.equal(verifyBody.task.capability, "repository.verify");
+  assert.equal(verifyBody.objective, null);
+});

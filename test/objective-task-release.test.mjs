@@ -136,3 +136,23 @@ test("an active objective task retains its lease when newer tasks exceed the lis
   database.reconcileObjectives();
   assert.equal(database.getIntegrationLease().leaseId, lease.leaseId);
 });
+
+test("owner self-evolution objective receives the same local integration lease before release", async (t) => {
+  const database = await installedFixture(t);
+  const objective = database.createObjective(buildAutonomyObjective({
+    conversationId: null,
+    messageId: "msg-owner-self-evolve-0001",
+    message: "run self.evolve to improve owner interaction",
+    requestedCapability: "self.evolve",
+    executionContract: { baseCommit: "d".repeat(40), allowedPaths: ["src", "test"] },
+  }));
+  const reconciled = database.reconcileObjectives();
+  assert.equal(reconciled.released.length, 1);
+  const child = database.getObjective(objective.id).tasks[0];
+  assert.equal(child.status, "released");
+  assert.equal(child.task.capability, "self.evolve");
+  assert.match(child.task.integrationLeaseId, /^int-/);
+  assert.equal(child.task.baseCommit, "d".repeat(40));
+  assert.deepEqual(child.task.allowedPaths, ["src", "test"]);
+  assert.deepEqual(child.task.allowedWorkerIds, ["primary-codex-builder"]);
+});

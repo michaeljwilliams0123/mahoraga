@@ -7,7 +7,7 @@ const BANNED_KEYS = /^(?:prompt|response|content|preview|token|secret|documentTe
 const FAMILY_PREFIXES = new Map([
   ["system", "system"], ["manifest", "system"], ["assistant", "system"], ["provider", "system"], ["artifact", "system"],
   ["repository", "repository"], ["browser", "browser"], ["desktop", "desktop"], ["m365", "m365"],
-  ["codex", "codex"], ["repair", "repair"], ["queue", "queue"], ["copilot", "copilot"], ["workspace-agent", "workspace-agent"],
+  ["codex", "codex"], ["self", "codex"], ["repair", "repair"], ["queue", "queue"], ["copilot", "copilot"], ["workspace-agent", "workspace-agent"],
 ]);
 
 export function createCapabilityReceipt(capability, result, {
@@ -51,7 +51,7 @@ export function validateCapabilityReceipt(capability, value) {
   if (value.details.family !== family || typeof value.details.verified !== "boolean") throw receiptError(`${family}-receipt-details-invalid`);
   if ((value.outcome === "succeeded") !== value.details.verified && value.outcome !== "waiting") throw receiptError("receipt-outcome-mismatch");
   const providerEvidence = sanitizeRecord(value.details.providerEvidence);
-  if (capability === "codex.execute") validateCodexExecutionEvidence(value.outcome, providerEvidence);
+  if (capability === "codex.execute" || capability === "self.evolve") validateCodexExecutionEvidence(value.outcome, providerEvidence);
   const details = Object.freeze({
     family,
     verified: value.details.verified,

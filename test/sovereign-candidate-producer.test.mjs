@@ -268,3 +268,74 @@ test("scheduler connects the GitHub-native producer and one-time ten-minute smok
   assert.match(workflow, /sovereign-producer-smoke-v1/);
   assert.match(workflow, /createDeploymentAnchor/);
 });
+
+test("publisher pushes the exact contained candidate head and dispatches Verify", async () => {
+  assert.ok(producerModule, "sovereign candidate producer module should exist");
+  assert.equal(typeof producerModule.createGitHubNativeCandidatePublisher, "function");
+  const baseSha = "1".repeat(40);
+  const headSha = "2".repeat(40);
+  const branchName = "feature/sovereign-evolution-objective-one";
+  const changedFiles = ["src/self-extension-worker.mjs"];
+  const calls = [];
+  const runCommand = (executable, args) => {
+    calls.push([executable, ...args]);
+    const command = [executable, ...args].join(" ");
+    if (command === "git rev-parse HEAD" || command === "git rev-parse origin/main") return `${baseSha}\n`;
+    if (command === `git cat-file -e ${headSha}^{commit}`) return "";
+    if (command === `git merge-base --is-ancestor ${baseSha} ${headSha}`) return "";
+    if (command === `git diff --name-only ${baseSha}...${headSha}`) return `${changedFiles[0]}\n`;
+    if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return "";
+    if (command === `git push origin ${headSha}:refs/heads/${branchName}`) return "";
+    if (command.startsWith("gh pr list --repo michaeljwilliams0123/mahoraga")) return "[]";
+    if (command.startsWith("gh pr create --repo michaeljwilliams0123/mahoraga")) return "https://github.com/michaeljwilliams0123/mahoraga/pull/300\n";
+    if (command.startsWith(`gh pr view ${branchName} --repo michaeljwilliams0123/mahoraga`)) {
+      return JSON.stringify({ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" });
+    }
+    if (command === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`) return "";
+    throw new Error(`unexpected command: ${command}`);
+  };
+  const publish = producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-test", runCommand });
+  const receipt = await publish({
+    baseSha, headSha, branchName, changedFiles,
+    title: "feat: evolve Mahoraga safely",
+    summary: "Publish one contained self-evolution candidate.",
+  });
+  assert.deepEqual(receipt, {
+    baseSha, headSha, branch: branchName, pullRequestNumber: 300,
+    changedFilesDigest: producerModule.candidateChangedFilesDigest(changedFiles),
+  });
+  assert.ok(calls.some((call) => call.join(" ") === `git push origin ${headSha}:refs/heads/${branchName}`));
+  assert.ok(calls.some((call) => call.join(" ") === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`));
+});
+function candidatePublisherFixture({ remoteMain = "1".repeat(40), actualPaths = ["src/example.mjs"], remoteBranch = "" } = {}) {
+  const baseSha = "1".repeat(40);
+  const headSha = "2".repeat(40);
+  const branchName = "feature/sovereign-evolution-boundary-test";
+  const runCommand = (executable, args) => {
+    const command = [executable, ...args].join(" ");
+    if (command === "git rev-parse HEAD") return `${baseSha}\n`;
+    if (command === "git rev-parse origin/main") return `${remoteMain}\n`;
+    if (command === `git cat-file -e ${headSha}^{commit}`) return "";
+    if (command === `git merge-base --is-ancestor ${baseSha} ${headSha}`) return "";
+    if (command === `git diff --name-only ${baseSha}...${headSha}`) return `${actualPaths.join("\n")}\n`;
+    if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return remoteBranch;
+    throw new Error(`unexpected command: ${command}`);
+  };
+  return {
+    publish: producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-boundary", runCommand }),
+    input: { baseSha, headSha, branchName, changedFiles: ["src/example.mjs"], title: "feat: bounded evolution", summary: "Bounded candidate." },
+  };
+}
+
+test("publisher refuses stale main, path drift, and conflicting remote heads", async () => {
+  const stale = candidatePublisherFixture({ remoteMain: "9".repeat(40) });
+  await assert.rejects(stale.publish(stale.input), /candidate-base-stale/);
+
+  const drift = candidatePublisherFixture({ actualPaths: ["src/other.mjs"] });
+  await assert.rejects(drift.publish(drift.input), /candidate-path-drift/);
+
+  const conflict = candidatePublisherFixture({
+    remoteBranch: `${"8".repeat(40)}\trefs/heads/feature/sovereign-evolution-boundary-test\n`,
+  });
+  await assert.rejects(conflict.publish(conflict.input), /candidate-existing-head-conflict/);
+});

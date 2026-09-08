@@ -452,7 +452,8 @@
       ],
       "capabilities": [
         "codex.health",
-        "codex.execute"
+        "codex.execute",
+        "self.evolve"
       ],
       "acceptedTaskTypes": [
         "codex-builder"
@@ -462,7 +463,8 @@
       "healthProbe": "codex.health",
       "capabilityCanaries": {
         "codex.health": "health",
-        "codex.execute": "provider-derived"
+        "codex.execute": "provider-derived",
+        "self.evolve": "provider-derived"
       },
       "executionPlane": "candidate-worktree",
       "routing": {

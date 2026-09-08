@@ -12,6 +12,7 @@ const manifest = {
     { id: "repository", enabled: true, capabilities: ["repository.inspect"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
     { id: "desktop", enabled: true, capabilities: ["desktop.interact"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: true } },
     { id: "codex", enabled: true, capabilities: ["codex.execute"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
+    { id: "self-evolution", enabled: true, capabilities: ["self.evolve"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
     { id: "provider-gap", enabled: true, capabilities: ["provider.gap"], dataClasses: ["enterprise"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
   ],
 };
@@ -96,4 +97,26 @@ test("omnichannel envelopes derive the same bounded task policy surface", () => 
   assert.equal(policy.intent, "repository.inspect");
   assert.equal(policy.dataClass, "local-only");
   assert.deepEqual(policy.allowedWorkerIds, ["repository"]);
+});
+
+test("self evolution uses the same immutable execution-cell lease boundary as Codex", () => {
+  const lease = { leaseId: "int-00000000-0000-4000-8000-000000000004", paths: ["src", "test"], expiresAt: "2099-08-25T12:00:00.000Z" };
+  const policy = deriveTaskPolicy({
+    intent: "self.evolve",
+    baseCommit: "b".repeat(40),
+    allowedPaths: ["src/chat-intake.mjs", "test/chat-intake.test.mjs"],
+    integrationLeaseId: lease.leaseId,
+  }, { manifest, internal: true, integrationLease: lease });
+  assert.equal(policy.capability, "self.evolve");
+  assert.equal(policy.dataClass, "local-only");
+  assert.equal(policy.integrationLeaseId, lease.leaseId);
+  assert.equal(policy.baseCommit, "b".repeat(40));
+  assert.deepEqual(policy.allowedPaths, ["src/chat-intake.mjs", "test/chat-intake.test.mjs"]);
+});
+
+test("public task intake still cannot directly vend self-evolution authority", () => {
+  assert.throws(
+    () => deriveTaskPolicy({ intent: "self.evolve", requestedOutcome: "change yourself" }, { manifest }),
+    (error) => error?.code === "task-intent-not-allowed",
+  );
 });
