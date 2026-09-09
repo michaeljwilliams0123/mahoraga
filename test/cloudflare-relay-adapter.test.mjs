@@ -98,8 +98,16 @@ test("Durable Object speaks one authenticated envelope and forwards only ciphert
     assert.equal(paired.type, "paired");
     assert.equal(paired.result.paired, true);
     assert.equal(local.messages.at(-1).result.peerPublicKey.x, remoteKey.x);
+    assert.equal(local.messages.at(-1).result.resumeCredential, undefined);
+    assert.match(paired.result.resumeCredential, /^[A-Za-z0-9_-]{43}$/);
+    await object.fetch(remoteRequest);
+    const resumedRemote = latestPair[1];
+    resumedRemote.emit("message", { action: "reattach-remote", deviceId: "primary-windows", sessionId: paired.result.sessionId, resumeCredential: paired.result.resumeCredential });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(resumedRemote.messages.at(-1).type, "paired");
+    assert.equal(resumedRemote.messages.at(-1).result.sessionId, paired.result.sessionId);
     const frame = { schemaVersion: 1, sessionId: paired.result.sessionId, direction: "ui-to-runtime", counter: 1, iv: "a".repeat(16), ciphertext: "b".repeat(32) };
-    remote.emit("message", { action: "forward", sessionId: paired.result.sessionId, from: "remote", frame });
+    resumedRemote.emit("message", { action: "forward", sessionId: paired.result.sessionId, from: "remote", frame });
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.deepEqual(local.messages.at(-1), { type: "frame", sessionId: paired.result.sessionId, frame });
     assert.ok(storage.has("relay-broker-v1"));
