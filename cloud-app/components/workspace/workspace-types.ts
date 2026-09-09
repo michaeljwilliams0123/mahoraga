@@ -1,8 +1,8 @@
-﻿import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
+import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { RuntimeCapability, RuntimeRelay } from "@/lib/runtime-relay";
 
 export type TaskMode = "auto" | "ask" | "act";
-export type RelayState = "unpaired" | "pairing" | "connected" | "error";
+export type RelayState = "unpaired" | "resuming" | "pairing" | "connected" | "error";
 export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string };
 export type WorkspaceView = "chat" | "work" | "files" | "advanced";
 export type QuickActionId = "upload" | "build" | "report" | "handoff" | "create" | "ship";

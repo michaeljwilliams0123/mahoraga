@@ -83,7 +83,7 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
-  const brainLabel = coreReady ? (runtimeBusy ? "Mahoraga working" : "Mahoraga ready") : relayState === "pairing" ? "Connecting Mahoraga" : "Connect Mahoraga";
+  const brainLabel = coreReady ? (runtimeBusy ? "Mahoraga working" : "Mahoraga ready") : new Set<RelayState>(["pairing", "resuming"]).has(relayState) ? "Connecting Mahoraga" : "Connect Mahoraga";
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
@@ -103,9 +103,28 @@ export function Workspace() {
   }, []);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, runtimeBusy]);
-  useEffect(() => () => {
-    voice.current?.stop();
-    void relay.current?.revoke();
+  useEffect(() => {
+    const transport = new RuntimeRelay();
+    let active = true;
+    setRelayState("resuming");
+    void transport.resume().then(async (resumed) => {
+      if (!active) { transport.disconnect(); return; }
+      if (!resumed) { setRelayState("unpaired"); return; }
+      const capabilities = await transport.capabilities();
+      if (!active) { transport.disconnect(); return; }
+      relay.current = transport;
+      setPairedRelay(transport);
+      setRuntimeCapabilities(capabilities);
+      setRelayState("connected");
+    }).catch(() => {
+      transport.disconnect();
+      if (active) setRelayState("unpaired");
+    });
+    return () => {
+      active = false;
+      voice.current?.stop();
+      transport.disconnect();
+    };
   }, []);
 
   function resetConversation() {
@@ -291,9 +310,11 @@ export function Workspace() {
     setRelayState("pairing");
     setRuntimeError(null);
     try {
+      await relay.current?.revoke();
+      relay.current = null;
+      setPairedRelay(null);
       await transport.pair(pairingOffer.trim());
       const capabilities = await transport.capabilities();
-      await relay.current?.revoke();
       relay.current = transport;
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);

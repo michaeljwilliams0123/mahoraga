@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowUp,
   Check,
   ChevronDown,
@@ -79,7 +79,7 @@ export function ChatView(props: ChatViewProps) {
     <div className="one-chat-page">
       <header className="topbar one-topbar">
         <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
-        <div className={coreReady ? "brain-status ready" : relayState === "pairing" ? "brain-status pairing" : "brain-status"}>
+        <div className={coreReady ? "brain-status ready" : new Set(["pairing", "resuming"]).has(relayState) ? "brain-status pairing" : "brain-status"}>
           <span className="brain-dot" /> {brainLabel}
         </div>
         <div className="topbar-actions">
@@ -151,7 +151,7 @@ export function ChatView(props: ChatViewProps) {
               <summary>Connect securely <ChevronDown size={15} /></summary>
               <div className="connect-controls">
                 <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
-                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || relayState === "pairing"}>{relayState === "pairing" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
+                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
               </div>
             </details>
           </div>
