@@ -1,3 +1,4 @@
+import { deriveTaskIntakeFromOmnichannelEnvelope } from "./omnichannel-intake.mjs";
 const POLICY_VERSION = "7.0.0-alpha.1";
 const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -96,6 +97,11 @@ export function policyTaskInput(request, policy, manifest) {
     allowedPaths: policy.allowedPaths,
     policyVersion: policy.policyVersion,
   });
+}
+
+export function deriveTaskPolicyFromOmnichannelEnvelope(envelope, context = {}) {
+  const intake = deriveTaskIntakeFromOmnichannelEnvelope(envelope);
+  return deriveTaskPolicy(intake, context);
 }
 
 export function taskPolicyVersion() {

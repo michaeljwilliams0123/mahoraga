@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { deriveTaskPolicy, policyTaskInput, sanitizeTaskIntake } from "../src/task-policy.mjs";
+import { deriveTaskPolicy, deriveTaskPolicyFromOmnichannelEnvelope, policyTaskInput, sanitizeTaskIntake } from "../src/task-policy.mjs";
+import { createOmnichannelEnvelope } from "../src/omnichannel-intake.mjs";
 
 const manifest = {
   defaultAutonomyMode: "hybrid",
@@ -74,4 +75,23 @@ test("provider-gap policy preserves enterprise classification without caller aut
   assert.equal(policy.dataClass, "enterprise");
   assert.equal(policy.executionPlane, "local");
   assert.deepEqual(policy.allowedWorkerIds, ["provider-gap"]);
+});
+
+test("omnichannel envelopes derive the same bounded task policy surface", () => {
+  const envelope = createOmnichannelEnvelope({
+    source: "github-event",
+    actor: { actorType: "owner", actorId: "michaeljwilliams0123", trustClass: "owner-explicit", accountBoundary: "local-only" },
+    object: { repository: "michaeljwilliams0123/mahoraga", eventName: "pull_request", action: "opened", objectType: "pull-request", objectId: "184", deliveryId: "evt-184" },
+    allowedActionClass: "observe",
+    correlationId: "corr-pr-184",
+    idempotencyKey: "github:evt-184",
+    contentReferences: [],
+    routeHint: { capability: "repository.inspect", actionPackId: "github-status-report" },
+    metadata: { branch: "feature/x" },
+    zeroCreditEligible: true,
+  }, { now: "2026-09-09T00:00:00.000Z" });
+  const policy = deriveTaskPolicyFromOmnichannelEnvelope(envelope, { manifest });
+  assert.equal(policy.intent, "repository.inspect");
+  assert.equal(policy.dataClass, "local-only");
+  assert.deepEqual(policy.allowedWorkerIds, ["repository"]);
 });
