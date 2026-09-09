@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 
 import { createOmnichannelEnvelope, deriveTaskIntakeFromOmnichannelEnvelope, validateOmnichannelEnvelope } from "../src/omnichannel-intake.mjs";
 
-const NOW = "2026-09-08T23:58:00.000Z";
+const NOW = new Date().toISOString();
+const LATER = new Date(Date.parse(NOW) + 90 * 60 * 1000).toISOString();
 
 test("omnichannel intake normalizes Microsoft and file sources into bounded envelopes", () => {
   const email = createOmnichannelEnvelope({
@@ -129,5 +130,5 @@ test("omnichannel intake fails closed on secret-like metadata or mismatched fres
     metadata: { bucket: 1 },
     zeroCreditEligible: true,
   }, { now: NOW, ttlSeconds: 60 });
-  assert.throws(() => validateOmnichannelEnvelope({ ...value, freshness: "fresh" }, { now: "2026-09-09T01:30:00.000Z" }), /omnichannel-freshness-invalid/);
+  assert.throws(() => validateOmnichannelEnvelope({ ...value, freshness: "fresh" }, { now: LATER }), /omnichannel-freshness-invalid/);
 });
