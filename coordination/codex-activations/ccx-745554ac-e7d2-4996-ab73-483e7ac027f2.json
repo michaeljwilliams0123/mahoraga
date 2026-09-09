@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-745554ac-e7d2-4996-ab73-483e7ac027f2",
+  "idempotencyKey": "answer-quality-pr-trigger-v1",
+  "taskFingerprintSha256": "6089a5f30efd8a40d6cb48d87181bb7cd1dfc375364dbf376d4f8125df322157",
+  "taskBaseCommit": "795085405151b677064e03a1e5305e6695804ee3",
+  "sourceTaskPath": "coordination/cloud-tasks/ccx-745554ac-e7d2-4996-ab73-483e7ac027f2.json",
+  "createdBy": "github-actions",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
