@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-0a73aade3ab6002b8e8f3159e1d66fd5",
+  "idempotencyKey": "persistent-cloud-brain-v1",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "baseCommit": "d047f05a4288a31e276d734a8d754f92a15b2852",
+  "title": "Persistent cloud-first brain and UI awakening",
+  "task": "Build a provider-portable, cloud-first Mahoraga runtime. Package the authoritative core and workspace as one long-running OCI service with durable state and a supervised low-duty idle loop. Replace manual PC pairing as the default UI path with an authenticated same-origin cloud gateway; keep Windows and the encrypted relay as optional accelerators. Permit a configured cloud model under explicit request, concurrency, and spend ceilings. Keep Vercel preview-only and add one viable paid always-on deployment profile outside Vercel.\n\nAcceptance criteria:\n- The container starts and supervises core plus UI, mounts durable state, and has bounded liveness/readiness endpoints.\n- A documented provider profile disables scale-to-zero and attaches persistent storage.\n- UI startup probes automatically and shows Connecting, Idle, Awake, Degraded, or Offline; the cloud path needs no pasted offer.\n- Owner authentication, CSRF/replay protection, and an allowlisted gateway keep all provider, GitHub, and runtime secrets server-side.\n- Idle health invokes no model; user work can use the configured cloud model only within hard limits.\n- Local Windows execution remains optional through the encrypted relay.\n- Tests cover startup/restart, reload, denied auth, provider failure, and idle-to-awake behavior.\n- Docs separate code-complete behavior from provider billing, secrets, DNS, deployment, and rollback steps.\n\nSkill profile: Auto-route within repository.\nSource workspace issue: https://github.com/michaeljwilliams0123/mahoraga/issues/271. Repository-safe attachment references remain in that issue and are not copied into the coordination record.",
+  "allowedPaths": [
+    "cloud-app",
+    "src",
+    "relay",
+    "scripts",
+    "deploy",
+    "Dockerfile.cloud",
+    ".dockerignore",
+    ".github/workflows",
+    "docs",
+    "test",
+    "package.json",
+    "state/release-baseline"
+  ],
+  "verification": [
+    "npm run verify",
+    "npm --prefix cloud-app run verify"
+  ],
+  "maximumAttempts": 1,
+  "integrationMode": "pull-request",
+  "createdBy": "github-owner",
+  "createdAt": "2026-09-09T14:35:13Z",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
