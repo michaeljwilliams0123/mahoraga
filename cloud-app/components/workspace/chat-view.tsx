@@ -48,6 +48,8 @@ export function ChatView(props: ChatViewProps) {
     busy,
     coreReady,
     brainLabel,
+    brainState,
+    licensedRetryAvailable,
     health,
     healthError,
     relayState,
@@ -73,6 +75,7 @@ export function ChatView(props: ChatViewProps) {
     stopActiveResponse,
     pairRuntime,
     revokeRuntime,
+    retryLicensed,
   } = props;
 
   return (
@@ -142,9 +145,14 @@ export function ChatView(props: ChatViewProps) {
       </section>
 
       <section className="composer-shell">
-        {runtimeError && <div className="inline-alert" role="alert"><CircleAlert size={16} /> {runtimeError}</div>}
+        {runtimeError && (
+          <div className="inline-alert" role="alert">
+            <CircleAlert size={16} /> <span>{runtimeError}</span>
+            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed brain for this message</button>}
+          </div>
+        )}
 
-        {!coreReady && (
+        {!coreReady && relayState !== "resuming" && (
           <div className="connect-card">
             <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>Chat remains available to read, but execution needs the paired core.</p></div></div>
             <details>
@@ -190,7 +198,9 @@ export function ChatView(props: ChatViewProps) {
         </div>
 
         <div className="status-line" aria-live="polite">
-          {coreReady ? <><Check size={14} /> Brain connected</> : relayState === "pairing" ? <><LoaderCircle className="spin" size={14} /> Connecting…</> : <><Unplug size={14} /> Brain not connected</>}
+          {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
+            : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
+              : <><Check size={14} /> {brainState}</>}
           {voiceListening && <span> · listening</span>}
           {healthError && <span> · workspace health unavailable</span>}
           {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}

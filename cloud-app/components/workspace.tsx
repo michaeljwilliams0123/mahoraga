@@ -12,7 +12,7 @@ import { FilesView } from "./workspace/files-view";
 import { OperationsView } from "./workspace/operations-view";
 import { WorkView } from "./workspace/work-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
-import type { Health, QuickAction, QuickActionId, RelayState, Starter, TaskMode, WorkspaceMessage, WorkspaceView } from "./workspace/workspace-types";
+import type { BrainState, ChatCreditPolicy, Health, QuickAction, QuickActionId, RelayState, Starter, TaskMode, WorkspaceMessage, WorkspaceView } from "./workspace/workspace-types";
 
 const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
 const TERMINAL_TASK_STATES = new Set(["succeeded", "failed", "cancelled", "rejected"]);
@@ -66,6 +66,7 @@ export function Workspace() {
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode } | null>(null);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [activeActionLabel, setActiveActionLabel] = useState<string | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
@@ -83,7 +84,12 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
-  const brainLabel = coreReady ? (runtimeBusy ? "Mahoraga working" : "Mahoraga ready") : new Set<RelayState>(["pairing", "resuming"]).has(relayState) ? "Connecting Mahoraga" : "Connect Mahoraga";
+  const brainState: BrainState = new Set<RelayState>(["pairing", "resuming"]).has(relayState)
+    ? "Connecting"
+    : coreReady
+      ? runtimeBusy ? "Awake" : licensedRetry || runtimeError ? "Degraded" : "Idle"
+      : "Offline";
+  const brainLabel = `Mahoraga: ${brainState}`;
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
@@ -138,6 +144,7 @@ export function Workspace() {
     activeRuntimeTask.current = null;
     setActiveActionLabel(null);
     setRuntimeError(null);
+    setLicensedRetry(null);
     setInput("");
     setFiles([]);
   }
@@ -224,7 +231,7 @@ export function Workspace() {
     if (!latest || !speakText(latest.text)) setRuntimeError("Read-aloud is not available in this browser yet.");
   }
 
-  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null) {
+  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null, creditPolicy: ChatCreditPolicy = "zero-codex") {
     const transport = relay.current;
     if (!transport?.connected || !text) {
       setRelayState("error");
@@ -232,18 +239,19 @@ export function Workspace() {
       setActiveActionLabel(null);
       return;
     }
+    if (creditPolicy === "zero-codex") setLicensedRetry(null);
     setInput("");
     setRuntimeError(null);
     setRuntimeBusy(true);
     if (actionLabel) setActiveActionLabel(actionLabel);
-    appendMessage("user", text);
+    if (creditPolicy === "zero-codex") appendMessage("user", text);
     const pollGeneration = ++runtimePollGeneration.current;
     try {
       const result = await transport.chat({
         conversationId: runtimeConversationId,
         content: text,
         mode: modeOverride,
-        creditPolicy: "zero-codex",
+        creditPolicy,
         attachmentIds: [],
         idempotencyKey: `workspace-${crypto.randomUUID()}`,
       });
@@ -261,6 +269,9 @@ export function Workspace() {
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
+        if (code === "zero-credit-provider-unavailable" && creditPolicy === "zero-codex") {
+          setLicensedRetry({ text, mode: modeOverride });
+        }
         setRuntimeError(runtimeErrorMessage(code));
         if (!transport.connected) setRelayState("error");
       }
@@ -273,6 +284,12 @@ export function Workspace() {
     }
   }
 
+  async function retryLicensed() {
+    const saved = licensedRetry;
+    if (!saved || runtimeBusy) return;
+    setLicensedRetry(null);
+    await submitCore(saved.text, saved.mode, null, "licensed-approved");
+  }
   async function pollRuntime(transport: RuntimeRelay, conversationId: string, expectsWork: boolean, pollGeneration: number) {
     let sawTerminal = false;
     let sawResponse = false;
@@ -355,12 +372,12 @@ export function Workspace() {
       {view === "chat" && (
         <ChatView
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
-          busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} health={health} healthError={healthError}
+          busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
           addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
-          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} revokeRuntime={revokeRuntime}
+          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
         />
       )}
 
