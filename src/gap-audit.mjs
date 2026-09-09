@@ -82,6 +82,12 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Desktop Worker process contract, fixed application allowlist, bounded focus action, and content-free receipts are implemented and tested.",
   });
+  const signedBrowserContractReady = manifest.browser?.signedSessionEnabled === true && worker("signed-chrome")?.enabled === true && has("src/signed-chrome-worker.mjs") && has("test/google-workspace-signed-chrome.test.mjs");
+  record(closed, signedBrowserContractReady, {
+    id: "signed-browser-session",
+    priority: "high",
+    summary: "Attended signed Chrome is enabled with deterministic health/open receipts and no remote debugging or profile export.",
+  });
   record(closed, has("src/microsoft-queue-worker.mjs") && has("test/microsoft-queue-worker.test.mjs"), {
     id: "microsoft-queue-readiness-contract",
     priority: "high",
@@ -195,7 +201,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     summary: "Desktop Worker contract is prepared but production activation is not yet proven.",
     dependency: "Run npm run providers:probe on the live attended Windows host, verify the Desktop readiness result, then explicitly activate the worker. The current interaction contract is intentionally limited to focusing exactly one allowlisted Chrome, Edge, Excel, Word, PowerPoint, or Visio window.",
   });
-  gap(open, manifest.browser?.signedSessionEnabled !== true, {
+  gap(open, !signedBrowserContractReady, {
     id: "signed-browser-session",
     priority: "high",
     state: "blocked",
