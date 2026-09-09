@@ -60,7 +60,7 @@ export function Workspace() {
   const [view, setView] = useState<WorkspaceView>("chat");
   const [taskMode] = useState<TaskMode>("auto");
   const [pairingOffer, setPairingOffer] = useState("");
-  const [relayState, setRelayState] = useState<RelayState>("unpaired");
+  const [relayState, setRelayState] = useState<RelayState>("resuming");
   const [pairedRelay, setPairedRelay] = useState<RuntimeRelay | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);

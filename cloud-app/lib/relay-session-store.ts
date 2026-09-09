@@ -89,6 +89,7 @@ function validRecord(value: unknown): value is StoredRelaySession {
   if (typeof record.expiresAt !== "string" || !Number.isFinite(Date.parse(record.expiresAt))) return false;
   if (typeof record.resumeCredential !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(record.resumeCredential)) return false;
   if (!record.key || typeof record.key !== "object" || record.key.type !== "secret" || record.key.algorithm?.name !== "AES-GCM") return false;
+  if (record.key.extractable !== false || !Array.isArray(record.key.usages) || record.key.usages.length !== 2 || !record.key.usages.includes("encrypt") || !record.key.usages.includes("decrypt")) return false;
   if (!Number.isSafeInteger(record.sendCounter) || Number(record.sendCounter) < 0) return false;
   if (!Number.isSafeInteger(record.receivedCounter) || Number(record.receivedCounter) < 0) return false;
   return true;

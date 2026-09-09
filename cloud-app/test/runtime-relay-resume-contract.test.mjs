@@ -9,6 +9,8 @@ test("browser relay persists only scoped reconnect state and can remotely reatta
   const [store, relay] = await Promise.all([read("lib/relay-session-store.ts"), read("lib/runtime-relay.ts")]);
   assert.match(store, /indexedDB\.open\("mahoraga-relay",\s*1\)/);
   assert.match(store, /CryptoKey/);
+  assert.match(store, /record\.key\.extractable\s*!==\s*false/);
+  assert.match(store, /record\.key\.usages/);
   assert.match(store, /resumeCredential/);
   assert.match(store, /saveRelaySession/);
   assert.match(store, /clearRelaySession/);
@@ -21,6 +23,7 @@ test("browser relay persists only scoped reconnect state and can remotely reatta
 
 test("workspace resumes the relay on startup and does not revoke on reload cleanup", async () => {
   const workspace = await read("components/workspace.tsx");
+  assert.match(workspace, /useState<RelayState>\("resuming"\)/);
   assert.match(workspace, /\.resume\(\)/);
   assert.match(workspace, /\.disconnect\(\)/);
   assert.doesNotMatch(workspace, /useEffect\(\(\) => \(\) =>[\s\S]{0,180}\.revoke\(\)/);
