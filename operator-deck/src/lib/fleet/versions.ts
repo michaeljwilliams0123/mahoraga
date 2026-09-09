@@ -5,7 +5,7 @@ export const WORKSPACE_NOTE =
 export const CLOUD_APP_URL = "https://mahoraga-cloud-workspace.vercel.app/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const PRODUCTION_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
-export const CANDIDATE_VERSION = "7.0.0-alpha.1";
+export const CANDIDATE_VERSION = "7.0.0-alpha.2";
 export const PRODUCTION_VERSION = "3.6.0";
 export const DECK_VERSION = "fleet-1";
 
@@ -45,10 +45,10 @@ export const VERSION_SURFACES: VersionSurface[] = [
     id: "conversation",
     label: "Conversation workspace",
     version: CANDIDATE_VERSION,
-    role: "GitHub candidate plus ChatGPT-style Cloud Pro workspace.",
+    role: "GitHub candidate plus ChatGPT-style Cloud Pro workspace with self.evolve control plane.",
     host: `${APP_HOST} · mahoraga-cloud-workspace`,
     language: "TypeScript (Next.js cloud-app)",
-    status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected.",
+    status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected. Owner directives may target self.evolve.",
     href: CLOUD_APP_URL,
   },
   {
