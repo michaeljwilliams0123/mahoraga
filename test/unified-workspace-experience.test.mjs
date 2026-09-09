@@ -28,7 +28,7 @@ test("unified workspace delegates conversation authority to one Mahoraga core", 
   assert.doesNotMatch(source, /setConversationRoute\("runtime"\)/);
   assert.doesNotMatch(source, /DefaultChatTransport/);
   assert.match(source, /new RuntimeRelay\(\)/);
-  assert.match(source, /Pair runtime/);
+  assert.match(source, /Connect the Mahoraga brain/);
   assert.match(source, /no paid fallback/i);
   assert.match(source, /resetConversation/);
   assert.match(source, /messageContent\(message, conversationId\)/);
@@ -52,7 +52,7 @@ test("runtime relay keeps decrypted content in browser memory and rejects attach
 
 test("single workspace exposes pairing, cancellation, files, and live status without a route selector", async () => {
   const source = await readWorkspaceSurface();
-  for (const marker of ["Pair runtime", "Revoke", "Attach files", "Stop response", 'aria-live="polite"']) {
+  for (const marker of ["Connect the Mahoraga brain", "Disconnect", "Upload files", "Stop response", 'aria-live="polite"']) {
     assert.match(source, new RegExp(marker));
   }
   assert.doesNotMatch(source, />Cloud Pro</);
@@ -61,7 +61,7 @@ test("single workspace exposes pairing, cancellation, files, and live status wit
 
 test("starter actions are keyboard controls that never auto-submit or change routing authority", async () => {
   const source = await readWorkspaceSurface();
-  assert.equal((source.match(/title: "(?:Analyze a dataset|Improve a repository|Approved browser task)"/g) ?? []).length, 3);
+  assert.equal((source.match(/title: "(?:Analyze something|Improve Mahoraga|Work in the browser)"/g) ?? []).length, 3);
   assert.match(source, /type="button"[\s\S]*onClick=\{\(\) => chooseStarter\(starter\.prompt\)\}/);
   const handler = source.match(/function chooseStarter\(prompt: string\) \{([\s\S]*?)\n  \}/)?.[1] ?? "";
   assert.match(handler, /setInput\(prompt\)/);

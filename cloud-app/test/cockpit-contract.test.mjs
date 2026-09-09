@@ -7,10 +7,10 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("singular control center contract", () => {
-  it("registers Control Center in workspace nav", () => {
+  it("keeps Control Center behind the Advanced drill-down", () => {
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
-    assert.match(types, /"cockpit"/);
-    assert.match(types, /label: "Control Center"/);
+    assert.match(types, /"advanced"/);
+    assert.match(types, /label: "Advanced"/);
     assert.doesNotMatch(types, /label: "Cockpit"/);
   });
 
@@ -22,12 +22,13 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(bridge, /panels/);
   });
 
-  it("wires final Control Center and Connections into the single workspace", () => {
+  it("wires Control Center, Operations, and Connections inside Advanced", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     assert.match(workspace, /CockpitView/);
-    assert.match(workspace, /view === "cockpit"/);
+    assert.match(workspace, /view === "advanced"/);
     assert.match(workspace, /ConnectionsView/);
-    assert.match(workspace, /view === "connections"/);
+    assert.match(workspace, /OperationsView/);
+    assert.match(workspace, /Deep control center/);
     assert.doesNotMatch(workspace, /function placeholder\(/);
   });
 
