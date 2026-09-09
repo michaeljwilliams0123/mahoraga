@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-a03804de-d3a5-4864-a62c-8dfc7bf1c05c",
+  "idempotencyKey": "answer-quality-independent-review-v1",
+  "taskFingerprintSha256": "946820412f24618b436b0fbac5ec7ca5ed99878ed20acb2a5df7a965758f0c8c",
+  "taskBaseCommit": "795085405151b677064e03a1e5305e6695804ee3",
+  "sourceTaskPath": "coordination/cloud-tasks/ccx-a03804de-d3a5-4864-a62c-8dfc7bf1c05c.json",
+  "createdBy": "github-actions",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
