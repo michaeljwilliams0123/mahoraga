@@ -10,7 +10,7 @@ test("workspace navigation exposes only complete singular surfaces", async () =>
     read("components/workspace/workspace-types.ts"),
     read("components/workspace.tsx"),
   ]);
-  for (const label of ["Chat", "Control Center", "Operations", "Connections"]) {
+  for (const label of ["Chat", "Work", "Files", "Advanced"]) {
     assert.match(types, new RegExp(`label: "${label}"`));
   }
   for (const retired of ["Agents", "Plugins & Connections", "Files & Data", "Browser", "Automations", "Activity", "Settings"]) {
@@ -18,7 +18,10 @@ test("workspace navigation exposes only complete singular surfaces", async () =>
   }
   assert.doesNotMatch(workspace, /function placeholder\(/);
   assert.doesNotMatch(workspace, /will land in a later track|land in Track B|will reuse core task/i);
+  assert.match(workspace, /view === "advanced"/);
   assert.match(workspace, /ConnectionsView/);
+  assert.match(workspace, /OperationsView/);
+  assert.match(workspace, /CockpitView/);
 });
 
 test("control center exposes deployment identity and paired-core capability readiness", async () => {

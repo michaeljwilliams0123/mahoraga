@@ -38,20 +38,20 @@ test("UI is an encrypted client and has no direct model transport or provider se
   ]);
   assert.match(source, /new RuntimeRelay\(\)/);
   assert.match(source, /\/api\/health/);
-  assert.match(shell, /issues\/new\?template=codex-cloud-task\.yml/);
-  assert.match(source, /Pair runtime/);
+  assert.match(shell, /github\.com\/michaeljwilliams0123\/mahoraga/);
+  assert.match(source, /pairRuntime/);
   assert.doesNotMatch(source, /useChat\(|DefaultChatTransport|sendMessage\(|conversationRoute|Cloud Pro/);
 });
 
-test("one Vercel workspace connects to the authoritative core through the paired encrypted relay", async () => {
+test("one host-neutral workspace connects to the authoritative core through the paired encrypted relay", async () => {
   const [workspace, chat, relay, health] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/chat-view.tsx"),
     read("lib/runtime-relay.ts"),
     read("app/api/health/route.ts"),
   ]);
-  assert.match(chat, /Zero-Codex route/);
-  assert.match(chat, /Pair runtime/);
+  assert.match(chat, /Brain-routed/);
+  assert.match(chat, /Connect the Mahoraga brain/);
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
@@ -68,7 +68,7 @@ test("one Vercel workspace connects to the authoritative core through the paired
 
 test("accessible task starters only prepare the composer and preserve core authority", async () => {
   const source = await read("components/workspace.tsx");
-  for (const label of ["Analyze a dataset", "Improve a repository", "Approved browser task", "Inspect fleet cycle"]) {
+  for (const label of ["Analyze something", "Improve Mahoraga", "Work in the browser", "What is happening"]) {
     assert.match(source, new RegExp(`title: "${label}"`));
   }
   assert.match(source, /function chooseStarter\(prompt: string\) \{\s*setInput\(prompt\);\s*navigate\("chat"\);\s*composer\.current\?\.focus\(\);\s*\}/);
@@ -110,7 +110,7 @@ test("canonical workspace navigation contains only complete in-app surfaces", as
     read("components/workspace/workspace-nav.tsx"),
     read("components/workspace/workspace-shell.tsx"),
   ]);
-  for (const label of ["Chat", "Control Center", "Operations", "Connections"]) {
+  for (const label of ["Chat", "Work", "Files", "Advanced"]) {
     assert.match(types, new RegExp(`label: "${label}"`));
   }
   for (const retired of ["Agents", "Plugins & Connections", "Files & Data", "Browser", "Automations", "Activity", "Settings"]) {
@@ -120,7 +120,8 @@ test("canonical workspace navigation contains only complete in-app surfaces", as
   assert.match(nav, /setView\(item\.id\)/);
   assert.doesNotMatch(nav, /href=["']https?:/);
   assert.match(shell, /WorkspaceNav/);
-  assert.match(shell, /Single browser surface/);
+  assert.match(shell, /Brain connected|Brain offline/);
+  assert.match(shell, /browser never stores GitHub credentials/i);
 });
 
 test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fallback", async () => {
@@ -131,7 +132,7 @@ test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fa
   assert.match(workspace, /new RuntimeRelay\(\)/);
   assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
   assert.match(workspace, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
-  assert.match(chat, /Zero-Codex route · no paid fallback/);
-  assert.match(chat, /Pair runtime/);
+  assert.match(chat, /Brain-routed/);
+  assert.match(chat, /Connect the Mahoraga brain/);
   assert.doesNotMatch(workspace, /useChat\(|DefaultChatTransport|Cloud Pro/);
 });
