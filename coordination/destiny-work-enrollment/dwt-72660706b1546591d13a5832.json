@@ -1,0 +1,14 @@
+{
+  "attempts": 1,
+  "codeReview": false,
+  "executorLane": "destiny-work-event",
+  "expectedMainSha": "980e4eb10e3adf247c909f3340877b28a701e815",
+  "implementationOnly": true,
+  "kind": "destiny-work-enrollment-canary",
+  "purpose": "Verify persistent cloud Work delivery and a digest-bound receipt without a local PC.",
+  "receiptPath": "coordination/destiny-work-receipts/dwt-72660706b1546591d13a5832.json",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "schemaVersion": 1,
+  "status": "awaiting-webhook-receipt",
+  "taskId": "dwt-72660706b1546591d13a5832"
+}
