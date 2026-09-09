@@ -32,7 +32,7 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
         <div>
           <span className="one-kicker">Live work</span>
           <h1>What Mahoraga is doing</h1>
-          <p>Human-readable progress from the paired brain. Technical routing stays in Advanced.</p>
+          <p>Human-readable progress from the paired brain. Ordinary work stays on the zero-credit lane; paid fallback stays denied.</p>
         </div>
         <button className="icon-button" type="button" onClick={() => void refresh()} disabled={loading} aria-label="Refresh work status">
           {loading ? <LoaderCircle className="spin" size={17} /> : <RefreshCw size={17} />}

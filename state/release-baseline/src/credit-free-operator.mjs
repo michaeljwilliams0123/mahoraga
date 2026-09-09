@@ -1,6 +1,6 @@
 import { classifyAutonomyProvider, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
 
-export const CREDIT_FREE_OPERATOR_ACTORS = Object.freeze(["grok-github-mcp", "github-operator", "chatgpt-github-mcp"]);
+export const CREDIT_FREE_OPERATOR_ACTORS = Object.freeze(["grok-github-mcp", "grok-build", "github-operator", "chatgpt-github-mcp"]);
 export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
   "inspect",
   "create",
@@ -11,6 +11,7 @@ export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
   "assign",
   "merge-exact-head",
   "close-superseded",
+  "close-empty-wip",
 ]);
 export const HOST_MUTATING_OPERATOR_ACTIONS = Object.freeze([
   "create",
@@ -85,5 +86,36 @@ function blocked(reason) {
     paidFallback: false,
     scheduler: false,
     denyFirst: true,
+  });
+}
+
+export function classifyOperatorPullRequest({
+  draft = false,
+  changedFiles = [],
+  commits = 0,
+  title = "",
+  userLogin = "",
+} = {}) {
+  const files = Array.isArray(changedFiles) ? changedFiles : [];
+  const commitCount = Number.isFinite(Number(commits)) ? Number(commits) : 0;
+  const empty = files.length === 0 && commitCount <= 1;
+  const wip = draft === true || /^\s*\[WIP\]/i.test(String(title ?? ""));
+  if (empty && wip) {
+    return Object.freeze({
+      kind: "empty-wip",
+      closeEligible: true,
+      reason: "empty-wip-draft",
+      actorHint: String(userLogin ?? "").toLowerCase() === "copilot" ? "copilot-empty-wip" : "empty-wip",
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  return Object.freeze({
+    kind: "active",
+    closeEligible: false,
+    reason: "pr-has-implementation",
+    actorHint: null,
+    creditCost: 0,
+    paidFallback: false,
   });
 }

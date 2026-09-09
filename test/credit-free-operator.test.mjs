@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   admitOwnerGitHubOperator,
   classifyMcpSpendingClass,
+  classifyOperatorPullRequest,
 } from "../src/credit-free-operator.mjs";
 import {
   classifyAutonomyProvider,
@@ -42,7 +43,7 @@ test("MCP spending class is fail-closed", () => {
 
 test("owner GitHub operator may read, create, modify, administer, repair, and merge at $0", () => {
   for (const action of [
-    "inspect", "create", "modify", "administer", "repair", "comment", "assign", "merge-exact-head", "close-superseded",
+    "inspect", "create", "modify", "administer", "repair", "comment", "assign", "merge-exact-head", "close-superseded", "close-empty-wip",
   ]) {
     const admitted = admitOwnerGitHubOperator({ action });
     assert.equal(admitted.ok, true, action);
@@ -85,4 +86,32 @@ test("deny-first: untrusted content cannot share mutating tools; delete-ref rema
     assert.equal(admitOwnerGitHubOperator({ action, untrustedContentPresent: true }).reason, "untrusted-content-mutation-forbidden", action);
   }
   assert.equal(admitOwnerGitHubOperator({ deletesRef: true }).reason, "delete-ref-forbidden");
+});
+
+test("Grok Build is a credit-free owner GitHub operator", () => {
+  const admitted = admitOwnerGitHubOperator({ actor: "grok-build", action: "repair" });
+  assert.equal(admitted.ok, true);
+  assert.equal(admitted.creditCost, 0);
+  assert.equal(admitted.paidFallback, false);
+  assert.equal(admitOwnerGitHubOperator({ actor: "grok-build", action: "close-empty-wip" }).ok, true);
+});
+
+test("empty Copilot WIP drafts are close-eligible at $0", () => {
+  const empty = classifyOperatorPullRequest({
+    draft: true,
+    changedFiles: [],
+    commits: 1,
+    title: "[WIP] Update and enhance UI for version 7.0.0-alpha.2",
+    userLogin: "Copilot",
+  });
+  assert.equal(empty.kind, "empty-wip");
+  assert.equal(empty.closeEligible, true);
+  assert.equal(empty.creditCost, 0);
+  const active = classifyOperatorPullRequest({
+    draft: false,
+    changedFiles: ["src/autonomous-integration.mjs"],
+    commits: 3,
+    title: "fix: hold autonomous merge for required checks",
+  });
+  assert.equal(active.closeEligible, false);
 });

@@ -319,3 +319,14 @@ The unattended heartbeat folds the Destiny Event Dispatch Lane readiness into ev
 ## Contract
 
 `src/credit-free-autonomy.mjs` is the selector, protocol graph, hosted-compute attestation, and zero-credit health used by routing, the four-hour cycle, and zero-codex conversation intake. `src/autonomy-heartbeat.mjs` is the unattended loop, environment observer, and compounded learning digest. `src/local-reasoner-provider.mjs` dual-probes Ollama and LM Studio on loopback and never retains model identifiers. `src/local-reasoner-channel.mjs` is the memory-only execution admitter. `src/credit-free-skill-compound.mjs` is the slow loop: identifier-only routines plus foundry plans from steward gaps, now passing the live fleet as `existingAgents`. `src/unattended-foundry-admit.mjs` admits those plans into a content-free fleet snapshot. `src/unattended-cycle-memory.mjs` persists that snapshot and the heartbeat receipts outside Git. `src/unattended-generation-admit.mjs` is the fail-closed auto-arm: live loopback ⇒ generate; missing probe ⇒ wait; Actions four-hour cycle ⇒ inspect-only. `src/steward-foundry-report.mjs` is the two-hour Git-backed foundry contract: schemaVersion 1, empty plans hold, paid contamination refuses. `src/heartbeat-ledger.mjs` is the durable content-free receipt log. `src/unattended-credit-free-cycle.mjs` is the unattended dual loop. `src/local-reasoner-generate.mjs` is the fail-closed generate adapter. `src/local-reasoner-loopback-invoke.mjs` is the content-free 127.0.0.1 generate path. Conversation objectives pass live `creditFreeContext` (local reasoner readiness, spend grant, hosted compute) instead of defaulting those facts to zero. The heartbeat CLI and cloud-cycle worker both read `readCreditFreeRuntime()` so hosted-cap exhaustion observed from GitHub comments cannot be ignored, then overlay live loopback probes, a loopback invoke when generation is required, the Git foundry registry as a read-only coverage set, and Destiny trigger unreadiness. This does not activate Windows production and does not change the four-hour sovereign cadence.
+
+
+## Autonomous merge hold
+
+Exact-head Autonomous Integration may evaluate a verified workflow run before
+GitHub has attached `Verify (ubuntu-latest)` and `Verify (windows-latest)` to
+the pull request. Missing required checks are a **hold**, not a crash and not a
+reason to buy Codex review. The merge job exits cleanly with
+`hold-required-checks` and retries when the next exact-head Verify completes.
+Grok Build is a credit-free GitHub operator for inspect/repair/merge/close of
+empty WIP drafts. It does not schedule work and does not invoke paid inference.

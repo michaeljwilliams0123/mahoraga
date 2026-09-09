@@ -162,7 +162,7 @@ export const ARSENAL: ArsenalCommand[] = [
   {
     id: "version-ledger",
     label: "Show version ledger",
-    command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.1, and this operator deck.",
+    command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck.",
     owner: "repository",
     plane: "live",
     group: "Live on this deck",
@@ -779,7 +779,7 @@ export const ARSENAL: ArsenalCommand[] = [
   {
     id: "deny-activate",
     label: "Activate 7.0 on Windows",
-    command: "Activate Mahoraga 7.0.0-alpha.1 on the live Windows production runtime.",
+    command: "Activate Mahoraga 7.0.0-alpha.2 on the live Windows production runtime.",
     owner: "repair",
     plane: "denied",
     group: "Hard deny",

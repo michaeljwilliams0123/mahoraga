@@ -17,6 +17,9 @@ steps:
         github.rest.actions.createWorkflowDispatch({ workflow_id: "verify.yml", ref: "main" });
         const trustedEpoch = parseIncumbentTrustEpoch(fs.readFileSync("state/incumbent-trust-epoch.json", "utf8"));
         const sovereignEvolution = null;
+        const mergeGate = evaluateExactHeadMergeGate({ mergeableState: pr.mergeable_state });
+        core.notice("hold-required-checks:" + mergeGate.reason);
+        const classified = classifyMergeRuleViolation(error);
 `;
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted), true);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(trusted.replace("ref: main", "ref: ${{ github.event.workflow_run.head_sha }}")), false);
@@ -52,4 +55,13 @@ test("sovereign workflow-dispatch verification is admitted only for bounded same
   assert.match(workflow, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
   assert.equal(isTrustedAutonomousIntegrationWorkflow(workflow), true);
   assert.doesNotMatch(workflow, /github\.event\.workflow_run\.event == 'workflow_dispatch'\s*\|\|\s*true/);
+});
+
+test("autonomous merge holds when required checks are expected instead of failing the job", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/autonomous-integration.yml", import.meta.url), "utf8");
+  assert.match(workflow, /evaluateExactHeadMergeGate/);
+  assert.match(workflow, /hold-required-checks/);
+  assert.match(workflow, /classifyMergeRuleViolation/);
+  assert.match(workflow, /mergeable_state/);
+  assert.match(workflow, /checks: read/);
 });

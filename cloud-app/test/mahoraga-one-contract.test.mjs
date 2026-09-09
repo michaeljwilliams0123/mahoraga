@@ -28,3 +28,15 @@ test("Ship is a brain-routed owner intent rather than browser GitHub authority",
   assert.match(workspace, /merge/i);
   assert.match(workspace, /modeOverride|"act"/);
 });
+
+test("Mahoraga One surfaces 7.0.0-alpha.2 without claiming Windows activation", async () => {
+  const [shell, work, connections] = await Promise.all([
+    read("components/workspace/workspace-shell.tsx"),
+    read("components/workspace/work-view.tsx"),
+    read("components/workspace/connections-view.tsx"),
+  ]);
+  assert.match(shell, /7\.0\.0-alpha\.2/);
+  assert.match(work, /zero-credit lane/);
+  assert.match(connections, /zero-credit/);
+  assert.doesNotMatch(shell + work + connections, /Activate Mahoraga 7\.0\.0-alpha/);
+});

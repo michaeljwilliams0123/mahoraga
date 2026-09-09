@@ -17,7 +17,7 @@ export function WorkspaceShell({
       <aside className={sidebarOpen ? "sidebar sidebar-open" : "sidebar"}>
         <div className="brand-row">
           <div className="brand-mark" aria-hidden="true"><BrainCircuit size={18} /></div>
-          <div className="brand-copy"><strong>Mahoraga</strong><span>One</span></div>
+          <div className="brand-copy"><strong>Mahoraga</strong><span>One · 7.0.0-alpha.2</span></div>
           <button className="mobile-close" type="button" onClick={() => setSidebarOpen(false)} aria-label="Close navigation"><X size={18} /></button>
         </div>
 
