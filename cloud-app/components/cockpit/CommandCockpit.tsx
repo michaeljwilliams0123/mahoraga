@@ -17,7 +17,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
   { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
-  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.1, and this operator deck." },
+  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
 ] as const;
 
@@ -118,7 +118,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga.v2 pressure-test</span>
+            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 pressure-test</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
