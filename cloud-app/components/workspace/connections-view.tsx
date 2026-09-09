@@ -47,6 +47,10 @@ export function ConnectionsView({
           <span>{health?.capabilities?.directProviderSelection === true ? "enabled" : "disabled"}</span>
         </div>
         <div>
+          <strong>Credit-free autonomy</strong>
+          <span>{health?.routing?.automaticPaidFallback === true ? "paid fallback (denied policy)" : "zero-credit · no paid fallback"}</span>
+        </div>
+        <div>
           <strong>Capability readiness</strong>
           <span>
             {routableCount}/{runtimeCapabilities.length} routable

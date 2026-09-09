@@ -102,9 +102,9 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
   {
     id: "alpha-not-production",
     severity: "p2",
-    title: "7.0.0-alpha.1 is not the live Windows runtime",
+    title: "7.0.0-alpha.2 is not the live Windows runtime",
     detail:
-      "Repository candidate is 7.0.0-alpha.1. Last verified production rollback remains 3.6.0. Docs correctly refuse to claim the Windows PID. This console talks to public GitHub, not your device.",
+      "Repository candidate is 7.0.0-alpha.2. Last verified production rollback remains 3.6.0. Docs correctly refuse to claim the Windows PID. This console talks to public GitHub, not your device.",
     owner: "assurance",
   },
 ];

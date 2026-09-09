@@ -48,7 +48,7 @@ test("autonomous integration keeps evaluation read-only and grants writes only t
   const source = await workflow("autonomous-integration.yml");
   assert.match(source, /permissions:\s*\n\s*actions: read\s*\n\s*contents: read\s*\n\s*pull-requests: read/);
   assert.match(source, /\n  evaluate:\s*\n\s*permissions:\s*\n\s*actions: read\s*\n\s*contents: read\s*\n\s*pull-requests: read/);
-  assert.match(source, /\n  merge:\s*\n\s*needs: evaluate[\s\S]*?permissions:\s*\n\s*actions: write\s*\n\s*contents: write\s*\n\s*pull-requests: write/);
+  assert.match(source, /\n  merge:\s*\n\s*needs: evaluate[\s\S]*?permissions:\s*\n\s*actions: write\s*\n\s*contents: write\s*\n\s*pull-requests: write\s*\n\s*checks: read/);
   assert.match(source, /ref: main\s*\n\s*persist-credentials: false/);
 });
 

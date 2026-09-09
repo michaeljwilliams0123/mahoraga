@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { evaluateAutonomousIntegration, latestExactDestinyResult, latestExactWorkflowRun } from "../src/autonomous-integration.mjs";
+import { evaluateAutonomousIntegration, latestExactDestinyResult, latestExactWorkflowRun, REQUIRED_MERGE_CHECK_CONTEXTS, classifyPullMergeState, requiredExactHeadChecksReady, evaluateExactHeadMergeGate, classifyMergeRuleViolation } from "../src/autonomous-integration.mjs";
 import { createSovereignEvolutionReceipt, createTrustEpoch } from "../src/sovereign-evolution.mjs";
 import { ROOT } from "../src/config.mjs";
 
@@ -192,4 +192,67 @@ test("workflow merges exact verified heads without waiting for Destiny comments"
   assert.match(source, /trustedEpoch/);
   assert.match(source, /sovereignEvolution/);
   assert.doesNotMatch(source, /pages\.yml|deploy_pages/);
+});
+
+test("required merge contexts match the live main-protection contract", async () => {
+  const contract = JSON.parse(await readFile(path.join(ROOT, "config/main-protection.contract.json"), "utf8"));
+  assert.deepEqual([...REQUIRED_MERGE_CHECK_CONTEXTS], contract.requiredContexts);
+});
+
+test("merge gate holds when required checks are still expected instead of throwing", () => {
+  const headSha = "a".repeat(40);
+  const policyDecision = { eligible: true, reason: "eligible", pullRequestNumber: 263, headSha };
+  const pending = evaluateExactHeadMergeGate({
+    policyDecision,
+    mergeableState: "blocked",
+    checkRuns: [],
+    headSha,
+  });
+  assert.equal(pending.ok, false);
+  assert.equal(pending.status, "hold");
+  assert.equal(pending.reason, "required-checks-pending");
+  assert.equal(pending.creditCost, 0);
+  assert.equal(pending.paidFallback, false);
+
+  const ready = evaluateExactHeadMergeGate({
+    policyDecision,
+    mergeableState: "clean",
+    checkRuns: [],
+    headSha,
+  });
+  assert.equal(ready.ok, true);
+  assert.equal(ready.status, "ready");
+
+  const failing = evaluateExactHeadMergeGate({
+    policyDecision,
+    mergeableState: "unstable",
+    checkRuns: [],
+    headSha,
+  });
+  assert.equal(failing.status, "blocked");
+  assert.equal(failing.reason, "required-checks-failing");
+});
+
+test("required exact-head checks ignore stale names and require both Ubuntu and Windows success", () => {
+  const headSha = "b".repeat(40);
+  const runs = [
+    { id: 1, name: "Verify (ubuntu-latest)", head_sha: headSha, status: "completed", conclusion: "success", completed_at: "2026-09-09T05:00:00Z" },
+    { id: 2, name: "Verify (windows-latest)", head_sha: headSha, status: "completed", conclusion: "success", completed_at: "2026-09-09T05:01:00Z" },
+    { id: 3, name: "Verify unified Vercel workspace", head_sha: headSha, status: "completed", conclusion: "failure", completed_at: "2026-09-09T05:02:00Z" },
+  ];
+  assert.equal(requiredExactHeadChecksReady(runs, { headSha }).ok, true);
+  assert.equal(requiredExactHeadChecksReady(runs.slice(0, 1), { headSha }).ok, false);
+  assert.deepEqual(requiredExactHeadChecksReady({ check_runs: runs.slice(0, 1) }, { headSha }).missing, ["Verify (windows-latest)"]);
+});
+
+test("merge rule violations that mean checks are expected are holds, not crashes", () => {
+  const expected = classifyMergeRuleViolation({
+    status: 405,
+    message: "Repository rule violations found\n\n2 of 2 required status checks are expected.\n",
+  });
+  assert.equal(expected.status, "hold");
+  assert.equal(expected.reason, "required-checks-pending");
+  assert.equal(expected.creditCost, 0);
+  assert.equal(classifyPullMergeState("unknown").status, "hold");
+  assert.equal(classifyPullMergeState("clean").ok, true);
 });

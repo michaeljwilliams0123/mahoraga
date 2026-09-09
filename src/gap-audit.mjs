@@ -183,6 +183,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Native cloud and cloud browser exist only as core-routed, disabled-by-default licensed workers. Credit-free autonomy classifies them as metered so they cannot replace Zero-Codex.",
   });
+  record(closed, has("src/autonomous-integration.mjs") && has("test/autonomous-integration.test.mjs") && has(".github/workflows/autonomous-integration.yml"), {
+    id: "autonomous-integration-required-checks-hold",
+    priority: "high",
+    summary: "Exact-head autonomous merge holds at $0 when required Ubuntu/Windows Verify checks are still expected, instead of crashing the integration job.",
+  });
   record(closed, has("src/credit-free-operator.mjs") && has("test/credit-free-operator.test.mjs"), {
     id: "credit-free-github-operator",
     priority: "high",

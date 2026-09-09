@@ -70,6 +70,124 @@ export function latestExactWorkflowRun(
     .sort(newestFirst)[0] ?? null;
 }
 
+
+export const REQUIRED_MERGE_CHECK_CONTEXTS = Object.freeze([
+  "Verify (ubuntu-latest)",
+  "Verify (windows-latest)",
+]);
+
+export function classifyPullMergeState(mergeableState) {
+  const state = String(mergeableState ?? "").trim().toLowerCase();
+  if (state === "clean" || state === "has_hooks") {
+    return Object.freeze({ ok: true, status: "ready", reason: "merge-state-clean" });
+  }
+  if (state === "behind") return Object.freeze({ ok: false, status: "blocked", reason: "head-behind-main" });
+  if (state === "dirty") return Object.freeze({ ok: false, status: "blocked", reason: "merge-conflict" });
+  if (state === "draft") return Object.freeze({ ok: false, status: "blocked", reason: "draft-not-eligible" });
+  if (state === "unstable") return Object.freeze({ ok: false, status: "blocked", reason: "required-checks-failing" });
+  if (state === "blocked" || state === "unknown" || state === "") {
+    return Object.freeze({ ok: false, status: "hold", reason: "required-checks-pending" });
+  }
+  return Object.freeze({ ok: false, status: "hold", reason: "merge-state-unknown" });
+}
+
+export function requiredExactHeadChecksReady(checkRuns, {
+  headSha,
+  requiredContexts = REQUIRED_MERGE_CHECK_CONTEXTS,
+} = {}) {
+  const runs = normalizeCheckRuns(checkRuns);
+  if (!/^[a-f0-9]{40}$/.test(headSha ?? "") || !Array.isArray(requiredContexts) || requiredContexts.length < 1) {
+    return Object.freeze({ ok: false, reason: "required-checks-invalid", missing: Object.freeze([...requiredContexts ?? []]) });
+  }
+  const missing = [];
+  for (const context of requiredContexts) {
+    const latest = runs
+      .filter((run) => run?.name === context && (run.head_sha === headSha || run.headSha === headSha))
+      .sort(newestCheckFirst)[0];
+    if (!latest || latest.status !== "completed" || latest.conclusion !== "success") missing.push(context);
+  }
+  if (missing.length > 0) {
+    return Object.freeze({ ok: false, reason: "required-checks-pending", missing: Object.freeze(missing) });
+  }
+  return Object.freeze({ ok: true, reason: "required-checks-ready", missing: Object.freeze([]) });
+}
+
+export function evaluateExactHeadMergeGate({
+  policyDecision,
+  mergeableState,
+  checkRuns = [],
+  headSha,
+  requiredContexts = REQUIRED_MERGE_CHECK_CONTEXTS,
+} = {}) {
+  if (!policyDecision?.eligible) {
+    return Object.freeze({
+      ok: false,
+      status: "blocked",
+      reason: policyDecision?.reason ?? "ineligible",
+      missing: Object.freeze([]),
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  const state = classifyPullMergeState(mergeableState);
+  if (state.status === "ready") {
+    return Object.freeze({
+      ok: true,
+      status: "ready",
+      reason: "required-checks-ready",
+      missing: Object.freeze([]),
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  if (state.status === "blocked") {
+    return Object.freeze({
+      ok: false,
+      status: "blocked",
+      reason: state.reason,
+      missing: Object.freeze([]),
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  const checks = requiredExactHeadChecksReady(checkRuns, { headSha, requiredContexts });
+  return Object.freeze({
+    ok: false,
+    status: "hold",
+    reason: checks.ok ? "required-checks-not-yet-on-pull-request" : checks.reason,
+    missing: checks.missing,
+    creditCost: 0,
+    paidFallback: false,
+  });
+}
+
+export function classifyMergeRuleViolation(error) {
+  const status = Number(error?.status ?? error?.response?.status ?? 0);
+  const message = String(error?.message ?? error?.response?.data?.message ?? "");
+  if (status === 405 && /required status checks are expected/i.test(message)) {
+    return Object.freeze({ status: "hold", reason: "required-checks-pending", creditCost: 0, paidFallback: false });
+  }
+  if (status === 405 && /required status checks/i.test(message)) {
+    return Object.freeze({ status: "hold", reason: "required-checks-pending", creditCost: 0, paidFallback: false });
+  }
+  if (status === 409 || /head branch was modified|sha was invalid/i.test(message)) {
+    return Object.freeze({ status: "blocked", reason: "verified-head-advanced", creditCost: 0, paidFallback: false });
+  }
+  return Object.freeze({ status: "blocked", reason: "merge-rejected", creditCost: 0, paidFallback: false });
+}
+
+function normalizeCheckRuns(checkRuns) {
+  if (Array.isArray(checkRuns)) return checkRuns;
+  if (Array.isArray(checkRuns?.check_runs)) return checkRuns.check_runs;
+  return [];
+}
+
+function newestCheckFirst(left, right) {
+  const completed = Date.parse(right.completed_at ?? "") - Date.parse(left.completed_at ?? "");
+  if (Number.isFinite(completed) && completed !== 0) return completed;
+  return numeric(right.id) - numeric(left.id);
+}
+
 export function latestExactDestinyResult(comments, { owner, headSha } = {}) {
   if (!Array.isArray(comments) || typeof owner !== "string" || !/^[a-f0-9]{40}$/.test(headSha ?? "")) return null;
   const latest = comments

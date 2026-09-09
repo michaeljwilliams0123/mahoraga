@@ -161,6 +161,7 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
+      checks: read
     runs-on: ubuntu-latest
     steps:
       - name: Checkout trusted integration code from main
@@ -187,7 +188,7 @@ jobs:
             const { pathToFileURL } = require("url");
             const workspace = process.env.GITHUB_WORKSPACE;
             const { autonomyPolicySnapshot } = await import(pathToFileURL(path.join(workspace, "src", "autonomy-policy.mjs")).href);
-            const { evaluateAutonomousIntegration, latestExactWorkflowRun } = await import(pathToFileURL(path.join(workspace, "src", "autonomous-integration.mjs")).href);
+            const { evaluateAutonomousIntegration, latestExactWorkflowRun, evaluateExactHeadMergeGate, classifyMergeRuleViolation } = await import(pathToFileURL(path.join(workspace, "src", "autonomous-integration.mjs")).href);
             const { parseIncumbentTrustEpoch, selectSovereignReceiptPath } = await import(pathToFileURL(path.join(workspace, "src", "incumbent-trust-epoch.mjs")).href);
             const manifest = JSON.parse(fs.readFileSync(path.join(workspace, "mahoraga.manifest.json"), "utf8"));
             const { owner, repo } = context.repo;
@@ -241,6 +242,34 @@ jobs:
             }, autonomyPolicySnapshot(manifest));
             if (!freshDecision.eligible) throw new Error(`policy-changed-before-merge:${freshDecision.reason}`);
             if (freshDecision.headSha !== expectedHead) throw new Error("verified-head-advanced");
-            const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
-            if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);
+            let checkRuns = [];
+            try {
+              checkRuns = await github.paginate(github.rest.checks.listForRef, {
+                owner, repo, ref: expectedHead, per_page: 100, filter: "latest",
+              });
+            } catch {
+              checkRuns = [];
+            }
+            const mergeGate = evaluateExactHeadMergeGate({
+              policyDecision: freshDecision,
+              mergeableState: pr.mergeable_state,
+              checkRuns,
+              headSha: expectedHead,
+            });
+            if (!mergeGate.ok && mergeGate.status === "hold") {
+              core.notice(`hold-required-checks:${mergeGate.reason}`);
+              return;
+            }
+            if (!mergeGate.ok) throw new Error(`policy-changed-before-merge:${mergeGate.reason}`);
+            try {
+              const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
+              if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);
+            } catch (error) {
+              const classified = classifyMergeRuleViolation(error);
+              if (classified.status === "hold") {
+                core.notice(`hold-required-checks:${classified.reason}`);
+                return;
+              }
+              throw error;
+            }
             await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: "verify.yml", ref: "main" });

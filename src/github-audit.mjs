@@ -319,7 +319,10 @@ export function isTrustedAutonomousIntegrationWorkflow(source) {
     && /actions\.createWorkflowDispatch\(\{[\s\S]*workflow_id:\s*"verify\.yml"[\s\S]*ref:\s*"main"/.test(source)
     && /incumbent-trust-epoch\.json/.test(source)
     && /trustedEpoch/.test(source)
-    && /sovereignEvolution/.test(source);
+    && /sovereignEvolution/.test(source)
+    && /evaluateExactHeadMergeGate/.test(source)
+    && /hold-required-checks/.test(source)
+    && /classifyMergeRuleViolation/.test(source);
 }
 
 export function isDeterministicDependency(specification) {
