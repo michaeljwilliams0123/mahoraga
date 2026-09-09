@@ -3,17 +3,19 @@ import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { createCodexIdentity, createRepositoryHandshake, verifyCodexIdentity, verifyRepositoryHandshake } from "../src/codex-github-handshake.mjs";
+import { createCodexIdentity, createRepositoryHandshake, verifyCodexHandshakeRecord } from "../src/codex-github-handshake.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const command = process.argv[2];
+const canonicalRepository = "michaeljwilliams0123/mahoraga";
 const value = (name) => {
   const index = process.argv.indexOf(`--${name}`);
   return index < 0 ? null : process.argv[index + 1];
 };
 
 if (command === "enroll") {
-  const repository = value("repository") ?? "michaeljwilliams0123/mahoraga";
+  const repository = value("repository") ?? canonicalRepository;
+  if (repository !== canonicalRepository) throw new TypeError("codex-handshake-repository-mismatch");
   const actor = value("github-actor") ?? repository.split("/")[0];
   const identity = createCodexIdentity({ label: value("label") ?? "Codex Workspace Primary", repository, githubActor: actor });
   const directory = path.join(root, "coordination", "controller-identities");
@@ -29,8 +31,8 @@ if (command === "enroll") {
 } else if (command === "verify") {
   const file = path.resolve(root, value("file") ?? "");
   const record = JSON.parse(await readFile(file, "utf8"));
-  verifyCodexIdentity(record.registration);
-  verifyRepositoryHandshake(record.registration, record.handshake);
+  verifyCodexHandshakeRecord(record, { expectedRepository: canonicalRepository });
+  requireAcceptedCommit(record.handshake.baseCommit);
   process.stdout.write(`${record.registration.instanceId}: verified\n`);
 } else if (command === "validate") {
   const directory = path.join(root, "coordination", "controller-identities");
@@ -38,8 +40,8 @@ if (command === "enroll") {
   const ids = new Set();
   for (const name of files) {
     const record = JSON.parse(await readFile(path.join(directory, name), "utf8"));
-    verifyCodexIdentity(record.registration);
-    verifyRepositoryHandshake(record.registration, record.handshake);
+    verifyCodexHandshakeRecord(record, { expectedRepository: canonicalRepository });
+    requireAcceptedCommit(record.handshake.baseCommit);
     if (name !== `${record.registration.instanceId}.json` || ids.has(record.registration.instanceId)) throw new TypeError("codex-handshake-record-invalid");
     ids.add(record.registration.instanceId);
   }
@@ -47,4 +49,13 @@ if (command === "enroll") {
 } else {
   process.stderr.write("Usage: node scripts/codex-github-handshake.mjs enroll|verify|validate [options]\n");
   process.exitCode = 2;
+}
+
+function requireAcceptedCommit(commit) {
+  try {
+    execFileSync("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd: root, stdio: "ignore" });
+    execFileSync("git", ["merge-base", "--is-ancestor", commit, "HEAD"], { cwd: root, stdio: "ignore" });
+  } catch {
+    throw new TypeError("codex-handshake-base-commit-untrusted");
+  }
 }
