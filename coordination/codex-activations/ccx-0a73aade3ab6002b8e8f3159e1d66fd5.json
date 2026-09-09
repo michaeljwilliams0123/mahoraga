@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-0a73aade3ab6002b8e8f3159e1d66fd5",
+  "idempotencyKey": "persistent-cloud-brain-v1",
+  "taskFingerprintSha256": "bc0f6ea9dc0925265e7950582f604ecb9e540963d68aca02bbafb7fe203c6457",
+  "taskBaseCommit": "d047f05a4288a31e276d734a8d754f92a15b2852",
+  "sourceTaskPath": "coordination/cloud-tasks/ccx-0a73aade3ab6002b8e8f3159e1d66fd5.json",
+  "createdBy": "github-actions",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
