@@ -98,3 +98,38 @@ test("a missing execution contract cannot persist an autonomous conversation tur
   }), /Autonomy execution contract is required/);
   assert.deepEqual(calls, []);
 });
+
+test("an exact owner capability builds one auditable contained objective instead of a debate graph", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000099",
+    message: "run self.evolve to improve owner interaction",
+    requestedMode: "hybrid",
+    requestedCapability: "self.evolve",
+    executionContract: EXECUTION_CONTRACT,
+  });
+  assert.equal(objective.tasks.length, 1);
+  assert.equal(objective.tasks[0].id, "execute-owner-capability");
+  assert.equal(objective.tasks[0].capability, "self.evolve");
+  assert.equal(objective.tasks[0].provider, "primary-codex-builder");
+  assert.equal(objective.tasks[0].baseCommit, EXECUTION_CONTRACT.baseCommit);
+  assert.deepEqual(objective.tasks[0].allowedPaths, EXECUTION_CONTRACT.allowedPaths);
+  assert.deepEqual(objective.tasks[0].dependsOn, []);
+});
+test("owner capability selection survives conversation persistence into the objective", () => {
+  const database = {
+    addConversationMessage: (input) => ({ id: "msg-00000000-0000-0000-0000-000000000101", ...input }),
+    createObjective: (input) => ({ id: "obj-owner-capability", ...input }),
+  };
+  const result = createAutonomousConversationTurn({
+    database,
+    policy: { conversationActivation: true },
+    conversationId: "con-owner-capability",
+    content: "run self.evolve to improve interaction",
+    requiresResponse: true,
+    requestedCapability: "self.evolve",
+    executionContract: EXECUTION_CONTRACT,
+  });
+  assert.equal(result.objective.tasks.length, 1);
+  assert.equal(result.objective.tasks[0].capability, "self.evolve");
+});

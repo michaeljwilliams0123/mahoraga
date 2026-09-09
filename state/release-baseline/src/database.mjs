@@ -430,7 +430,7 @@ export class RuntimeDatabase {
     if (!Array.isArray(contentReferences) || contentReferences.length > 20) throw new TypeError("Content references are invalid.");
     contentReferences.forEach((item) => bounded(item, 180, "content reference"));
     let normalizedAllowedPaths = [];
-    if (capability === "codex.execute") {
+    if (capability === "codex.execute" || capability === "self.evolve") {
       if (!/^[a-f0-9]{40,64}$/i.test(baseCommit ?? "")) throw new TypeError("Codex Builder base commit is invalid.");
       if (integrationLeaseId === null) throw new TypeError("Codex Builder integration lease is missing.");
       normalizedAllowedPaths = executionPaths(allowedPaths);

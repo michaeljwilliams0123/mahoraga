@@ -2,6 +2,7 @@ import { AUTONOMY_OBJECTIVE_AUTHORITY } from "./objective-release-authority.mjs"
 import { CREDIT_FREE_GRAPH, assertCreditFreeDispatch, planCreditFreeWork } from "./credit-free-autonomy.mjs";
 
 const MAX_MESSAGE_LENGTH = 800;
+const OWNER_CONTAINED_CAPABILITIES = new Set(["codex.execute", "self.evolve"]);
 
 function boundedText(value, fallback) {
   const normalized = String(value ?? "").replace(/\s+/g, " ").trim();
@@ -101,6 +102,31 @@ function codexTask({ id, dependsOn, outcome, conversationId, requestedMode, task
   };
 }
 
+
+function ownerContainedTask({ capability, outcome, conversationId, requestedMode, taskArea, contract }) {
+  if (!OWNER_CONTAINED_CAPABILITIES.has(capability)) throw new TypeError("Owner contained capability is invalid.");
+  return {
+    id: "execute-owner-capability",
+    authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY,
+    capability,
+    dataClass: "synthetic",
+    taskType: "codex-builder",
+    requestedMode,
+    executionPlane: "primary-codex-local",
+    priority: "high",
+    maximumAttempts: 1,
+    conversationId,
+    taskArea,
+    owner: "mahoraga",
+    provider: "primary-codex-builder",
+    retryPolicy: "bounded",
+    completionCriteria: "worker-verified",
+    requestedOutcome: outcome,
+    baseCommit: contract.baseCommit,
+    allowedPaths: [...contract.allowedPaths],
+    dependsOn: [],
+  };
+}
 function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, completionCriteria }) {
   return {
     id,
@@ -157,10 +183,29 @@ export function buildAutonomyObjective({
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
   creditFreeContext = null,
+  requestedCapability = null,
 }) {
   const contract = executionContract(suppliedExecutionContract);
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
+  if (requestedCapability !== null) {
+    if (!OWNER_CONTAINED_CAPABILITIES.has(requestedCapability)) throw new TypeError("Owner contained capability is invalid.");
+    if (creditFreeRequested({ creditFreeRequired, requestedMode })) throw new TypeError("Owner contained capability is unavailable in credit-free mode.");
+    const task = ownerContainedTask({
+      capability: requestedCapability,
+      outcome: `Execute ${requestedCapability} for User request: ${request}`,
+      conversationId,
+      requestedMode,
+      taskArea: area,
+      contract,
+    });
+    return Object.freeze({
+      title: `Owner capability: ${requestedCapability}`,
+      correlationId: `aut-${messageId}`.slice(0, 240),
+      maximumReplans: 0,
+      tasks: Object.freeze([Object.freeze(task)]),
+    });
+  }
   if (creditFreeRequested({ creditFreeRequired, requestedMode })) {
     return buildCreditFreeObjective({
       conversationId,
@@ -202,6 +247,7 @@ export function createAutonomousConversationTurn({
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
   creditFreeContext = null,
+  requestedCapability = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -216,6 +262,7 @@ export function createAutonomousConversationTurn({
     executionContract: contract,
     creditFreeRequired,
     creditFreeContext,
+    requestedCapability,
   }));
   return Object.freeze({ message, objective });
 }
@@ -232,6 +279,7 @@ export function createAutonomousConversation({
   executionContract: suppliedExecutionContract = null,
   creditFreeRequired = false,
   creditFreeContext = null,
+  requestedCapability = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -249,6 +297,7 @@ export function createAutonomousConversation({
     executionContract: contract,
     creditFreeRequired,
     creditFreeContext,
+    requestedCapability,
   }));
   return Object.freeze({ conversation, objective });
 }

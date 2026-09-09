@@ -105,3 +105,27 @@ test("Auto keeps informational questions read-only even when they mention action
     });
   }
 });
+
+test("owner action directives target any registered capability without fuzzy rerouting", () => {
+  const capabilities = [...CAPABILITIES, "self.evolve", "repository.verify"];
+  for (const content of [
+    "run self.evolve to improve the control plane",
+    "use self.evolve to improve the control plane",
+    "capability:self.evolve improve the control plane",
+  ]) {
+    assert.deepEqual(classifyChatTurn({ mode: "act", content, availableCapabilities: capabilities }), {
+      mode: "act",
+      execution: "capability",
+      capability: "self.evolve",
+      intentKind: "owner-capability",
+      reasonCode: "explicit-capability-request",
+    });
+  }
+
+  assert.deepEqual(classifyChatTurn({
+    mode: "auto", content: "run repository.verify now", availableCapabilities: capabilities,
+  }), {
+    mode: "act", execution: "capability", capability: "repository.verify",
+    intentKind: "owner-capability", reasonCode: "explicit-capability-request",
+  });
+});

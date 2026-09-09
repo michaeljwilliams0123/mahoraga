@@ -52,3 +52,20 @@ test("resource map exposes all additive lanes and keeps paid API fallback disabl
   assert.ok(resources.lanes["agent.replicate"].resources.includes("src/agent-foundry.mjs"));
   assert.ok(resources.lanes["self.enhance"].resources.includes("src/evolution-controller.mjs"));
 });
+
+const workerProcessSource = await readFile(new URL("../src/worker-process.mjs", import.meta.url), "utf8");
+
+test("self.evolve is a first-class contained capability on the existing Codex Builder", () => {
+  const builder = manifest.workers.find((worker) => worker.id === "primary-codex-builder");
+  assert.ok(builder.capabilities.includes("self.evolve"));
+  assert.equal(builder.capabilityCanaries["self.evolve"], "provider-derived");
+  assert.match(workerProcessSource, /executeSelfEvolutionCapability/);
+  assert.match(workerProcessSource, /capability === "self\.evolve"/);
+  assert.equal(builder.adapter.networkAccess, false);
+  assert.equal(builder.adapter.approvalPolicy, "never");
+});
+const repairSource = await readFile(new URL("../src/repair.mjs", import.meta.url), "utf8");
+
+test("self-evolution runtime logic is covered by the essential repair baseline", () => {
+  assert.match(repairSource, /"src\/self-evolution-worker\.mjs"/);
+});

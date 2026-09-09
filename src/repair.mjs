@@ -47,6 +47,7 @@ export const ESSENTIAL_FILES = [
   "src/controller-authority.mjs",
   "src/cloud-task-gateway.mjs",
   "src/codex-builder-worker.mjs",
+  "src/self-evolution-worker.mjs",
   "src/autonomy-policy.mjs",
   "src/autonomy-execution-scope.mjs",
   "src/autonomy-orchestrator.mjs",

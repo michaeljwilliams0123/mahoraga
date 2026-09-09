@@ -4,6 +4,7 @@ import { deriveTaskPolicy, policyTaskInput } from "./task-policy.mjs";
 export const AUTONOMY_OBJECTIVE_AUTHORITY = "autonomy-objective-v1";
 const LOCAL_PRIMARY = "primary-local-codex";
 const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
+const CONTAINED_CAPABILITIES = new Set(["codex.execute", "self.evolve"]);
 
 export function installObjectiveReleaseAuthority({ database, manifest }) {
   if (!database || typeof database.submitTask !== "function" || typeof database.reconcileObjectives !== "function") throw new TypeError("Objective release database is invalid.");
@@ -15,7 +16,7 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
 
   database.submitTask = (input) => {
     if (input?.authoritySource !== AUTONOMY_OBJECTIVE_AUTHORITY) return originalSubmitTask(input);
-    const lease = input.capability === "codex.execute" ? requireLocalLease(database, input.allowedPaths) : null;
+    const lease = CONTAINED_CAPABILITIES.has(input.capability) ? requireLocalLease(database, input.allowedPaths) : null;
     const request = {
       intent: input.capability,
       requestedOutcome: input.requestedOutcome,
@@ -26,7 +27,7 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
       completionCriteria: input.completionCriteria,
       maximumAttempts: input.maximumAttempts,
       contentReferences: input.contentReferences ?? [],
-      ...(input.capability === "codex.execute" ? {
+      ...(CONTAINED_CAPABILITIES.has(input.capability) ? {
         baseCommit: input.baseCommit,
         allowedPaths: input.allowedPaths,
         integrationLeaseId: lease.leaseId,
@@ -51,8 +52,8 @@ export function installObjectiveReleaseAuthority({ database, manifest }) {
 
   database.reconcileObjectives = () => {
     const objectives = originalListObjectives(500).filter((item) => ["planned", "running"].includes(item.status));
-    const readyCodex = firstReadyCodexTask(objectives);
-    const lease = prepareObjectiveLease(database, readyCodex);
+    const readyContained = firstReadyContainedTask(objectives);
+    const lease = prepareObjectiveLease(database, readyContained);
     const allowedObjectiveIds = new Set(objectives.filter((objective) => objectiveCompatibleWithLease(objective, lease)).map((objective) => objective.id));
     const priorListObjectives = database.listObjectives;
     database.listObjectives = (limit = 100) => originalListObjectives(limit).filter((objective) => allowedObjectiveIds.has(objective.id));
@@ -91,11 +92,11 @@ function prepareObjectiveLease(database, readyCodex) {
   return lease;
 }
 
-function firstReadyCodexTask(objectives) {
+function firstReadyContainedTask(objectives) {
   for (const objective of objectives) {
     const byId = new Map(objective.tasks.map((task) => [task.id, task]));
     for (const task of objective.tasks) {
-      if (task.status !== "planned" || task.definition.capability !== "codex.execute") continue;
+      if (task.status !== "planned" || !CONTAINED_CAPABILITIES.has(task.definition.capability)) continue;
       if (!task.definition.dependsOn.every((dependency) => byId.get(dependency)?.status === "completed")) continue;
       return { objectiveId: objective.id, definition: task.definition };
     }
@@ -105,7 +106,7 @@ function firstReadyCodexTask(objectives) {
 
 function objectiveCompatibleWithLease(objective, lease) {
   const byId = new Map(objective.tasks.map((task) => [task.id, task]));
-  const ready = objective.tasks.filter((task) => task.status === "planned" && task.definition.capability === "codex.execute" && task.definition.dependsOn.every((dependency) => byId.get(dependency)?.status === "completed"));
+  const ready = objective.tasks.filter((task) => task.status === "planned" && CONTAINED_CAPABILITIES.has(task.definition.capability) && task.definition.dependsOn.every((dependency) => byId.get(dependency)?.status === "completed"));
   if (ready.length === 0) return true;
   if (!lease || lease.controllerId !== LOCAL_PRIMARY || lease.purpose !== `objective:${objective.id}`) return false;
   return ready.every((task) => leaseCovers(lease, task.definition.allowedPaths));
