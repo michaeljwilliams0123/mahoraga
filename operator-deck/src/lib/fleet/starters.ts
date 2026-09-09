@@ -28,7 +28,7 @@ const ARSENAL: Starter = {
 
 const LEDGER: Starter = {
   label: "Version ledger",
-  command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.1, and this operator deck.",
+  command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck.",
 };
 
 const PROTECT: Starter = {

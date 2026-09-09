@@ -80,7 +80,7 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
     severity: "p1",
     title: "Self-update produces a PR, it does not activate Windows",
     detail:
-      "Producer smoke on 2026-09-04 19:29Z returned candidate-ready and opened PR #97 (scan report, github-actions). PR #98 (integration dispatch gap) is still open and merge-blocked. The cycle does not merge, does not workflow_dispatch Autonomous Integration, and does not activate 7.0.0-alpha.1 on the live 3.6.0 Windows runtime. Scheduled greens after 19:39Z skipped the worker because window 0 is already tagged complete.",
+      "Producer smoke on 2026-09-04 19:29Z returned candidate-ready and opened PR #97 (scan report, github-actions). PR #98 (integration dispatch gap) is still open and merge-blocked. The cycle does not merge, does not workflow_dispatch Autonomous Integration, and does not activate 7.0.0-alpha.2 on the live 3.6.0 Windows runtime. Scheduled greens after 19:39Z skipped the worker because window 0 is already tagged complete.",
     owner: "repair",
   },
   {
@@ -102,9 +102,9 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
   {
     id: "alpha-not-production",
     severity: "p2",
-    title: "7.0.0-alpha.1 is not the live Windows runtime",
+    title: "7.0.0-alpha.2 is not the live Windows runtime",
     detail:
-      "Repository candidate is 7.0.0-alpha.1. Last verified production rollback remains 3.6.0. Docs correctly refuse to claim the Windows PID. This console talks to public GitHub, not your device.",
+      "Repository candidate is 7.0.0-alpha.2. Last verified production rollback remains 3.6.0. Docs correctly refuse to claim the Windows PID. This console talks to public GitHub, not your device.",
     owner: "assurance",
   },
 ];
