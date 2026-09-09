@@ -4,6 +4,22 @@ Mahoraga replicates useful capability patterns, not proprietary plugin code.
 The runtime owns task durability, discourse, routing, isolation, and verification;
 each execution surface is a replaceable provider adapter.
 
+## Conversation admission policy
+
+The unified workspace authorizes cost policy, not a provider identity. Its
+automatic/default conversation policy is `zero-codex`: deterministic,
+`local-model`, and independently verified zero-dollar generation lanes may be
+admitted when their normal readiness evidence is fresh. `licensed-cloud`, paid
+API, subscription-backed, stale-billing, and unknown-cost routes are never
+silently substituted for that policy.
+
+The transient Codex CLI-backed `question-model` is intentionally classified
+`licensed-cloud`. It may answer only when the owner explicitly retries one
+rejected answer as `licensed-approved`. The core accepts that policy only when
+classification is exactly `assistant.respond`; objectives, `codex.execute`,
+`self.evolve`, repository mutation, build, review, and other action capabilities
+fail closed before persistence. A zero-credit rejection never triggers this
+policy automatically, and the browser still cannot select the concrete provider.
 ## GitHub Copilot CLI execution lane
 
 The `github-copilot` worker is an isolated, disabled-by-default licensed-cloud
@@ -78,7 +94,7 @@ select, upload, download, wait, screenshot, network, console, and close. The
 secondary runtime adapter now implements isolated Chrome health only; its former
 loopback Control Center smoke and observation routes are retired with that UI.
 Interactive browser work belongs to the approval-gated isolated cloud browser
-in the unified Vercel workspace. The health worker rejects an unowned loopback
+in the unified browser workspace. The health worker rejects an unowned loopback
 CDP endpoint rather than attaching to an existing user browser. Signed-session
 Chrome and in-app-browser bindings remain disabled pending explicit one-time
 user approval; the normal Chrome profile and cookies are never

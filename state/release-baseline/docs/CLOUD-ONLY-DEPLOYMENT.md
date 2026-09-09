@@ -47,7 +47,7 @@ Provide choices and connector authorization, not secret values in chat or Git:
 5. **Zero-credit generation provider:** supply the endpoint/model choice for an
    open-weight provider and evidence that its model billing is unmetered with a
    hard zero-dollar ceiling. Without this, deterministic tasks work but ordinary
-   generated conversation correctly waits rather than spending Codex credits.
+   generated conversation correctly fails closed rather than spending Codex credits automatically. The owner may explicitly authorize one `licensed-approved` answer turn; that authorization is never inferred and cannot authorize actions or repository mutation.
 6. **Cloud browser provider:** authorize an isolated browser service and provide
    the domain allowlist. No local Chrome extension or local-file access is used.
 7. **Cloudflare relay access:** retain the account configuration that owns
@@ -79,7 +79,10 @@ site. An example for the Workers candidate is in
 The relay uses `MAHORAGA_OWNER_IDENTITY`, `MAHORAGA_WORKSPACE_ORIGIN`,
 `MAHORAGA_LOCAL_RELAY_TOKEN`, and the `RELAY_SESSIONS` Durable Object binding.
 The runtime receives the matching local relay access token only in its protected
-environment. Deployment metadata does not contain credentials.
+environment. Deployment metadata does not contain credentials. A successful
+remote pair creates a high-entropy browser resume credential; only its SHA-256
+digest is retained in Durable Object session state. The raw credential remains
+browser-scoped and expires with the bounded relay session.
 
 No `GITHUB_TOKEN` or `GITLAB_TOKEN` is accepted merely to light up a UI badge.
 Normal GitHub automation remains deterministic and no browser host becomes a
@@ -94,8 +97,18 @@ direct GitHub mutation authority.
 - No legacy `cloud/`, `web/`, loopback frontend, historical duplicate Vercel
   project, or tunnel is treated as canonical production.
 - The default route is `zero-codex`; a missing provider produces a bounded
-  unavailable state and no paid model invocation.
-- Relay owner/origin rejection, encrypted round-trip, replay rejection, revoke,
-  and rollback canaries pass against the exact production origin.
+  **Degraded** state and no paid or licensed model invocation. An optional
+  `licensed-approved` retry requires an explicit owner action for that one
+  `assistant.respond` turn and cannot authorize build/review/action capabilities.
+- First pairing is explicit; subsequent normal reload follows
+  **Connecting -> Idle**, an accepted turn follows **Awake -> Idle**, and an
+  expired/revoked/invalid stored session returns to **Offline** and manual
+  pairing without weakening authentication.
+- Relay owner/origin rejection, encrypted round-trip, replay rejection,
+  `reattach-remote`, wrong-resume-proof rejection, revoke, and rollback canaries
+  pass against the exact production origin.
+- Browser persistence contains only relay-scoped reconnect material and a
+  non-extractable AES-GCM key. It contains no GitHub/provider/runtime bearer/API
+  credential and no conversation plaintext.
 - Browser execution is isolated, domain-allowlisted, approval-gated, and produces
   no mutation on the device displaying the workspace.
