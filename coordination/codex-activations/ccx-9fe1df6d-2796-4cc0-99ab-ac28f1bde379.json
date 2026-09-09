@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "taskId": "ccx-9fe1df6d-2796-4cc0-99ab-ac28f1bde379",
+  "idempotencyKey": "mahoraga-codex-cloud-dispatch-policy-v1",
+  "taskFingerprintSha256": "37e9f07b00b428004feb37770a6c31c1bd796dfb9c8cb1313370a27b4b76c844",
+  "taskBaseCommit": "6ebc15439d54f73d6f6b1d70d36a978581ce4da6",
+  "sourceTaskPath": "coordination/cloud-tasks/ccx-9fe1df6d-2796-4cc0-99ab-ac28f1bde379.json",
+  "createdBy": "github-actions",
+  "privacy": {
+    "chatAccess": false,
+    "conversationTranscriptIncluded": false,
+    "credentialsIncluded": false,
+    "contentBoundary": "task-metadata-and-repository-context-only"
+  }
+}
