@@ -1,0 +1,33 @@
+{
+  "registration": {
+    "schemaVersion": 1,
+    "kind": "codex-github-identity",
+    "instanceId": "codex-f4e041f6cb03a4936a21",
+    "label": "OpenAI Codex Workspace Primary",
+    "repository": "michaeljwilliams0123/mahoraga",
+    "githubActor": "michaeljwilliams0123",
+    "authorityProfile": "equal-primary-controller-v1",
+    "publicKeyFingerprint": "f4e041f6cb03a4936a210f3274ba561ba3575c9f204b880043e1c24b53280a77",
+    "publicKey": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAnfvPe5yZpIfQPAifkDtoo1HYnZbPsE6mxwpK5XBo7Ww=\n-----END PUBLIC KEY-----\n",
+    "createdAt": "2026-09-09T12:29:25.035Z",
+    "proof": {
+      "algorithm": "ed25519",
+      "signature": "jVwaW42ZV0rb1+JIGWtJbfTlSsEvCaE4iiYouePExP0IVOSf4lZk4ukeCupYpAK90mzb9UKBqitrBYXImkoPDw=="
+    }
+  },
+  "handshake": {
+    "schemaVersion": 1,
+    "kind": "codex-github-handshake",
+    "instanceId": "codex-f4e041f6cb03a4936a21",
+    "repository": "michaeljwilliams0123/mahoraga",
+    "authorityProfile": "equal-primary-controller-v1",
+    "registrationSha256": "65b0bf206b95389a7c251a03fd80eb09280ee7812370a72e5632bcc1bdadb329",
+    "baseCommit": "980e4eb10e3adf247c909f3340877b28a701e815",
+    "nonce": "72eb4ceb9fbaaed41f65de22cf28c51d",
+    "createdAt": "2026-09-09T12:29:25.086Z",
+    "proof": {
+      "algorithm": "ed25519",
+      "signature": "9UrueO1zbcOCVhitsPUv/hxIfT9kE7TqpR4RUtOsF4VrF+LsBpct3hFnnsGpV3epVAcy8hEd6mqT6lAuarAOBw=="
+    }
+  }
+}
