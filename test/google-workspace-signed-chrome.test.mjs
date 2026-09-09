@@ -124,6 +124,7 @@ test("signed Chrome open stores no URL path, query, browser profile, or page-con
 
 test("effective manifest exposes Google Workspace and signed Chrome as attended first-class workers and connections", async () => {
   const { manifest, google, chrome } = await workers();
+  assert.equal(manifest.browser.signedSessionEnabled, true);
   assert.deepEqual(google.capabilities, ["google.health", "google.open"]);
   assert.equal(google.routing.requiresAttendedDesktop, true);
   assert.equal(google.policy.directGoogleApiAuthentication, false);

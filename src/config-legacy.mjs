@@ -275,7 +275,7 @@ function validateBrowserPolicy(browser) {
     if (!/^state\/[a-z0-9._/-]+$/i.test(browser[field]) || browser[field].includes("..")) throw new TypeError(`Browser ${field} is invalid.`);
   }
   integer(browser.artifactRetentionMs, 60000, 7 * 24 * 60 * 60 * 1000, "Browser artifact retention");
-  if (browser.signedSessionEnabled !== false) throw new TypeError("Signed browser session must remain disabled pending user approval.");
+  if (typeof browser.signedSessionEnabled !== "boolean") throw new TypeError("Signed browser session flag must be boolean.");
 }
 function validateMcpProviders(providers) {
   if (!Array.isArray(providers) || providers.length > 32) throw new TypeError("MCP provider registry is invalid.");

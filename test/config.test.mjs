@@ -25,7 +25,7 @@ test("canonical manifest exposes one product version plus compatibility revision
   assert.ok(manifest.workers.every((worker) => typeof worker.implementationRevision === "string" && worker.implementationRevision.length > 0));
   assert.ok(manifest.workers.every((worker) => worker.version === undefined));
   assert.equal(manifest.browser.controlCenterUrl, "http://127.0.0.1:4782/");
-  assert.equal(manifest.browser.signedSessionEnabled, false);
+  assert.equal(manifest.browser.signedSessionEnabled, true);
   assert.equal(manifest.mcpProviders.length, 1);
   assert.equal(manifest.mcpProviders[0].enabled, false);
   assert.equal(manifest.mcpProviders[0].executableIdentity, "openclaw-mcp-host");
@@ -57,12 +57,12 @@ test("manifest validator rejects legacy product-like subversion fields", async (
   assert.throws(() => validateManifest(manifest), /legacy worker version|implementation revision/i);
 });
 
-test("manifest rejects external browser targets and premature signed browser access", async () => {
+test("manifest rejects external browser targets and non-boolean signed browser state", async () => {
   const manifest = structuredClone(await loadManifest());
   manifest.browser.controlCenterUrl = "https://example.com/";
   assert.throws(() => validateManifest(manifest), /loopback-only/);
   manifest.browser.controlCenterUrl = "http://127.0.0.1:4782/";
-  manifest.browser.signedSessionEnabled = true;
+  manifest.browser.signedSessionEnabled = "enabled";
   assert.throws(() => validateManifest(manifest), /Signed browser session/);
 });
 

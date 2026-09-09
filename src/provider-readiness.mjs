@@ -1,5 +1,5 @@
 export async function collectProviderReadiness(probes, { now = () => new Date() } = {}) {
-  const required = ["desktop", "microsoft365", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
+  const required = ["desktop", "microsoft365", "signedChrome", "googleWorkspace", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
   for (const name of required) if (typeof probes?.[name] !== "function") throw new TypeError(`provider-readiness-probe-missing:${name}`);
 
   const entries = await Promise.all(required.map(async (name) => {
@@ -10,6 +10,8 @@ export async function collectProviderReadiness(probes, { now = () => new Date() 
   const providers = Object.freeze({
     desktop: desktopState(raw.desktop),
     microsoft365: microsoft365State(raw.microsoft365),
+    signedChrome: signedChromeState(raw.signedChrome),
+    googleWorkspace: googleWorkspaceState(raw.googleWorkspace),
     microsoftQueue: queueState(raw.microsoftQueue),
     localReasoner: localReasonerState(raw.localReasoner),
     githubCopilot: copilotState(raw.githubCopilot),
@@ -35,6 +37,33 @@ function desktopState(result) {
     platformSupported: receipt.platformSupported === true,
     interactive: receipt.interactive === true,
     allowlistedApplicationTypesVisible: Array.isArray(receipt.applications) ? receipt.applications.length : 0,
+  });
+}
+
+function signedChromeState(result) {
+  const health = result?.providerHealth ?? {};
+  return Object.freeze({
+    verified: result?.verified === true,
+    platformSupported: health.platformSupported === true,
+    attendedSession: health.attendedSession === true,
+    visibleChrome: health.visibleChrome === true,
+    visibleWindowCount: boundedCount(health.visibleWindowCount, 32),
+    chromeInstalled: health.chromeInstalled === true,
+  });
+}
+
+function googleWorkspaceState(result) {
+  const health = result?.providerHealth ?? {};
+  return Object.freeze({
+    verified: result?.verified === true,
+    platformSupported: health.platformSupported === true,
+    attendedSession: health.attendedSession === true,
+    visibleChrome: health.visibleChrome === true,
+    visibleWindowCount: boundedCount(health.visibleWindowCount, 32),
+    chromeInstalled: health.chromeInstalled === true,
+    approvedHostCount: boundedCount(health.approvedHostCount, 32),
+    directGoogleApiAuthentication: false,
+    contentAccessVerified: false,
   });
 }
 
@@ -115,7 +144,7 @@ export function summarizeConnectorReadiness(report) {
     Object.freeze({ connectorId: "github", family: "github", trustState: "ready", capabilities: Object.freeze(["repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "file", family: "file", trustState: "ready", capabilities: Object.freeze(["artifact.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "microsoft", family: "microsoft", trustState: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "m365.open"]), lastHealthyAt: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? null : "connector-not-ready", zeroCreditReady: providers.microsoftQueue?.silentAuthAvailable === true || providers.microsoft365?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
-    Object.freeze({ connectorId: "google", family: "google", trustState: "degraded", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "google.open"]), lastHealthyAt: null, lastFailureCode: "readiness-not-yet-probed", zeroCreditReady: false, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "google", family: "google", trustState: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "google.open"]), lastHealthyAt: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? report.generatedAt : null, lastFailureCode: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? null : "connector-not-ready", zeroCreditReady: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "queue", family: "queue", trustState: providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond"]), lastHealthyAt: providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoftQueue?.verified === true ? null : "queue-not-ready", zeroCreditReady: providers.microsoftQueue?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "owner", family: "owner", trustState: "ready", capabilities: Object.freeze(["assistant.respond", "repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
   ]);

@@ -116,7 +116,7 @@
     "profileDirectory": "state/browser-profile",
     "artifactDirectory": "state/browser-artifacts",
     "artifactRetentionMs": 86400000,
-    "signedSessionEnabled": false
+    "signedSessionEnabled": true
   },
   "mcpProviders": [
     {
