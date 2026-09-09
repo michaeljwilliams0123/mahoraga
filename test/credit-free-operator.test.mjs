@@ -43,7 +43,7 @@ test("MCP spending class is fail-closed", () => {
 
 test("owner GitHub operator may read, create, modify, administer, repair, and merge at $0", () => {
   for (const action of [
-    "inspect", "create", "modify", "administer", "repair", "comment", "assign", "merge-exact-head", "close-superseded", "close-empty-wip",
+    "inspect", "create", "modify", "administer", "repair", "comment", "assign", "merge-exact-head", "close-superseded", "close-empty-wip", "hold-host-bound",
   ]) {
     const admitted = admitOwnerGitHubOperator({ action });
     assert.equal(admitted.ok, true, action);
@@ -114,4 +114,20 @@ test("empty Copilot WIP drafts are close-eligible at $0", () => {
     title: "fix: hold autonomous merge for required checks",
   });
   assert.equal(active.closeEligible, false);
+  const overlap = classifyOperatorPullRequest({
+    draft: false,
+    changedFiles: ["operator-deck/VERSIONS.md", "cloud-app/components/cockpit/CommandCockpit.tsx"],
+    commits: 2,
+    title: "fix: align UI version surfaces to 7.0.0-alpha.2",
+    userLogin: "Copilot",
+    landedPaths: ["operator-deck/VERSIONS.md", "cloud-app/components/cockpit/CommandCockpit.tsx", "src/autonomous-integration.mjs"],
+  });
+  assert.equal(overlap.kind, "superseded-overlap");
+  assert.equal(overlap.closeEligible, true);
+  assert.equal(overlap.creditCost, 0);
+});
+
+test("host-bound issues are an admitted $0 hold, not a close", () => {
+  assert.equal(admitOwnerGitHubOperator({ actor: "grok-build", action: "hold-host-bound" }).ok, true);
+  assert.equal(admitOwnerGitHubOperator({ actor: "grok-build", action: "hold-host-bound" }).creditCost, 0);
 });
