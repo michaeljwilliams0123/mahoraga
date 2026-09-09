@@ -55,11 +55,11 @@ jobs:
         shell: bash
         env:
           VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          git fetch origin main --depth=1
           checked_out="$(git rev-parse HEAD)"
-          current_main="$(git rev-parse origin/main)"
+          current_main="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
           if [ "$checked_out" != "$VERIFIED_SHA" ] || [ "$current_main" != "$VERIFIED_SHA" ]; then
             echo "::error::stale-verified-main checked_out=$checked_out current_main=$current_main verified=$VERIFIED_SHA"
             exit 1
@@ -101,6 +101,7 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Attest release provenance
+        if: github.event.repository.private == false
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
