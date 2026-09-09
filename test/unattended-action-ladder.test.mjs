@@ -6,7 +6,7 @@ import { planUnattendedAction } from "../src/unattended-action-ladder.mjs";
 import { summarizeConnectorReadiness } from "../src/provider-readiness.mjs";
 
 const readiness = {
-  generatedAt: "2026-09-09T00:00:00.000Z",
+  generatedAt: "2099-09-09T00:00:00.000Z",
   providers: {
     microsoft365: { verified: true },
     microsoftQueue: { verified: true, silentAuthAvailable: true },

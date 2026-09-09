@@ -89,7 +89,7 @@ test("omnichannel envelopes derive the same bounded task policy surface", () => 
     routeHint: { capability: "repository.inspect", actionPackId: "github-status-report" },
     metadata: { branch: "feature/x" },
     zeroCreditEligible: true,
-  }, { now: "2026-09-09T00:00:00.000Z" });
+  }, { now: "2099-09-09T00:00:00.000Z" });
   const policy = deriveTaskPolicyFromOmnichannelEnvelope(envelope, { manifest });
   assert.equal(policy.intent, "repository.inspect");
   assert.equal(policy.dataClass, "local-only");
