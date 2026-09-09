@@ -193,6 +193,11 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, metered inference, delete-ref, and host-mutating actions mixed with untrusted content fail closed. Chat is not the scheduler. Codespaces start is metered billed compute.",
   });
+  record(closed, has("src/host-bound-gaps.mjs") && has("test/host-bound-gaps.test.mjs"), {
+    id: "host-bound-gap-hold",
+    priority: "high",
+    summary: "Host-only issues (Vercel duplicates, Destiny phone enrollment, Windows 4783 canary, signed identity, dormant probe, delete-ref, stale Destiny base) hold at $0 instead of being retried as repo-closeable work.",
+  });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
     priority: "high",

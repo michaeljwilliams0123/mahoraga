@@ -9,13 +9,13 @@ const CONTRACT_IDS = [
   "desktop-worker-contract", "microsoft-queue-readiness-contract", "local-provider-readiness-probe", "local-reasoner-health-contract",
   "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit",
   "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger",
-  "core-owned-cloud-containment", "credit-free-github-operator", "autonomous-integration-required-checks-hold", "signed-browser-session",
+  "core-owned-cloud-containment", "credit-free-github-operator", "autonomous-integration-required-checks-hold", "host-bound-gap-hold", "signed-browser-session",
   "secondary-codex-mailbox", "no-default-metered-openai-api", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const FILE_BACKED_IDS = [
   "cross-platform-ci", "desktop-worker-contract", "microsoft-queue-readiness-contract",
-  "local-provider-readiness-probe", "local-reasoner-health-contract", "signed-browser-session", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "core-owned-cloud-containment", "credit-free-github-operator", "autonomous-integration-required-checks-hold", "owner-approved-cloud-gateway", "verified-attested-update-channel",
+  "local-provider-readiness-probe", "local-reasoner-health-contract", "signed-browser-session", "credit-free-heartbeat", "credit-free-heartbeat-ledger", "unattended-cycle-memory", "unattended-scheduler-memory", "unattended-generation-admit", "steward-two-hour-learning", "destiny-trigger-trust", "local-reasoner-channel", "unattended-credit-free-cycle", "github-live-main-protection", "sovereign-cycle-hold-noop", "single-product-identity", "destiny-event-delivery-matrix", "destiny-trigger-metrics", "branch-cleanup-ledger", "core-owned-cloud-containment", "credit-free-github-operator", "autonomous-integration-required-checks-hold", "host-bound-gap-hold", "owner-approved-cloud-gateway", "verified-attested-update-channel",
 ];
 
 const RUNTIME_BLOCKED_IDS = ["microsoft-durable-queue", "local-reasoner"];
