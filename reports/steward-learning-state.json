@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "zeroCredit": true,
   "learningMode": "deterministic-compounding-growth",
-  "sourceFingerprint": "d15cbaaa5e2789879bcc1bf42f7845582b202b9a2b106b21af888fda454ed9a3",
-  "stateFingerprint": "8cd78d3ce5a00618fa853be09fdb9720a921266151ffabda74e79b45fabe6fd7",
+  "sourceFingerprint": "e716bf852fee0edc2f5c592a0bb2d02602d897a0f9f94a0f2e558e50ffd4323b",
+  "stateFingerprint": "ce4f64b6f93a84fa32c9db602cad68d7fde29088b8f2a8a26bc0ef538e24036e",
   "childAgentCount": 9,
   "featLedger": {
     "schemaVersion": 1,
-    "sourceFingerprint": "d15cbaaa5e2789879bcc1bf42f7845582b202b9a2b106b21af888fda454ed9a3",
+    "sourceFingerprint": "e716bf852fee0edc2f5c592a0bb2d02602d897a0f9f94a0f2e558e50ffd4323b",
     "feats": [],
     "reusableFeatIds": [],
     "byAgent": {}
@@ -16,32 +16,11 @@
     "schemaVersion": 1,
     "kind": "level8-growth-compounding-loop",
     "observedAt": "2026-09-05T06:50:00.000Z",
-    "sourceFingerprint": "313af1b0f2fff0f42e9fc2cb1ddac2573cb2e4ae0c2ba44e7fe4bae2142fb99d",
-    "fingerprint": "e4aaf902b8f93c312ff64ce9cc61286dc8be88655d190cc33a133ae3881f2477",
+    "sourceFingerprint": "89984cad7420b74d46c578c7cde9c020d0bdd9017d8bc1060a9807ade3a422c4",
+    "fingerprint": "d70faca76672e95b66ccf2fd691647cef0aaa6e3260c726d2f87bd001fbdb734",
     "memory": {
       "schemaVersion": 1,
       "records": [
-        {
-          "schemaVersion": 1,
-          "memoryId": "mem-08b01c2f5a261d832ea4dd2468d4251f",
-          "memoryClass": "observation",
-          "subject": "signed-browser-session",
-          "statement": "Signed-in Chrome session control is not active.",
-          "provenance": "entity-inference",
-          "confidence": 0.9,
-          "freshness": "current",
-          "objectiveIds": [
-            "obj-signed-browser-session"
-          ],
-          "evidenceRefs": [
-            "gap-signed-browser-session"
-          ],
-          "capability": "signed-browser-session",
-          "supersedes": [],
-          "observedAt": "2026-09-05T06:50:00.000Z",
-          "zeroCredit": true,
-          "providerRequired": false
-        },
         {
           "schemaVersion": 1,
           "memoryId": "mem-921b8c33453e596ad6feac29e961b47d",
@@ -86,12 +65,11 @@
         }
       ],
       "activeMemoryIds": [
-        "mem-08b01c2f5a261d832ea4dd2468d4251f",
         "mem-921b8c33453e596ad6feac29e961b47d",
         "mem-9dc678c52e842461c985bad644650a68"
       ],
       "supersededMemoryIds": [],
-      "fingerprint": "dfcae31c2597e6642044098684ca44018aca5ffbc9cd6e3c92061c7ca4a9ff3e",
+      "fingerprint": "0d214200d97598a2ff54005f0dd3af8985366852b1fa6fb9c699e181e9278940",
       "zeroCredit": true,
       "providerRequired": false
     },
@@ -103,25 +81,6 @@
         "origin": "capability-gap",
         "state": "candidate",
         "fingerprint": "4d0d5a3e7cd250c3dc80120b4d40638449491fcea4487a17fe0abf1bc6a58563",
-        "createdAt": "2026-09-05T06:50:00.000Z",
-        "updatedAt": "2026-09-05T06:50:00.000Z",
-        "missionAlignment": 95,
-        "impact": 90,
-        "urgency": 85,
-        "confidence": 90,
-        "dependencyReadiness": 80,
-        "reversibility": 85,
-        "costEfficiency": 100,
-        "capabilityReadiness": 70,
-        "evidenceQuality": 80
-      },
-      {
-        "schemaVersion": 1,
-        "objectiveId": "obj-signed-browser-session",
-        "title": "Close signed-browser-session capability gap",
-        "origin": "capability-gap",
-        "state": "candidate",
-        "fingerprint": "77ecd6fdbd710f1fe65d57bc97c511778fb0c8d886384da97aedefbc385928f0",
         "createdAt": "2026-09-05T06:50:00.000Z",
         "updatedAt": "2026-09-05T06:50:00.000Z",
         "missionAlignment": 95,
@@ -158,65 +117,7 @@
       "schemaVersion": 1,
       "entityId": "mahoraga",
       "parentAgentId": "mahoraga-steward",
-      "units": [
-        {
-          "schemaVersion": 1,
-          "unitId": "local-reasoner",
-          "role": "local-reasoner",
-          "mission": "Local reasoning provider execution is not active, although loopback readiness diagnostics are now implemented.",
-          "capabilities": [
-            "local-reasoner"
-          ],
-          "workloadClasses": [
-            "reasoning"
-          ],
-          "persistent": true,
-          "authority": "internal-function",
-          "sharedMemory": true,
-          "sharedFeatLedger": true,
-          "zeroCredit": true,
-          "providerRequired": false,
-          "createdAt": "2026-09-05T06:50:00.000Z"
-        },
-        {
-          "schemaVersion": 1,
-          "unitId": "microsoft-durable-queue",
-          "role": "microsoft-durable-queue",
-          "mission": "Microsoft durable queue code and unattended-readiness diagnostics are prepared, but production polling is not active.",
-          "capabilities": [
-            "microsoft-durable-queue"
-          ],
-          "workloadClasses": [
-            "work-systems"
-          ],
-          "persistent": true,
-          "authority": "internal-function",
-          "sharedMemory": true,
-          "sharedFeatLedger": true,
-          "zeroCredit": true,
-          "providerRequired": false,
-          "createdAt": "2026-09-05T06:50:00.000Z"
-        },
-        {
-          "schemaVersion": 1,
-          "unitId": "signed-browser-session",
-          "role": "signed-browser-session",
-          "mission": "Signed-in Chrome session control is not active.",
-          "capabilities": [
-            "signed-browser-session"
-          ],
-          "workloadClasses": [
-            "browser"
-          ],
-          "persistent": true,
-          "authority": "internal-function",
-          "sharedMemory": true,
-          "sharedFeatLedger": true,
-          "zeroCredit": true,
-          "providerRequired": false,
-          "createdAt": "2026-09-05T06:50:00.000Z"
-        }
-      ],
+      "units": [],
       "plans": [],
       "plannedUnits": [],
       "sharedFeatIds": [],
@@ -226,21 +127,21 @@
       "sharedFeatLedger": true,
       "zeroCredit": true,
       "providerRequired": false,
-      "fingerprint": "14682debdd8276b7dc2406ca9478db9ef55174f7b574b622e5ab0569ae0e982d"
+      "fingerprint": "523394602f3efa7abe787db3383aef407882d0be194dc75b74167cd2dc90c4c8"
     },
     "featLedger": {
       "schemaVersion": 1,
-      "sourceFingerprint": "313af1b0f2fff0f42e9fc2cb1ddac2573cb2e4ae0c2ba44e7fe4bae2142fb99d",
+      "sourceFingerprint": "89984cad7420b74d46c578c7cde9c020d0bdd9017d8bc1060a9807ade3a422c4",
       "feats": [],
       "reusableFeatIds": [],
       "byAgent": {}
     },
     "promotedCapabilities": [],
     "growthMetrics": {
-      "activeMemoryCount": 3,
-      "objectiveCount": 3,
+      "activeMemoryCount": 2,
+      "objectiveCount": 2,
       "plannedUnitCount": 0,
-      "organizationUnitCount": 3,
+      "organizationUnitCount": 0,
       "reusableFeatCount": 0,
       "promotedCapabilityCount": 0
     },
