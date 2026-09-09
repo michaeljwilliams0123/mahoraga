@@ -168,3 +168,62 @@ test("owner chat can target exact registered capabilities without opening public
   assert.equal(verifyBody.task.capability, "repository.verify");
   assert.equal(verifyBody.objective, null);
 });
+
+test("licensed-approved admits only one explicit answer turn", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-licensed-answer-chat-"));
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: Buffer.alloc(32, 53),
+    primaryCodexToken: TOKEN,
+    syncCoordinationMailbox: false,
+  });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+
+  const answer = await fetch(`${base}/api/chat`, {
+    method: "POST", headers: AUTH,
+    body: JSON.stringify({ mode: "auto", content: "Explain why it rains", creditPolicy: "licensed-approved", idempotencyKey: "licensed-answer" }),
+  });
+  assert.equal(answer.status, 202);
+  const answerBody = await answer.json();
+  assert.equal(answerBody.task.capability, "assistant.respond");
+  assert.equal(answerBody.objective, null);
+
+  const beforeConversations = runtime.database.listConversations().length;
+  const beforeObjectives = runtime.database.listObjectives().length;
+  const action = await fetch(`${base}/api/chat`, {
+    method: "POST", headers: AUTH,
+    body: JSON.stringify({ mode: "act", content: "Update the repository", creditPolicy: "licensed-approved", idempotencyKey: "licensed-action" }),
+  });
+  assert.equal(action.status, 400);
+  assert.equal((await action.json()).error, "licensed-policy-answer-only");
+  assert.equal(runtime.database.listConversations().length, beforeConversations);
+  assert.equal(runtime.database.listObjectives().length, beforeObjectives);
+});
+
+test("paired relay preserves zero-codex by default and passes only explicit licensed approval", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-relay-licensed-chat-"));
+  const runtime = await startRuntime({
+    port: 0,
+    databaseFile: path.join(root, "runtime.sqlite"),
+    contentVaultMasterKey: Buffer.alloc(32, 59),
+    primaryCodexToken: TOKEN,
+    syncCoordinationMailbox: false,
+  });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const context = {
+    mechanism: "owner-paired-relay",
+    attendedSession: { active: true, sessionId: "rls-11111111111111111111111111111111" },
+  };
+
+  await assert.rejects(
+    () => runtime.server.conversationGateway.chat({ mode: "auto", content: "Explain rain", creditPolicy: "standard", idempotencyKey: "relay-standard" }, context),
+    /zero-credit-provider-unavailable/,
+  );
+  const licensed = await runtime.server.conversationGateway.chat({
+    mode: "auto", content: "Explain rain", creditPolicy: "licensed-approved", idempotencyKey: "relay-licensed",
+  }, context);
+  assert.equal(licensed.task.capability, "assistant.respond");
+  assert.equal(licensed.objective, null);
+});
