@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { deriveTaskPolicy, deriveTaskPolicyFromOmnichannelEnvelope, policyTaskInput, sanitizeTaskIntake } from "../src/task-policy.mjs";
 import { createOmnichannelEnvelope } from "../src/omnichannel-intake.mjs";
 
+const NOW = new Date().toISOString();
+
 const manifest = {
   defaultAutonomyMode: "hybrid",
   queue: { maximumAttempts: 3 },
@@ -89,7 +91,7 @@ test("omnichannel envelopes derive the same bounded task policy surface", () => 
     routeHint: { capability: "repository.inspect", actionPackId: "github-status-report" },
     metadata: { branch: "feature/x" },
     zeroCreditEligible: true,
-  }, { now: "2026-09-09T00:00:00.000Z" });
+  }, { now: NOW });
   const policy = deriveTaskPolicyFromOmnichannelEnvelope(envelope, { manifest });
   assert.equal(policy.intent, "repository.inspect");
   assert.equal(policy.dataClass, "local-only");

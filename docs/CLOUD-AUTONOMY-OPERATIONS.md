@@ -19,6 +19,23 @@ Cloud work occurs in GitHub, GitLab, Vercel, or another explicitly authorized ma
 | Semantic procedures | managed Qdrant or secondary-host Qdrant | no raw chats, prompts, responses, credentials, or enterprise content |
 | MCP routing | reviewed gateway image | typed allowlist; no generic filesystem or shell exposure |
 
+
+## Secondary-host compose profiles
+
+The secondary-host stack now supports baseline orchestration and optional local-AI profiles through `/home/runner/work/mahoraga/mahoraga/deploy/secondary-host/docker-compose.yml` and `/home/runner/work/mahoraga/mahoraga/deploy/secondary-host/.env.example`.
+
+- Baseline secondary host (n8n, Qdrant, MCP gateway): `docker compose --env-file .env up -d`
+- Primary-style local AI (CPU): `docker compose --env-file .env --profile primary-cpu up -d`
+- Primary-style local AI (NVIDIA GPU): `docker compose --env-file .env --profile primary-gpu-nvidia up -d`
+- Primary-style local AI (AMD GPU): `docker compose --env-file .env --profile primary-gpu-amd up -d`
+
+Operational notes:
+
+- Keep binds loopback by default; publish beyond loopback only with explicit review.
+- NVIDIA profiles require a host with NVIDIA Container Toolkit/driver runtime configured.
+- AMD profiles require `/dev/kfd` and `/dev/dri` device access.
+- On Docker Desktop (including Apple Silicon), `host.docker.internal` is used as the default host fallback for external Ollama connectivity.
+
 ## Promotion gates
 
 1. Synthetic and adversarial evaluations pass.
