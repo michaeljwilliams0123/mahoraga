@@ -57,6 +57,15 @@ session token; a second holder receives HTTP 409 plus visible overlap evidence:
 - `POST /api/coordination/integration-lease/acquire`
 - `POST /api/coordination/integration-lease/release`
 
+An individual Codex installation may additionally publish an Ed25519 identity
+handshake under `coordination/controller-identities/`. This lets repository
+records distinguish installations that share the GitHub actor without creating
+a new authority tier: every admitted record names
+`equal-primary-controller-v1`. The signature proves continuity of the local
+installation key and binds it to this repository and a base commit. It does not
+prove GitHub authentication or grant platform permissions; repository acceptance
+occurs only when the record is merged through the normal protected path.
+
 1. Start from the code commit the secondary implementation must retain. That
    commit becomes the assignment's immutable `expectedBaseCommit`.
 2. Create the assignment:

@@ -330,3 +330,14 @@ reason to buy Codex review. The merge job exits cleanly with
 `hold-required-checks` and retries when the next exact-head Verify completes.
 Grok Build is a credit-free GitHub operator for inspect/repair/merge/close of
 empty WIP drafts. It does not schedule work and does not invoke paid inference.
+
+## Host-bound holds
+
+Not every open issue is repo-closeable. Destiny phone enrollment, live Windows
+4783 canary, Vercel account cleanup, signed Destiny identity, dormant probes,
+and ref deletion are **host-bound**. `src/host-bound-gaps.mjs` classifies them
+as `hold-host-bound` at `$0`. Retrying them from GitHub, creating extra Vercel
+projects, or buying a Codex/Destiny probe is not a recovery path. Overlapping
+Copilot PRs whose files already landed are `superseded-overlap` and
+close-eligible without paid review.
+

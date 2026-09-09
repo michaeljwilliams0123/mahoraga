@@ -28,6 +28,8 @@
     "codex-cloud:list": "node scripts/codex-cloud-task.mjs list",
     "codex-cloud:dispatch-bundle": "node scripts/codex-cloud-task.mjs dispatch-bundle",
     "codex-cloud:validate": "node scripts/codex-cloud-task.mjs validate",
+    "codex:handshake": "node scripts/codex-github-handshake.mjs",
+    "codex:handshake:validate": "node scripts/codex-github-handshake.mjs validate",
     "codex-cloud:render": "node scripts/codex-cloud-task.mjs render",
     "destiny:create": "node scripts/destiny-codex-dispatch.mjs create",
     "destiny:validate": "node scripts/destiny-codex-dispatch.mjs validate",
@@ -44,7 +46,7 @@
     "baseline:verify": "node scripts/create-release-baseline.mjs --verify",
     "test": "node --test --test-isolation=none",
     "test:alpha": "node --test --test-isolation=none",
-    "verify": "node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
+    "verify": "node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs"

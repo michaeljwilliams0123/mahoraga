@@ -1,4 +1,7 @@
 import { classifyAutonomyProvider, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
+import { classifyHostBoundGap, nextCreditFreeIssueAction } from "./host-bound-gaps.mjs";
+
+export { classifyHostBoundGap, nextCreditFreeIssueAction };
 
 export const CREDIT_FREE_OPERATOR_ACTORS = Object.freeze(["grok-github-mcp", "grok-build", "github-operator", "chatgpt-github-mcp"]);
 export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
@@ -12,6 +15,7 @@ export const CREDIT_FREE_OPERATOR_ACTIONS = Object.freeze([
   "merge-exact-head",
   "close-superseded",
   "close-empty-wip",
+  "hold-host-bound",
 ]);
 export const HOST_MUTATING_OPERATOR_ACTIONS = Object.freeze([
   "create",
@@ -95,6 +99,7 @@ export function classifyOperatorPullRequest({
   commits = 0,
   title = "",
   userLogin = "",
+  landedPaths = [],
 } = {}) {
   const files = Array.isArray(changedFiles) ? changedFiles : [];
   const commitCount = Number.isFinite(Number(commits)) ? Number(commits) : 0;
@@ -106,6 +111,17 @@ export function classifyOperatorPullRequest({
       closeEligible: true,
       reason: "empty-wip-draft",
       actorHint: String(userLogin ?? "").toLowerCase() === "copilot" ? "copilot-empty-wip" : "empty-wip",
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  const landed = new Set((Array.isArray(landedPaths) ? landedPaths : []).map((file) => String(file)));
+  if (files.length > 0 && landed.size > 0 && files.every((file) => landed.has(String(file)))) {
+    return Object.freeze({
+      kind: "superseded-overlap",
+      closeEligible: true,
+      reason: "files-already-on-target",
+      actorHint: String(userLogin ?? "").toLowerCase() === "copilot" ? "copilot-overlap" : "overlap",
       creditCost: 0,
       paidFallback: false,
     });
