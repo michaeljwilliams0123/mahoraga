@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "kind": "openai-route-registry",
+  "repository": "michaeljwilliams0123/mahoraga",
+  "transport": {
+    "githubAppSlug": "chatgpt-codex-connector",
+    "githubAppId": 1144995
+  },
+  "routes": [
+    {
+      "routeId": "openai-primary",
+      "workerId": "openai-primary",
+      "label": "Paired OpenAI Primary",
+      "executorLane": "primary-cloud-codex",
+      "receiptTrustMode": "signed-receipt",
+      "bindingState": "unconfigured",
+      "publicTrust": null,
+      "capabilities": [
+        "codex.execute"
+      ],
+      "dataClasses": [
+        "synthetic"
+      ],
+      "costClass": "licensed-cloud",
+      "executionPlane": "paired-openai",
+      "interfaceType": "application-extension",
+      "permissionClass": "bounded-openai-route",
+      "reliability": 78,
+      "latencyMs": 1500,
+      "maximumWorkload": 1,
+      "requiresAttendedDesktop": false,
+      "economicTier": 2
+    },
+    {
+      "routeId": "openai-destiny",
+      "workerId": "openai-destiny",
+      "label": "Paired OpenAI Destiny",
+      "executorLane": "destiny-codex",
+      "receiptTrustMode": "signed-receipt",
+      "bindingState": "unconfigured",
+      "publicTrust": null,
+      "capabilities": [
+        "codex.execute"
+      ],
+      "dataClasses": [
+        "synthetic"
+      ],
+      "costClass": "licensed-cloud",
+      "executionPlane": "paired-openai",
+      "interfaceType": "application-extension",
+      "permissionClass": "bounded-openai-route",
+      "reliability": 78,
+      "latencyMs": 1500,
+      "maximumWorkload": 1,
+      "requiresAttendedDesktop": false,
+      "economicTier": 2
+    }
+  ]
+}

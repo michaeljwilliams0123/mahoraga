@@ -4,7 +4,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fingerprintCodexAccountId, fingerprintCodexEnvironmentId } from "../src/codex-connection-identity.mjs";
-import { buildCodexCloudExecArgs, parseDestinyGithubTaskIssue } from "../src/destiny-github-task.mjs";
+import { advanceDestinyTaskSubmission, planDestinyTaskSubmission, validateDestinySubmissionLedger } from "../src/destiny-codex-dispatch.mjs";
+import { buildCodexCloudExecArgs, destinyGithubTaskDigest, parseDestinyGithubTaskIssue } from "../src/destiny-github-task.mjs";
 
 const REPOSITORY = "michaeljwilliams0123/mahoraga";
 const OWNER = "michaeljwilliams0123";
@@ -38,21 +39,31 @@ if (task.issueNumber !== issueNumber) throw new Error("destiny-github-issue-numb
 
 await mkdir(stateDir, { recursive: true });
 const ledgerPath = path.join(stateDir, "submitted-github-tasks.json");
-const ledger = await readLedger(ledgerPath);
-if (ledger[task.taskId]) {
-  console.log(JSON.stringify({ submitted: false, duplicate: true, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl: ledger[task.taskId].taskUrl ?? null }));
+const taskDigest = destinyGithubTaskDigest(task);
+let ledger = await readLedger(ledgerPath);
+const planned = planDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, routeId: "openai-destiny", issueNumber, now: new Date().toISOString() });
+if (planned.duplicate) {
+  console.log(JSON.stringify({ submitted: false, duplicate: true, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl: planned.record.taskUrl ?? null }));
   process.exit(0);
 }
+ledger = planned.ledger;
+await writeLedger(ledgerPath, ledger);
+ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitting", now: new Date().toISOString() }).ledger;
+await writeLedger(ledgerPath, ledger);
 
 const executable = process.env.CODEX_BIN ?? "codex";
 let stdout;
 try {
   stdout = execFileSync(executable, buildCodexCloudExecArgs(environmentId, task), { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 4 * 1024 * 1024 });
-} catch { throw new Error("destiny-codex-cloud-submit-failed"); }
+} catch {
+  ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "failed-closed", now: new Date().toISOString() }).ledger;
+  await writeLedger(ledgerPath, ledger);
+  throw new Error("destiny-codex-cloud-submit-failed");
+}
 const taskUrl = extractTaskUrl(stdout);
-const submittedAt = new Date().toISOString();
-ledger[task.taskId] = { issueNumber, submittedAt, taskUrl, outputSha256: createHash("sha256").update(stdout).digest("hex") };
-await writeFile(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+const outputSha256 = createHash("sha256").update(stdout).digest("hex");
+ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitted", now: new Date().toISOString(), taskUrl, outputSha256 }).ledger;
+await writeLedger(ledgerPath, ledger);
 console.log(JSON.stringify({ submitted: true, duplicate: false, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl }));
 
 async function fetchIssue(number) {
@@ -65,8 +76,11 @@ async function readRoute(file) {
   catch (error) { if (error?.code === "ENOENT") return null; throw new Error("destiny-codex-private-route-invalid"); }
 }
 async function readLedger(file) {
-  try { const parsed = JSON.parse(await readFile(file, "utf8")); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}; }
+  try { return validateDestinySubmissionLedger(JSON.parse(await readFile(file, "utf8"))); }
   catch (error) { if (error?.code === "ENOENT") return {}; throw new Error("destiny-codex-submit-ledger-invalid"); }
+}
+async function writeLedger(file, ledger) {
+  await writeFile(file, `${JSON.stringify(ledger, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
 }
 function extractTaskUrl(value) {
   const match = typeof value === "string" ? value.match(/https:\/\/chatgpt\.com\/[^\s]+/) : null;

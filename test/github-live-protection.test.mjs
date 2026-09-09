@@ -62,6 +62,8 @@ test("private free-plan ruleset unavailability is observable only in advisory mo
   };
   assert.deepEqual(parseLiveRulesetsResponse(response, advisoryContract), []);
   assert.throws(() => parseLiveRulesetsResponse(response, strictContract), /live-protection-unobserved/);
+  assert.deepEqual(parseLiveRulesetsResponse({ status: 404, payload: { message: "Not Found" } }, advisoryContract), []);
+  assert.throws(() => parseLiveRulesetsResponse({ status: 404, payload: { message: "Not Found" } }, strictContract), /live-protection-unobserved/);
   assert.throws(() => parseLiveRulesetsResponse({ status: 403, payload: { message: "Forbidden" } }, advisoryContract), /live-protection-unobserved/);
 });
 

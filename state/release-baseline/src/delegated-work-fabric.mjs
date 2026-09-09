@@ -111,7 +111,8 @@ function normalizeRequest(value) {
 }
 
 function compareRoutes(left, right) {
-  return left.workload - right.workload
+  return economicTier(left) - economicTier(right)
+    || left.workload - right.workload
     || left.latencyMs - right.latencyMs
     || right.reliability - left.reliability
     || left.workerId.localeCompare(right.workerId);
@@ -152,4 +153,14 @@ function fail(code) {
   const error = new TypeError(code);
   error.code = code;
   throw error;
+}
+
+function economicTier(route) {
+  if (Number.isSafeInteger(route.economicTier)) return route.economicTier;
+  if (route.costClass === "deterministic") return 0;
+  if (route.costClass === "local-model") return 1;
+  if (route.costClass === "cloud-open-weight") return 2;
+  if (route.costClass === "licensed-cloud") return 3;
+  if (route.costClass === "metered-cloud") return 4;
+  return Number.MAX_SAFE_INTEGER;
 }

@@ -61,6 +61,16 @@ function verifySignedPayload(publicKeySpki, payload, signature) {
   }
 }
 
+export function canonicalSignedPayload(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("destiny-trigger-signed-payload-invalid");
+  return canonicalWithoutSignature(value);
+}
+
+export function verifySignedPayloadEnvelope(publicKeySpki, value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("destiny-trigger-signed-payload-invalid");
+  return verifySignedPayload(publicKeySpki, canonicalSignedPayload(value), value.signature);
+}
+
 function validateSignedReceiptTrust(trust, owner) {
   if (trust.algorithm !== "ed25519") throw new TypeError("destiny-trigger-manifest-invalid");
   if (typeof trust.publicKeyFingerprint !== "string" || !SHA64.test(trust.publicKeyFingerprint)) throw new TypeError("destiny-trigger-manifest-invalid");

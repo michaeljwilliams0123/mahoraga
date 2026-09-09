@@ -4,11 +4,14 @@ import {
   DESTINY_DISPATCH_DIRECTORY,
   DESTINY_DISPATCH_PRIVACY,
   DESTINY_VERIFICATION,
+  advanceDestinyTaskSubmission,
   createDestinyCodexDispatch,
   destinyVerificationCommands,
+  planDestinyTaskSubmission,
   validateDestinyCodexDispatch,
   validateDestinyDispatchPullRequest,
   validateDestinyDispatchRegistry,
+  validateDestinySubmissionLedger,
 } from "../src/destiny-codex-dispatch.mjs";
 
 const BASE = "a".repeat(40);
@@ -109,4 +112,52 @@ test("Destiny pull requests cannot modify their own validator or workflow", () =
     dispatchStatus: "A",
     dispatch: broad,
   }), /destiny-protocol-path-protected/);
+});
+
+
+test("Destiny submission ledger is digest-bound and fails closed around indeterminate retries", () => {
+  const planned = planDestinyTaskSubmission({}, {
+    taskId: "dct-0123456789abcdef01234567",
+    taskDigest: "a".repeat(64),
+    routeId: "openai-destiny",
+    issueNumber: 244,
+    now: "2026-09-08T22:00:00.000Z",
+  });
+  assert.equal(planned.duplicate, false);
+  const submitting = advanceDestinyTaskSubmission(planned.ledger, {
+    taskId: planned.record.taskId,
+    taskDigest: planned.record.taskDigest,
+    nextState: "submitting",
+    now: "2026-09-08T22:00:05.000Z",
+  });
+  assert.equal(validateDestinySubmissionLedger(submitting.ledger)[planned.record.taskId].state, "submitting");
+  assert.throws(() => planDestinyTaskSubmission(submitting.ledger, {
+    taskId: planned.record.taskId,
+    taskDigest: planned.record.taskDigest,
+    routeId: "openai-destiny",
+    issueNumber: 244,
+    now: "2026-09-08T22:00:06.000Z",
+  }), /submission-in-progress/);
+
+  const submitted = advanceDestinyTaskSubmission(submitting.ledger, {
+    taskId: planned.record.taskId,
+    taskDigest: planned.record.taskDigest,
+    nextState: "submitted",
+    now: "2026-09-08T22:00:10.000Z",
+    taskUrl: "https://chatgpt.com/s/cd_0123456789abcdef0123456789abcdef",
+    outputSha256: "b".repeat(64),
+  });
+  assert.equal(submitted.record.state, "submitted");
+  assert.equal(planDestinyTaskSubmission(submitted.ledger, {
+    taskId: planned.record.taskId,
+    taskDigest: planned.record.taskDigest,
+    routeId: "openai-destiny",
+    issueNumber: 244,
+  }).duplicate, true);
+  assert.throws(() => planDestinyTaskSubmission(submitted.ledger, {
+    taskId: planned.record.taskId,
+    taskDigest: "c".repeat(64),
+    routeId: "openai-destiny",
+    issueNumber: 244,
+  }), /submission-conflict/);
 });

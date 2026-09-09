@@ -55,7 +55,7 @@ function validateParsedWorkTask(task) {
   return task;
 }
 
-function destinyWorkTaskDigest(task) {
+export function destinyWorkTaskDigest(task) {
   const valid = validateParsedWorkTask(task);
   const canonical = JSON.stringify({
     schemaVersion: 1,
@@ -97,6 +97,24 @@ export function parseDestinyGithubTaskIssue(issue, { repository, owner }) {
   }
   return Object.freeze({ schemaVersion: 1, taskId: payload.taskId, repository, issueNumber: issue.number, prompt, attempts: 1, implementationOnly: true, codeReview: false });
 }
+
+export function destinyGithubTaskDigest(taskInput) {
+  const task = taskInput && typeof taskInput === "object" && !Array.isArray(taskInput) && Object.hasOwn(taskInput, "issueNumber")
+    ? taskInput
+    : parseDestinyGithubTaskIssue(taskInput, { repository: taskInput?.repository, owner: taskInput?.owner });
+  const canonical = JSON.stringify({
+    schemaVersion: 1,
+    taskId: task.taskId,
+    repository: task.repository,
+    issueNumber: task.issueNumber,
+    prompt: opaque(task.prompt, "destiny-github-task-prompt-invalid", 8000),
+    attempts: 1,
+    implementationOnly: true,
+    codeReview: false,
+  });
+  return createHash("sha256").update(canonical, "utf8").digest("hex");
+}
+
 
 export function buildCodexCloudExecArgs(environmentIdInput, task) {
   const environmentId = opaque(environmentIdInput, "destiny-codex-environment-id-invalid");

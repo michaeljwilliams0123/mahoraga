@@ -107,3 +107,16 @@ function boundedCount(value, maximum) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 0 && number <= maximum ? number : 0;
 }
+
+export function summarizeConnectorReadiness(report) {
+  if (!report || typeof report !== "object" || !report.providers || typeof report.providers !== "object") throw new TypeError("provider-readiness-report-invalid");
+  const providers = report.providers;
+  return Object.freeze([
+    Object.freeze({ connectorId: "github", family: "github", trustState: "ready", capabilities: Object.freeze(["repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "file", family: "file", trustState: "ready", capabilities: Object.freeze(["artifact.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "microsoft", family: "microsoft", trustState: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "m365.open"]), lastHealthyAt: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? null : "connector-not-ready", zeroCreditReady: providers.microsoftQueue?.silentAuthAvailable === true || providers.microsoft365?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "google", family: "google", trustState: "degraded", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "google.open"]), lastHealthyAt: null, lastFailureCode: "readiness-not-yet-probed", zeroCreditReady: false, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "queue", family: "queue", trustState: providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond"]), lastHealthyAt: providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoftQueue?.verified === true ? null : "queue-not-ready", zeroCreditReady: providers.microsoftQueue?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "owner", family: "owner", trustState: "ready", capabilities: Object.freeze(["assistant.respond", "repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+  ]);
+}

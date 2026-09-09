@@ -23,7 +23,7 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const route = {
       status: "routable",
       reason: null,
-      worker: manifest.workers.find((worker) => worker.id === selected.workerId),
+      worker: resolveWorker(manifest, selected),
       decision: selected,
       alternates: candidates.slice(1),
     };
@@ -32,8 +32,8 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
   };
 }
 
-export function capabilityIndex(manifest, workerStates = [], now = Date.now()) {
-  return buildCapabilityRegistry(manifest, workerStates, now);
+export function capabilityIndex(manifest, workerStates = [], now = Date.now(), context = {}) {
+  return buildCapabilityRegistry(manifest, workerStates, now, context);
 }
 
 function creditFreeGate(task, context) {
@@ -53,4 +53,28 @@ function zeroCreditDecision(task, context) {
 
 function isAutonomySelfUpgrade(task) {
   return typeof task.capability === "string" && (task.capability.startsWith("autonomy.") || task.capability.startsWith("self-upgrade."));
+}
+
+function resolveWorker(manifest, selected) {
+  const declared = manifest.workers.find((worker) => worker.id === selected.workerId);
+  if (declared) return declared;
+  return {
+    id: selected.workerId,
+    label: selected.workerLabel,
+    enabled: true,
+    costClass: selected.costClass,
+    dataClasses: [...selected.dataClasses],
+    capabilities: [selected.capability],
+    executionPlane: selected.executionPlane,
+    routing: {
+      interfaceType: selected.interfaceType,
+      permissionClass: selected.permissionClass,
+      reliability: selected.reliability,
+      requiresAttendedDesktop: selected.requiresAttendedDesktop,
+      executionType: selected.executionType,
+      latencyMs: selected.latencyMs,
+      maximumWorkload: selected.maximumWorkload,
+      fallbackWorkerIds: [...selected.fallbackWorkerIds],
+    },
+  };
 }
