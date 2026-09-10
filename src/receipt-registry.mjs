@@ -7,7 +7,7 @@ const BANNED_KEYS = /^(?:prompt|response|content|preview|token|secret|documentTe
 const FAMILY_PREFIXES = new Map([
   ["system", "system"], ["manifest", "system"], ["assistant", "system"], ["provider", "system"], ["artifact", "system"],
   ["repository", "repository"], ["browser", "browser"], ["desktop", "desktop"], ["m365", "m365"],
-  ["codex", "codex"], ["self", "codex"], ["repair", "repair"], ["queue", "queue"], ["copilot", "copilot"], ["workspace-agent", "workspace-agent"],
+  ["codex", "codex"], ["self", "codex"], ["repair", "repair"], ["queue", "queue"], ["copilot", "copilot"], ["studio", "studio"], ["powerplatform", "powerplatform"], ["workspace-agent", "workspace-agent"],
 ]);
 
 export function createCapabilityReceipt(capability, result, {
