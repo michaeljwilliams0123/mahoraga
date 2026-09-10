@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaeljwilliams0123/mahoraga/schemas/agent-provision-request.schema.json",
+  "title": "Agent Provision Request (Design Only)",
+  "description": "Fail-closed request to DRAFT an agent-provisioning PR. Never auto-deploys. No secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "requestId",
+    "targetStage",
+    "requiresApproval",
+    "autoDeploy",
+    "objective"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "agent-provision-request" },
+    "requestId": {
+      "type": "string",
+      "pattern": "^apr-[0-9a-f]{24}$"
+    },
+    "targetStage": {
+      "type": "string",
+      "enum": ["dev"],
+      "description": "Only 'dev' is permitted as an entry point. Promotion to test/prod happens via pipeline approval gates, never from this request."
+    },
+    "requiresApproval": { "type": "boolean", "const": true },
+    "autoDeploy": { "type": "boolean", "const": false },
+    "objective": { "type": "string", "minLength": 1, "maxLength": 2000 }
+  }
+}
