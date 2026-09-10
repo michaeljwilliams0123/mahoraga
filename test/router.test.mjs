@@ -81,3 +81,51 @@ test("router fails closed for stale and offline worker states", async () => {
   }
 });
 
+
+test("owner-authorized Copilot invocation requires matching platform authority", async () => {
+  const manifest = structuredClone(await loadManifest());
+  const studio = manifest.workers.find((worker) => worker.id === "copilot-studio");
+  studio.enabled = true;
+  const task = {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  };
+  const route = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["copilot.invoke"] },
+  });
+  assert.equal(route.status, "routable");
+  assert.equal(route.worker.id, "copilot-studio");
+  assert.equal(route.authorityDecision.authorized, true);
+});
+
+test("owner-authorized capability waits when platform authority is absent", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  const task = {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  };
+  const route = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": [] },
+  });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "platform-authority-missing");
+  assert.equal(route.worker, null);
+});
+
+test("existing tasks without authority scope keep their current routing behavior", async () => {
+  const manifest = await loadManifest();
+  const route = routeTask(manifest, { capability: "system.health", dataClass: "synthetic", requestedMode: "local" }, {
+    workerStates: [verifiedWorkerState(manifest, "local-core")], now: NOW,
+  });
+  assert.equal(route.status, "routable");
+  assert.equal(Object.hasOwn(route, "authorityDecision"), false);
+});

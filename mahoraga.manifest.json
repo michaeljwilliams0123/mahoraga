@@ -43,6 +43,33 @@
     "canaryRequired": true,
     "rollbackRequired": true
   },
+  "ownerAuthority": {
+    "schemaVersion": 1,
+    "kind": "owner-authority-grant",
+    "grantId": "owner-sovereign-primary",
+    "ownerPrincipal": "github:michaeljwilliams0123",
+    "grantee": "mahoraga-core",
+    "state": "active",
+    "scopes": [
+      "build.execute",
+      "self.update",
+      "repo.write",
+      "pr.manage",
+      "workflow.dispatch",
+      "artifact.manage",
+      "connector.invoke",
+      "copilot.invoke",
+      "copilot.configure",
+      "copilot.provision",
+      "deployment.request",
+      "deployment.execute",
+      "governance.manage",
+      "accessibility.manage"
+    ],
+    "deploymentTargets": ["dev", "test", "prod"],
+    "confirmationRequiredScopes": [],
+    "revokedScopes": []
+  },
   "runtime": {
     "host": "127.0.0.1",
     "port": 4782,
@@ -466,6 +493,10 @@
         "codex.execute": "provider-derived",
         "self.evolve": "provider-derived"
       },
+      "authorityScopesByCapability": {
+        "codex.execute": ["build.execute", "repo.write"],
+        "self.evolve": ["build.execute", "self.update", "repo.write", "deployment.execute", "governance.manage"]
+      },
       "executionPlane": "candidate-worktree",
       "routing": {
         "interfaceType": "mcp-cli",
@@ -735,14 +766,31 @@
         "enterprise"
       ],
       "capabilities": [
-        "studio.delegate"
+        "studio.health",
+        "studio.delegate",
+        "studio.configure",
+        "studio.provision",
+        "studio.deploy"
       ],
       "acceptedTaskTypes": [
         "microsoft-agent"
       ],
       "timeoutMs": 180000,
       "concurrency": 2,
-      "healthProbe": "studio.delegate",
+      "healthProbe": "studio.health",
+      "capabilityCanaries": {
+        "studio.health": "health",
+        "studio.delegate": "provider-derived",
+        "studio.configure": "provider-derived",
+        "studio.provision": "provider-derived",
+        "studio.deploy": "provider-derived"
+      },
+      "authorityScopesByCapability": {
+        "studio.delegate": ["connector.invoke", "copilot.invoke"],
+        "studio.configure": ["connector.invoke", "copilot.configure", "governance.manage"],
+        "studio.provision": ["connector.invoke", "copilot.provision", "deployment.request"],
+        "studio.deploy": ["connector.invoke", "deployment.request", "deployment.execute"]
+      },
       "executionPlane": "licensed-cloud",
       "routing": {
         "interfaceType": "connector",

@@ -47,6 +47,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       fallbackWorkerIds: [...worker.routing.fallbackWorkerIds],
       costClass: worker.costClass,
       dataClasses: [...worker.dataClasses],
+      authorityScopes: [...(worker.authorityScopesByCapability?.[capability] ?? [])],
       executionPlane: worker.executionPlane,
       healthProbe: worker.healthProbe,
       economicTier: economicTierForCostClass(worker.costClass),
@@ -135,6 +136,7 @@ function pairedRouteEntries(context, now) {
 function normalizeProjectedRoute(route) {
   return {
     ...route,
+    authorityScopes: Array.isArray(route.authorityScopes) ? [...route.authorityScopes] : [],
     healthProbe: null,
     economicTier: Number.isSafeInteger(route.economicTier) ? route.economicTier : economicTierForCostClass(route.costClass),
   };
