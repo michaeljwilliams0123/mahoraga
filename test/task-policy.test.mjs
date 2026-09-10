@@ -120,3 +120,16 @@ test("public task intake still cannot directly vend self-evolution authority", (
     (error) => error?.code === "task-intent-not-allowed",
   );
 });
+
+test("multiple eligible execution planes are ranked instead of rejected as ambiguous", () => {
+  const rankedManifest = {
+    ...manifest,
+    workers: [
+      { id: "cloud-health", enabled: true, capabilities: ["system.health"], dataClasses: ["synthetic"], executionPlane: "cloud", routing: { requiresAttendedDesktop: false, priority: 20, costClass: "licensed-cloud" } },
+      { id: "local-health", enabled: true, capabilities: ["system.health"], dataClasses: ["synthetic"], executionPlane: "local", routing: { requiresAttendedDesktop: false, priority: 5, costClass: "zero-credit" } },
+    ],
+  };
+  const policy = deriveTaskPolicy({ intent: "system.health" }, { manifest: rankedManifest, internal: true });
+  assert.equal(policy.executionPlane, "local");
+  assert.deepEqual(policy.allowedWorkerIds, ["local-health", "cloud-health"]);
+});

@@ -38,15 +38,17 @@ test("gateway creates one authoritative foreground task and cancellation reaches
   assert.equal(database.getTask(first.run.taskId).status, "cancelled");
 });
 
-test("gateway replay projects a terminal task receipt without message plaintext", (t) => {
+test("task transitions publish durable RunEvents transactionally before replay", (t) => {
   const { database, conversation, gateway } = fixture(t);
   const { run } = gateway.createRun({ sessionId: "ses-local", conversationId: conversation.id, content: "Verify system health", idempotencyKey: "gateway-run-terminal" });
   database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000 });
   database.markVerifying(run.taskId, "local-core");
   database.finishTask(run.taskId, { status: "completed", resultSummary: "Health verified." });
+  const beforeReplay = database.listRunEvents(run.id, { afterEventId: 0 });
   const events = gateway.replay(run.id, 0);
   assert.equal(events.at(-1).type, "run-completed");
   assert.ok(events.some((event) => event.type === "receipt-created"));
+  assert.deepEqual(events, beforeReplay);
   assert.doesNotMatch(JSON.stringify(events), /Health verified|Verify system health/);
 });
 

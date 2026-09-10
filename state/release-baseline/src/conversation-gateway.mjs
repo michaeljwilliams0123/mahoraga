@@ -2,8 +2,6 @@ import { createHash } from "node:crypto";
 import { classifyTaskIntent } from "./task-intent.mjs";
 import { capabilityIndex } from "./router.mjs";
 
-const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
-
 export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null, relayHandlers = {} } = {}) {
   if (!database || typeof database.createConversationRun !== "function") throw gatewayError("gateway-database-required");
   if (!manifest || !supervisor || typeof submitTask !== "function") throw gatewayError("gateway-dependency-required");
@@ -95,7 +93,6 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     },
 
     replay(runId, afterEventId = 0) {
-      projectTaskState(database, runId, emit);
       return database.listRunEvents(runId, { afterEventId });
     },
 
@@ -126,25 +123,6 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     close() { listeners.clear(); },
   };
   return Object.freeze(api);
-}
-
-function projectTaskState(database, runId, emit) {
-  const run = database.getConversationRun(runId);
-  if (!run) throw gatewayError("run-missing");
-  if (!run.taskId || !new Set(["accepted", "running", "verifying", "waiting"]).has(run.state)) return run;
-  const task = database.getTask(run.taskId);
-  if (!task) return run;
-  const existing = new Set(database.listRunEvents(runId, { afterEventId: 0 }).map((event) => event.type));
-  if (["running", "verifying"].includes(task.status) && !existing.has("worker-started")) emit(runId, "worker-started", { workerId: task.assignedWorker ?? "unassigned" }, { agentId: task.assignedWorker ?? "mahoraga" });
-  if (task.status === "verifying" && !existing.has("verification-started")) emit(runId, "verification-started", { verifierId: task.verifier ?? "worker-result" });
-  if (["waiting", "waiting_for_user"].includes(task.status) && !existing.has("approval-required")) emit(runId, "approval-required", { reasonCode: task.errorCode ?? "user-input-required" });
-  if (task.status === "completed") {
-    if (!existing.has("receipt-created")) emit(runId, "receipt-created", { receiptCount: database.listReceipts(task.id).length, taskState: task.status });
-    emit(runId, "run-completed", { taskState: task.status, verificationState: "verified" });
-  } else if (task.status === "failed") emit(runId, "run-failed", { taskState: task.status, reasonCode: boundedCode(task.errorCode ?? "task-failed") });
-  else if (task.status === "cancelled") emit(runId, "run-cancelled", { taskState: task.status, reasonCode: "cancelled-by-user" });
-  else if (!ACTIVE_TASK_STATES.has(task.status)) throw gatewayError("gateway-task-state-invalid");
-  return database.getConversationRun(runId);
 }
 
 function validateRunInput(value) {

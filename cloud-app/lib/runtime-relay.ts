@@ -99,9 +99,19 @@ export class RuntimeRelay {
   private expiresAt: string | null = null;
   private pairing: { resolve: (value: JsonObject) => void; reject: (reason: Error) => void } | null = null;
   private revokeAcknowledgement: (() => void) | null = null;
+  private cloudSession: { csrf: string } | null = null;
 
   get connected() {
-    return this.socket?.readyState === WebSocket.OPEN && this.session !== null;
+    return this.cloudSession !== null || (this.socket?.readyState === WebSocket.OPEN && this.session !== null);
+  }
+
+  async attach() {
+    const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
+    if (!response.ok) return null;
+    const value = await response.json() as JsonObject;
+    if (value.authenticated !== true || typeof value.csrf !== "string") return null;
+    this.cloudSession = { csrf: value.csrf };
+    return { sessionId: "same-origin-cloud" };
   }
 
   async pair(encodedOffer: string) {
@@ -217,10 +227,12 @@ export class RuntimeRelay {
     this.expiresAt = null;
     this.pairing = null;
     this.revokeAcknowledgement = null;
+    this.cloudSession = null;
     this.rejectPending("relay-disconnected");
   }
 
   async revoke() {
+    if (this.cloudSession) { this.cloudSession = null; return; }
     const socket = this.socket;
     try {
       if (socket?.readyState === WebSocket.OPEN && this.deviceId) {
@@ -245,6 +257,17 @@ export class RuntimeRelay {
   }
 
   private async call<T>(type: string, payload: JsonObject) {
+    if (this.cloudSession) {
+      const response = await fetch("/api/runtime/action", {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { "content-type": "application/json", "x-mahoraga-csrf": this.cloudSession.csrf,
+          "x-mahoraga-request-nonce": crypto.randomUUID(), "x-mahoraga-request-timestamp": String(Date.now()) },
+        body: JSON.stringify({ type, payload }),
+      });
+      const value = await response.json() as JsonObject;
+      if (!response.ok) throw relayError(publicCode(value.error));
+      return value as T;
+    }
     if (!this.connected || !this.socket || !this.session) throw relayError("relay-not-paired");
     const requestId = `req-${++this.requestCounter}`;
     const frame = await sealFrame(this.session, { requestId, type, payload });
