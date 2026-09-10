@@ -103,6 +103,8 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
+GitHub main is the code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or a fallback host is live. Vercel remains optional and non-gating, while Netlify remains the configured fallback path. The former Pages URL from an earlier deployment must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds.
+
 The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately.
 
 ## Verification
@@ -114,7 +116,7 @@ npm.cmd run validate
 npm.cmd run verify
 ```
 
-On non-Windows shells, `npm run validate` and `npm run verify` are equivalent.
+On non-Windows shells, `npm run validate` and `npm run verify` are equivalent. Windows launcher/reference code derives the current profile dynamically with `GetFolderPath('UserProfile')`; do not commit a username or a user-specific absolute path.
 
 `npm run verify` validates the runtime manifest, product identity, coordination contracts, GitHub/Codex handshakes, self-upgrade contract, repository assurance, live-protection expectations, PDF authority, repair baseline, and the Node test suite. Exact-head GitHub verification remains the merge authority for protected work.
 
