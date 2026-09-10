@@ -54,17 +54,16 @@ export function deriveTaskPolicy(input, {
     if (!allowedPaths.every((allowed) => integrationLease.paths.some((leased) => allowed === leased || allowed.startsWith(`${leased}/`)))) throw policyError("integration-lease-paths-insufficient");
   }
   const contentReferences = normalizeReferences(request.contentReferences ?? []);
-  const executionPlanes = [...new Set(eligible.map((worker) => worker.executionPlane))];
-  if (executionPlanes.length !== 1) throw policyError("task-execution-plane-ambiguous");
+  const ranked = [...eligible].sort(compareRoutes);
 
   return Object.freeze({
     source: bounded(source, 64, "task-source-invalid"),
     intent,
     capability: intent,
     dataClass,
-    executionPlane: executionPlanes[0],
+    executionPlane: ranked[0].executionPlane,
     attendedRequired,
-    allowedWorkerIds: eligible.map((worker) => worker.id).sort(),
+    allowedWorkerIds: ranked.map((worker) => worker.id),
     authoritySessionId: internal ? request.authoritySessionId ?? attendedSession?.sessionId ?? null : attendedSession?.sessionId ?? null,
     integrationLeaseId,
     contentReferences,
@@ -72,6 +71,19 @@ export function deriveTaskPolicy(input, {
     allowedPaths,
     policyVersion: POLICY_VERSION,
   });
+}
+
+function compareRoutes(left, right) {
+  const cost = routeCost(left.routing?.costClass) - routeCost(right.routing?.costClass);
+  if (cost !== 0) return cost;
+  const priority = Number(left.routing?.priority ?? 100) - Number(right.routing?.priority ?? 100);
+  return priority !== 0 ? priority : left.id.localeCompare(right.id);
+}
+
+function routeCost(value) {
+  if (new Set(["zero-credit", "deterministic", "local-model"]).has(value)) return 0;
+  if (value === "licensed-cloud") return 2;
+  return 1;
 }
 
 export function policyTaskInput(request, policy, manifest) {

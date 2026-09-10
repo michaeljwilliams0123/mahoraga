@@ -220,6 +220,16 @@ export function createControlServer({
         const worldState = await observeWorldState({ manifest, database, supervisor });
         return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) });
       }
+      if (request.method === "GET" && url.pathname === "/api/operations") {
+        return json(response, 200, operationsSnapshot({ database, manifest, supervisor, repositoryHeadReader }));
+      }
+      if (request.method === "POST" && url.pathname === "/api/operations/action") {
+        const body = await bodyJson(request);
+        return json(response, 200, await executeOperationsAction(body, { database, manifest, supervisor, repositoryHeadReader,
+          mechanism: authentication.mechanism === "cookie" ? "owner-cloud-session" : "owner-server-gateway",
+          attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
+        }));
+      }
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/chat") {
         const body = await bodyJson(request);

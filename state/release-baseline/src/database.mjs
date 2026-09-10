@@ -19,7 +19,7 @@ const ACTIVE_RUN_STATES = new Set(["accepted", "running", "verifying", "waiting"
 const EVOLUTION_STATES = new Set(["planned", "candidate-created", "verified", "deployed", "canary-passed", "activated", "failed", "rolled-back"]);
 
 export class RuntimeDatabase {
-  constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false } = {}) {
+  constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false, objectiveReleaseAuthority = null } = {}) {
     if (contentVault !== null && (!contentVault || typeof contentVault.put !== "function" || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function")) throw new TypeError("Content vault is invalid.");
     if (!Number.isSafeInteger(contentTtlMs) || contentTtlMs < 1000) throw new TypeError("Content TTL is invalid.");
     mkdirSync(path.dirname(file), { recursive: true });
@@ -27,11 +27,17 @@ export class RuntimeDatabase {
     this.contentVault = contentVault;
     this.contentTtlMs = contentTtlMs;
     this.allowLegacyPlaintextWrites = allowLegacyPlaintextWrites === true;
+    this.configureObjectiveReleaseAuthority(objectiveReleaseAuthority);
     this.db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
     this.#migrate();
   }
 
   close() { this.db.close(); }
+
+  configureObjectiveReleaseAuthority(authority) {
+    if (authority !== null && (!authority || typeof authority.submit !== "function" || typeof authority.filterObjectives !== "function" || typeof authority.authoritySource !== "string")) throw new TypeError("Objective release authority is invalid.");
+    this.objectiveReleaseAuthority = authority;
+  }
 
   #migrate() {
     this.db.exec(`
@@ -292,6 +298,7 @@ export class RuntimeDatabase {
     this.#ensureContentColumns();
     this.#ensureWorkerStateColumns();
     this.#ensureConversationRunColumns();
+    this.#ensureObjectiveTaskIdentity();
     this.db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(status, priority, created_at);");
     this.#migrateLegacyContent();
   }
@@ -352,6 +359,34 @@ export class RuntimeDatabase {
     if (!current.has("request_sha256")) this.db.exec("ALTER TABLE conversation_runs ADD COLUMN request_sha256 TEXT");
   }
 
+  #ensureObjectiveTaskIdentity() {
+    const current = new Set(this.db.prepare("PRAGMA table_info(objective_tasks)").all().map((column) => column.name));
+    if (current.has("local_task_id")) return;
+    this.db.exec(`
+      CREATE TABLE objective_tasks_v2 (
+        id TEXT PRIMARY KEY,
+        objective_id TEXT NOT NULL,
+        local_task_id TEXT NOT NULL,
+        task_area TEXT NOT NULL,
+        task_json TEXT NOT NULL,
+        status TEXT NOT NULL,
+        task_id TEXT,
+        replan_count INTEGER NOT NULL DEFAULT 0,
+        last_worker_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(objective_id) REFERENCES objectives(id),
+        UNIQUE(objective_id, local_task_id)
+      );
+      INSERT INTO objective_tasks_v2
+        SELECT objective_id || ':' || id, objective_id, id, task_area, task_json, status, task_id, replan_count, last_worker_id, created_at, updated_at
+        FROM objective_tasks;
+      DROP TABLE objective_tasks;
+      ALTER TABLE objective_tasks_v2 RENAME TO objective_tasks;
+      CREATE INDEX idx_objective_tasks_objective ON objective_tasks(objective_id, status);
+    `);
+  }
+
   #migrateLegacyContent() {
     const sentinel = "[vault-content]";
     const conversations = this.db.prepare(`SELECT id,title,title_ref,title_classification
@@ -402,12 +437,14 @@ export class RuntimeDatabase {
     return this.submitTask(task);
   }
 
-  submitTask({ capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
+  submitTask(input) {
+    if (input?.authoritySource && input.authoritySource === this.objectiveReleaseAuthority?.authoritySource) return this.objectiveReleaseAuthority.submit(this, input);
+    let { capability, intent = capability, dataClass, requestedMode = "local", idempotencyKey = randomUUID(), correlationId = idempotencyKey,
     taskType = capability.split(".")[0], requestedOutcome = capability, executionPlane = "local", priority = "normal", maximumAttempts = 3,
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
     attendedRequired = false, allowedWorkerIds = [], authoritySessionId = null, integrationLeaseId = null,
-    contentReferences = [], baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" }) {
+    contentReferences = [], baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" } = input;
     bounded(intent, 80, "task intent");
     validateCapability(capability);
     validateDataClass(dataClass);
@@ -620,6 +657,10 @@ export class RuntimeDatabase {
     const run = this.getConversationRun(runId);
     if (!run) throw runError("run-missing");
     if (!ACTIVE_RUN_STATES.has(run.state)) throw runError("run-terminal");
+    return this.#insertRunEvent(run, type, payload, agentId);
+  }
+
+  #insertRunEvent(run, type, payload, agentId = "mahoraga") {
     const timestamp = new Date().toISOString();
     const candidate = { schemaVersion: 1, eventId: 1, sessionId: run.sessionId, conversationId: run.conversationId,
       runId: run.id, agentId, type, timestamp, payload };
@@ -631,6 +672,14 @@ export class RuntimeDatabase {
     if (state !== run.state) this.db.prepare("UPDATE conversation_runs SET state=?,updated_at=?,terminal_at=? WHERE id=?")
       .run(state, timestamp, terminalRunType(type) ? timestamp : null, run.id);
     return event;
+  }
+
+  #appendRunEventForTask(taskId, type, payload = {}, agentId = "mahoraga") {
+    const row = this.db.prepare("SELECT * FROM conversation_runs WHERE task_id=?").get(taskId);
+    if (!row) return null;
+    const run = normalizeConversationRun(row);
+    if (!ACTIVE_RUN_STATES.has(run.state)) return null;
+    return this.#insertRunEvent(run, type, payload, agentId);
   }
 
   listRunEvents(runId, { afterEventId = 0, limit = 500 } = {}) {
@@ -647,7 +696,7 @@ export class RuntimeDatabase {
     const now = new Date().toISOString();
     this.db.prepare("UPDATE conversation_runs SET cancel_requested=1,updated_at=? WHERE id=?").run(now, runId);
     if (run.taskId) this.cancelTask(run.taskId);
-    this.appendRunEvent(runId, "run-cancelled", { reasonCode: "cancelled-by-user" });
+    else this.appendRunEvent(runId, "run-cancelled", { reasonCode: "cancelled-by-user" });
     return this.getConversationRun(runId);
   }
 
@@ -770,11 +819,12 @@ export class RuntimeDatabase {
     const id = `obj-${randomUUID()}`; const now = new Date().toISOString(); const taskIds = new Set();
     for (const task of tasks) { slug(task.id, "objective task id"); if (taskIds.has(task.id)) throw new TypeError("Duplicate objective task id."); taskIds.add(task.id); validateObjectiveTask(task); }
     for (const task of tasks) if (task.dependsOn.some((dependency) => !taskIds.has(dependency))) throw new TypeError("Objective dependency is missing.");
+    assertAcyclicObjective(tasks);
     this.#transaction(() => {
       this.db.prepare("INSERT INTO objectives(id,correlation_id,title,status,maximum_replans,created_at,updated_at) VALUES(?,?,?,'planned',?,?,?)")
         .run(id, correlationId, title, maximumReplans, now, now);
-      const statement = this.db.prepare("INSERT INTO objective_tasks(id,objective_id,task_area,task_json,status,created_at,updated_at) VALUES(?,?,?,?, 'planned',?,?)");
-      for (const task of tasks) statement.run(task.id, id, task.taskArea, JSON.stringify(task), now, now);
+      const statement = this.db.prepare("INSERT INTO objective_tasks(id,objective_id,local_task_id,task_area,task_json,status,created_at,updated_at) VALUES(?,?,?,?,?, 'planned',?,?)");
+      for (const task of tasks) statement.run(`${id}:${task.id}`, id, task.id, task.taskArea, JSON.stringify(task), now, now);
       this.#event("objective.planned", id, { correlationId, taskCount: tasks.length });
     });
     return this.getObjective(id);
@@ -785,8 +835,10 @@ export class RuntimeDatabase {
 
   reconcileObjectives() {
     const released = []; const completed = []; const failed = [];
-    for (const objective of this.listObjectives(500).filter((item) => ["planned", "running"].includes(item.status))) {
-      const taskById = new Map(objective.tasks.map((task) => [task.id, task]));
+    const candidates = this.listObjectives(500).filter((item) => ["planned", "running"].includes(item.status));
+    const objectives = this.objectiveReleaseAuthority ? this.objectiveReleaseAuthority.filterObjectives(this, candidates) : candidates;
+    for (const objective of objectives) {
+      const taskById = new Map(objective.tasks.map((task) => [task.localTaskId, task]));
       for (const task of objective.tasks.filter((item) => item.status === "released" && item.task?.status === "completed")) this.#setObjectiveTask(task.id, { status: "completed", lastWorkerId: task.task.assignedWorker });
       for (const task of objective.tasks.filter((item) => item.status === "planned")) {
         if (!task.definition.dependsOn.every((dependency) => taskById.get(dependency)?.status === "completed")) continue;
@@ -809,7 +861,7 @@ export class RuntimeDatabase {
   #submitObjectiveTask(objective, objectiveTask) {
     const definition = objectiveTask.definition;
     const overlapWith = this.listTasks(500).filter((task) => task.taskArea === definition.taskArea && !["completed", "failed", "cancelled"].includes(task.status)).map((task) => task.id);
-    const task = this.submitTask({ ...definition, correlationId: objective.correlationId, idempotencyKey: `${objective.id}:${objectiveTask.id}:r${objectiveTask.replanCount}`, requestedOutcome: definition.requestedOutcome ?? objective.title, taskArea: definition.taskArea, excludedWorkerIds: objectiveTask.lastWorkerId ? [objectiveTask.lastWorkerId] : [] });
+    const task = this.submitTask({ ...definition, correlationId: objective.correlationId, idempotencyKey: `${objective.id}:${objectiveTask.localTaskId}:r${objectiveTask.replanCount}`, requestedOutcome: definition.requestedOutcome ?? objective.title, taskArea: definition.taskArea, excludedWorkerIds: objectiveTask.lastWorkerId ? [objectiveTask.lastWorkerId] : [] });
     this.#setObjectiveTask(objectiveTask.id, { status: "released", taskId: task.id });
     this.#event("objective.task.released", objectiveTask.id, { objectiveId: objective.id, taskId: task.id, overlapWith });
     return { objectiveId: objective.id, objectiveTaskId: objectiveTask.id, taskId: task.id, overlapWith };
@@ -839,10 +891,16 @@ export class RuntimeDatabase {
   cancelTask(id) {
     bounded(id, 80, "task id");
     const now = new Date().toISOString();
-    const changed = this.db.prepare(`UPDATE tasks SET status='cancelled', lease_expires_at=NULL,
-      error_code='cancelled-by-user', updated_at=? WHERE id=?
-      AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user')`).run(now, id);
-    if (changed.changes === 1) this.#event("task.cancelled", id, { requestedBy: "control-center" });
+    const changed = this.#transaction(() => {
+      const result = this.db.prepare(`UPDATE tasks SET status='cancelled', lease_expires_at=NULL,
+        error_code='cancelled-by-user', updated_at=? WHERE id=?
+        AND status IN ('queued','claimed','running','verifying','waiting','waiting_for_user')`).run(now, id);
+      if (result.changes === 1) {
+        this.#event("task.cancelled", id, { requestedBy: "control-center" });
+        this.#appendRunEventForTask(id, "run-cancelled", { taskState: "cancelled", reasonCode: "cancelled-by-user" });
+      }
+      return result;
+    });
     return this.getTask(id);
   }
 
@@ -974,8 +1032,20 @@ export class RuntimeDatabase {
   getIntegrationLease(now = new Date()) {
     if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError("Integration lease observation time is invalid.");
     this.db.prepare("DELETE FROM controller_integration_lease WHERE expires_at<=?").run(now.toISOString());
-    const row = this.db.prepare("SELECT * FROM controller_integration_lease LIMIT 1").get();
+    const row = this.db.prepare("SELECT * FROM controller_integration_lease ORDER BY acquired_at LIMIT 1").get();
     return row ? normalizeIntegrationLease(row) : null;
+  }
+
+  listIntegrationLeases(now = new Date()) {
+    if (!(now instanceof Date) || !Number.isFinite(now.getTime())) throw new TypeError("Integration lease observation time is invalid.");
+    this.db.prepare("DELETE FROM controller_integration_lease WHERE expires_at<=?").run(now.toISOString());
+    return this.db.prepare("SELECT * FROM controller_integration_lease ORDER BY acquired_at,lease_id").all().map(normalizeIntegrationLease);
+  }
+
+  findIntegrationLeaseForPaths(paths, { controllerId = null, now = new Date() } = {}) {
+    const normalizedPaths = integrationPaths(paths);
+    if (controllerId !== null) integrationController(controllerId);
+    return this.listIntegrationLeases(now).find((lease) => (!controllerId || lease.controllerId === controllerId) && normalizedPaths.every((requested) => lease.paths.some((root) => requested === root || requested.startsWith(`${root}/`)))) ?? null;
   }
 
   acquireIntegrationLease({ controllerId, durationMs, purpose, paths = [] }) {
@@ -986,10 +1056,11 @@ export class RuntimeDatabase {
     const acquiredAt = new Date();
     return this.#transaction(() => {
       this.db.prepare("DELETE FROM controller_integration_lease WHERE expires_at<=?").run(acquiredAt.toISOString());
-      const activeRow = this.db.prepare("SELECT * FROM controller_integration_lease LIMIT 1").get();
-      if (activeRow) {
+      const activeRows = this.db.prepare("SELECT * FROM controller_integration_lease ORDER BY acquired_at").all();
+      for (const activeRow of activeRows) {
         const active = normalizeIntegrationLease(activeRow);
-        return { acquired: false, lease: active, overlaps: overlappingPaths(active.paths, normalizedPaths) };
+        const overlaps = overlappingPaths(active.paths, normalizedPaths);
+        if (overlaps.length > 0) return { acquired: false, lease: active, overlaps };
       }
       const leaseId = `int-${randomUUID()}`;
       const expiresAt = new Date(acquiredAt.getTime() + durationMs).toISOString();
@@ -1038,6 +1109,7 @@ export class RuntimeDatabase {
         lease_expires_at=?, updated_at=? WHERE id=? AND status='queued'`).run(workerId, lease, now.toISOString(), row.id);
       if (changed.changes !== 1) return null;
       this.#event("task.claimed", row.id, { workerId, leaseExpiresAt: lease });
+      this.#appendRunEventForTask(row.id, "worker-started", { workerId }, workerId);
       return this.getTaskForExecution(row.id);
     });
     return transaction();
@@ -1046,9 +1118,15 @@ export class RuntimeDatabase {
   markVerifying(id, verifier = "worker-result") {
     bounded(verifier, 80, "verifier");
     const now = new Date().toISOString();
-    const changed = this.db.prepare("UPDATE tasks SET status='verifying', verifier=?, updated_at=? WHERE id=? AND status='running'")
-      .run(verifier, now, id);
-    if (changed.changes === 1) this.#event("task.verifying", id, { verifier });
+    const changed = this.#transaction(() => {
+      const result = this.db.prepare("UPDATE tasks SET status='verifying', verifier=?, updated_at=? WHERE id=? AND status='running'")
+        .run(verifier, now, id);
+      if (result.changes === 1) {
+        this.#event("task.verifying", id, { verifier });
+        this.#appendRunEventForTask(id, "verification-started", { verifierId: verifier }, verifier);
+      }
+      return result;
+    });
     return this.getTaskForExecution(id);
   }
 
@@ -1059,13 +1137,19 @@ export class RuntimeDatabase {
     const task = this.getTask(id);
     const now = new Date().toISOString();
     const storedResult = resultSummary === null ? null : this.#storeContent(resultSummary, { classification: task.dataClass, ownerType: "task-result", ownerId: id });
-    const changed = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
-      WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
-        storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
-    if (changed.changes === 1) {
-      this.#event(`task.${status}`, id, { errorCode });
-      this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.`, metadata: receiptMetadata });
-      if (task?.conversationId) {
+    const changed = this.#transaction(() => {
+      const result = this.db.prepare(`UPDATE tasks SET status=?, result_summary=?, result_summary_ref=?, result_summary_sha256=?, result_summary_size_bytes=?, result_summary_expires_at=?, error_code=?, lease_expires_at=NULL, updated_at=?
+        WHERE id=? AND status IN ('running','verifying')`).run(status, storedResult ? "[vault-content]" : resultSummary, storedResult?.reference ?? null,
+          storedResult?.sha256 ?? (resultSummary === null ? null : digestText(resultSummary)), storedResult?.sizeBytes ?? (resultSummary === null ? null : Buffer.byteLength(resultSummary, "utf8")), storedResult?.expiresAt ?? null, errorCode, now, id);
+      if (result.changes === 1) {
+        this.#event(`task.${status}`, id, { errorCode });
+        this.recordReceipt({ task, phase: status, verifier: task?.verifier ?? "worker-result", summary: resultSummary ?? errorCode ?? `Task ${status}.`, metadata: receiptMetadata });
+        this.#appendRunEventForTask(id, "receipt-created", { receiptCount: 1, taskState: status });
+        const terminalType = status === "completed" ? "run-completed" : status === "cancelled" ? "run-cancelled" : status === "waiting" ? "approval-required" : "run-failed";
+        const payload = status === "completed" ? { taskState: status, verificationState: "verified" } : { taskState: status, reasonCode: boundedRunReason(errorCode ?? status) };
+        this.#appendRunEventForTask(id, terminalType, payload);
+      }
+      if (result.changes === 1 && task?.conversationId) {
         const content = status === "completed"
           ? (resultSummary ?? "Task completed and verified.")
           : (resultSummary ?? `Task ${status}${errorCode ? `: ${errorCode}` : "."}`);
@@ -1074,7 +1158,8 @@ export class RuntimeDatabase {
           role: status === "completed" ? "assistant" : "system", content,
         });
       }
-    }
+      return result;
+    });
     return this.getTask(id);
   }
 
@@ -1094,6 +1179,9 @@ export class RuntimeDatabase {
       if (changed.changes !== 1) throw new Error("receipt-task-state-invalid");
       this.#event(`task.${status}`, id, { errorCode, receiptSha256: receiptDigest(receipt) });
       this.recordCapabilityReceipt({ task, receipt, verifier: task.verifier ?? "worker-result" });
+      this.#appendRunEventForTask(id, "receipt-created", { receiptCount: 1, taskState: status });
+      this.#appendRunEventForTask(id, status === "completed" ? "run-completed" : status === "waiting" ? "approval-required" : "run-failed",
+        status === "completed" ? { taskState: status, verificationState: "verified" } : { taskState: status, reasonCode: boundedRunReason(errorCode ?? status) });
       return this.getTask(id);
     });
     if (task.conversationId) this.addConversationMessage({
@@ -1477,9 +1565,10 @@ function idempotencyConflict(field) {
   return error;
 }
 function runError(code) { const error = new Error(code); error.code = code; return error; }
+function boundedRunReason(value) { const normalized = String(value).toLowerCase().replace(/[^a-z0-9.-]+/g, "-").slice(0, 64); return /^[a-z]/.test(normalized) ? normalized : `error-${normalized}`; }
 function evolutionError(code) { const error = new TypeError(code); error.code = code; return error; }
 function normalizeObjective(row, tasks) { return { id: row.id, correlationId: row.correlation_id, title: row.title, status: row.status, maximumReplans: row.maximum_replans, replanCount: row.replan_count, summary: row.summary, tasks, createdAt: row.created_at, updatedAt: row.updated_at }; }
-function normalizeObjectiveTask(row, task) { return { id: row.id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
+function normalizeObjectiveTask(row, task) { return { id: row.id, localTaskId: row.local_task_id, objectiveId: row.objective_id, taskArea: row.task_area, definition: JSON.parse(row.task_json), status: row.status, taskId: row.task_id, task, replanCount: row.replan_count, lastWorkerId: row.last_worker_id, createdAt: row.created_at, updatedAt: row.updated_at }; }
 function normalizeConversation(row) { return {
   id: row.id, title: row.title_ref ? null : row.title, titleReference: row.title_ref ?? null,
   titleSha256: row.title_sha256 ?? digestText(row.title ?? ""), titleSizeBytes: row.title_size_bytes ?? Buffer.byteLength(row.title ?? "", "utf8"),
@@ -1588,6 +1677,19 @@ function validateObjectiveTask(value) {
   slug(value.taskArea, "objective task area");
   bounded(value.owner ?? "mahoraga", 64, "objective owner"); bounded(value.provider ?? "deterministic", 64, "objective provider");
   bounded(value.retryPolicy ?? "bounded", 64, "objective retry policy"); bounded(value.completionCriteria ?? "worker-verified", 400, "objective completion criteria");
+}
+function assertAcyclicObjective(tasks) {
+  const remaining = new Map(tasks.map((task) => [task.id, new Set(task.dependsOn)]));
+  const ready = [...remaining].filter(([, dependencies]) => dependencies.size === 0).map(([id]) => id);
+  let visited = 0;
+  while (ready.length > 0) {
+    const id = ready.shift(); visited += 1;
+    for (const [candidate, dependencies] of remaining) {
+      if (!dependencies.delete(id) || dependencies.size !== 0) continue;
+      ready.push(candidate);
+    }
+  }
+  if (visited !== tasks.length) throw new TypeError("objective-dependency-cycle");
 }
 function bounded(value, max, name) { if (typeof value !== "string" || value.length < 1 || value.length > max || /[\r\n]/.test(value)) throw new TypeError(`${name} is invalid.`); }
 function boundedMultiline(value, max, name) { if (typeof value !== "string" || value.trim().length < 1 || value.length > max || /\u0000/.test(value)) throw new TypeError(`${name} is invalid.`); }

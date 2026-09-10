@@ -13,13 +13,19 @@ export function createRelayRuntimePeer({
   localAccessToken,
   twin = null,
   WebSocketImpl = globalThis.WebSocket,
+  retryBudget = 8,
+  random = Math.random,
+  onReceipt = () => {},
+  killSwitch = () => false,
+  allowedDestinations = [DEFAULT_RELAY_URL],
 } = {}) {
-  if (relayUrl !== DEFAULT_RELAY_URL) fail("relay-runtime-url-invalid");
+  if (!Array.isArray(allowedDestinations) || !allowedDestinations.includes(relayUrl) || new URL(relayUrl).protocol !== "wss:") fail("relay-runtime-url-invalid");
   if (!pairing || !pairing.privateKey || !pairing.publicKey || !pairing.publicOffer) fail("relay-runtime-pairing-invalid");
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(deviceId)) fail("relay-runtime-device-invalid");
   if (!gateway || ["createRun", "chat", "tasks", "messages", "messageContent", "taskAction", "operationsSnapshot", "operationsAction", "replay", "cancelRun", "capabilities"].some((name) => typeof gateway[name] !== "function")) fail("relay-runtime-gateway-invalid");
   if (typeof localAccessToken !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) fail("relay-runtime-access-token-invalid");
   if (typeof WebSocketImpl !== "function") fail("relay-runtime-websocket-invalid");
+  if (!Number.isSafeInteger(retryBudget) || retryBudget < 0 || retryBudget > 32 || typeof random !== "function" || typeof onReceipt !== "function" || typeof killSwitch !== "function") fail("relay-runtime-retry-policy-invalid");
 
   const twinState = normalizeTwin(twin);
   let socket = null;
@@ -29,9 +35,11 @@ export function createRelayRuntimePeer({
   let reconnectTimer = null;
   let reconnectAttempts = 0;
   let stopped = false;
+  let circuit = "closed";
 
   const api = {
     async connect() {
+      if (killSwitch()) { circuit = "open"; receipt("kill-switch", { attempt: reconnectAttempts }); fail("relay-runtime-kill-switch-active"); }
       stopped = false;
       if (socketReady(socket) && session) return Object.freeze({ sessionId: session.sessionId, deviceId });
       if (connectPromise) return connectPromise;
@@ -61,6 +69,9 @@ export function createRelayRuntimePeer({
         sessionId: session?.sessionId ?? null,
         deviceId,
         twinPeerId: twinState?.peerId ?? null,
+        reconnectAttempts,
+        retryBudget,
+        circuit,
       });
     },
     twinInboxSnapshot() { return twinState?.inbox.snapshot() ?? null; },
@@ -80,13 +91,19 @@ export function createRelayRuntimePeer({
     socket.addEventListener("message", (event) => { void receive(event); });
     socket.addEventListener("close", () => { if (!stopped && session) { socket = null; scheduleReconnect(); } }, { once: true });
     reconnectAttempts = 0;
+    circuit = "closed";
+    receipt("connected", { sessionId: session.sessionId });
     socket.send(JSON.stringify({ action: "replay", sessionId: session.sessionId, to: "local", afterCounter: session.receivedCounters.get("ui-to-runtime") ?? 0 }));
     return Object.freeze({ sessionId: session.sessionId, deviceId });
   }
 
   function scheduleReconnect() {
-    if (stopped || reconnectTimer || !session || reconnectAttempts >= 8) return;
-    const delayMs = Math.min(10_000, 500 * (2 ** reconnectAttempts)); reconnectAttempts += 1;
+    if (stopped || reconnectTimer || !session) return;
+    if (reconnectAttempts >= retryBudget) { circuit = "open"; receipt("circuit-open", { attempt: reconnectAttempts }); return; }
+    const cap = Math.min(30_000, 500 * (2 ** reconnectAttempts));
+    const delayMs = Math.floor(Math.max(0, Math.min(1, Number(random()))) * (cap + 1)); reconnectAttempts += 1;
+    circuit = "half-open";
+    receipt("reconnect-scheduled", { attempt: reconnectAttempts, delayMs });
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       void api.connect().catch(() => scheduleReconnect());
@@ -173,6 +190,10 @@ export function createRelayRuntimePeer({
     if (type === "operations-snapshot") return gateway.operationsSnapshot(context);
     if (type === "operations-action") return gateway.operationsAction(payload, context);
     throw error("relay-runtime-request-invalid");
+  }
+
+  function receipt(state, detail) {
+    onReceipt(Object.freeze({ schemaVersion: 1, type: "relay-egress", state, destination: relayUrl, capabilityAllowlist: [...ACTIONS].sort(), observedAt: new Date().toISOString(), ...detail }));
   }
 }
 
