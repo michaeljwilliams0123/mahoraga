@@ -1,5 +1,6 @@
 import { buildCapabilityRegistry, rankCapabilityRoutes } from "./capability-registry.mjs";
-import { resolveEffectiveAuthority } from "./owner-authority.mjs";
+import { resolveCapabilityAuthority } from "./owner-authority.mjs";
+import { planCapabilityRecovery } from "./capability-recovery.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
 
@@ -9,27 +10,28 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
   return function routeTask(manifest, task, context = {}) {
     const creditFreeDecision = creditFreeGate(task, context);
     if (creditFreeDecision && !creditFreeDecision.ok) {
-      return { status: "waiting", reason: creditFreeDecision.reason, worker: null, creditFreeDecision };
+      return waitingWithRecovery(creditFreeDecision.reason, task, null, { creditFreeDecision });
     }
     const providerDecision = zeroCreditDecision(task, context);
-    if (providerDecision?.status === "waiting") return { status: "waiting", reason: providerDecision.providerId, worker: null, providerDecision };
+    if (providerDecision?.status === "waiting") return waitingWithRecovery(providerDecision.providerId, task, null, { providerDecision });
     const ranked = rankRoutes(manifest, task, context);
     const candidates = ranked.candidates
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
       .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
     const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
-    if (candidates.length === 0) return { status: "waiting", reason, worker: null, ...(creditFreeDecision ? { creditFreeDecision } : {}) };
+    if (candidates.length === 0) return waitingWithRecovery(reason, task, ranked, creditFreeDecision ? { creditFreeDecision } : {});
     const selected = candidates[0];
-    const authorityDecision = task.authorityScope ? resolveEffectiveAuthority({
+    const capabilityAuthorityScopes = selected.authorityScopes ?? [];
+    const authorityDecision = task.authorityScope || capabilityAuthorityScopes.length > 0 ? resolveCapabilityAuthority({
       grant: manifest.ownerAuthority,
-      requestedScope: task.authorityScope,
+      requestedScope: task.authorityScope ?? null,
       requestedTarget: task.authorityTarget ?? null,
       platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? [],
-      capabilityScopes: selected.authorityScopes ?? [],
+      capabilityScopes: capabilityAuthorityScopes,
     }) : null;
-    if (authorityDecision && !authorityDecision.authorized) return { status: "waiting", reason: authorityDecision.reason, worker: null, authorityDecision };
-    if (authorityDecision?.confirmationRequired) return { status: "waiting", reason: "owner-confirmation-required", worker: null, authorityDecision };
+    if (authorityDecision && !authorityDecision.authorized) return waitingWithRecovery(authorityDecision.reason, task, ranked, { authorityDecision });
+    if (authorityDecision?.confirmationRequired) return waitingWithRecovery("owner-confirmation-required", task, ranked, { authorityDecision });
     const route = {
       status: "routable",
       reason: null,
@@ -40,6 +42,22 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     };
     const withProvider = providerDecision ? { ...route, providerDecision } : route;
     return creditFreeDecision ? { ...withProvider, creditFreeDecision } : withProvider;
+  };
+}
+
+function waitingWithRecovery(reason, task, ranked, extra = {}) {
+  const recoveryPlan = planCapabilityRecovery({
+    reason,
+    task,
+    consideredRoutes: ranked?.considered ?? [],
+    excludedWorkerIds: task.excludedWorkerIds ?? [],
+  });
+  return {
+    status: "waiting",
+    reason,
+    worker: null,
+    ...(recoveryPlan.recoverable ? { recoveryPlan } : {}),
+    ...extra,
   };
 }
 

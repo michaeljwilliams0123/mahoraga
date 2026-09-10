@@ -129,3 +129,14 @@ test("Destiny GitHub bridge writes pending and submitting lifecycle guards befor
   assert.match(source, /nextState: "failed-closed"/);
   assert.match(source, /destinyGithubTaskDigest/);
 });
+
+test("Destiny GitHub bridge serializes submissions, atomically replaces its ledger, and records only canonical Codex task links", async () => {
+  const source = await readFile(BRIDGE, "utf8");
+  assert.match(source, /extractCodexTaskReference/);
+  assert.match(source, /open\(lockPath, "wx", 0o600\)/);
+  assert.match(source, /destiny-codex-submit-lock-held/);
+  assert.match(source, /process\.kill\(lock\.pid, 0\)/);
+  assert.match(source, /rename\(tempPath, file\)/);
+  assert.ok(source.includes("https:\\/\\/chatgpt\\.com\\/s\\/(cd_[a-f0-9]{32})"));
+  assert.equal(source.includes("chatgpt\\.com\\/[^\\s]+"), false);
+});

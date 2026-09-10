@@ -58,7 +58,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
 
 export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = Date.now(), ...context } = {}) {
   const allowedCosts = manifest.costModes[task.requestedMode];
-  if (!allowedCosts) return { candidates: [], reason: "unknown-cost-mode" };
+  if (!allowedCosts) return { candidates: [], considered: [], reason: "unknown-cost-mode" };
 
   const interfaceRank = new Map(manifest.routingPolicy.interfaceOrder.map((value, index) => [value, index]));
   const availabilityRank = new Map(manifest.routingPolicy.availabilityOrder.map((value, index) => [value, index]));
@@ -76,7 +76,7 @@ export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = 
     const reason = matching.length > 0 && allowedWorkers.size > 0 && !matching.some((entry) => allowedWorkers.has(entry.workerId))
       ? "worker-not-authorized"
       : "no-enabled-worker";
-    return { candidates: [], reason };
+    return { candidates: [], considered: matching.map(recoveryRouteRecord), reason };
   }
 
   const evaluated = staticEligible.map((entry) => ({
@@ -89,8 +89,13 @@ export function rankCapabilityRoutes(manifest, task, { workerStates = [], now = 
   const candidates = evaluated.filter((item) => item.eligibility.eligible).map((item) => item.entry);
   return {
     candidates,
+    considered: evaluated.map((item) => recoveryRouteRecord(item.entry)),
     reason: candidates.length === 0 ? evaluated[0].eligibility.reason : null,
   };
+}
+
+function recoveryRouteRecord(entry) {
+  return { workerId: entry.workerId };
 }
 
 function compareRoutes(left, right, { interfaceRank, availabilityRank, allowedCosts }) {

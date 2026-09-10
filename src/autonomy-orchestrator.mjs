@@ -149,6 +149,42 @@ function repositoryTask({ id, dependsOn, outcome, conversationId, taskArea, comp
   };
 }
 
+function ucfDataClass(capability) {
+  if (/^(?:m365|studio|google)\./.test(capability)) return "enterprise";
+  if (/^(?:repository|desktop|codex|self)\./.test(capability)) return "local-only";
+  if (capability === "assistant.respond") return "personal";
+  return "synthetic";
+}
+
+function ucfTask({ id, capability, dependsOn, outcome, conversationId, requestedMode, taskArea, authoritySessionId = null }) {
+  return {
+    id, authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY, capability, dataClass: ucfDataClass(capability),
+    taskType: capability.split(".")[0], requestedMode, executionPlane: "ucf-router", priority: "high", maximumAttempts: 3,
+    conversationId, taskArea, owner: "mahoraga", provider: "ucf-router", retryPolicy: "bounded",
+    completionCriteria: capability === "assistant.respond" ? "substantive-response" : "worker-verified",
+    requestedOutcome: outcome, dependsOn,
+    ...(authoritySessionId ? { authoritySessionId } : {}),
+  };
+}
+
+function buildUcfObjective({ conversationId, messageId, request, area, contract, requestedMode, capabilityPlan, authoritySessionId = null }) {
+  if (!Array.isArray(capabilityPlan) || capabilityPlan.length < 1 || capabilityPlan.length > 16) throw new TypeError("UCF capability plan is invalid.");
+  const seen = new Set();
+  const tasks = capabilityPlan.map((capability, index) => {
+    if (typeof capability !== "string" || !/^[a-z][a-z0-9-]{0,31}\.[a-z][a-z0-9-]{0,31}$/.test(capability) || seen.has(capability)) throw new TypeError("UCF capability plan is invalid.");
+    seen.add(capability);
+    const id = `ucf-${index + 1}-${capability.replace(".", "-")}`.slice(0, 63);
+    const dependsOn = index === 0 ? [] : [`ucf-${index}-${capabilityPlan[index - 1].replace(".", "-")}`.slice(0, 63)];
+    const outcome = `Execute ${capability} for User request: ${request}`;
+    if (capability === "codex.execute") return codexTask({ id, dependsOn, outcome, conversationId, requestedMode, taskArea: area, contract });
+    return ucfTask({ id, capability, dependsOn, outcome, conversationId, requestedMode, taskArea: area, authoritySessionId });
+  });
+  return Object.freeze({
+    title: `Universal: ${request}`.slice(0, 240), correlationId: `aut-${messageId}`.slice(0, 240), maximumReplans: 2,
+    tasks: Object.freeze(tasks.map((task) => Object.freeze(task))),
+  });
+}
+
 function buildCreditFreeObjective({ conversationId, messageId, request, area, contract, creditFreeContext }) {
   const plan = planCreditFreeWork({ message: request, ...creditFreeContext });
   const graph = plan.graph ?? CREDIT_FREE_GRAPH;
@@ -184,10 +220,13 @@ export function buildAutonomyObjective({
   creditFreeRequired = false,
   creditFreeContext = null,
   requestedCapability = null,
+  capabilityPlan = null,
+  authoritySessionId = null,
 }) {
   const contract = executionContract(suppliedExecutionContract);
   const request = boundedText(message, "Complete the requested Mahoraga improvement.");
   const area = boundedText(taskArea, "mahoraga-autonomy").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 80);
+  if (capabilityPlan !== null) return buildUcfObjective({ conversationId, messageId, request, area, contract, requestedMode, capabilityPlan, authoritySessionId });
   if (requestedCapability !== null) {
     if (!OWNER_CONTAINED_CAPABILITIES.has(requestedCapability)) throw new TypeError("Owner contained capability is invalid.");
     if (creditFreeRequested({ creditFreeRequired, requestedMode })) throw new TypeError("Owner contained capability is unavailable in credit-free mode.");
@@ -248,6 +287,8 @@ export function createAutonomousConversationTurn({
   creditFreeRequired = false,
   creditFreeContext = null,
   requestedCapability = null,
+  capabilityPlan = null,
+  authoritySessionId = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && role === "user" && requiresResponse === true && taskId === null;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -263,6 +304,8 @@ export function createAutonomousConversationTurn({
     creditFreeRequired,
     creditFreeContext,
     requestedCapability,
+    capabilityPlan,
+    authoritySessionId,
   }));
   return Object.freeze({ message, objective });
 }
@@ -280,6 +323,8 @@ export function createAutonomousConversation({
   creditFreeRequired = false,
   creditFreeContext = null,
   requestedCapability = null,
+  capabilityPlan = null,
+  authoritySessionId = null,
 }) {
   const shouldCreateObjective = policy?.conversationActivation === true && requiresResponse === true;
   const contract = shouldCreateObjective ? executionContract(suppliedExecutionContract) : null;
@@ -298,6 +343,8 @@ export function createAutonomousConversation({
     creditFreeRequired,
     creditFreeContext,
     requestedCapability,
+    capabilityPlan,
+    authoritySessionId,
   }));
   return Object.freeze({ conversation, objective });
 }

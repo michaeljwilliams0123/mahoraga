@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { fingerprintCodexAccountId, fingerprintCodexEnvironmentId } from "../src/codex-connection-identity.mjs";
+import { extractCodexTaskReference, fingerprintCodexAccountId, fingerprintCodexEnvironmentId } from "../src/codex-connection-identity.mjs";
 import { advanceDestinyTaskSubmission, planDestinyTaskSubmission, validateDestinySubmissionLedger } from "../src/destiny-codex-dispatch.mjs";
 import { buildCodexCloudExecArgs, destinyGithubTaskDigest, parseDestinyGithubTaskIssue } from "../src/destiny-github-task.mjs";
 
@@ -39,32 +39,43 @@ if (task.issueNumber !== issueNumber) throw new Error("destiny-github-issue-numb
 
 await mkdir(stateDir, { recursive: true });
 const ledgerPath = path.join(stateDir, "submitted-github-tasks.json");
+const lockPath = `${ledgerPath}.lock`;
 const taskDigest = destinyGithubTaskDigest(task);
-let ledger = await readLedger(ledgerPath);
-const planned = planDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, routeId: "openai-destiny", issueNumber, now: new Date().toISOString() });
-if (planned.duplicate) {
-  console.log(JSON.stringify({ submitted: false, duplicate: true, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl: planned.record.taskUrl ?? null }));
-  process.exit(0);
-}
-ledger = planned.ledger;
-await writeLedger(ledgerPath, ledger);
-ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitting", now: new Date().toISOString() }).ledger;
-await writeLedger(ledgerPath, ledger);
-
-const executable = process.env.CODEX_BIN ?? "codex";
-let stdout;
+const lockHandle = await acquireLedgerLock(lockPath);
+let result;
 try {
-  stdout = execFileSync(executable, buildCodexCloudExecArgs(environmentId, task), { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 4 * 1024 * 1024 });
-} catch {
-  ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "failed-closed", now: new Date().toISOString() }).ledger;
-  await writeLedger(ledgerPath, ledger);
-  throw new Error("destiny-codex-cloud-submit-failed");
+  result = await submitUnderLock();
+} finally {
+  await releaseLedgerLock(lockPath, lockHandle);
 }
-const taskUrl = extractTaskUrl(stdout);
-const outputSha256 = createHash("sha256").update(stdout).digest("hex");
-ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitted", now: new Date().toISOString(), taskUrl, outputSha256 }).ledger;
-await writeLedger(ledgerPath, ledger);
-console.log(JSON.stringify({ submitted: true, duplicate: false, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl }));
+console.log(JSON.stringify(result));
+
+async function submitUnderLock() {
+  let ledger = await readLedger(ledgerPath);
+  const planned = planDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, routeId: "openai-destiny", issueNumber, now: new Date().toISOString() });
+  if (planned.duplicate) {
+    return { submitted: false, duplicate: true, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl: planned.record.taskUrl ?? null };
+  }
+  ledger = planned.ledger;
+  await writeLedger(ledgerPath, ledger);
+  ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitting", now: new Date().toISOString() }).ledger;
+  await writeLedger(ledgerPath, ledger);
+
+  const executable = "codex";
+  let stdout;
+  try {
+    stdout = execFileSync(executable, buildCodexCloudExecArgs(environmentId, task), { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"], maxBuffer: 4 * 1024 * 1024 });
+  } catch {
+    ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "failed-closed", now: new Date().toISOString() }).ledger;
+    await writeLedger(ledgerPath, ledger);
+    throw new Error("destiny-codex-cloud-submit-failed");
+  }
+  const taskUrl = extractTaskUrl(stdout);
+  const outputSha256 = createHash("sha256").update(stdout).digest("hex");
+  ledger = advanceDestinyTaskSubmission(ledger, { taskId: task.taskId, taskDigest, nextState: "submitted", now: new Date().toISOString(), taskUrl, outputSha256 }).ledger;
+  await writeLedger(ledgerPath, ledger);
+  return { submitted: true, duplicate: false, bootstrapRoute, issueNumber, taskId: task.taskId, taskUrl };
+}
 
 async function fetchIssue(number) {
   const response = await fetch(`https://api.github.com/repos/${REPOSITORY}/issues/${number}`, { headers: { Accept: "application/vnd.github+json", "User-Agent": "mahoraga-destiny-codex-bridge" } });
@@ -80,11 +91,65 @@ async function readLedger(file) {
   catch (error) { if (error?.code === "ENOENT") return {}; throw new Error("destiny-codex-submit-ledger-invalid"); }
 }
 async function writeLedger(file, ledger) {
-  await writeFile(file, `${JSON.stringify(ledger, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+  const tempPath = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  let handle;
+  try {
+    handle = await open(tempPath, "wx", 0o600);
+    await handle.writeFile(`${JSON.stringify(ledger, null, 2)}\n`, { encoding: "utf8" });
+    await handle.sync();
+    await handle.close();
+    handle = null;
+    await rename(tempPath, file);
+  } finally {
+    if (handle) await handle.close().catch(() => {});
+    await rm(tempPath, { force: true }).catch(() => {});
+  }
+}
+async function acquireLedgerLock(lockPath) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      await handle.writeFile(`${JSON.stringify({ pid: process.pid, acquiredAt: new Date().toISOString() })}\n`, { encoding: "utf8" });
+      await handle.sync();
+      return handle;
+    } catch (error) {
+      if (error?.code !== "EEXIST") throw error;
+      const lock = await readLedgerLock(lockPath);
+      if (!lock || !Number.isSafeInteger(lock.pid) || lock.pid < 1) throw new Error("destiny-codex-submit-lock-held");
+      try {
+        process.kill(lock.pid, 0);
+        throw new Error("destiny-codex-submit-lock-held");
+      } catch (probeError) {
+        if (probeError?.message === "destiny-codex-submit-lock-held" || probeError?.code === "EPERM") throw new Error("destiny-codex-submit-lock-held");
+        if (probeError?.code !== "ESRCH") throw new Error("destiny-codex-submit-lock-held");
+      }
+      await rm(lockPath, { force: true });
+    }
+  }
+  throw new Error("destiny-codex-submit-lock-held");
+}
+async function readLedgerLock(lockPath) {
+  try {
+    const lock = JSON.parse(await readFile(lockPath, "utf8"));
+    return lock && typeof lock === "object" && !Array.isArray(lock) ? lock : null;
+  } catch {
+    return null;
+  }
+}
+async function releaseLedgerLock(lockPath, handle) {
+  await handle.close().catch(() => {});
+  await rm(lockPath, { force: true });
 }
 function extractTaskUrl(value) {
-  const match = typeof value === "string" ? value.match(/https:\/\/chatgpt\.com\/[^\s]+/) : null;
-  return match ? match[0].replace(/[),.;]+$/, "") : null;
+  if (typeof value !== "string") return null;
+  const match = value.match(/https:\/\/chatgpt\.com\/s\/(cd_[a-f0-9]{32})(?=$|[?#\s)\]}>,.;:])/i);
+  if (!match) return null;
+  try {
+    if (extractCodexTaskReference(match[0]) !== match[1].toLowerCase()) return null;
+  } catch {
+    return null;
+  }
+  return `https://chatgpt.com/s/${match[1].toLowerCase()}`;
 }
 function parseOptions(tokens) {
   const result = new Map();

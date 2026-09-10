@@ -178,3 +178,26 @@ test("objective dependency cycles are rejected before persistence", async (t) =>
   }), /objective-dependency-cycle/);
   assert.equal(database.listObjectives().length, 0);
 });
+
+
+test("attended UCF objective preserves owner session through Microsoft task release", async (t) => {
+  const database = await installedFixture(t);
+  const definition = buildAutonomyObjective({
+    conversationId: null,
+    messageId: "msg-attended-ucf-0001",
+    message: "Compare repository evidence with Microsoft 365 context.",
+    executionContract: { baseCommit: "e".repeat(40), allowedPaths: ["src", "test"] },
+    capabilityPlan: ["m365.reason"],
+    authoritySessionId: "ses-owner-attended-000002",
+  });
+  const objective = database.createObjective(definition);
+  const reconciled = database.reconcileObjectives();
+  assert.equal(reconciled.released.length, 1);
+  const child = database.getObjective(objective.id).tasks[0];
+  assert.equal(child.status, "released");
+  assert.equal(child.task.capability, "m365.reason");
+  assert.equal(child.task.attendedRequired, true);
+  assert.equal(child.task.authoritySessionId, "ses-owner-attended-000002");
+  assert.deepEqual(child.task.allowedWorkerIds, ["microsoft365"]);
+});
+

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { classifyTaskIntent } from "./task-intent.mjs";
 import { capabilityIndex } from "./router.mjs";
+import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 
 export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null, relayHandlers = {} } = {}) {
   if (!database || typeof database.createConversationRun !== "function") throw gatewayError("gateway-database-required");
@@ -55,8 +56,20 @@ export function createConversationGateway({ database, manifest, supervisor, subm
       }
       run ??= database.createConversationRun({ sessionId: request.sessionId, conversationId, idempotencyKey: request.idempotencyKey, requestSha256 });
       if (run.taskId) return { run, intent: null, task: database.getTask(run.taskId) };
-      const available = api.capabilities();
-      const intent = classifyTaskIntent({ content: request.content, attachmentCount: request.attachmentCount, availableCapabilities: available.filter((item) => item.routable).map((item) => item.capability) });
+      const capabilityRoutes = resolveCapabilities();
+      const priorTasks = conversationId && typeof database.listTasks === "function"
+        ? database.listTasks(500).filter((task) => task.conversationId === conversationId)
+        : [];
+      const ucfPlan = planConversationCapabilities({
+        content: request.content, attachmentCount: request.attachmentCount, capabilityRoutes, priorTasks,
+      });
+      const fallbackIntent = classifyTaskIntent({
+        content: request.content, attachmentCount: request.attachmentCount,
+        availableCapabilities: capabilityRoutes.filter((item) => item.routable === true).map((item) => item.capability),
+      });
+      const intent = ucfPlan.execution === "task" && ucfPlan.capability
+        ? gatewayIntentFromPlan(ucfPlan)
+        : fallbackIntent;
       emit(run.id, "run-start", {
         requestSha256: digest(request.content), requestBytes: Buffer.byteLength(request.content, "utf8"),
         intentKind: intent.intentKind, capability: intent.capability, attachmentCount: request.attachmentCount,
@@ -123,6 +136,13 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     close() { listeners.clear(); },
   };
   return Object.freeze(api);
+}
+
+function gatewayIntentFromPlan(plan) {
+  return Object.freeze({
+    schemaVersion: 2, intentKind: plan.intentKind, capability: plan.capability, confidence: 1,
+    requiredEvidenceIds: [], targetId: null, limitations: [], reasonCode: plan.reasonCode,
+  });
 }
 
 function validateRunInput(value) {
