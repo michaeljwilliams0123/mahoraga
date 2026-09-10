@@ -5,7 +5,9 @@ const ACTION_KINDS = new Set([
 ]);
 const RECOVERY = Object.freeze({
   "canary-stale": ["refresh-readiness", "retry-route"],
+  "process-starting": ["refresh-readiness", "retry-route"],
   "provider-unavailable": ["refresh-readiness", "reroute"],
+  "provider-unknown": ["refresh-readiness", "retry-route"],
   "worker-excluded": ["reroute"],
   "routing-evidence-missing": ["refresh-readiness", "configure-adapter", "reroute"],
   "platform-authority-missing": ["refresh-auth"],

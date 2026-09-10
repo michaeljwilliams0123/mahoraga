@@ -60,10 +60,10 @@ test("unified chat intake separates questions from explicit actions", { concurre
   const actBody = await acted.json();
   assert.equal(actBody.decision.mode, "act");
   assert.equal(actBody.task, null);
-  assert.equal(actBody.objective.tasks.length, 6);
-  assert.deepEqual(actBody.objective.tasks.map((item) => item.definition.id).sort(), ["challenge", "implement", "integrate", "propose", "synthesize", "verify"]);
+  assert.equal(actBody.objective.tasks.length >= 1, true);
+  assert.equal(actBody.objective.tasks.every((item) => item.definition.id.startsWith("ucf-")), true);
   const codexDefinitions = actBody.objective.tasks.map((item) => item.definition).filter((item) => item.capability === "codex.execute");
-  assert.equal(codexDefinitions.length, 4);
+  assert.equal(codexDefinitions.length, 1);
   for (const definition of codexDefinitions) {
     assert.match(definition.baseCommit, /^[a-f0-9]{40,64}$/);
     assert.equal(definition.allowedPaths.includes("cloud-app"), true);
@@ -226,4 +226,50 @@ test("paired relay preserves zero-codex by default and passes only explicit lice
   }, context);
   assert.equal(licensed.task.capability, "assistant.respond");
   assert.equal(licensed.objective, null);
+});
+
+test("public chat composes repo and M365 work through UCF with attended-session continuity", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-ucf-chat-runtime-"));
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: Buffer.alloc(32, 61), primaryCodexToken: TOKEN, syncCoordinationMailbox: false, repositoryHeadReader: async () => "f".repeat(40) });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const nonceResponse = await fetch(`${base}/api/session/bootstrap-nonce`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } });
+  const { nonce } = await nonceResponse.json();
+  const exchange = await fetch(`${base}/session/bootstrap?nonce=${encodeURIComponent(nonce)}`, { redirect: "manual" });
+  const cookie = exchange.headers.get("set-cookie").split(";", 1)[0];
+  const response = await fetch(`${base}/api/chat`, {
+    method: "POST", headers: { cookie, origin: base, "content-type": "application/json" },
+    body: JSON.stringify({ mode: "auto", content: "Review the repository and compare it with my Microsoft 365 work", idempotencyKey: "ucf-repo-m365" }),
+  });
+  assert.equal(response.status, 202);
+  const body = await response.json();
+  assert.equal(body.decision.execution, "objective");
+  assert.deepEqual(body.objective.tasks.map((item) => item.definition.capability), ["repository.inspect", "m365.reason"]);
+  const microsoft = body.objective.tasks.find((item) => item.definition.capability === "m365.reason");
+  assert.equal(typeof microsoft.definition.authoritySessionId, "string");
+  assert.equal(microsoft.definition.authoritySessionId.length > 20, true);
+});
+
+
+test("public chat keeps natural M365 follow-up on enterprise reasoning lane", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-ucf-m365-followup-"));
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: Buffer.alloc(32, 67), primaryCodexToken: TOKEN, syncCoordinationMailbox: false });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const nonceResponse = await fetch(`${base}/api/session/bootstrap-nonce`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } });
+  const { nonce } = await nonceResponse.json();
+  const exchange = await fetch(`${base}/session/bootstrap?nonce=${encodeURIComponent(nonce)}`, { redirect: "manual" });
+  const cookie = exchange.headers.get("set-cookie").split(";", 1)[0];
+  const headers = { cookie, origin: base, "content-type": "application/json" };
+  const first = await fetch(`${base}/api/chat`, { method: "POST", headers, body: JSON.stringify({ mode: "auto", content: "Summarize my Microsoft 365 work", idempotencyKey: "ucf-m365-first" }) });
+  assert.equal(first.status, 202);
+  const firstBody = await first.json();
+  assert.equal(firstBody.task.capability, "m365.reason");
+  const claimed = runtime.database.claimNext({ workerId: "microsoft365", capabilities: ["m365.reason"], leaseMs: 30_000 });
+  assert.ok(claimed);
+  runtime.database.finishTask(claimed.id, { status: "completed", resultSummary: "Enterprise context summarized." });
+  const follow = await fetch(`${base}/api/chat`, { method: "POST", headers, body: JSON.stringify({ mode: "auto", conversationId: firstBody.conversation.id, content: "Summarize the above in one paragraph", idempotencyKey: "ucf-m365-follow" }) });
+  assert.equal(follow.status, 202);
+  const followBody = await follow.json();
+  assert.equal(followBody.task.capability, "m365.reason");
 });

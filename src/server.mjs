@@ -26,6 +26,7 @@ import { autonomyAllowedPaths } from "./autonomy-execution-scope.mjs";
 import { readRepositoryHead } from "./repository-worker.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
+import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
 
 export const DEFAULT_WORKSPACE_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
@@ -560,11 +561,14 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
   });
 }
 
-async function executeChatTurn({ database, manifest, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
+async function executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
   const creditPolicy = chatCreditPolicy(body.creditPolicy);
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
-  const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
-  const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
+  const capabilityRoutes = capabilityIndex(manifest, supervisor?.status?.() ?? []);
+  const priorTasks = body.conversationId ? database.listTasks(500).filter((task) => task.conversationId === body.conversationId) : [];
+  const ucfPlan = planConversationCapabilities({ content: body.content, attachmentCount: attachments.length, capabilityRoutes, priorTasks });
+  const availableCapabilities = [...new Set(capabilityRoutes.filter((item) => item.enabled !== false).map((item) => item.capability))];
+  const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities, capabilityRoutes, priorTasks });
   if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
   if (creditPolicy === "licensed-approved" && !(decision.execution === "task" && decision.capability === "assistant.respond")) {
     return { status: 400, value: { error: "licensed-policy-answer-only", decision } };
@@ -587,8 +591,8 @@ async function executeChatTurn({ database, manifest, artifactStore, autonomyPoli
   if (decision.execution === "objective") {
     const executionContract = await resolveAutonomyExecutionContract(body.content, repositoryHeadReader);
     const result = body.conversationId
-      ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract })
-      : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract });
+      ? createAutonomousConversationTurn({ database, policy: autonomyPolicy, conversationId: body.conversationId, content: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract, capabilityPlan: ucfPlan.capabilityPlan, authoritySessionId: context.attendedSession?.sessionId ?? null })
+      : createAutonomousConversation({ database, policy: autonomyPolicy, title, initialMessage: body.content, attachments, requiresResponse: true, requestedMode: manifest.defaultAutonomyMode, taskArea: decision.intentKind, executionContract, capabilityPlan: ucfPlan.capabilityPlan, authoritySessionId: context.attendedSession?.sessionId ?? null });
     const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
     return { status: 202, value: { decision, conversation, task: null, objective: result.objective } };
   }

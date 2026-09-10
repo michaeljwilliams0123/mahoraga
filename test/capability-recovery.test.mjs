@@ -96,3 +96,25 @@ test("routing-stage tasks can plan recovery before persistence metadata exists",
   assert.equal(plan.recoverable, true);
   assert.equal(plan.exhausted, false);
 });
+
+test("provider-unknown startup state refreshes readiness and retries instead of dead-ending", () => {
+  const plan = planCapabilityRecovery({
+    reason: "provider-unknown",
+    task: task({ attemptCount: 0 }),
+    consideredRoutes: [route],
+    excludedWorkerIds: [],
+  });
+  assert.equal(plan.recoverable, true);
+  assert.deepEqual(plan.actions.map((action) => action.kind), ["refresh-readiness", "retry-route"]);
+});
+
+test("process-starting is a recoverable readiness state", () => {
+  const plan = planCapabilityRecovery({
+    reason: "process-starting",
+    task: task(),
+    consideredRoutes: [route],
+    excludedWorkerIds: [],
+  });
+  assert.equal(plan.recoverable, true);
+  assert.deepEqual(plan.actions.map((action) => action.kind), ["refresh-readiness", "retry-route"]);
+});

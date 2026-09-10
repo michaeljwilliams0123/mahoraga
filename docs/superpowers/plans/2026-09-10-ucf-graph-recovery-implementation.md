@@ -288,3 +288,21 @@ git commit -m "chore(ucf): baseline adaptive capability recovery"
 - [ ] **Step 6: Push exact verified head to PR #289**
 
 Push normally without force. If the remote moved, fetch/reconcile first and rerun affected verification. Do not request Codex review.
+
+### Task 6: Full-Scope Authority Enforcement
+
+- Require every `authorityScopesByCapability` scope at route time, even when the task omits `authorityScope`.
+- Preserve deterministic owner-denial precedence before recoverable platform-auth denial.
+- Keep the existing single-scope API for callers that need an explicit focal scope.
+- Verify Copilot Studio delegate/deploy with partial, complete, and omitted scope inputs.
+
+### Task 7: UCF-Backed Conversational Planning
+
+- Add one shared conversation capability planner consumed by both `/api/chat` and `/api/v2/runs`.
+- Feed it live `capabilityIndex(...)` route evidence instead of manifest-only capability names.
+- Use prior conversation task capabilities/data classes for contextual follow-ups.
+- Recognize natural Microsoft 365 work without requiring a URL when `m365.reason` is routable.
+- Prefer `assistant.respond` for general non-enterprise synthesis and the prior enterprise reasoning lane for enterprise follow-ups.
+- Reject unregistered/broad human-recipient messaging rather than promoting it into a generic autonomous objective.
+- For autonomous requests, compose directly routable UCF capabilities when deterministic intent decomposition is possible; use the builder only for an unresolved implementation gap.
+- Preserve idempotency, data-class boundaries, owner authority, recovery, and the no-tunnel/no-arbitrary-recipient constraints.
