@@ -54,6 +54,7 @@ test("release baseline covers GitHub governance and automation controls", () => 
     "src/task-policy.mjs",
     "src/receipt-registry.mjs",
     "src/capability-readiness.mjs",
+    "src/owner-authority.mjs",
     "src/execution-cell.mjs",
     "src/content-vault.mjs",
     "src/repair-incidents.mjs",

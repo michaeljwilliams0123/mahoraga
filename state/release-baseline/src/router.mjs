@@ -1,4 +1,5 @@
 import { buildCapabilityRegistry, rankCapabilityRoutes } from "./capability-registry.mjs";
+import { resolveEffectiveAuthority } from "./owner-authority.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
 
@@ -20,12 +21,22 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
     if (candidates.length === 0) return { status: "waiting", reason, worker: null, ...(creditFreeDecision ? { creditFreeDecision } : {}) };
     const selected = candidates[0];
+    const authorityDecision = task.authorityScope ? resolveEffectiveAuthority({
+      grant: manifest.ownerAuthority,
+      requestedScope: task.authorityScope,
+      requestedTarget: task.authorityTarget ?? null,
+      platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? [],
+      capabilityScopes: selected.authorityScopes ?? [],
+    }) : null;
+    if (authorityDecision && !authorityDecision.authorized) return { status: "waiting", reason: authorityDecision.reason, worker: null, authorityDecision };
+    if (authorityDecision?.confirmationRequired) return { status: "waiting", reason: "owner-confirmation-required", worker: null, authorityDecision };
     const route = {
       status: "routable",
       reason: null,
       worker: resolveWorker(manifest, selected),
       decision: selected,
       alternates: candidates.slice(1),
+      ...(authorityDecision ? { authorityDecision } : {}),
     };
     const withProvider = providerDecision ? { ...route, providerDecision } : route;
     return creditFreeDecision ? { ...withProvider, creditFreeDecision } : withProvider;
