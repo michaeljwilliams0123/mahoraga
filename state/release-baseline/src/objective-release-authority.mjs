@@ -15,12 +15,13 @@ export function createObjectiveReleaseAuthority({ manifest }) {
         intent: input.capability, requestedOutcome: input.requestedOutcome, idempotencyKey: input.idempotencyKey,
         correlationId: input.correlationId, priority: input.priority, taskArea: input.taskArea,
         completionCriteria: input.completionCriteria, maximumAttempts: input.maximumAttempts,
-        contentReferences: input.contentReferences ?? [],
+        contentReferences: input.contentReferences ?? [], authoritySessionId: input.authoritySessionId ?? null,
         ...(CONTAINED_CAPABILITIES.has(input.capability) ? {
           baseCommit: input.baseCommit, allowedPaths: input.allowedPaths, integrationLeaseId: lease.leaseId,
         } : {}),
       };
-      const policy = deriveTaskPolicy(request, { manifest, source: AUTONOMY_OBJECTIVE_AUTHORITY, internal: true, integrationLease: lease });
+      const attendedSession = input.authoritySessionId ? { active: true, sessionId: input.authoritySessionId } : null;
+      const policy = deriveTaskPolicy(request, { manifest, source: AUTONOMY_OBJECTIVE_AUTHORITY, internal: true, integrationLease: lease, attendedSession });
       const policyInput = policyTaskInput(request, policy, manifest);
       const task = database.submitTask({ ...policyInput, taskType: input.taskType ?? policyInput.taskType,
         conversationId: input.conversationId ?? null, excludedWorkerIds: Array.isArray(input.excludedWorkerIds) ? input.excludedWorkerIds : [] });

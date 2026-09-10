@@ -11,7 +11,7 @@ const GENERIC_INTENTS = new Set([
   "assistant.respond", "artifact.inspect", "system.health", "manifest.validate", "provider.gap",
   "repository.status", "repository.inspect", "repository.history", "repository.remote-inspect",
   "browser.status", "browser.smoke", "browser.observe", "desktop.inspect", "desktop.interact",
-  "m365.health", "m365.open", "codex.health",
+  "m365.health", "m365.open", "m365.reason", "codex.health",
 ]);
 
 export function sanitizeTaskIntake(body) {

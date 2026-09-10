@@ -1293,6 +1293,23 @@ export class RuntimeDatabase {
     return this.getTask(taskId);
   }
 
+  requeueForRouteRecovery({ taskId, reason, excludedWorkerId = null }) {
+    bounded(taskId, 80, "route recovery task id");
+    if (typeof reason !== "string" || reason.length < 2 || reason.length > 60 || !/^[a-z0-9][a-z0-9.-]*$/.test(reason)) throw new TypeError("Route recovery reason is invalid.");
+    const task = this.getTask(taskId);
+    if (!task || task.status !== "running") return task;
+    const excluded = new Set(task.excludedWorkerIds);
+    if (excludedWorkerId !== null) { slug(excludedWorkerId, "route recovery worker"); excluded.add(excludedWorkerId); }
+    if (excluded.size > 16) throw new TypeError("Excluded worker IDs are invalid.");
+    const now = new Date().toISOString();
+    const errorCode = `route-recovery-${reason}`;
+    const changed = this.db.prepare(`UPDATE tasks SET status='queued', assigned_worker=NULL, lease_expires_at=NULL,
+      error_code=?, excluded_worker_ids=?, updated_at=? WHERE id=? AND status='running'`)
+      .run(errorCode, JSON.stringify([...excluded]), now, taskId);
+    if (changed.changes === 1) this.#event("task.route-recovered", taskId, { reason, excludedWorkerId });
+    return this.getTask(taskId);
+  }
+
   recoverExpired(now = new Date()) {
     const expired = this.db.prepare("SELECT id, assigned_worker FROM tasks WHERE status IN ('running','verifying') AND lease_expires_at < ?").all(now.toISOString());
     const transaction = () => this.#transaction(() => {
