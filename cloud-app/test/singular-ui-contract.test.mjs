@@ -97,3 +97,17 @@ test("repository declares one canonical workspace source without reviving legacy
   assert.match(rootReadme, /Deployment availability is observed[\s\S]*separately from source verification/);
   assert.match(rootReadme, /former Pages URL[\s\S]*must not be presented as live/);
 });
+
+
+test("connecting hides technical pairing controls and licensed fallback stays owner-driven", async () => {
+  const [workspace, chat] = await Promise.all([
+    read("components/workspace.tsx"),
+    read("components/workspace/chat-view.tsx"),
+  ]);
+  assert.match(chat, /relayState !== "resuming"/);
+  assert.match(chat, /Use licensed brain for this message/);
+  assert.match(workspace, /retryLicensed/);
+  assert.match(workspace, /setLicensedRetry\(null\)/);
+  assert.match(workspace, /submitCore\(saved\.text, saved\.mode, null, "licensed-approved"\)/);
+  assert.doesNotMatch(workspace, /catch[\s\S]{0,500}submitCore\([^)]*"licensed-approved"/);
+});

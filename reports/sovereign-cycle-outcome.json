@@ -1,18 +1,17 @@
 {
   "schemaVersion": 1,
   "product": "mahoraga",
-  "cycleId": "76c9099c77d00a4685315b0adcbbf20e5e6c18bb87dcd21b91d38ed9bd8408bc",
-  "baseSha": "dd5c1b487fd3234ec56778d1fc95b29b3318ec3a",
-  "producedAt": "2026-09-05T10:57:09.223Z",
+  "cycleId": "c9f984998fa2c4d9ad21aaf0b3d5e47d7a933cd3a0862c06c894277137a254c0",
+  "baseSha": "d7fcd5b84fb3d9a0ef0dc687059d55d7ea5b1302",
+  "producedAt": "2026-09-09T17:44:58.135Z",
   "counts": {
-    "open": 5,
-    "blocked": 3,
+    "open": 4,
+    "blocked": 2,
     "actionable": 0
   },
   "blockedGapIds": [
     "local-reasoner",
-    "microsoft-durable-queue",
-    "signed-browser-session"
+    "microsoft-durable-queue"
   ],
   "actionableGapIds": [],
   "note": "Zero-credit cycle pulse. Not a Windows activation."

@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowUp,
   Check,
   ChevronDown,
@@ -48,6 +48,8 @@ export function ChatView(props: ChatViewProps) {
     busy,
     coreReady,
     brainLabel,
+    brainState,
+    licensedRetryAvailable,
     health,
     healthError,
     relayState,
@@ -73,13 +75,14 @@ export function ChatView(props: ChatViewProps) {
     stopActiveResponse,
     pairRuntime,
     revokeRuntime,
+    retryLicensed,
   } = props;
 
   return (
     <div className="one-chat-page">
       <header className="topbar one-topbar">
         <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
-        <div className={coreReady ? "brain-status ready" : relayState === "pairing" ? "brain-status pairing" : "brain-status"}>
+        <div className={coreReady ? "brain-status ready" : new Set(["pairing", "resuming"]).has(relayState) ? "brain-status pairing" : "brain-status"}>
           <span className="brain-dot" /> {brainLabel}
         </div>
         <div className="topbar-actions">
@@ -142,16 +145,21 @@ export function ChatView(props: ChatViewProps) {
       </section>
 
       <section className="composer-shell">
-        {runtimeError && <div className="inline-alert" role="alert"><CircleAlert size={16} /> {runtimeError}</div>}
+        {runtimeError && (
+          <div className="inline-alert" role="alert">
+            <CircleAlert size={16} /> <span>{runtimeError}</span>
+            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed brain for this message</button>}
+          </div>
+        )}
 
-        {!coreReady && (
+        {!coreReady && relayState !== "resuming" && (
           <div className="connect-card">
             <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>Chat remains available to read, but execution needs the paired core.</p></div></div>
             <details>
               <summary>Connect securely <ChevronDown size={15} /></summary>
               <div className="connect-controls">
                 <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
-                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || relayState === "pairing"}>{relayState === "pairing" ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
+                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
               </div>
             </details>
           </div>
@@ -190,7 +198,9 @@ export function ChatView(props: ChatViewProps) {
         </div>
 
         <div className="status-line" aria-live="polite">
-          {coreReady ? <><Check size={14} /> Brain connected</> : relayState === "pairing" ? <><LoaderCircle className="spin" size={14} /> Connecting…</> : <><Unplug size={14} /> Brain not connected</>}
+          {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
+            : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
+              : <><Check size={14} /> {brainState}</>}
           {voiceListening && <span> · listening</span>}
           {healthError && <span> · workspace health unavailable</span>}
           {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}

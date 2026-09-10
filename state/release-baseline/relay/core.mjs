@@ -46,7 +46,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       return projection(session);
     },
 
-    pairRemote(input) {
+    async pairRemote(input) {
       authorize(input, true); prune(); token(input.pairingId, "relay-pairing-invalid");
       const sessionId = pairingIndex.get(input.pairingId); if (!sessionId) fail("relay-pairing-missing");
       const session = sessionFor(sessionId);
@@ -59,8 +59,19 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
         if (session.remotePublicKey && JSON.stringify(session.remotePublicKey) !== JSON.stringify(remotePublicKey)) fail("relay-pairing-proof-invalid");
         session.remotePublicKey = remotePublicKey;
       }
+      const resumeCredential = randomResumeCredential();
+      session.remoteResumeDigest = await digestResumeCredential(resumeCredential);
       session.remotePaired = true;
       if (input.socket) registerSocket({ owner: input.owner, origin: input.origin, sessionId, side: "remote", socket: input.socket });
+      return Object.freeze({ ...projection(session), resumeCredential });
+    },
+
+    async reattachRemote(input) {
+      authorize(input, true); prune(); token(input.deviceId, "relay-device-invalid");
+      const session = sessionFor(input.sessionId);
+      const suppliedDigest = await digestResumeCredential(input.resumeCredential);
+      if (session.deviceId !== input.deviceId || !session.remotePaired || !safeTextEqual(session.remoteResumeDigest, suppliedDigest)) fail("relay-session-reattach-invalid");
+      if (input.socket) registerSocket({ owner: input.owner, origin: input.origin, sessionId: session.sessionId, side: "remote", socket: input.socket });
       return projection(session);
     },
 
@@ -149,7 +160,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       token(raw.deviceId, "relay-device-invalid"); token(raw.pairingId, "relay-pairing-invalid");
       const session = {
         sessionId: raw.sessionId, deviceId: raw.deviceId, pairingId: raw.pairingId, code: raw.code ?? null,
-        localPublicKey: raw.localPublicKey ?? null, remotePublicKey: raw.remotePublicKey ?? null,
+        localPublicKey: raw.localPublicKey ?? null, remotePublicKey: raw.remotePublicKey ?? null, remoteResumeDigest: raw.remoteResumeDigest ?? null,
         localPaired: raw.localPaired === true, remotePaired: raw.remotePaired === true,
         frames: Array.isArray(raw.frames) ? raw.frames : [], rate: raw.rate ?? { windowStart: 0, count: 0 },
         createdAt: Number(raw.createdAt), expiresAt: Number(raw.expiresAt),
@@ -158,6 +169,7 @@ export function createRelayBroker({ ownerIdentity, allowedOrigin, limits = {}, n
       if (session.code !== null) pairingCode(session.code);
       if (session.localPublicKey !== null) session.localPublicKey = publicKey(session.localPublicKey, "relay-state-invalid");
       if (session.remotePublicKey !== null) session.remotePublicKey = publicKey(session.remotePublicKey, "relay-state-invalid");
+      if (session.remoteResumeDigest !== null && !/^[A-Za-z0-9_-]{43}$/.test(session.remoteResumeDigest)) fail("relay-state-invalid");
       if (!Array.isArray(session.frames) || session.frames.length > maximumRetainedFrames) fail("relay-state-invalid");
       for (const item of session.frames) {
         if (!item || !new Set(["local", "remote"]).has(item.from) || !Number.isFinite(Number(item.expiresAt))) fail("relay-state-invalid");
@@ -208,6 +220,10 @@ function side(value) { if (!new Set(["local", "remote"]).has(value)) fail("relay
 function opposite(value) { side(value); return value === "local" ? "remote" : "local"; }
 function timestamp(now) { const value = now instanceof Date ? now.getTime() : Number(now); if (!Number.isFinite(value)) fail("relay-time-invalid"); return value; }
 function randomSessionSuffix() { const bytes = new Uint8Array(24); crypto.getRandomValues(bytes); return base64Url(bytes).slice(0, 32); }
+function randomResumeCredential() { const bytes = new Uint8Array(32); crypto.getRandomValues(bytes); return base64Url(bytes); }
+async function digestResumeCredential(value) { const credential = resumeCredential(value); const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(credential)); return base64Url(new Uint8Array(digest)); }
+function resumeCredential(value) { if (typeof value !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(value)) fail("relay-session-reattach-invalid"); return value; }
+function safeTextEqual(left, right) { if (typeof left !== "string" || typeof right !== "string" || left.length !== right.length) return false; let different = 0; for (let index = 0; index < left.length; index += 1) different |= left.charCodeAt(index) ^ right.charCodeAt(index); return different === 0; }
 function base64Url(value) { return typeof Buffer === "function" ? Buffer.from(value).toString("base64url") : btoa(String.fromCharCode(...value)).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
 function utf8Bytes(value) { return typeof TextEncoder === "function" ? new TextEncoder().encode(value).byteLength : value.length; }
 function send(socket, value) { try { socket.send(JSON.stringify(value)); } catch { /* a disconnected peer is pruned by the DO */ } }

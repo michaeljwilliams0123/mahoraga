@@ -1,5 +1,7 @@
 "use client";
 
+import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
+
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
 const encoder = new TextEncoder();
@@ -93,6 +95,8 @@ export class RuntimeRelay {
   private pending = new Map<string, PendingRequest>();
   private requestCounter = 0;
   private deviceId: string | null = null;
+  private resumeCredential: string | null = null;
+  private expiresAt: string | null = null;
   private pairing: { resolve: (value: JsonObject) => void; reject: (reason: Error) => void } | null = null;
   private revokeAcknowledgement: (() => void) | null = null;
 
@@ -126,9 +130,47 @@ export class RuntimeRelay {
     if (typeof result.sessionId !== "string" || !/^rls-[A-Za-z0-9_-]{32}$/.test(result.sessionId) || result.pairingId !== offer.pairingId || result.paired !== true) {
       throw relayError("relay-pairing-response-invalid");
     }
+    if (typeof result.deviceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(result.deviceId)) throw relayError("relay-pairing-response-invalid");
+    if (typeof result.resumeCredential !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(result.resumeCredential)) throw relayError("relay-pairing-response-invalid");
+    if (typeof result.expiresAt !== "string" || !Number.isFinite(Date.parse(result.expiresAt)) || Date.parse(result.expiresAt) <= Date.now()) throw relayError("relay-pairing-response-invalid");
     this.session.sessionId = result.sessionId;
-    this.deviceId = typeof result.deviceId === "string" ? result.deviceId : null;
+    this.deviceId = result.deviceId;
+    this.resumeCredential = result.resumeCredential;
+    this.expiresAt = result.expiresAt;
+    await this.persistSession();
     return { sessionId: result.sessionId };
+  }
+
+  async resume() {
+    const stored = await loadRelaySession();
+    if (!stored) return null;
+    this.disconnect();
+    this.session = { sessionId: stored.sessionId, key: stored.key, sendCounter: stored.sendCounter, receivedCounter: stored.receivedCounter };
+    this.deviceId = stored.deviceId;
+    this.resumeCredential = stored.resumeCredential;
+    this.expiresAt = stored.expiresAt;
+    try {
+      const socket = new WebSocket(RELAY_ORIGIN);
+      this.socket = socket;
+      await waitForOpen(socket);
+      socket.addEventListener("message", (event) => { void this.receive(event); });
+      socket.addEventListener("close", () => this.rejectPending("relay-disconnected"));
+      const result = await new Promise<JsonObject>((resolve, reject) => {
+        const timer = setTimeout(() => { this.pairing = null; reject(relayError("relay-pairing-timeout")); }, 10_000);
+        this.pairing = {
+          resolve: (value) => { clearTimeout(timer); this.pairing = null; resolve(value); },
+          reject: (reason) => { clearTimeout(timer); this.pairing = null; reject(reason); },
+        };
+        socket.send(JSON.stringify({ action: "reattach-remote", deviceId: stored.deviceId, sessionId: stored.sessionId, resumeCredential: stored.resumeCredential }));
+      });
+      if (result.paired !== true || result.sessionId !== stored.sessionId || result.deviceId !== stored.deviceId) throw relayError("relay-session-reattach-invalid");
+      socket.send(JSON.stringify({ action: "replay", sessionId: stored.sessionId, to: "remote", afterCounter: stored.receivedCounter }));
+      return { sessionId: stored.sessionId };
+    } catch {
+      this.disconnect();
+      await clearRelaySession();
+      return null;
+    }
   }
 
   async chat(input: JsonObject) {
@@ -166,6 +208,18 @@ export class RuntimeRelay {
     return this.call<RuntimeOperationsActionResult>("operations-action", { ...input });
   }
 
+  disconnect() {
+    this.socket?.close(1000, "browser-disconnect");
+    this.socket = null;
+    this.session = null;
+    this.deviceId = null;
+    this.resumeCredential = null;
+    this.expiresAt = null;
+    this.pairing = null;
+    this.revokeAcknowledgement = null;
+    this.rejectPending("relay-disconnected");
+  }
+
   async revoke() {
     const socket = this.socket;
     try {
@@ -181,9 +235,12 @@ export class RuntimeRelay {
       this.socket = null;
       this.session = null;
       this.deviceId = null;
+      this.resumeCredential = null;
+      this.expiresAt = null;
       this.pairing = null;
       this.revokeAcknowledgement = null;
       this.rejectPending("relay-revoked");
+      await clearRelaySession();
     }
   }
 
@@ -191,6 +248,7 @@ export class RuntimeRelay {
     if (!this.connected || !this.socket || !this.session) throw relayError("relay-not-paired");
     const requestId = `req-${++this.requestCounter}`;
     const frame = await sealFrame(this.session, { requestId, type, payload });
+    await this.persistSession();
     const result = new Promise<unknown>((resolve, reject) => {
       const timer = setTimeout(() => { this.pending.delete(requestId); reject(relayError("relay-request-timeout")); }, 30_000);
       this.pending.set(requestId, { resolve, reject, timer });
@@ -217,10 +275,12 @@ export class RuntimeRelay {
         this.revokeAcknowledgement?.();
         this.revokeAcknowledgement = null;
         this.rejectPending("relay-revoked");
+        await clearRelaySession();
         return;
       }
       if (envelope.type !== "frame" || !isObject(envelope.frame) || !this.session) throw relayError("relay-frame-envelope-invalid");
       const response = await openFrame(this.session, envelope.frame);
+      await this.persistSession();
       if (typeof response.requestId !== "string") throw relayError("relay-response-invalid");
       const pending = this.pending.get(response.requestId);
       if (!pending) return;
@@ -230,6 +290,24 @@ export class RuntimeRelay {
       else pending.resolve(response.result);
     } catch {
       this.rejectPending("relay-frame-invalid");
+    }
+  }
+
+  private async persistSession() {
+    if (!this.session || !this.deviceId || !this.resumeCredential || !this.expiresAt) return;
+    try {
+      await saveRelaySession({
+        schemaVersion: 1,
+        sessionId: this.session.sessionId,
+        deviceId: this.deviceId,
+        expiresAt: this.expiresAt,
+        resumeCredential: this.resumeCredential,
+        key: this.session.key,
+        sendCounter: this.session.sendCounter,
+        receivedCounter: this.session.receivedCounter,
+      });
+    } catch {
+      // Persistence failure falls back to secure manual pairing on the next load.
     }
   }
 

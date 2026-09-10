@@ -473,7 +473,7 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       if (Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
       const result = await executeChatTurn({
         database, manifest, supervisor, artifactStore, autonomyPolicy, repositoryHeadReader,
-        body: { ...body, creditPolicy: "zero-codex", attachmentIds: [] },
+        body: { ...body, creditPolicy: body?.creditPolicy === "licensed-approved" ? "licensed-approved" : "zero-codex", attachmentIds: [] },
         context: { source: "owner-paired-relay-chat", attendedSession: context.attendedSession },
       });
       if (result.status >= 400) throw relayError(result.value.error ?? "relay-chat-rejected");
@@ -540,6 +540,9 @@ async function executeChatTurn({ database, manifest, artifactStore, autonomyPoli
   const availableCapabilities = [...new Set(manifest.workers.filter((item) => item.enabled).flatMap((item) => item.capabilities))];
   const decision = classifyChatTurn({ mode: body.mode ?? "auto", content: body.content, attachmentCount: attachments.length, availableCapabilities });
   if (decision.execution === "unavailable") return { status: 503, value: { error: decision.reasonCode, decision } };
+  if (creditPolicy === "licensed-approved" && !(decision.execution === "task" && decision.capability === "assistant.respond")) {
+    return { status: 400, value: { error: "licensed-policy-answer-only", decision } };
+  }
   const title = chatConversationTitle(body.content);
   if (creditPolicy === "zero-codex") {
     if (decision.execution === "objective") {
@@ -615,7 +618,7 @@ function relayId(value, pattern, code) {
   return value;
 }
 function chatCreditPolicy(value = "standard") {
-  if (!new Set(["standard", "zero-codex"]).has(value)) throw relayError("chat-credit-policy-invalid");
+  if (!new Set(["standard", "zero-codex", "licensed-approved"]).has(value)) throw relayError("chat-credit-policy-invalid");
   return value;
 }
 function relayError(code) { const error = new TypeError(code); error.code = code; return error; }

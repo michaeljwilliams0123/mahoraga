@@ -9,6 +9,16 @@ const env = {
 };
 const pagesOrigin = "https://michaeljwilliams0123.github.io";
 
+async function waitForSocketMessage(socket, predicate, timeoutMs = 500) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const message = socket.messages.find(predicate);
+    if (message) return message;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error("relay-test-message-timeout");
+}
+
 test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-WebSocket requests", async () => {
   const handler = createCloudflareRelayHandler();
   assert.equal((await handler.fetch(new Request("https://relay.example/pair"), env)).status, 403);
@@ -86,21 +96,28 @@ test("Durable Object speaks one authenticated envelope and forwards only ciphert
     const local = latestPair[1];
     const localKey = { kty: "EC", crv: "P-256", x: "a".repeat(43), y: "b".repeat(43) };
     local.emit("message", { action: "pair-local", deviceId: "primary-windows", pairingId: "pair-worker", code: "ABCD2345", devicePublicKey: localKey });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await waitForSocketMessage(local, (message) => message.type === "paired");
     assert.equal(local.messages.at(-1).type, "paired");
 
     await object.fetch(remoteRequest);
     const remote = latestPair[1];
     const remoteKey = { kty: "EC", crv: "P-256", x: "c".repeat(43), y: "d".repeat(43) };
     remote.emit("message", { action: "pair-remote", pairingId: "pair-worker", code: "ABCD2345", devicePublicKey: remoteKey });
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    const paired = remote.messages.at(-1);
+    const paired = await waitForSocketMessage(remote, (message) => message.type === "paired");
     assert.equal(paired.type, "paired");
     assert.equal(paired.result.paired, true);
     assert.equal(local.messages.at(-1).result.peerPublicKey.x, remoteKey.x);
+    assert.equal(local.messages.at(-1).result.resumeCredential, undefined);
+    assert.match(paired.result.resumeCredential, /^[A-Za-z0-9_-]{43}$/);
+    await object.fetch(remoteRequest);
+    const resumedRemote = latestPair[1];
+    resumedRemote.emit("message", { action: "reattach-remote", deviceId: "primary-windows", sessionId: paired.result.sessionId, resumeCredential: paired.result.resumeCredential });
+    await waitForSocketMessage(resumedRemote, (message) => message.type === "paired");
+    assert.equal(resumedRemote.messages.at(-1).type, "paired");
+    assert.equal(resumedRemote.messages.at(-1).result.sessionId, paired.result.sessionId);
     const frame = { schemaVersion: 1, sessionId: paired.result.sessionId, direction: "ui-to-runtime", counter: 1, iv: "a".repeat(16), ciphertext: "b".repeat(32) };
-    remote.emit("message", { action: "forward", sessionId: paired.result.sessionId, from: "remote", frame });
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    resumedRemote.emit("message", { action: "forward", sessionId: paired.result.sessionId, from: "remote", frame });
+    await waitForSocketMessage(resumedRemote, (message) => message.type === "forward-accepted");
     assert.deepEqual(local.messages.at(-1), { type: "frame", sessionId: paired.result.sessionId, frame });
     assert.ok(storage.has("relay-broker-v1"));
   } finally {

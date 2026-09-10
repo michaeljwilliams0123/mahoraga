@@ -1,8 +1,10 @@
-﻿import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
+import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { RuntimeCapability, RuntimeRelay } from "@/lib/runtime-relay";
 
 export type TaskMode = "auto" | "ask" | "act";
-export type RelayState = "unpaired" | "pairing" | "connected" | "error";
+export type RelayState = "unpaired" | "resuming" | "pairing" | "connected" | "error";
+export type BrainState = "Connecting" | "Idle" | "Awake" | "Degraded" | "Offline";
+export type ChatCreditPolicy = "zero-codex" | "licensed-approved";
 export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string };
 export type WorkspaceView = "chat" | "work" | "files" | "advanced";
 export type QuickActionId = "upload" | "build" | "report" | "handoff" | "create" | "ship";
@@ -45,6 +47,8 @@ export type ChatViewProps = {
   coreReady: boolean;
   taskMode: TaskMode;
   brainLabel: string;
+  brainState: BrainState;
+  licensedRetryAvailable: boolean;
   health: Health | null;
   healthError: boolean;
   relayState: RelayState;
@@ -71,6 +75,7 @@ export type ChatViewProps = {
   stopActiveResponse: () => void | Promise<void>;
   pairRuntime: () => void | Promise<void>;
   revokeRuntime: () => void | Promise<void>;
+  retryLicensed: () => void | Promise<void>;
 };
 
 export type WorkspaceShellProps = {

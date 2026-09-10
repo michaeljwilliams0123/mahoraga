@@ -29,7 +29,7 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
   for (const label of ["Chat", "Work", "Files", "Advanced"]) {
     assert.match(workspace, new RegExp(`label: "${label}"`));
   }
-  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /Connect the Mahoraga brain/);
   assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.match(docs, /single cloud-hosted workspace/i);
@@ -52,10 +52,11 @@ test("legacy static and loopback UI entry points are absent while Pages derives 
   assert.match(pages, /actions\/deploy-pages@/);
 });
 
-test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and not a route selector", async () => {
-  const [workspace, relay] = await Promise.all([
+test("runtime pairing is fixed-origin, encrypted, cancellable, resumable, and not a route selector", async () => {
+  const [workspace, relay, sessionStore] = await Promise.all([
     readWorkspaceSurface(),
     read("cloud-app/lib/runtime-relay.ts"),
+    read("cloud-app/lib/relay-session-store.ts"),
   ]);
   assert.match(relay, /ECDH/);
   assert.match(relay, /HKDF/);
@@ -64,7 +65,9 @@ test("runtime pairing is fixed-origin, encrypted, cancellable, memory-only, and 
   assert.match(relay, /async revoke/);
   assert.doesNotMatch(workspace, /conversationRoute|DefaultChatTransport|useChat\(/);
   assert.match(workspace, /runtimePollGeneration/);
-  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
-  assert.doesNotMatch(`${workspace}\n${relay}`, /localStorage|sessionStorage|indexedDB|document\.cookie/);
+  assert.match(sessionStore, /indexedDB\.open\("mahoraga-relay",\s*1\)/);
+  assert.match(relay, /async resume\(\)/);
+  assert.doesNotMatch(`${workspace}\n${relay}\n${sessionStore}`, /localStorage|sessionStorage|document\.cookie|api\.github\.com|AI_GATEWAY_API_KEY|github_pat_|ghp_/i);
 });

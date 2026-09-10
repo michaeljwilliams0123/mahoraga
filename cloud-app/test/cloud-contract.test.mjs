@@ -52,7 +52,7 @@ test("one host-neutral workspace connects to the authoritative core through the 
   ]);
   assert.match(chat, /Brain-routed/);
   assert.match(chat, /Connect the Mahoraga brain/);
-  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
   assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
@@ -130,7 +130,7 @@ test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fa
     read("components/workspace/chat-view.tsx"),
   ]);
   assert.match(workspace, /new RuntimeRelay\(\)/);
-  assert.match(workspace, /creditPolicy:\s*"zero-codex"/);
+  assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
   assert.match(chat, /Brain-routed/);
   assert.match(chat, /Connect the Mahoraga brain/);

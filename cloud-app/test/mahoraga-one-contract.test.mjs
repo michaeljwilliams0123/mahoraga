@@ -40,3 +40,20 @@ test("Mahoraga One surfaces 7.0.0-alpha.2 without claiming Windows activation", 
   assert.match(connections, /zero-credit/);
   assert.doesNotMatch(shell + work + connections, /Activate Mahoraga 7\.0\.0-alpha/);
 });
+
+
+test("Mahoraga One exposes durable brain states and explicit licensed retry", async () => {
+  const [types, workspace, chat] = await Promise.all([
+    read("components/workspace/workspace-types.ts"),
+    read("components/workspace.tsx"),
+    read("components/workspace/chat-view.tsx"),
+  ]);
+  assert.match(workspace, /\.resume\(\)/);
+  assert.match(types, /"Connecting"[\s\S]*"Idle"[\s\S]*"Awake"[\s\S]*"Degraded"[\s\S]*"Offline"/);
+  assert.match(workspace, /licensedRetry/);
+  assert.match(workspace, /licensed-approved/);
+  assert.match(workspace + chat, /Use licensed brain for this message/);
+  assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
+  assert.match(workspace, /creditPolicy === "zero-codex"/);
+  assert.doesNotMatch(workspace, /zero-credit-provider-unavailable[^}]+submitCore\([^)]*"licensed-approved"/s);
+});

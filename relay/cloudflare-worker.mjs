@@ -76,12 +76,13 @@ export class RelayDurableObject {
       } else if (input.action === "pair-remote") {
         if (request.headers.get("x-mahoraga-relay-role") !== "remote") throw relayMessageError("relay-socket-role-invalid");
         exact(input, ["action", "code", "devicePublicKey", "pairingId"]);
-        result = this.broker.pairRemote({ owner, origin, pairingId: input.pairingId, code: input.code, devicePublicKey: input.devicePublicKey, socket });
+        result = await this.broker.pairRemote({ owner, origin, pairingId: input.pairingId, code: input.code, devicePublicKey: input.devicePublicKey, socket });
         const details = this.broker.sessionDetails(result.sessionId);
         this.roles.set(socket, { sessionId: result.sessionId, side: "remote" });
         send(socket, { type: "paired", accepted: true, result: { ...result, peerPublicKey: details.localPublicKey } });
         const local = this.findSocket(result.sessionId, "local");
-        if (local) send(local, { type: "paired", accepted: true, result: { ...result, peerPublicKey: details.remotePublicKey } });
+        const { resumeCredential: _remoteResumeCredential, ...pairedProjection } = result;
+        if (local) send(local, { type: "paired", accepted: true, result: { ...pairedProjection, peerPublicKey: details.remotePublicKey } });
       } else if (input.action === "reattach-local") {
         if (request.headers.get("x-mahoraga-relay-role") !== "local") throw relayMessageError("relay-socket-role-invalid");
         exact(input, ["action", "deviceId", "sessionId"]);
@@ -89,6 +90,12 @@ export class RelayDurableObject {
         const details = this.broker.sessionDetails(result.sessionId);
         this.roles.set(socket, { sessionId: result.sessionId, side: "local" });
         send(socket, { type: "paired", accepted: true, result: { ...result, peerPublicKey: details.remotePublicKey } });
+      } else if (input.action === "reattach-remote") {
+        if (request.headers.get("x-mahoraga-relay-role") !== "remote") throw relayMessageError("relay-socket-role-invalid");
+        exact(input, ["action", "deviceId", "resumeCredential", "sessionId"]);
+        result = await this.broker.reattachRemote({ owner, origin, deviceId: input.deviceId, sessionId: input.sessionId, resumeCredential: input.resumeCredential, socket });
+        this.roles.set(socket, { sessionId: result.sessionId, side: "remote" });
+        send(socket, { type: "paired", accepted: true, result });
       } else if (input.action === "forward") {
         exact(input, ["action", "frame", "from", "sessionId"]);
         this.requireRole(socket, input.sessionId, input.from);

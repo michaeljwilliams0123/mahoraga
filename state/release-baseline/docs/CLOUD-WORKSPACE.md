@@ -29,11 +29,20 @@ route; conversation work uses only the paired encrypted core.
 
 The default conversation policy remains Zero-Codex: ordinary paired-core chat
 sends `creditPolicy: zero-codex`, the relay boundary preserves the authoritative
-core policy, and there is no automatic paid fallback. If no verified
-zero-credit language provider is routable, model-backed conversation waits or
-returns `zero-credit-provider-unavailable` rather than silently buying another
-route. Deterministic core capabilities can still run when their own readiness
-contracts are satisfied.
+core policy, and there is no automatic paid or licensed fallback. If no verified
+zero-credit language provider is routable, model-backed conversation returns
+`zero-credit-provider-unavailable` instead of silently spending Codex credits or
+buying another route. Deterministic core capabilities can still run when their
+own readiness contracts are satisfied.
+
+The browser may offer **Use licensed brain for this message** only after that
+specific zero-credit rejection. Choosing it sends a new, explicit
+`licensed-approved` authorization for the same answer turn. That policy is
+restricted by the core to `assistant.respond`; it cannot authorize an action,
+build, review, repository mutation, `codex.execute`, or `self.evolve`. The
+currently available Codex CLI question model remains `licensed-cloud` and is
+never treated as a zero-credit provider. A failed zero-credit request is never
+automatically retried under the licensed policy.
 
 Cloud-capable implementations such as GPT-5.6 Sol, search, or the isolated
 browser may remain packaged as provider/capability code, but they are not
@@ -52,19 +61,34 @@ Choosing one only places a detailed prompt in the editable composer and moves
 focus there. It does not submit work, call a provider, or change routing
 authority.
 
-## Pairing
+## Pairing and reconnect
 
 1. Generate a short-lived Mahoraga relay pairing offer from the runtime that
    owns the authoritative core.
-2. Open the workspace's **Connections** section, paste the offer, and choose
-   **Pair runtime**.
-3. Review the bounded capability index returned by the core. Use **Revoke** to
-   close the session and invalidate the paired device.
+2. On the first connection, open the workspace's **Connections** section, paste
+   the offer, and choose **Pair runtime**.
+3. The relay returns a browser-only resume credential. The browser stores only
+   relay-scoped reconnect state in IndexedDB: session/device IDs, expiry,
+   send/receive counters, the resume credential, and the non-extractable AES-GCM
+   `CryptoKey` used for that encrypted session.
+4. On a normal reload the workspace starts in **Connecting**, attempts
+   `reattach-remote`, then becomes **Idle** without requiring another pasted
+   offer. An active turn is **Awake**; a blocked requested lane is **Degraded**;
+   a missing, expired, invalid, or revoked session becomes **Offline** and falls
+   back to the secure pairing flow.
+5. Use **Revoke** to invalidate the paired device and delete the local reconnect
+   record.
 
-Pairing state, decrypted messages, and conversation content live only in the
-browser tab. They are not written to local storage, a hosting-provider database,
-GitHub, or relay logs. The relay sees ciphertext; message plaintext is decrypted
-only at the paired endpoints.
+The relay stores only a SHA-256 digest of the raw resume credential and requires
+the same authenticated owner, approved production origin, device, live session,
+and credential proof before assigning the remote socket role. Session expiry,
+replay counters, and revocation remain authoritative.
+
+Conversation plaintext, decrypted messages, GitHub credentials, provider keys,
+runtime bearer tokens, and API credentials are never written to IndexedDB,
+localStorage, sessionStorage, GitHub, or relay logs. The relay sees ciphertext;
+message plaintext is decrypted only at the paired endpoints and durable content
+continues to use the core's existing vault boundary.
 
 ## Deployment and verification
 
