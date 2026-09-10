@@ -88,6 +88,52 @@ export function resolveEffectiveAuthority({
   });
 }
 
+export function resolveCapabilityAuthority({
+  grant,
+  requestedScope = null,
+  requestedTarget = null,
+  platformScopes = [],
+  capabilityScopes = [],
+} = {}) {
+  const requiredScopes = scopeList(capabilityScopes, "Capability authority scope", false);
+  if (requestedScope !== null) {
+    assertScope(requestedScope, "Requested authority scope");
+    if (!requiredScopes.includes(requestedScope)) {
+      return capabilityDeny("capability-authority-missing", requestedScope, requestedTarget, requiredScopes);
+    }
+  }
+  if (requiredScopes.length === 0) {
+    return Object.freeze({ authorized: true, reason: null, requestedScope, requestedTarget, requiredScopes: Object.freeze([]), confirmationRequired: false });
+  }
+  const evaluationScopes = requestedScope === null
+    ? requiredScopes
+    : [requestedScope, ...requiredScopes.filter((scope) => scope !== requestedScope)];
+  const decisions = evaluationScopes.map((scope) => resolveEffectiveAuthority({
+    grant,
+    requestedScope: scope,
+    requestedTarget: scope === "deployment.execute" ? requestedTarget : null,
+    platformScopes,
+    capabilityScopes: requiredScopes,
+  }));
+  const denied = decisions.find((decision) => !decision.authorized);
+  if (denied) return capabilityDeny(denied.reason, requestedScope, requestedTarget, requiredScopes);
+  return Object.freeze({
+    authorized: true,
+    reason: null,
+    requestedScope,
+    requestedTarget,
+    requiredScopes: Object.freeze([...requiredScopes]),
+    confirmationRequired: decisions.some((decision) => decision.confirmationRequired),
+  });
+}
+
+function capabilityDeny(reason, requestedScope, requestedTarget, requiredScopes) {
+  return Object.freeze({
+    authorized: false, reason, requestedScope, requestedTarget,
+    requiredScopes: Object.freeze([...requiredScopes]), confirmationRequired: false,
+  });
+}
+
 function deny(reason, requestedScope, requestedTarget) {
   return Object.freeze({
     authorized: false,

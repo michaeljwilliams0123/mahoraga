@@ -125,3 +125,23 @@ test("manifest installs broad owner authority and capability-specific Copilot/bu
   invalid.ownerAuthority.scopes = ["unknown.scope"];
   assert.throws(() => validateManifest(invalid), /authority|scope/i);
 });
+
+
+test("capability authority requires every registered scope and cannot be bypassed by task omission", async () => {
+  const { resolveCapabilityAuthority } = await import("../src/owner-authority.mjs");
+  const partial = resolveCapabilityAuthority({
+    grant: grant(), requestedScope: "deployment.execute", requestedTarget: "prod",
+    platformScopes: ["deployment.execute"],
+    capabilityScopes: ["connector.invoke", "deployment.request", "deployment.execute"],
+  });
+  assert.equal(partial.authorized, false);
+  assert.equal(partial.reason, "platform-authority-missing");
+  assert.deepEqual(partial.requiredScopes, ["connector.invoke", "deployment.request", "deployment.execute"]);
+
+  const omitted = resolveCapabilityAuthority({
+    grant: grant(), requestedScope: null, requestedTarget: "prod", platformScopes: [],
+    capabilityScopes: ["connector.invoke", "deployment.request", "deployment.execute"],
+  });
+  assert.equal(omitted.authorized, false);
+  assert.equal(omitted.reason, "platform-authority-missing");
+});

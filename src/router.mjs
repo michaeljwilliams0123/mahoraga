@@ -1,5 +1,5 @@
 import { buildCapabilityRegistry, rankCapabilityRoutes } from "./capability-registry.mjs";
-import { resolveEffectiveAuthority } from "./owner-authority.mjs";
+import { resolveCapabilityAuthority } from "./owner-authority.mjs";
 import { planCapabilityRecovery } from "./capability-recovery.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
@@ -22,12 +22,13 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
     if (candidates.length === 0) return waitingWithRecovery(reason, task, ranked, creditFreeDecision ? { creditFreeDecision } : {});
     const selected = candidates[0];
-    const authorityDecision = task.authorityScope ? resolveEffectiveAuthority({
+    const capabilityAuthorityScopes = selected.authorityScopes ?? [];
+    const authorityDecision = task.authorityScope || capabilityAuthorityScopes.length > 0 ? resolveCapabilityAuthority({
       grant: manifest.ownerAuthority,
-      requestedScope: task.authorityScope,
+      requestedScope: task.authorityScope ?? null,
       requestedTarget: task.authorityTarget ?? null,
       platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? [],
-      capabilityScopes: selected.authorityScopes ?? [],
+      capabilityScopes: capabilityAuthorityScopes,
     }) : null;
     if (authorityDecision && !authorityDecision.authorized) return waitingWithRecovery(authorityDecision.reason, task, ranked, { authorityDecision });
     if (authorityDecision?.confirmationRequired) return waitingWithRecovery("owner-confirmation-required", task, ranked, { authorityDecision });

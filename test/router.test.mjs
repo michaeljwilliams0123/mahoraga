@@ -95,7 +95,7 @@ test("owner-authorized Copilot invocation requires matching platform authority",
   const route = routeTask(manifest, task, {
     workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
     now: NOW,
-    platformAuthorityScopesByWorkerId: { "copilot-studio": ["copilot.invoke"] },
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["connector.invoke", "copilot.invoke"] },
   });
   assert.equal(route.status, "routable");
   assert.equal(route.worker.id, "copilot-studio");
@@ -148,4 +148,33 @@ test("missing owner authority stays non-recoverable", async () => {
   assert.equal(route.status, "waiting");
   assert.equal(route.reason, "owner-authority-missing");
   assert.equal(Object.hasOwn(route, "recoveryPlan"), false);
+});
+
+test("Copilot Studio deploy requires the complete registered authority scope set", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  const task = { capability: "studio.deploy", dataClass: "enterprise", requestedMode: "maximum", authorityScope: "deployment.execute", authorityTarget: "prod" };
+  const partial = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")], now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["deployment.execute"] },
+  });
+  assert.equal(partial.status, "waiting");
+  assert.equal(partial.reason, "platform-authority-missing");
+  assert.equal(partial.authorityDecision.authorized, false);
+
+  const complete = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")], now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["connector.invoke", "deployment.request", "deployment.execute"] },
+  });
+  assert.equal(complete.status, "routable");
+  assert.deepEqual(complete.authorityDecision.requiredScopes, ["connector.invoke", "deployment.request", "deployment.execute"]);
+});
+
+test("registered privileged capability scopes cannot be bypassed by omitting task authorityScope", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  const task = { capability: "studio.deploy", dataClass: "enterprise", requestedMode: "maximum", authorityTarget: "prod" };
+  const result = routeTask(manifest, task, { workerStates: [verifiedWorkerState(manifest, "copilot-studio")], now: NOW, platformAuthorityScopesByWorkerId: { "copilot-studio": [] } });
+  assert.equal(result.status, "waiting");
+  assert.equal(result.reason, "platform-authority-missing");
 });
