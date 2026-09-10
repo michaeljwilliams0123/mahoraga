@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
 
-export const UNIVERSAL_CAPABILITY_GRAPH_SCHEMA_VERSION = 1;
+export const UNIVERSAL_CAPABILITY_GRAPH_SCHEMA_VERSION = 2;
 
 const GRAPH_KEYS = new Set([
   "schemaVersion", "kind", "observedAt", "nodes", "edges", "fingerprint", "creditCost", "paidFallback",
 ]);
 const EDGE_TYPES = new Set(["provides", "fallback", "declares"]);
 const EVIDENCE_RANK = Object.freeze({ observed: 0, inferred: 1, verified: 2 });
+const IDEMPOTENCY_CLASSES = new Set(["task-key", "provider-key", "none"]);
 
 export function buildUniversalCapabilityGraph({ capabilityRoutes = [], agents = [], observedAt = new Date().toISOString() } = {}) {
   canonicalTimestamp(observedAt, "capability-graph-observed-at-invalid");
@@ -118,10 +119,18 @@ function normalizeRoute(value) {
     costClass: token(value.costClass, 64, "capability-graph-cost-invalid"),
     dataClasses: tokenList(value.dataClasses, 32, 64, "capability-graph-data-classes-invalid"),
     executionPlane: token(value.executionPlane, 96, "capability-graph-execution-plane-invalid"),
+    authorityScopes: tokenList(value.authorityScopes ?? [], 32, 96, "capability-graph-authority-invalid"),
+    idempotencyClass: idempotencyClass(value.idempotencyClass ?? "task-key"),
+    recoveryClasses: tokenList(value.recoveryClasses ?? [], 16, 64, "capability-graph-recovery-invalid"),
     economicTier: value.economicTier === undefined ? economicTierForCostClass(value.costClass) : integer(value.economicTier, 0, 8, "capability-graph-cost-invalid"),
   };
   if (!route.routable && route.routingReason === null) fail("capability-graph-routing-reason-invalid");
-  return deepFreeze(route);
+  const routeIdentityCore = {
+    capability: route.capability, workerId: route.workerId, interfaceType: route.interfaceType, permissionClass: route.permissionClass,
+    executionPlane: route.executionPlane, costClass: route.costClass, dataClasses: route.dataClasses,
+    authorityScopes: route.authorityScopes, idempotencyClass: route.idempotencyClass, recoveryClasses: route.recoveryClasses,
+  };
+  return deepFreeze({ ...route, routeFingerprint: digest(routeIdentityCore) });
 }
 
 function normalizeAgent(value) {
@@ -198,6 +207,10 @@ function providesEdge(route) {
     workload: route.workload,
     costClass: route.costClass,
     economicTier: route.economicTier,
+    authorityScopes: route.authorityScopes,
+    idempotencyClass: route.idempotencyClass,
+    recoveryClasses: route.recoveryClasses,
+    routeFingerprint: route.routeFingerprint,
   });
 }
 
@@ -240,7 +253,7 @@ function validateNode(value) {
 function validateEdge(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || !EDGE_TYPES.has(value.type)) fail("capability-graph-edge-invalid");
   if (value.type === "provides") {
-    exact(value, new Set(["id", "type", "from", "to", "workerId", "capability", "routable", "evidenceLevel", "routingReason", "dataClasses", "executionPlane", "permissionClass", "requiresAttendedDesktop", "reliability", "latencyMs", "workload", "costClass", "economicTier"]), "capability-graph-edge-invalid");
+    exact(value, new Set(["id", "type", "from", "to", "workerId", "capability", "routable", "evidenceLevel", "routingReason", "dataClasses", "executionPlane", "permissionClass", "requiresAttendedDesktop", "reliability", "latencyMs", "workload", "costClass", "economicTier", "authorityScopes", "idempotencyClass", "recoveryClasses", "routeFingerprint"]), "capability-graph-edge-invalid");
     const workerId = slug(value.workerId, "capability-graph-edge-invalid");
     const capability = token(value.capability, 96, "capability-graph-edge-invalid");
     if (value.id !== `provides:${workerId}:${capability}` || value.from !== `worker:${workerId}` || value.to !== `capability:${capability}`) fail("capability-graph-edge-invalid");
@@ -256,6 +269,10 @@ function validateEdge(value) {
     integer(value.workload, 0, 1024, "capability-graph-edge-invalid");
     token(value.costClass, 64, "capability-graph-edge-invalid");
     integer(value.economicTier, 0, 8, "capability-graph-edge-invalid");
+    tokenList(value.authorityScopes, 32, 96, "capability-graph-edge-invalid");
+    idempotencyClass(value.idempotencyClass);
+    tokenList(value.recoveryClasses, 16, 64, "capability-graph-edge-invalid");
+    if (typeof value.routeFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(value.routeFingerprint)) fail("capability-graph-edge-invalid");
   } else {
     exact(value, new Set(["id", "type", "from", "to"]), "capability-graph-edge-invalid");
     if (value.id !== `${value.type}:${value.from}:${value.to}`) fail("capability-graph-edge-invalid");
@@ -267,6 +284,11 @@ function put(map, value, code) {
   const current = map.get(value.id);
   if (current && JSON.stringify(current) !== JSON.stringify(value)) fail(code);
   if (!current) map.set(value.id, value);
+}
+
+function idempotencyClass(value) {
+  if (!IDEMPOTENCY_CLASSES.has(value)) fail("capability-graph-idempotency-invalid");
+  return value;
 }
 
 function evidence(value) {
