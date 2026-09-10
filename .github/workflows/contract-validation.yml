@@ -1,0 +1,21 @@
+name: contract-validation
+
+# Zero-credit, offline schema validation. Invokes no model, uses no secrets.
+on:
+  pull_request:
+    paths:
+      - "schemas/**"
+      - "examples/**"
+      - "tests/**"
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jsonschema
+      - run: python tests/validate_contract.py
