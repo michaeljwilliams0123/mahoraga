@@ -1,0 +1,19 @@
+{
+  "_comment": "Illustrative fixture only. Fake taskId. No real data, no secrets.",
+  "inbound_example": {
+    "schemaVersion": 1,
+    "kind": "copilot-studio-task",
+    "taskId": "cst-000000000000000000000001",
+    "implementationOnly": true,
+    "codeReview": false,
+    "attempts": 1,
+    "objective": "Add a health-check topic that returns a static readiness string."
+  },
+  "outbound_example": {
+    "schemaVersion": 1,
+    "kind": "copilot-studio-receipt",
+    "taskId": "cst-000000000000000000000001",
+    "status": "completed",
+    "executorLane": "copilot-studio-event"
+  }
+}

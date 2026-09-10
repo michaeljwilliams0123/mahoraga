@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaeljwilliams0123/mahoraga/schemas/inbound-dispatch.schema.json",
+  "title": "Copilot Studio Inbound Dispatch Envelope",
+  "description": "Fail-closed envelope for a GitHub-to-Copilot-Studio task. Contains no secrets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "taskId",
+    "implementationOnly",
+    "codeReview",
+    "attempts",
+    "objective"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "copilot-studio-task" },
+    "taskId": {
+      "type": "string",
+      "pattern": "^cst-[0-9a-f]{24}$",
+      "description": "Unique lowercase-hex task id. Duplicate ids must be rejected."
+    },
+    "implementationOnly": { "type": "boolean", "const": true },
+    "codeReview": { "type": "boolean", "const": false },
+    "attempts": { "type": "integer", "const": 1 },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "description": "Bounded implementation objective. No secrets, no personal context."
+    }
+  }
+}

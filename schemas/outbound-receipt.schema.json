@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaeljwilliams0123/mahoraga/schemas/outbound-receipt.schema.json",
+  "title": "Copilot Studio Outbound Receipt",
+  "description": "Content-free receipt for an accepted task. No prompts, output, or credentials.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "taskId", "status", "executorLane"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "copilot-studio-receipt" },
+    "taskId": {
+      "type": "string",
+      "pattern": "^cst-[0-9a-f]{24}$"
+    },
+    "status": { "type": "string", "enum": ["completed"] },
+    "executorLane": { "type": "string", "const": "copilot-studio-event" }
+  }
+}
