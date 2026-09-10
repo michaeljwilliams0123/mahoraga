@@ -5,29 +5,35 @@ import os from "node:os";
 import path from "node:path";
 import { RuntimeDatabase } from "../src/database.mjs";
 
-test("one dual-primary integration lease persists, reports overlap, and enforces owner release", (t) => {
+test("resource-scoped integration leases persist, allow non-overlap, and reject overlap", (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-integration-lease-"));
   const file = path.join(root, "runtime.sqlite");
   t.after(() => rmSync(root, { recursive: true, force: true }));
   let database = new RuntimeDatabase(file, { allowLegacyPlaintextWrites: true });
   const local = database.acquireIntegrationLease({
     controllerId: "primary-local-codex", durationMs: 60_000,
-    purpose: "Integrate verified attachment support", paths: ["src", "cloud-app/components/workspace.tsx"],
+    purpose: "Integrate verified runtime support", paths: ["src"],
   });
   assert.equal(local.acquired, true);
   const cloud = database.acquireIntegrationLease({
     controllerId: "primary-cloud-codex", durationMs: 60_000,
-    purpose: "Integrate another return", paths: ["src/server.mjs"],
+    purpose: "Integrate cloud UI", paths: ["cloud-app"],
   });
-  assert.equal(cloud.acquired, false);
-  assert.deepEqual(cloud.overlaps, ["src"]);
+  assert.equal(cloud.acquired, true);
+  const collision = database.acquireIntegrationLease({
+    controllerId: "primary-cloud-codex", durationMs: 60_000,
+    purpose: "Conflicting server edit", paths: ["src/server.mjs"],
+  });
+  assert.equal(collision.acquired, false);
+  assert.deepEqual(collision.overlaps, ["src"]);
   database.close();
 
   database = new RuntimeDatabase(file, { allowLegacyPlaintextWrites: true });
-  assert.equal(database.getIntegrationLease().leaseId, local.lease.leaseId);
+  assert.equal(database.listIntegrationLeases().length, 2);
+  assert.equal(database.findIntegrationLeaseForPaths(["cloud-app/components/workspace.tsx"]).leaseId, cloud.lease.leaseId);
   assert.throws(() => database.releaseIntegrationLease({ controllerId: "primary-cloud-codex", leaseId: local.lease.leaseId }), /owner-required/);
   assert.equal(database.releaseIntegrationLease({ controllerId: "primary-local-codex", leaseId: local.lease.leaseId }).released, true);
-  assert.equal(database.getIntegrationLease(), null);
+  assert.equal(database.getIntegrationLease().leaseId, cloud.lease.leaseId);
   database.close();
 });
 

@@ -99,6 +99,22 @@ export function createControlServer({
       if (routeClass === "mutation" && authentication.mechanism === "cookie" && !cookieMutationOriginAllowed(request, expectedControlOrigin)) {
         return json(response, 403, { error: "same-origin-required" });
       }
+      if (request.method === "POST" && url.pathname === "/api/cloud/runtime") {
+        if (authentication.mechanism !== "bearer") return json(response, 401, { error: "cloud-core-bearer-required" });
+        const body = await bodyJson(request);
+        const input = body?.payload && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : {};
+        const context = { mechanism: "owner-server-gateway", attendedSession: { active: true, sessionId: "cloud-owner-gateway" } };
+        if (body?.type === "status") return json(response, 200, statusPayload(manifest, database, supervisor));
+        if (body?.type === "capabilities") return json(response, 200, { capabilities: gateway.capabilities() });
+        if (body?.type === "chat") return json(response, 200, await relayHandlers.chat(input, context));
+        if (body?.type === "tasks") return json(response, 200, { tasks: relayHandlers.tasks(input.conversationId) });
+        if (body?.type === "messages") return json(response, 200, { messages: relayHandlers.messages(input.conversationId) });
+        if (body?.type === "message-content") return json(response, 200, relayHandlers.messageContent(input, context));
+        if (body?.type === "task-action") return json(response, 200, relayHandlers.taskAction(input));
+        if (body?.type === "operations-snapshot") return json(response, 200, await relayHandlers.operationsSnapshot(input, context));
+        if (body?.type === "operations-action") return json(response, 200, await relayHandlers.operationsAction(input, context));
+        return json(response, 400, { error: "cloud-core-action-not-allowed" });
+      }
       if (request.method === "POST" && url.pathname === "/api/session/logout") {
         const sessionId = parseCookies(request.headers.cookie)[CONTROL_SESSION_COOKIE];
         if (sessionId) controlSessions.revokeSession(sessionId);
@@ -219,6 +235,16 @@ export function createControlServer({
       if (request.method === "GET" && url.pathname === "/api/world-state") {
         const worldState = await observeWorldState({ manifest, database, supervisor });
         return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) });
+      }
+      if (request.method === "GET" && url.pathname === "/api/operations") {
+        return json(response, 200, operationsSnapshot({ database, manifest, supervisor, repositoryHeadReader }));
+      }
+      if (request.method === "POST" && url.pathname === "/api/operations/action") {
+        const body = await bodyJson(request);
+        return json(response, 200, await executeOperationsAction(body, { database, manifest, supervisor, repositoryHeadReader,
+          mechanism: authentication.mechanism === "cookie" ? "owner-cloud-session" : "owner-server-gateway",
+          attendedSession: authentication.mechanism === "cookie" ? { active: true, sessionId: authentication.sessionId } : null,
+        }));
       }
       if (request.method === "GET" && url.pathname === "/api/conversations") return json(response, 200, { conversations: database.listConversations() });
       if (request.method === "POST" && url.pathname === "/api/chat") {

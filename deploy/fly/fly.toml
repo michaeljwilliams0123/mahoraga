@@ -1,0 +1,35 @@
+app = "mahoraga-owner-runtime"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.cloud"
+
+[env]
+  PORT = "3000"
+  MAHORAGA_DEPLOYMENT_PROVIDER = "fly.io"
+  MAHORAGA_DEPLOYMENT_ENV = "production"
+  MAHORAGA_STATE_DIR = "/var/lib/mahoraga"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+[[mounts]]
+  source = "mahoraga_state"
+  destination = "/var/lib/mahoraga"
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[[http_service.checks]]
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "30s"
+  method = "GET"
+  path = "/api/ready"
