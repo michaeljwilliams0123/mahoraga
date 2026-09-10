@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     const session = establishOwnerSession(request);
-    const health = await coreRequest("/api/status");
+    const health = await coreRequest("status");
     const body = await health.json().catch(() => ({}));
     const response = Response.json({ authenticated: true, state: health.ok ? "Idle" : "Degraded", csrf: session.csrf, runtime: body }, { status: health.ok ? 200 : 503 });
     if (session.cookie) response.headers.set("set-cookie", session.cookie);

@@ -20,7 +20,13 @@ test("OCI production profile is durable, always on, and bounded by health checks
 test("cloud runtime keeps core loopback-only and secrets in server environment", async () => {
   const [service, gateway, action, edge] = await Promise.all([read("scripts/cloud-service.mjs"), read("cloud-app/lib/cloud-owner-gateway.ts"), read("cloud-app/app/api/runtime/action/route.ts"), read("deploy/cloudflare-owner-gateway/worker.mjs")]);
   assert.match(service, /127\.0\.0\.1:4782/);
+  assert.match(service, /const stateRoot = "\/var\/lib\/mahoraga"/);
+  assert.match(service, /127\.0\.0\.1:3000\/api\/live/);
+  assert.doesNotMatch(service, /process\.env\.(?:MAHORAGA_STATE_DIR|MAHORAGA_DATABASE_FILE|MAHORAGA_ARTIFACT_ROOT|MAHORAGA_CONTENT_VAULT_ROOT|MAHORAGA_CORE_URL|PORT)/);
   assert.match(gateway, /MAHORAGA_PRIMARY_CODEX_TOKEN/);
+  assert.match(gateway, /CORE_GATEWAY_URL = "http:\/\/127\.0\.0\.1:4782\/api\/cloud\/runtime"/);
+  assert.doesNotMatch(gateway, /MAHORAGA_CORE_URL/);
+  assert.doesNotMatch(gateway, /process\.env\.MAHORAGA_STATE_DIR/);
   assert.match(gateway, /MAHORAGA_CLOUD_SESSION_SECRET/);
   assert.match(gateway, /MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET/);
   assert.match(gateway, /x-mahoraga-owner-signature/);

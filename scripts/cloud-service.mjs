@@ -3,7 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from "nod
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const stateRoot = path.resolve(process.env.MAHORAGA_STATE_DIR || path.join(root, "state", "cloud"));
+const stateRoot = "/var/lib/mahoraga";
 const receiptFile = path.join(stateRoot, "idle-receipts.ndjson");
 const children = new Map();
 const restartHistory = new Map();
@@ -12,11 +12,11 @@ mkdirSync(stateRoot, { recursive: true });
 
 const shared = { ...process.env,
   MAHORAGA_STATE_DIR: stateRoot,
-  MAHORAGA_DATABASE_FILE: process.env.MAHORAGA_DATABASE_FILE || path.join(stateRoot, "mahoraga.sqlite"),
-  MAHORAGA_ARTIFACT_ROOT: process.env.MAHORAGA_ARTIFACT_ROOT || path.join(stateRoot, "artifacts"),
-  MAHORAGA_CONTENT_VAULT_ROOT: process.env.MAHORAGA_CONTENT_VAULT_ROOT || path.join(stateRoot, "content-vault"),
-  MAHORAGA_CORE_URL: process.env.MAHORAGA_CORE_URL || "http://127.0.0.1:4782",
-  HOSTNAME: "0.0.0.0", PORT: process.env.PORT || "3000",
+  MAHORAGA_DATABASE_FILE: path.join(stateRoot, "mahoraga.sqlite"),
+  MAHORAGA_ARTIFACT_ROOT: path.join(stateRoot, "artifacts"),
+  MAHORAGA_CONTENT_VAULT_ROOT: path.join(stateRoot, "content-vault"),
+  MAHORAGA_CORE_URL: "http://127.0.0.1:4782",
+  HOSTNAME: "0.0.0.0", PORT: "3000",
 };
 
 start("core", process.execPath, ["src/cli.mjs", "start", "--port", "4782"]);
@@ -26,7 +26,7 @@ start("workspace", npmCommand(), ["--prefix", "cloud-app", "run", "start", "--",
 const idleTimer = setInterval(async () => {
   const receipt = { schemaVersion: 1, type: "idle-liveness", observedAt: new Date().toISOString(), modelInvocations: 0, core: false, workspace: false };
   try { receipt.core = (await fetch("http://127.0.0.1:4782/api/status", { signal: AbortSignal.timeout(4_000) })).ok; } catch {}
-  try { receipt.workspace = (await fetch(`http://127.0.0.1:${shared.PORT}/api/live`, { signal: AbortSignal.timeout(4_000) })).ok; } catch {}
+  try { receipt.workspace = (await fetch("http://127.0.0.1:3000/api/live", { signal: AbortSignal.timeout(4_000) })).ok; } catch {}
   rotateAndAppend(receipt);
 }, 30_000);
 idleTimer.unref();

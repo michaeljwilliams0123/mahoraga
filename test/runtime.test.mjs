@@ -31,6 +31,19 @@ test("runtime exposes only the canonical GitHub Pages workspace as its interacti
   assert.throws(() => canonicalWorkspaceUrl("https://user:secret@example.com/"), /canonical-workspace-url-invalid/);
 });
 
+test("cloud runtime dispatch is fixed-path, bearer-only, and bounded", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const denied = await fetch(`${base}/api/cloud/runtime`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ type: "status", payload: {} }) });
+  assert.equal(denied.status, 401);
+  const status = await fetch(`${base}/api/cloud/runtime`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ type: "status", payload: {} }) });
+  assert.equal(status.status, 200);
+  assert.equal(typeof (await status.json()).version, "string");
+  const rejected = await fetch(`${base}/api/cloud/runtime`, { method: "POST", headers: { ...AUTH, "content-type": "application/json" }, body: JSON.stringify({ type: "http://example.com", payload: {} }) });
+  assert.equal(rejected.status, 400);
+  assert.deepEqual(await rejected.json(), { error: "cloud-core-action-not-allowed" });
+});
+
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;

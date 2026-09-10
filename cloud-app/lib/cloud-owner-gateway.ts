@@ -6,6 +6,8 @@ import { DatabaseSync } from "node:sqlite";
 const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const REPLAY_WINDOW_MS = 2 * 60 * 1000;
+const CORE_GATEWAY_URL = "http://127.0.0.1:4782/api/cloud/runtime";
+const REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
 
 export type OwnerSession = { ownerId: string; sessionId: string; csrf: string; cookie?: string };
 
@@ -43,11 +45,14 @@ export function authorizeOwnerMutation(request: Request): OwnerSession {
   return session;
 }
 
-export async function coreRequest(pathname: string, init: RequestInit = {}) {
-  const base = process.env.MAHORAGA_CORE_URL?.trim() || "http://127.0.0.1:4782";
+export async function coreRequest(type: string, payload: unknown = {}) {
   const token = required("MAHORAGA_PRIMARY_CODEX_TOKEN");
   const signal = AbortSignal.timeout(15_000);
-  return fetch(new URL(pathname, base), { ...init, cache: "no-store", signal, headers: { ...(init.headers ?? {}), authorization: `Bearer ${token}` } });
+  return fetch(CORE_GATEWAY_URL, {
+    method: "POST", cache: "no-store", signal,
+    headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+    body: JSON.stringify({ type, payload }),
+  });
 }
 
 export function gatewayFailure(error: unknown) {
@@ -57,9 +62,8 @@ export function gatewayFailure(error: unknown) {
 }
 
 function replayDatabase() {
-  const root = process.env.MAHORAGA_STATE_DIR?.trim() || path.join(process.cwd(), "..", "state", "cloud");
-  mkdirSync(root, { recursive: true });
-  const db = new DatabaseSync(path.join(root, "cloud-gateway.sqlite"));
+  mkdirSync(REPLAY_ROOT, { recursive: true });
+  const db = new DatabaseSync(path.join(REPLAY_ROOT, "cloud-gateway.sqlite"));
   db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS request_nonces(nonce TEXT PRIMARY KEY,session_id TEXT NOT NULL,expires_at INTEGER NOT NULL);");
   return db;
 }
