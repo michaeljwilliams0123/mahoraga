@@ -1,0 +1,7 @@
+name = "mahoraga-owner-gateway"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+
+[vars]
+MAHORAGA_CLOUD_OWNER_ID = "owner@example.invalid"
+MAHORAGA_FLY_ORIGIN = "https://mahoraga-owner-runtime.fly.dev/"

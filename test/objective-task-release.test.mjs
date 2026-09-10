@@ -39,7 +39,7 @@ test("objective release derives policy, lease, and Codex Builder sessions before
   assert.equal(reconciled.released.length, 2);
   const current = database.getObjective(objective.id);
   const released = current.tasks.filter((task) => task.status === "released");
-  assert.deepEqual(released.map((task) => task.id).sort(), ["challenge", "propose"]);
+  assert.deepEqual(released.map((task) => task.localTaskId).sort(), ["challenge", "propose"]);
 
   const lease = database.getIntegrationLease();
   assert.equal(lease.controllerId, "primary-local-codex");
@@ -70,7 +70,7 @@ test("completed Codex stages release their lease and reacquire a fresh lease for
   database.reconcileObjectives();
   database.reconcileObjectives();
 
-  const next = database.getObjective(objective.id).tasks.find((task) => task.id === "synthesize");
+  const next = database.getObjective(objective.id).tasks.find((task) => task.localTaskId === "synthesize");
   const secondLease = database.getIntegrationLease();
   assert.equal(next.status, "released");
   assert.notEqual(secondLease.leaseId, firstLease.leaseId);
@@ -91,7 +91,7 @@ test("a competing Primary lease keeps Codex objective children planned without b
   const reconciled = database.reconcileObjectives();
   assert.equal(reconciled.released.length, 0);
   assert.equal(database.listTasks().length, 0);
-  assert.deepEqual(database.getObjective(objective.id).tasks.filter((task) => task.status === "planned").map((task) => task.id).sort(), ["challenge", "implement", "integrate", "propose", "synthesize", "verify"]);
+  assert.deepEqual(database.getObjective(objective.id).tasks.filter((task) => task.status === "planned").map((task) => task.localTaskId).sort(), ["challenge", "implement", "integrate", "propose", "synthesize", "verify"]);
   assert.equal(database.getIntegrationLease().controllerId, "primary-cloud-codex");
 });
 
@@ -110,7 +110,7 @@ test("finishing the final Codex stage releases the objective lease before reposi
     database.reconcileObjectives();
   }
 
-  const verify = database.getObjective(objective.id).tasks.find((task) => task.id === "verify");
+  const verify = database.getObjective(objective.id).tasks.find((task) => task.localTaskId === "verify");
   assert.equal(verify.status, "released");
   assert.equal(database.getIntegrationLease(), null);
 });
@@ -155,4 +155,26 @@ test("owner self-evolution objective receives the same local integration lease b
   assert.equal(child.task.baseCommit, "d".repeat(40));
   assert.deepEqual(child.task.allowedPaths, ["src", "test"]);
   assert.deepEqual(child.task.allowedWorkerIds, ["primary-codex-builder"]);
+});
+
+test("objective task identities are globally unique while local ids stay objective-scoped", async (t) => {
+  const database = await installedFixture(t);
+  const first = database.createObjective(objectiveDefinition());
+  const second = database.createObjective({ ...objectiveDefinition(), correlationId: "objective-second" });
+  assert.ok(first.tasks.some((task) => task.localTaskId === "propose"));
+  assert.ok(second.tasks.some((task) => task.localTaskId === "propose"));
+  assert.notEqual(first.tasks[0].id, second.tasks[0].id);
+  assert.equal(new Set([...first.tasks, ...second.tasks].map((task) => task.id)).size, first.tasks.length + second.tasks.length);
+});
+
+test("objective dependency cycles are rejected before persistence", async (t) => {
+  const database = await installedFixture(t);
+  assert.throws(() => database.createObjective({
+    title: "cyclic objective",
+    tasks: [
+      { id: "first", capability: "system.health", dataClass: "synthetic", taskArea: "health", dependsOn: ["second"] },
+      { id: "second", capability: "system.health", dataClass: "synthetic", taskArea: "health", dependsOn: ["first"] },
+    ],
+  }), /objective-dependency-cycle/);
+  assert.equal(database.listObjectives().length, 0);
 });

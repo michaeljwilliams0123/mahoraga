@@ -1,0 +1,9 @@
+.git
+.github
+node_modules
+cloud-app/node_modules
+cloud-app/.next
+state
+outputs
+work
+*.log

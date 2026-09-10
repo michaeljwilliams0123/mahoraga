@@ -113,7 +113,7 @@ export function Workspace() {
     const transport = new RuntimeRelay();
     let active = true;
     setRelayState("resuming");
-    void transport.resume().then(async (resumed) => {
+    void transport.attach().then((attached) => attached ?? transport.resume()).then(async (resumed) => {
       if (!active) { transport.disconnect(); return; }
       if (!resumed) { setRelayState("unpaired"); return; }
       const capabilities = await transport.capabilities();

@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaeljwilliams0123/mahoraga/schemas/autonomy-envelope.schema.json",
+  "title": "Mahoraga Owner-Sovereign Autonomy Envelope",
+  "description": "Machine-readable authority tiers for self-run, persistent owner delegation, configurable confirmation, and structural prohibitions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "selfRun", "ownerDelegable", "confirmationRequired", "neverAutomated"],
+  "properties": {
+    "_comment": { "type": "string", "maxLength": 500 },
+    "schemaVersion": { "type": "integer", "const": 2 },
+    "kind": { "type": "string", "const": "autonomy-envelope" },
+    "selfRun": {
+      "description": "Reversible build-and-propose actions that run without additional authority resolution.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 10,
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "enum": [
+          "create-branch",
+          "author-code-on-feature-branch",
+          "modify-code-on-feature-branch",
+          "author-schema-or-doc",
+          "open-draft-pr",
+          "run-offline-validator",
+          "run-tests",
+          "open-issue",
+          "self-review",
+          "iterate-on-test-failure"
+        ]
+      }
+    },
+    "ownerDelegable": {
+      "description": "Privileged actions executable from persistent owner delegation when matching platform permission and registered capability authority are present.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 7,
+      "maxItems": 7,
+      "items": {
+        "type": "string",
+        "enum": [
+          "merge-to-main",
+          "change-permissions-or-security",
+          "deploy-to-test-or-prod",
+          "any-external-send-or-share",
+          "governance-administration",
+          "activate-verified-self-update",
+          "provision-or-reconfigure-agent"
+        ]
+      }
+    },
+    "confirmationRequired": {
+      "description": "One-way or spend actions that remain configured for action-time confirmation in this reference profile.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "string",
+        "enum": [
+          "force-push",
+          "delete-branch-or-file",
+          "spend-money"
+        ]
+      }
+    },
+    "neverAutomated": {
+      "description": "Structural platform, identity, credential, and data-boundary prohibitions that owner delegation cannot override.",
+      "type": "array",
+      "uniqueItems": true,
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "string",
+        "enum": [
+          "handle-or-store-secrets-in-git",
+          "self-mint-agent-credentials",
+          "send-enterprise-or-local-data-to-github",
+          "bypass-tenant-or-identity-controls"
+        ]
+      }
+    }
+  }
+}
