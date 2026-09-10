@@ -1,57 +1,83 @@
-# Mahoraga Autonomy Model — How Far Autonomy Goes, and Where It Stops
+# Mahoraga Autonomy Model — Owner-Sovereign Authority
 
-> This is the design that makes Mahoraga **adaptive and heavily autonomous** while keeping
-> the few boundaries that are non-negotiable. It is a contract, not live wiring.
+> **Contract version:** 2. Mahoraga runs the build-and-propose loop itself and may execute privileged actions from persistent owner delegation when actual platform permission and registered capability authority agree.
 
-## The three tiers
+## Core authority rule
 
-### 1. Self-run (NO gate) — the full build-and-propose loop
-The agent may do all of this unattended, because every item is **reversible and in-boundary**:
+Mahoraga does not require a second approval merely because an action is privileged when the owner has already granted that scope.
 
-- create feature branches
-- author and modify code on feature branches
-- author schemas and docs
-- open **draft** PRs
-- run the offline validator and tests
-- open issues
-- self-review and iterate on its own test failures
+```text
+effectiveAuthority = ownerGrant ∩ platformGrantedPermissions ∩ registeredCapability
+```
 
-This is roughly the entire agentic loop: design → build → test → propose. No human needed
-until something leaves this tier.
+All three must agree. Owner intent cannot fabricate GitHub, Microsoft, tenant, connector, or identity permissions that the active platform connection does not possess.
 
-### 2. Gated (ALWAYS one confirmation) — destructive / external / authority
-These stop for an explicit action-time confirmation, every time:
+## 1. Self-run
 
-- merge to `main`
-- force-push
-- delete a branch or file
-- change permissions or security settings
-- deploy to Test or Prod
-- spend money
-- any external send or share
+These reversible build-and-propose actions run directly:
 
-**Why these can't be gate-free even with downstream monitoring:** an egress/IP tracker watches
-where *data goes*. These actions cause harm by *what they do inside the boundary* — a bad merge,
-a deleted branch, a broken prod deploy. Nothing "leaves," so egress monitoring never sees it, yet
-the damage is real. A data-loss control and an action gate cover **different failure modes**;
-one cannot substitute for the other.
+- create feature branches;
+- author and modify feature-branch code;
+- author schemas and documentation;
+- open draft PRs;
+- run offline validators and tests;
+- open issues;
+- self-review;
+- iterate on test failures.
 
-### 3. Never automated — structurally fixed
-No configuration edit can enable these:
+This keeps the normal design → build → test → propose loop autonomous.
 
-- handling or storing secrets in Git
-- an agent minting its own credentials — for Copilot Studio identities this is impossible by
-  platform design; no one in the tenant, including admins, can mint those tokens
-- sending enterprise or local data to GitHub
-- bypassing tenant or identity controls
+## 2. Owner-delegable
 
-## How this delivers "as autonomous as safely possible"
+These actions may execute without another Mahoraga confirmation when the active owner grant, platform permission, and capability declaration authorize them:
+- merge to `main` when repository rules and the active merge capability permit it;
+- change permissions/security settings through a registered administrative capability;
+- deploy to Test or Prod through an authorized deployment capability;
+- send/share externally through an owner-authorized connector and allowed data class;
+- administer Mahoraga governance inside delegated scope;
+- activate a verified Mahoraga self-update;
+- provision or reconfigure a Copilot Studio / registered agent capability.
 
-The agent runs the **entire creative and iterative loop** on its own. The only pauses are the
-handful of one-way or outward actions where a single confirmation is cheap and a mistake is
-expensive or irreversible. That is the maximum-safe line — pushed all the way to it.
+The reference owner grant in `mahoraga.manifest.json` has no `confirmationRequiredScopes`, so matching granted operations do not acquire an additional Mahoraga-side confirmation prompt.
 
-## Machine-readable form
+A platform-native approval, branch rule, tenant policy, Conditional Access rule, or connector permission still applies. Mahoraga records that as platform authority rather than trying to bypass it.
 
-- Schema: `schemas/autonomy-envelope.schema.json`
-- Reference config: `config/autonomy-envelope.json`
+## 3. Confirmation-required reference actions
+
+The v2 reference profile keeps these action classes behind explicit confirmation:
+
+- force-push;
+- delete a branch or file;
+- spend money.
+
+They are separate from deployment authority so a deployment grant is not accidentally treated like destructive history rewriting or an unbounded spend grant.
+
+## 4. Structural boundaries
+
+Owner delegation does not enable:
+
+- raw passwords, tokens, cookies, private keys, or bearer credentials in Git;
+- self-minting platform or Copilot Studio credentials;
+- enterprise/local content copied into GitHub as a general transport channel;
+- bypassing tenant, identity, authentication, or platform controls.
+
+Remote operation remains capability-based. No generic public tunnel, reverse proxy, arbitrary port forwarding, or unrestricted supervisor shell is introduced by this authority model.
+
+## Runtime semantics
+
+Privileged tasks declare an `authorityScope` and, for deployment, an `authorityTarget`. The capability registry exposes only the scopes declared for that exact capability. Runtime context contributes the scopes actually available through the authenticated platform connection.
+
+If any side of the intersection is absent, routing waits with a specific denial reason. Revoked owner scopes take effect before execution. Existing tasks that do not declare privileged authority continue to route under their existing behavior.
+
+## Copilot Studio
+
+The Copilot Studio worker now declares separate health, delegation, configuration, provisioning, and deployment capabilities. This prepares PRs #281–#283 to evolve from design contracts into a registered Microsoft execution plane while keeping transport, authority, and credential handling separate.
+
+Credential values stay outside Git. Runtime integrations use authenticated platform connections or opaque credential/connection references; GitHub remains a coordination and metadata-evidence plane.
+
+## Machine-readable sources
+
+- `config/autonomy-envelope.json` — reference authority tiers.
+- `schemas/autonomy-envelope.schema.json` — exact v2 tier contract.
+- `mahoraga.manifest.json` — active owner authority grant and capability-specific authority declarations.
+- `src/owner-authority.mjs` — deterministic authority intersection and revocation logic.

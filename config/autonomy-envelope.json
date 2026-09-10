@@ -1,6 +1,6 @@
 {
-  "_comment": "Reference configuration for maximum-safe autonomy. Self-run covers the full build-and-propose loop; gated covers only destructive/external/authority actions; neverAutomated is structurally fixed.",
-  "schemaVersion": 1,
+  "_comment": "Owner-sovereign autonomy v2. Build/test iteration self-runs; privileged actions execute from persistent owner delegation when effective platform/capability authority agrees; structurally prohibited actions remain fixed.",
+  "schemaVersion": 2,
   "kind": "autonomy-envelope",
   "selfRun": [
     "create-branch",
@@ -14,14 +14,19 @@
     "self-review",
     "iterate-on-test-failure"
   ],
-  "gated": [
+  "ownerDelegable": [
     "merge-to-main",
-    "force-push",
-    "delete-branch-or-file",
     "change-permissions-or-security",
     "deploy-to-test-or-prod",
-    "spend-money",
-    "any-external-send-or-share"
+    "any-external-send-or-share",
+    "governance-administration",
+    "activate-verified-self-update",
+    "provision-or-reconfigure-agent"
+  ],
+  "confirmationRequired": [
+    "force-push",
+    "delete-branch-or-file",
+    "spend-money"
   ],
   "neverAutomated": [
     "handle-or-store-secrets-in-git",
