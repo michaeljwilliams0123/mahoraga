@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/michaeljwilliams0123/mahoraga/schemas/autonomy-envelope.schema.json",
+  "title": "Mahoraga Autonomy Envelope",
+  "description": "Machine-readable definition of which job types run with no gate versus which always require an action-time human confirmation. Encodes the maximum-safe autonomy line.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "selfRun", "gated", "neverAutomated"],
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "kind": { "type": "string", "const": "autonomy-envelope" },
+
+    "selfRun": {
+      "description": "Reversible, in-boundary, non-destructive job types the agent MAY perform with no human gate.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "create-branch",
+          "author-code-on-feature-branch",
+          "modify-code-on-feature-branch",
+          "author-schema-or-doc",
+          "open-draft-pr",
+          "run-offline-validator",
+          "run-tests",
+          "open-issue",
+          "self-review",
+          "iterate-on-test-failure"
+        ]
+      }
+    },
+
+    "gated": {
+      "description": "Actions that ALWAYS stop for an action-time human confirmation. These are destructive, externalizing, or authority-changing and are never self-run regardless of any downstream monitoring.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "merge-to-main",
+          "force-push",
+          "delete-branch-or-file",
+          "change-permissions-or-security",
+          "deploy-to-test-or-prod",
+          "spend-money",
+          "any-external-send-or-share"
+        ]
+      }
+    },
+
+    "neverAutomated": {
+      "description": "Structurally impossible or prohibited regardless of configuration. Listed so no future edit can quietly enable them.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "handle-or-store-secrets-in-git",
+          "self-mint-agent-credentials",
+          "send-enterprise-or-local-data-to-github",
+          "bypass-tenant-or-identity-controls"
+        ]
+      }
+    }
+  }
+}
