@@ -261,3 +261,90 @@ test("a post-spawn child error terminates the tracked process before any restart
   assert.equal(supervisor.status()[0].status, "crashed");
   assert.equal(supervisor.status()[0].lastErrorCode, "process-EPIPE");
 });
+
+test("route recovery requeues a running task without losing its identity", (t) => {
+  const { database, cleanup } = databaseFixture();
+  t.after(cleanup);
+  const conversation = database.createConversation({
+    title: "Recovery test", initialMessage: "Keep this objective alive.", classification: "local-only",
+  });
+  const submitted = database.submitTask({
+    capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+    idempotencyKey: "route-recovery-key", correlationId: "route-recovery-correlation",
+    conversationId: conversation.id, maximumAttempts: 3,
+  });
+  const claimed = database.claimNext({ workerId: "repair-worker", capabilities: ["system.health"], leaseMs: 5000 });
+  assert.equal(claimed.id, submitted.id);
+  const recovered = database.requeueForRouteRecovery({
+    taskId: claimed.id, reason: "canary-stale", excludedWorkerId: "repair-worker",
+  });
+  assert.equal(recovered.status, "queued");
+  assert.equal(recovered.attemptCount, 1);
+  assert.equal(recovered.idempotencyKey, "route-recovery-key");
+  assert.equal(recovered.correlationId, "route-recovery-correlation");
+  assert.equal(recovered.conversationId, conversation.id);
+  assert.equal(recovered.errorCode, "route-recovery-canary-stale");
+  assert.deepEqual(recovered.excludedWorkerIds, ["repair-worker"]);
+  const events = database.listEvents(50).filter((event) => event.subjectId === claimed.id);
+  assert.equal(events.some((event) => event.eventType === "task.route-recovered"), true);
+  assert.equal(events.some((event) => event.eventType === "task.waiting"), false);
+});
+test("supervisor keeps a task queued across recoverable stale-route drift", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const manifest = manifestFixture({ repair: { enabled: false, scanIntervalMs: 1000 } });
+  const supervisor = new Supervisor({
+    manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 200,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("process.ready");
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const observedAt = new Date().toISOString();
+  database.setCapabilityReadiness({
+    workerId: "repair-worker", capability: "system.health", processStatus: "live",
+    providerStatus: "ready", canaryStatus: "stale", processObservedAt: observedAt,
+    providerObservedAt: observedAt, canaryVerifiedAt: null, lastErrorCode: null,
+  });
+  const submitted = database.submitTask({
+    capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+    idempotencyKey: "supervisor-route-recovery", maximumAttempts: 3,
+  });
+  await delay(230);
+  supervisor.stop();
+  const recovered = database.getTask(submitted.id);
+  assert.equal(recovered.status, "queued");
+  assert.equal(recovered.attemptCount, 1);
+  assert.equal(recovered.errorCode, "route-recovery-canary-stale");
+});
+test("supervisor preserves terminal waiting after route-recovery attempts are exhausted", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const manifest = manifestFixture({ repair: { enabled: false, scanIntervalMs: 1000 } });
+  const supervisor = new Supervisor({
+    manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 200,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const observedAt = new Date().toISOString();
+  database.setCapabilityReadiness({
+    workerId: "repair-worker", capability: "system.health", processStatus: "live",
+    providerStatus: "ready", canaryStatus: "stale", processObservedAt: observedAt,
+    providerObservedAt: observedAt, canaryVerifiedAt: null, lastErrorCode: null,
+  });
+  const submitted = database.submitTask({
+    capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+    idempotencyKey: "supervisor-route-exhausted", maximumAttempts: 1,
+  });
+  await delay(230);
+  supervisor.stop();
+  const terminal = database.getTask(submitted.id);
+  assert.equal(terminal.status, "waiting");
+  assert.equal(terminal.attemptCount, 1);
+  assert.equal(terminal.errorCode, "canary-stale");
+});

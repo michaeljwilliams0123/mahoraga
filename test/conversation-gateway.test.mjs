@@ -106,3 +106,47 @@ test("operationsSnapshot and operationsAction call supplied relay handlers", asy
   });
   assert.deepEqual(calls, [["snapshot", "owner-paired-relay"], ["action", "runtime.health-check"]]);
 });
+
+
+function ucfGatewayFixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-ucf-gateway-"));
+  const database = new RuntimeDatabase(path.join(root, "state.sqlite"), { allowLegacyPlaintextWrites: true });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+  const routes = [
+    { capability: "assistant.respond", workerId: "question-model", enabled: true, routable: true, dataClasses: ["personal", "local-only"] },
+    { capability: "m365.reason", workerId: "microsoft365", enabled: true, routable: true, dataClasses: ["enterprise"] },
+  ];
+  const gateway = createConversationGateway({
+    database, manifest: { version: "test" }, supervisor: { status: () => [] }, capabilityResolver: () => routes,
+    submitTask: (body) => database.submitTask({
+      capability: body.intent, dataClass: body.intent === "m365.reason" ? "enterprise" : "personal",
+      requestedMode: "local", requestedOutcome: body.requestedOutcome, idempotencyKey: body.idempotencyKey,
+      correlationId: body.correlationId, conversationId: body.conversationId,
+    }),
+  });
+  return { database, gateway };
+}
+
+test("v2 gateway uses UCF planner for free-form and natural Microsoft conversation", (t) => {
+  const { gateway } = ucfGatewayFixture(t);
+  const general = gateway.createRun({ sessionId: "ses-ucf-general", conversationId: null, content: "status?", idempotencyKey: "ucf-general" });
+  assert.equal(general.task.capability, "assistant.respond");
+  gateway.cancelRun(general.run.id);
+  const microsoft = gateway.createRun({ sessionId: "ses-ucf-mswork", conversationId: null, content: "Summarize my Microsoft 365 work.", idempotencyKey: "ucf-ms" });
+  assert.equal(microsoft.task.capability, "m365.reason");
+});
+
+test("v2 gateway preserves enterprise capability affinity across contextual follow-ups", (t) => {
+  const { database, gateway } = ucfGatewayFixture(t);
+  const first = gateway.createRun({ sessionId: "ses-ucf-context", conversationId: null, content: "Summarize my Microsoft 365 work.", idempotencyKey: "ucf-context-1" });
+  database.claimNext({ workerId: "microsoft365", capabilities: ["m365.reason"], leaseMs: 5000 });
+  database.markVerifying(first.task.id, "microsoft365");
+  database.finishTask(first.task.id, { status: "completed", resultSummary: "Enterprise summary complete." });
+
+  const second = gateway.createRun({
+    sessionId: "ses-ucf-context", conversationId: first.run.conversationId,
+    content: "Summarize the above and give me the next action.", idempotencyKey: "ucf-context-2",
+  });
+  assert.equal(second.task.capability, "m365.reason");
+  assert.equal(second.intent.reasonCode, "ucf-enterprise-follow-up");
+});

@@ -133,3 +133,43 @@ test("owner capability selection survives conversation persistence into the obje
   assert.equal(result.objective.tasks.length, 1);
   assert.equal(result.objective.tasks[0].capability, "self.evolve");
 });
+
+test("UCF capability plan composes direct objective tasks without fixed Codex debate lanes", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000202",
+    message: "Review the repo and compare it with Microsoft 365.",
+    requestedMode: "hybrid", executionContract: EXECUTION_CONTRACT,
+    capabilityPlan: ["repository.inspect", "m365.reason"],
+  });
+  assert.deepEqual(objective.tasks.map((task) => task.capability), ["repository.inspect", "m365.reason"]);
+  assert.deepEqual(objective.tasks.map((task) => task.dependsOn), [[], [objective.tasks[0].id]]);
+  assert.equal(objective.tasks.some((task) => task.capability === "codex.execute"), false);
+});
+
+test("UCF repository repair plan uses only one builder stage before verification", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000203",
+    message: "Review the repo, fix the issue, and verify it.", requestedMode: "hybrid",
+    executionContract: EXECUTION_CONTRACT,
+    capabilityPlan: ["repository.inspect", "codex.execute", "repository.verify"],
+  });
+  assert.equal(objective.tasks.filter((task) => task.capability === "codex.execute").length, 1);
+  assert.deepEqual(objective.tasks.map((task) => task.capability), ["repository.inspect", "codex.execute", "repository.verify"]);
+});
+
+
+test("UCF attended capability plan preserves the opaque owner session reference", () => {
+  const objective = buildAutonomyObjective({
+    conversationId: "con-00000000-0000-0000-0000-000000000000",
+    messageId: "msg-00000000-0000-0000-0000-000000000202",
+    message: "Compare the repository with my Microsoft 365 work.",
+    requestedMode: "hybrid",
+    executionContract: EXECUTION_CONTRACT,
+    capabilityPlan: ["repository.inspect", "m365.reason"],
+    authoritySessionId: "ses-owner-attended-000001",
+  });
+  const microsoft = objective.tasks.find((task) => task.capability === "m365.reason");
+  assert.equal(microsoft.authoritySessionId, "ses-owner-attended-000001");
+});

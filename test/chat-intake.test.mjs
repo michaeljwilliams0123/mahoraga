@@ -129,3 +129,24 @@ test("owner action directives target any registered capability without fuzzy rer
     intentKind: "owner-capability", reasonCode: "explicit-capability-request",
   });
 });
+
+test("UCF route evidence handles natural Microsoft work and composed multi-domain requests", () => {
+  const routes = [
+    { capability: "assistant.respond", enabled: true, routable: true },
+    { capability: "repository.inspect", enabled: true, routable: true },
+    { capability: "m365.reason", enabled: true, routable: true, dataClasses: ["enterprise"] },
+  ];
+  assert.deepEqual(classifyChatTurn({ mode: "auto", content: "Compare this with my Microsoft 365 work.", capabilityRoutes: routes }), {
+    mode: "act", execution: "task", capability: "m365.reason",
+    intentKind: "microsoft-work", reasonCode: "ucf-microsoft-context",
+  });
+  assert.deepEqual(classifyChatTurn({ mode: "auto", content: "Review the repo and compare it with my Microsoft 365 work.", capabilityRoutes: routes }), {
+    mode: "act", execution: "objective", capability: null,
+    intentKind: "composed-capabilities", reasonCode: "ucf-composed-objective",
+  });
+});
+
+test("chat intake blocks broad human-recipient messaging before action escalation", () => {
+  const result = classifyChatTurn({ mode: "auto", content: "Send a message to everyone in Teams", capabilityRoutes: [{ capability: "assistant.respond", enabled: true, routable: true }] });
+  assert.deepEqual(result, { mode: "act", execution: "unavailable", capability: null, intentKind: "recipient-restricted", reasonCode: "recipient-not-authorized" });
+});

@@ -63,3 +63,15 @@ test("server-derived worker authority is enforced by routing", async () => {
   const result = routeTask(manifest, policyTask({ allowedWorkerIds: ["repair-worker"] }), { workerStates: [workerState()], now: NOW });
   assert.deepEqual(result, { status: "waiting", reason: "worker-not-authorized", worker: null });
 });
+
+test("stale route exposes bounded adaptive recovery instead of a naked wait", async () => {
+  const manifest = await loadManifest();
+  const blocked = routeTask(manifest, policyTask(), {
+    workerStates: [workerState({ canaryStatus: "stale" })],
+    now: NOW,
+  });
+  assert.equal(blocked.status, "waiting");
+  assert.equal(blocked.reason, "canary-stale");
+  assert.equal(blocked.recoveryPlan.recoverable, true);
+  assert.deepEqual(blocked.recoveryPlan.actions.map((action) => action.kind), ["refresh-readiness", "retry-route"]);
+});

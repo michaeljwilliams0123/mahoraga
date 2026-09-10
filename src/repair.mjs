@@ -31,6 +31,8 @@ export const ESSENTIAL_FILES = [
   "src/receipt-registry.mjs",
   "src/capability-readiness.mjs",
   "src/capability-registry.mjs",
+  "src/capability-recovery.mjs",
+  "src/conversation-capability-planner.mjs",
   "src/owner-authority.mjs",
   "src/universal-capability-graph.mjs",
   "src/delegated-work-fabric.mjs",

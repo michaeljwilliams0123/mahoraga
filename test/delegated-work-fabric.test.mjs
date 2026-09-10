@@ -30,6 +30,9 @@ function desktopRoute(overrides = {}) {
     costClass: "deterministic",
     dataClasses: ["synthetic", "personal", "local-only", "enterprise"],
     executionPlane: "local",
+    authorityScopes: ["desktop.read"],
+    idempotencyClass: "task-key",
+    recoveryClasses: ["refresh-readiness", "retry-route"],
     ...overrides,
   };
 }
@@ -61,9 +64,15 @@ test("universal graph keeps live routing separate from declared agent capability
   });
 
   assert.equal(graph.kind, "universal-capability-graph");
+  assert.equal(graph.schemaVersion, 2);
   assert.equal(graph.nodes.find((node) => node.id === "capability:desktop.filesystem").routable, true);
   assert.equal(graph.edges.some((edge) => edge.type === "declares" && edge.from === "agent:desktop-steward"), true);
-  assert.equal(graph.edges.find((edge) => edge.type === "provides").routable, true);
+  const routeEdge = graph.edges.find((edge) => edge.type === "provides");
+  assert.equal(routeEdge.routable, true);
+  assert.deepEqual(routeEdge.authorityScopes, ["desktop.read"]);
+  assert.equal(routeEdge.idempotencyClass, "task-key");
+  assert.deepEqual(routeEdge.recoveryClasses, ["refresh-readiness", "retry-route"]);
+  assert.match(routeEdge.routeFingerprint, /^[a-f0-9]{64}$/);
   assert.equal(graph.creditCost, 0);
   assert.equal(graph.paidFallback, false);
   assert.equal(Object.isFrozen(graph), true);

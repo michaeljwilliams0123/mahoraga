@@ -370,7 +370,15 @@ export class Supervisor extends EventEmitter {
       if (!task) continue;
       const route = routeTask(this.manifest, task, { workerStates: this.status() });
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
-        this.database.finishTask(task.id, { status: "waiting", errorCode: route.reason ?? "routing-changed" });
+        if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
+          this.database.requeueForRouteRecovery({
+            taskId: task.id,
+            reason: route.reason ?? "routing-changed",
+            excludedWorkerId: route.recoveryPlan.actions.some((action) => action.kind === "reroute") ? state.definition.id : null,
+          });
+        } else {
+          this.database.finishTask(task.id, { status: "waiting", errorCode: route.reason ?? "routing-changed" });
+        }
         continue;
       }
       let executionTask = task;
