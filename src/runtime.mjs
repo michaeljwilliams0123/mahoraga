@@ -8,7 +8,7 @@ import { createControlSessionManager } from "./control-session.mjs";
 import { createContentVault } from "./content-vault.mjs";
 import { createRelayRuntimePeer } from "./relay-runtime.mjs";
 import { createMcpHostManager } from "./mcp-host-manager.mjs";
-import { installObjectiveReleaseAuthority } from "./objective-release-authority.mjs";
+import { createObjectiveReleaseAuthority } from "./objective-release-authority.mjs";
 import { resolveCandidateRuntimePaths } from "./state/candidate-runtime.mjs";
 import { openUccpStateStore } from "./state/schema.mjs";
 import { createAdminCognitivePlane } from "./state/core-plane.mjs";
@@ -24,8 +24,8 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   });
   const contentVault = await createContentVault({ root: paths.contentVaultRoot, keyFile: paths.contentVaultKeyFile, masterKey: contentVaultMasterKey });
   contentVault.deleteExpired();
-  const database = new RuntimeDatabase(paths.databaseFile, { contentVault });
-  const objectiveReleaseAuthority = installObjectiveReleaseAuthority({ database, manifest });
+  const objectiveReleaseAuthority = createObjectiveReleaseAuthority({ manifest });
+  const database = new RuntimeDatabase(paths.databaseFile, { contentVault, objectiveReleaseAuthority });
   const artifactStore = new LocalArtifactStore(paths.artifactRoot, { contentVault });
   const supervisor = new Supervisor({
     manifest, database, artifactRoot: paths.artifactRoot, contentVaultRoot: paths.contentVaultRoot,
@@ -94,7 +94,6 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     uccp?.plane.stop();
     supervisor.stop();
     await new Promise((resolve) => server.close(resolve));
-    objectiveReleaseAuthority.restore();
     database.close();
     uccp?.stateStore.close();
   };

@@ -106,12 +106,12 @@ test("objective graphs release dependencies, retain overlap evidence, and comple
   ] });
   database.reconcileObjectives();
   let current = database.getObjective(objective.id);
-  let first = current.tasks.find((task) => task.id === "health").task;
+  let first = current.tasks.find((task) => task.localTaskId === "health").task;
   database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000 });
   database.markVerifying(first.id, "local-core"); database.finishTask(first.id, { status: "completed", resultSummary: "health verified" });
   database.reconcileObjectives(); database.reconcileObjectives();
   current = database.getObjective(objective.id);
-  const second = current.tasks.find((task) => task.id === "manifest").task;
+  const second = current.tasks.find((task) => task.localTaskId === "manifest").task;
   database.claimNext({ workerId: "local-core", capabilities: ["manifest.validate"], leaseMs: 5000 });
   database.markVerifying(second.id, "local-core"); database.finishTask(second.id, { status: "completed", resultSummary: "manifest verified" });
   database.reconcileObjectives(); database.reconcileObjectives();
