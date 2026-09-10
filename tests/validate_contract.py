@@ -22,6 +22,14 @@ def load(p):
     return json.loads((ROOT / p).read_text(encoding="utf-8"))
 
 
+def accept_receipt_once(seen, task_id):
+    """Return True only for the first receipt observed for a task id."""
+    if task_id in seen:
+        return False
+    seen.add(task_id)
+    return True
+
+
 def main():
     inbound_schema = load("schemas/inbound-dispatch.schema.json")
     outbound_schema = load("schemas/outbound-receipt.schema.json")
@@ -45,12 +53,13 @@ def main():
     if not list(Draft7Validator(inbound_schema).iter_errors(bad)):
         failures.append("broadened inbound (codeReview=true) was NOT rejected")
 
-    # 4. Duplicate taskId => receipt idempotency (no-op) is simulated.
+    # 4. Receipt idempotency: first observation is accepted, duplicate is a no-op.
     seen = set()
     tid = example["outbound_example"]["taskId"]
-    seen.add(tid)
-    if tid in seen:
-        pass  # duplicate correctly detected as no-op
+    if not accept_receipt_once(seen, tid):
+        failures.append("first receipt was incorrectly rejected")
+    if accept_receipt_once(seen, tid):
+        failures.append("duplicate taskId was incorrectly accepted")
 
     if failures:
         print("FAIL:")
