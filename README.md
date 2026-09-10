@@ -1,189 +1,163 @@
-# Mahoraga 7.0 — Truth and Containment alpha
+# Mahoraga
 
-This branch stages Mahoraga `7.0.0-alpha.2`. It is an isolated candidate, not the
-active Windows production runtime. The last verified production and rollback
-target remains `3.6.0` at commit
-`397acebf16766f44e3b4317f9d8b68b10de5f821` until the focused gate, full suite,
-inactive-runtime smoke, and rollback drill are recorded.
+[![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
+[![Deploy Workspace](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-The alpha preserves the Node.js supervisor, process-isolated workers, SQLite WAL
-ledger, and loopback execution API while adding authenticated
-sensitive surfaces, server-derived authority, typed receipts, evidence-backed
-routing, isolated Codex worktrees, an encrypted local content vault, and
-incident-only repair records.
+**Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner choose a provider for every step.
 
-## Quick access
+> **Repository truth:** `main` is the canonical source. The repository currently declares `7.0.0-alpha.2`. This README describes source state and declared capability contracts; it does **not** assert which Mahoraga build is currently running on a Windows host. The last verified rollback predecessor remains `3.6.0`.
 
-- **Mahoraga workspace source:** `cloud-app/` on verified `main`. The former GitHub Pages URL is not a current availability guarantee after the repository's private transition.
-- **Vercel project dashboard:** https://vercel.com/michaeljwilliams0123-9969/mahoraga-workspace
+## The current idea
+
+Mahoraga plans against **capabilities, not vendors**. A user asks for an outcome; Mahoraga decides which registered route can satisfy each part of the objective under the current authority, identity, data, health, cost, and verification constraints.
+
+```mermaid
+flowchart LR
+    O[Owner objective] --> G[Goal / intent compiler]
+    G --> U[Universal Capability Fabric]
+    U --> A[Authority + identity + data + cost resolver]
+    A --> R[Dynamic route planner]
+    R --> P[Local / GitHub / Microsoft / browser / desktop / AI providers]
+    P --> V[Verification + typed receipts]
+    V -->|recoverable drift| R
+    V --> F[One owner-facing result]
+```
+
+Provider outages, stale sessions, quota conditions, and route drift are treated as recoverable objective state when another lawful route can be refreshed, repaired, substituted, or provisioned. The objective lineage and idempotency identity stay intact across route changes.
+
+## Current repository state
+
+| Area | Current state |
+| --- | --- |
+| Repository candidate | `7.0.0-alpha.2` |
+| Control plane | Node 24 ESM `.mjs` |
+| Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
+| Operational state | SQLite WAL task/event state + encrypted local content vault |
+| Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
+| Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
+| Repository execution | Bounded repository worker + exact-head verification contracts |
+| Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
+| GitHub ⇄ Copilot Studio learning | Metadata-only, content-addressed peer-learning contract merged |
+| Microsoft / Power Platform | UCF provider-family design merged; implementation is the active next slice |
+| Metered OpenAI API | Disabled by default |
+| Public exposure | Persistent public exposure prohibited; bounded objective-scoped apertures only |
+| Windows production truth | Must be established from a fresh live-host probe; repository state alone is not proof |
+| Rollback predecessor | `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` |
+
+## What changed recently
+
+Mahoraga's current `main` is materially ahead of the older README narrative:
+
+- **Universal Capability Fabric:** PR [#289](https://github.com/michaeljwilliams0123/mahoraga/pull/289) added graph-v2 route metadata, deterministic recovery planning, recovery-aware routing, objective requeue across recoverable route drift, conversation capability planning, and startup recovery.
+- **Destiny bridge hardening:** PR [#291](https://github.com/michaeljwilliams0123/mahoraga/pull/291) hardened the bridge on the current repository line.
+- **GitHub ⇄ Copilot Studio learning:** PR [#292](https://github.com/michaeljwilliams0123/mahoraga/pull/292) added a zero-credit, metadata-only peer-learning contract that feeds verified lessons into institutional memory without persisting prompts, chats, or credentials.
+- **Power Platform UCF provider family:** PR [#293](https://github.com/michaeljwilliams0123/mahoraga/pull/293) defined the next Microsoft slice: Copilot Studio, Microsoft 365 Copilot, Dataverse, Power Apps, and Power Automate as capability providers behind UCF rather than a second orchestration brain.
+
+## Owner experience
+
+The intended interaction model is deliberately simple:
+
+1. Give Mahoraga one objective in the conversation.
+2. Mahoraga compiles the objective into capability requirements.
+3. UCF ranks eligible routes using authority, data class, authentication state, health, cost, reliability, latency, workload, attendance, idempotency, and recovery quality.
+4. Work executes through the best lawful route available at that moment.
+5. Results are verified with capability-specific evidence and typed receipts.
+6. Recoverable failures refresh, retry, repair, or reroute without forcing the owner to restart the objective.
+7. The owner receives one synthesized result; route details remain diagnostic metadata in advanced/control surfaces.
+
+Interactive sign-in or consent can still appear when an external platform requires it. That becomes a resumable authentication wait state rather than a new objective.
+
+## Capability families
+
+Mahoraga can register multiple routes for the same capability and multiple capabilities from one provider. Declared or enabled does not automatically mean routable; a route still needs current process/provider/canary/authority evidence.
+
+- **Deterministic local:** supervisor, local core, repository worker, self-healer, task store, verification, release/update logic.
+- **Repository / delivery:** GitHub, GitLab, Actions, releases, repository coordination, bounded builder lanes.
+- **Browser:** browser status and provider-neutral browser contracts; interactive browser execution remains isolated from the loopback control plane.
+- **Desktop:** attended Windows/application capability contracts for work that cannot be satisfied through a native API or connector.
+- **OpenAI / Codex:** bounded builder and coordination routes subject to declared authority, readiness, and spending policy; Codex is not a code-review transport.
+- **Microsoft:** Graph/M365, Copilot Studio, Dataverse/Power Platform, Power Apps/flows, and queue capabilities progressively entering UCF behind explicit billing/authority admission.
+- **Local / future models:** local reasoning and future adapters can be admitted through the same capability graph without replacing the planner.
+- **MCP / connectors:** fixed, validated transports can expose additional capabilities without granting themselves broader authority.
+
+## Microsoft and Power Platform direction
+
+The current design treats Microsoft as a **provider family**, not as a separate Mahoraga brain. Preferred transport order is:
+
+1. Native authenticated Power Platform / Copilot Studio / Graph / connector APIs.
+2. PAC-backed discovery and bounded administration.
+3. A narrowly scoped, expiring callback transport only when a Microsoft integration genuinely requires inbound reachability and no outbound/native path is practical.
+
+The default Microsoft admission policy is zero-credit first. `deterministic-zero` and runtime-attested `license-included` routes may be eligible; `metered` and `unknown` routes stay blocked under the default zero-credit policy. No paid fallback is automatic.
+
+See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md).
+
+## Workspace and control surfaces
+
+- **Canonical browser source:** [`cloud-app/`](cloud-app/)
+- **GitHub Pages deployment:** [workflow](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml); when Pages is enabled and the exact `main` deployment succeeds, the configured workspace URL is `https://michaeljwilliams0123.github.io/mahoraga/`.
+- **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second deployable UI.
+- **Loopback control API:** `127.0.0.1:4782` when the local runtime is running; do not expose this listener directly to the public internet.
 - **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
 - **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
-GitHub `main` is the code authority for the workspace. Deployment availability is observed
-separately from source verification: a green `Verify Mahoraga` run does not prove that Pages,
-Vercel, or a fallback host is live. Vercel remains optional and non-gating; historical Vercel
-projects are non-canonical. After the repository's private transition, the former Pages URL
-must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds.
+The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately.
 
-## AI agents — do not JavaScript-rewrite this repository
+## Verification
 
-ChatGPT, Copilot, and Codex must follow
-[`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md) and
-[`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+Mahoraga's canonical repository gate is deterministic and zero-model-credit:
 
-- The deployable browser UI is **TypeScript** in `cloud-app/`.
-- `operator-deck/` remains a TypeScript reference/control-library layer, not a second deployed UI.
-- The control plane stays Node ESM **`.mjs`**.
-- Do not wipe, scaffold over, or "simplify" Mahoraga into a JavaScript app.
-- A model safety refusal is not a license to replace the stack.
+```powershell
+npm.cmd run validate
+npm.cmd run verify
+```
+
+On non-Windows shells, `npm run validate` and `npm run verify` are equivalent.
+
+`npm run verify` validates the runtime manifest, product identity, coordination contracts, GitHub/Codex handshakes, self-upgrade contract, repository assurance, live-protection expectations, PDF authority, repair baseline, and the Node test suite. Exact-head GitHub verification remains the merge authority for protected work.
+
+Useful bounded checks:
+
+```powershell
+npm.cmd run status
+npm.cmd run providers:probe
+npm.cmd run gap:audit
+npm.cmd run github:audit
+```
+
+Provider discovery or an enabled manifest flag is not proof of task readiness. Write-capable routes require current evidence and fail closed when the required provider, canary, authentication, attended session, or integration lease is absent.
+
+## Repository rules for AI agents
+
+Before editing, read [`AGENTS.md`](AGENTS.md), [`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md), and [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+
+The short version:
+
+- `cloud-app/` and `operator-deck/` stay TypeScript; do not rewrite the product as JavaScript.
+- `src/`, `scripts/`, `test/`, and `relay/` stay Node ESM `.mjs` unless a bounded migration is explicitly started.
+- Preserve task idempotency, crash recovery, typed receipts, repair baseline, exact-head verification, canaries, rollback, and owner stop/override authority.
+- Keep credentials, tokens, private content, tenant identifiers, cookies, and other secrets out of Git, coordination artifacts, ordinary diagnostics, and model prompts.
+- Do not use Codex as a code-review path or spend credits to recover from review-bot quota conditions.
+- Do not treat a model refusal as permission to replace or simplify the architecture.
+- The loopback API must never become a generic public endpoint. Any remote aperture must be capability-scoped, authenticated, time-bounded, auditable, independently validated, and automatically closed.
+- Do not activate `7.0.0-alpha.1` or `7.0.0-alpha.2` on Windows from an ordinary chat/PR flow; activation belongs to the governed release/evolution channel with canary, checkpoint, and rollback evidence.
+
+## Key architecture documents
+
+- [Universal Capability Fabric design](docs/superpowers/specs/2026-09-10-universal-capability-fabric-design.md)
+- [Power Platform UCF provider design](docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md)
+- [Production / repository truth](docs/PRODUCTION-STATUS.md)
+- [Cloud workspace contract](docs/CLOUD-WORKSPACE.md)
+- [Update channel](docs/UPDATE-CHANNEL.md)
+- [Zero-credit automation](docs/ZERO-CREDIT-AUTOMATION.md)
+- [Credit-free autonomy](docs/CREDIT-FREE-AUTONOMY.md)
+- [GitHub operations](docs/GITHUB-OPERATIONS.md)
+- [Ecosystem lock](docs/ECOSYSTEM-LOCK.md)
 
 ## Release truth
 
-- Installed candidate metadata: runtime/API `7.0.0-alpha.2`. There is one browser UI source:
-  `cloud-app/`, containing Chat, Control Center, Operations, and Connections. It may be
-  deployed by Vercel or the Netlify fallback from verified GitHub main.
-  See [`docs/OPERATOR-CONSOLE.md`](docs/OPERATOR-CONSOLE.md) and [`operator-deck/README.md`](operator-deck/README.md).
-- Active production baseline: `3.6.0`; this document does not claim it has been
-  replaced or restarted.
-- Verification state: implementation complete through the release-metadata
-  slice; focused and release gates are pending.
-- Provider state: declarations do not imply readiness. A route requires a live
-  process, ready provider, and fresh verified capability canary.
-- Rollback target: `3.6.0` until the alpha canary and rollback drill pass.
+`7.0.0-alpha.2` is the repository candidate line. A merged change, green hosted workflow, or manifest declaration does not by itself prove that a particular Windows machine is running that candidate. Live production claims require fresh process/listener/version/worker/provider evidence from the target host.
 
-## Candidate capabilities
-
-- Canonical `mahoraga.manifest.json` for workers, connections, cost routing, and
-  update authority.
-- Explainable capability registry and ranked routing using interface type, live
-  availability, health, cost, permissions, reliability, latency, workload,
-  execution type, attended-desktop requirements, and explicit fallback workers.
-- Localhost-only execution API at `http://127.0.0.1:4782`; `/` redirects to the single Vercel workspace.
-- Permanent supervisor with worker heartbeats, crash restart, bounded retry, and
-  durable task leases.
-- SQLite task, worker, event, and improvement state using the Node 24 runtime.
-- Isolated `local-core`, `repository`, `browser`, and `self-healer` worker processes.
-- A Mahoraga-owned headless Chrome process on the secondary runtime for a
-  bounded browser-health receipt only. Interactive UI work uses the isolated
-  cloud browser from the Vercel workspace; no public debugging endpoint or
-  local extension is exposed.
-- A bounded Repository Worker for status, inspection, recent history, and the
-  repository's fixed verification command.
-- Ordinary response-requesting conversation turns create a durable autonomous
-  objective with propose, challenge, synthesis, implementation, verification,
-  and integration nodes. Journal-style messages can explicitly remain notes,
-  while worker questions still survive restart and resume in the same thread.
-- Provider-neutral browser, signed-Chrome, and Windows desktop capability
-  contracts. Mahoraga maps supported behavior without copying proprietary
-  plugin implementations.
-- One provider-neutral workspace source provides Chat, Control Center, Operations, and Connections
-  against an explicitly paired Mahoraga runtime. The browser is an encrypted client;
-  policy, routing, verification, and execution authority remain with the paired core.
-  The loopback process remains an API and encrypted execution service; GitHub Pages and
-  former local/static frontends are retired. See [`docs/CLOUD-WORKSPACE.md`](docs/CLOUD-WORKSPACE.md).
-- Ordinary conversation routing is forced to the paired runtime's `zero-codex` policy
-  and never falls through to a paid model.
-  See [`docs/CLOUD-ONLY-DEPLOYMENT.md`](docs/CLOUD-ONLY-DEPLOYMENT.md) for the
-  remaining remote-runtime, relay, identity, and zero-credit provider inputs.
-- A successful exact-`main` verification automatically packages an immutable beta
-  release with a strict SHA-256 manifest and GitHub provenance, without repeating
-  the same full gate. Releases never install themselves; the local runtime may
-  activate one only after verification and a rollback checkpoint. See
-  [`docs/UPDATE-CHANNEL.md`](docs/UPDATE-CHANNEL.md).
-- Candidate improvements pass candidate-specific verification before the local
-  runtime activates them. Activation records a receipt and restores the prior
-  release automatically if post-activation checks fail.
-- Authenticated loopback-only Primary Codex intake with server-generated
-  correlation IDs and immutable execution receipts. The local token is runtime
-  state and is never kept in Git or SQLite.
-- Owner-gated, event-driven Destiny Codex dispatch through a hash-bound GitHub
-  pull-request envelope. Trusted `main` validates the immutable base commit,
-  allowed paths, fixed verification profiles, and privacy declaration before
-  work proceeds; `[DESTINY-CODEX:ACK]` is the delivery receipt. See
-  [`docs/DESTINY-CODEX-RELAY.md`](docs/DESTINY-CODEX-RELAY.md).
-- Operational and core repair remain automatic; missing core files are restored
-  from the verified release baseline with receipts and rollback checkpoints.
-- VS Code prompt files for health review, repository drift review, and tested
-  improvement-candidate creation.
-
-## Use the workspace
-
-- **Talk to and operate Mahoraga:** `cloud-app/` is the single canonical browser UI source.
-  The current Vercel URL remains usable while service capacity exists; the same verified GitHub
-  main workspace may also be deployed through the Netlify fallback when Vercel is unavailable.
-  Use Chat for conversation, Control Center for deployment/core status,
-  Operations for core-mediated actions, and Connections for relay/capability readiness.
-- Pair an explicitly chosen runtime from the workspace when local workers or task state are needed.
-  No browser extension is installed.
-- The Control Center displays the deployed Git commit SHA and environment so stale deployments
-  can be identified directly in the UI.
-- `operator-deck/` is not a separate deployable app; it retains TypeScript control/reference helpers
-  used for bounded compatibility and documentation.
-- **Test GitHub Copilot cloud agent:** open the repository's **Agents** tab,
-  select `mahoraga`, choose `main` as the base branch, and start with a
-  read-only prompt such as `Inspect main and report current health; do not
-  modify files or create a pull request.` Use an issue assigned to Copilot when
-  a task should deliberately create a pull request.
-- **Call the Destiny-authenticated Codex:** open an owner-authored pull request
-  to `main` with the exact title `[DESTINY-CODEX] <envelope title>` and one
-  generated envelope under `coordination/destiny-dispatches/`. GitHub delivers
-  the event without an inbound tunnel. Wait for both the read-only validation
-  check and a matching `[DESTINY-CODEX:ACK]` comment before treating it as connected.
-
-## Candidate lifecycle
-
-Do not use `scripts/start-production.ps1` for this branch before release
-verification. Task 11 starts the candidate against a temporary state copy on
-alternate loopback port `4783`, leaving the `3.6.0` process and state untouched.
-
-After promotion, the production launcher remains the supported runtime start
-path and verifies the declared runtime/API protocol version before reporting
-readiness. `scripts/open-workspace.ps1` opens the canonical Vercel UI directly.
-
-## Verify
-
-```powershell
-$node = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
-& $node src\cli.mjs validate
-& $node --test --test-isolation=none
-```
-
-GitHub verification, Dependabot, CodeQL, secret scanning, and idle mailbox
-polling are deterministic automation and do not invoke Codex or consume model
-credits. See [`docs/ZERO-CREDIT-AUTOMATION.md`](docs/ZERO-CREDIT-AUTOMATION.md)
-for the exact trigger boundary.
-
-## Current candidate state
-
-The repository declares enabled workers, but routability is derived from current
-runtime evidence. An enabled flag or historical connection check is never
-presented as a verified route.
-
-- Deterministic local, repository, repair, browser, Desktop, Microsoft 365, and
-  Primary Codex Builder contracts are present; each remains unroutable when its
-  process, provider, canary, attended-session, or integration-lease evidence is
-  absent or stale.
-- LM Studio, GitHub Copilot, Workspace Agent cloud, Microsoft queue, Copilot
-  Studio delegation, Lenovo AI, and metered OpenAI API routes remain disabled or
-  blocked by their declared prerequisites.
-- New content-bearing writes use the encrypted local vault; SQLite retains
-  bounded references and operational evidence only.
-- Healthy repair scans do not create durable polling tasks or events. Incident
-  transitions are recorded only when the observed condition changes.
-
-## Update model
-
-Mahoraga may observe incidents, propose a candidate, write a regression test,
-and report verification evidence. Its declared policy permits verified automatic
-activation with rollback after the required gates; this alpha branch itself is
-not activated and cannot use documentation as promotion evidence.
-
-## Experiment: Level 7 in-memory mesh
-
-An **EXPERIMENT ONLY** isolated scaffold lives under
-[`experiments/level7-inmemory-mesh/`](experiments/level7-inmemory-mesh/).
-It is not production Mahoraga, not a cutover, and must not be merged without
-explicit review. See that directory README and OVERRIDE.md for the 2026-09-07
-ECOSYSTEM-LOCK / Production Runbook override notes.
+The repository's protected rollback predecessor remains `3.6.0` until a later candidate completes its governed activation, canary, checkpoint, and rollback evidence. This distinction is intentional: **source truth, deployment truth, and live-runtime truth are separate.**
