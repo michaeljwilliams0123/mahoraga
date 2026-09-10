@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { loadProductIdentity } from "./product-identity.mjs";
 import { applyGoogleCapabilityManifest, validateGoogleCapabilityWorkers } from "./google-capability-manifest.mjs";
+import { validateCapabilityAuthorityScopes, validateOwnerAuthorityGrant } from "./owner-authority.mjs";
 import * as legacy from "./config-legacy.mjs";
 
 export const ROOT = legacy.ROOT;
@@ -43,11 +44,13 @@ export function validateManifest(value) {
   if (!isRecord(value)) throw new TypeError("Manifest identity is invalid.");
   if (value.versions !== undefined) throw new TypeError("Legacy version registry is not allowed; use protocol revisions.");
   validateProtocols(value.protocols);
+  validateOwnerAuthorityGrant(value.ownerAuthority);
   if (!Array.isArray(value.workers)) throw new TypeError("Worker registry is invalid.");
   for (const worker of value.workers) {
     if (!isRecord(worker)) throw new TypeError("Worker entry must be an object.");
     if (worker.version !== undefined) throw new TypeError("Legacy worker version is not allowed; use implementation revision.");
     boundedRevision(worker.implementationRevision, "worker implementation revision");
+    validateCapabilityAuthorityScopes(worker.authorityScopesByCapability, worker.capabilities);
   }
   validateGoogleCapabilityWorkers(value);
 
