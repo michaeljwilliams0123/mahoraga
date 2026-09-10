@@ -129,3 +129,23 @@ test("existing tasks without authority scope keep their current routing behavior
   assert.equal(route.status, "routable");
   assert.equal(Object.hasOwn(route, "authorityDecision"), false);
 });
+
+test("missing owner authority stays non-recoverable", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  manifest.ownerAuthority.scopes = manifest.ownerAuthority.scopes.filter((scope) => scope !== "copilot.invoke");
+  const task = {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  };
+  const route = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["copilot.invoke"] },
+  });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "owner-authority-missing");
+  assert.equal(Object.hasOwn(route, "recoveryPlan"), false);
+});

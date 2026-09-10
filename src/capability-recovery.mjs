@@ -32,9 +32,9 @@ export function planCapabilityRecovery(input) {
 }
 function normalizeTask(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) fail("capability-recovery-task-invalid");
-  const attemptCount = boundedInteger(value.attemptCount, 0, 1000, "capability-recovery-task-invalid");
-  const maximumAttempts = boundedInteger(value.maximumAttempts, 1, 1000, "capability-recovery-task-invalid");
-  token(value.id, 80, "capability-recovery-task-invalid");
+  const attemptCount = value.attemptCount === undefined ? 0 : boundedInteger(value.attemptCount, 0, 1000, "capability-recovery-task-invalid");
+  const maximumAttempts = value.maximumAttempts === undefined ? 3 : boundedInteger(value.maximumAttempts, 1, 1000, "capability-recovery-task-invalid");
+  if (value.id !== undefined) token(value.id, 80, "capability-recovery-task-invalid");
   token(value.capability, 96, "capability-recovery-task-invalid");
   return { attemptCount, maximumAttempts };
 }

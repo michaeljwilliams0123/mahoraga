@@ -86,3 +86,13 @@ test("unknown internal reason is contained rather than becoming an action", () =
   assert.equal(plan.reason, "unclassified");
   assert.deepEqual(plan.actions, []);
 });
+test("routing-stage tasks can plan recovery before persistence metadata exists", () => {
+  const plan = planCapabilityRecovery({
+    reason: "canary-stale",
+    task: { capability: "system.health" },
+    consideredRoutes: [{ workerId: "local-core" }],
+    excludedWorkerIds: [],
+  });
+  assert.equal(plan.recoverable, true);
+  assert.equal(plan.exhausted, false);
+});
