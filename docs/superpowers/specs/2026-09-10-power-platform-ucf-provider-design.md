@@ -65,6 +65,12 @@ The provider consumes opaque authentication references, never raw credentials in
 Short-lived access tokens may exist only inside the provider process that needs them. They are not returned in receipts, written to logs, committed to Git, stored in conversation state, or exposed to model prompts.
 
 Authentication failure is classified separately from authority failure. UCF may refresh/reacquire an existing authorized session automatically; it may not invent tenant permission or widen scopes.
+## Zero-credit admission policy
+
+Zero-credit is an execution admission rule, not only a ranking preference. Each Microsoft capability declares a runtime billing class: `deterministic-zero`, `license-included`, `metered`, or `unknown`. Under the default `zero-credit` provider policy, only `deterministic-zero` and runtime-attested `license-included` routes are eligible. `metered` and `unknown` routes remain blocked even when healthy and authorized.
+
+PAC discovery/health is `deterministic-zero`. Microsoft 365 Copilot licensed APIs and standard-harness agent use inside eligible Microsoft 365 channels may be `license-included` when the authenticated user/license/channel attestation proves that condition. A direct Copilot Studio SDK/custom-app invocation is `unknown` unless runtime evidence establishes license-included billing for that concrete route; it must not be invoked merely because authentication succeeds. No paid fallback is automatic.
+
 ## Agent invocation contract
 
 `studio.delegate` accepts an objective reference, requested role, bounded input reference, expected result contract, and idempotency key. It does not accept arbitrary recipient identifiers, raw access tokens, arbitrary URLs, shell commands, or caller-selected executable paths.

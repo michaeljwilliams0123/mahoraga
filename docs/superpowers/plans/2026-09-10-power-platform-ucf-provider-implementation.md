@@ -19,6 +19,10 @@
 - Development communication is owner + registered Mahoraga/Copilot Studio agents only.
 - No public ingress is required in this plan; tunnel/reverse-proxy work is deferred to P5.
 - No Copilot Studio agent receives direct arbitrary repository mutation authority.
+- Zero-credit is the default admission policy for this provider family; metered or billing-unknown routes are ineligible.
+- `powerplatform.health` and `powerplatform.discover` are `deterministic-zero`.
+- `studio.delegate` is `license-included` only with runtime billing attestation; otherwise it remains `unknown` and blocked under zero-credit policy.
+- No automatic paid fallback, Copilot Credit fallback, or Codex-credit fallback is permitted.
 - This plan lands P1-P3 plus the live private handshake. P4 mutation-candidate synthesis and P5 optional ingress are separate follow-on plans after this vertical slice is proven.
 
 ---
@@ -233,6 +237,7 @@ git commit -m "feat(copilot-studio): add direct agent conversation client"
 - `copilot-studio` worker exposes existing `studio.health` and `studio.delegate`; `studio.configure`, `studio.provision`, and `studio.deploy` remain registered but are not invoked by this plan.
 - `studio.delegate` retains full scopes `connector.invoke + copilot.invoke`.
 - Produces: `executeCopilotStudioCapability(capability, task, worker, dependencies) -> Promise<result>`; `studio.health` stays side-effect free and `studio.delegate` calls only `invokeCopilotStudioAgent()`.
+- Produces: `classifyMicrosoftUsageCost(capability, runtimeBilling) -> deterministic-zero | license-included | metered | unknown`; router admission requires zero marginal-credit eligibility before `studio.delegate` can execute.
 
 - [ ] **Step 1: Write RED manifest/router tests**
 
