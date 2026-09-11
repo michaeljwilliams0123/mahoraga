@@ -3,14 +3,29 @@ import { promisify } from "node:util";
 import { createCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 
 const execFileAsync = promisify(execFile);
+
+async function defaultRunPac(command, args, options) {
+  if (command !== "pac.cmd") throw new TypeError("power-platform-pac-command-invalid");
+  const authList = args.length === 2 && args[0] === "auth" && args[1] === "list";
+  const copilotList = args.length === 2 && args[0] === "copilot" && args[1] === "list";
+  if (!authList && !copilotList) throw new TypeError("power-platform-pac-operation-invalid");
+  if (process.platform === "win32") {
+    return authList
+      ? execFileAsync("cmd.exe", ["/d", "/s", "/c", "pac.cmd", "auth", "list"], options)
+      : execFileAsync("cmd.exe", ["/d", "/s", "/c", "pac.cmd", "copilot", "list"], options);
+  }
+  return authList
+    ? execFileAsync("pac", ["auth", "list"], options)
+    : execFileAsync("pac", ["copilot", "list"], options);
+}
 const LOGICAL_AGENTS = Object.freeze([
   Object.freeze({ displayName: "General Mahoraga", alias: "general-mahoraga" }),
-  Object.freeze({ displayName: "Mahorago Enterprise Core", alias: "enterprise-core" }),
-  Object.freeze({ displayName: "Mahorago Tenant Health Reader", alias: "tenant-health-reader" }),
+  Object.freeze({ displayName: "Mahoraga Enterprise Core", alias: "enterprise-core" }),
+  Object.freeze({ displayName: "Mahoraga Tenant Health Reader", alias: "tenant-health-reader" }),
 ]);
 const PAC_OPTIONS = Object.freeze({ windowsHide: true, timeout: 20000, maxBuffer: 128 * 1024 });
 
-export async function discoverPowerPlatformAgents({ runPac = execFileAsync, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
+export async function discoverPowerPlatformAgents({ runPac = defaultRunPac, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
   if (!isRecord(harnessMetadataByAlias)) throw new TypeError("power-platform-harness-metadata-invalid");
   const { stdout } = await runPac("pac.cmd", ["copilot", "list"], PAC_OPTIONS);
   const text = String(stdout ?? "");
@@ -32,7 +47,7 @@ export async function discoverPowerPlatformAgents({ runPac = execFileAsync, harn
   }));
 }
 
-export async function probePowerPlatformProvider({ runPac = execFileAsync, platform = process.platform } = {}) {
+export async function probePowerPlatformProvider({ runPac = defaultRunPac, platform = process.platform } = {}) {
   if (platform !== "win32") return unavailable(false);
   try {
     const [{ stdout: authOut }, agents] = await Promise.all([

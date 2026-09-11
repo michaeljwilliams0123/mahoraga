@@ -7,8 +7,8 @@ Connected to... Secret Environment
 Name                          Copilot ID                           Component State Is Managed Solution ID                          Status Code State Code
 General Mahoraga              22839bcc-f587-f111-ab10-6045bd029e2e Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
 Website Q&A                   bdefb9eb-446d-f111-ab0d-6045bd029290 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
-Mahorago Enterprise Core      501917a0-9e8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
-Mahorago Tenant Health Reader 3fed8376-1c8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned`;
+Mahoraga Enterprise Core      501917a0-9e8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
+Mahoraga Tenant Health Reader 3fed8376-1c8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned`;
 
 const enterpriseHarnessMetadata = Object.freeze({
   harnessType: "github-copilot-harness",
