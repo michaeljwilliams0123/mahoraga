@@ -1,5 +1,4 @@
 import { Buffer } from "node:buffer";
-import { CopilotStudioClient } from "@microsoft/agents-copilotstudio-client";
 import { createCopilotTokenProvider, loadCopilotStudioRuntimeSettings } from "./copilot-studio-auth.mjs";
 
 const ROLES = Object.freeze(new Set([
@@ -23,8 +22,8 @@ export async function invokeCopilotStudioAgent(input, dependencies = {}) {
     const settings = loadCopilotStudioRuntimeSettings(dependencies.env ?? process.env);
     const tokenProvider = dependencies.tokenProvider ?? createCopilotTokenProvider(settings, dependencies.authDependencies);
     const token = await tokenProvider.getToken({ allowInteractive: dependencies.allowInteractive !== false });
-    const Client = dependencies.CopilotStudioClientCtor ?? CopilotStudioClient;
-    const client = new Client(settings.connectionSettings, token);
+    const { Client, connectionSettings } = await resolveClientRuntime(settings, dependencies);
+    const client = new Client(connectionSettings, token);
     let conversationId = "";
     for await (const activity of client.startConversationStreaming({ emitStartConversationEvent: false, locale: "en-US" })) {
       if (typeof activity?.conversation?.id === "string" && activity.conversation.id.trim()) conversationId = activity.conversation.id.trim();
@@ -60,6 +59,18 @@ export async function invokeCopilotStudioAgent(input, dependencies = {}) {
     throw normalizeError(error);
   }
 }
+
+async function resolveClientRuntime(settings, dependencies) {
+  if (dependencies.CopilotStudioClientCtor) {
+    return Object.freeze({ Client: dependencies.CopilotStudioClientCtor, connectionSettings: settings.connectionSettings });
+  }
+  const studio = await import("@microsoft/agents-copilotstudio-client");
+  return Object.freeze({
+    Client: studio.CopilotStudioClient,
+    connectionSettings: new studio.ConnectionSettings(settings.connectionSettings),
+  });
+}
+
 function validateInput(input) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw safeError("invalid-contract");
   const keys = Object.keys(input).sort();
