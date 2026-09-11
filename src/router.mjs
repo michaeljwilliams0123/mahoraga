@@ -17,7 +17,8 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     if (providerDecision?.status === "waiting") return waitingWithRecovery(providerDecision.providerId, task, null, { providerDecision });
     const ranked = rankRoutes(manifest, task, context);
     const zeroMarginalRequired = context.providerPolicy === "zero-credit" || context.providerPolicy === "credit-free" || context.creditFreeRequired === true || task?.creditFreeRequired === true;
-    const preBillingCandidates = ranked.candidates
+    const normalizedCandidates = ranked.candidates.map(normalizeCandidateBilling);
+    const preBillingCandidates = normalizedCandidates
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
       .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || isZeroMarginalCreditEligible(candidate.billingClass) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
@@ -25,7 +26,7 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
       return waitingWithRecovery("billing-not-zero-credit", task, ranked, { billingDecision: Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false }) });
     }
-    const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
+    const reason = ranked.reason ?? (normalizedCandidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
     if (candidates.length === 0) return waitingWithRecovery(reason, task, ranked, creditFreeDecision ? { creditFreeDecision } : {});
     const selected = candidates[0];
     const capabilityAuthorityScopes = selected.authorityScopes ?? [];
@@ -90,6 +91,18 @@ function zeroCreditDecision(task, context) {
 
 function isAutonomySelfUpgrade(task) {
   return typeof task.capability === "string" && (task.capability.startsWith("autonomy.") || task.capability.startsWith("self-upgrade."));
+}
+
+function normalizeCandidateBilling(candidate) {
+  if (candidate.billingClass) return candidate;
+  const billingClass = defaultBillingClass(candidate.costClass);
+  return { ...candidate, billingClass };
+}
+
+function defaultBillingClass(costClass) {
+  if (costClass === "deterministic" || costClass === "local-model") return "deterministic-zero";
+  if (costClass === "metered-cloud") return "metered";
+  return "unknown";
 }
 
 function resolveWorker(manifest, selected) {
