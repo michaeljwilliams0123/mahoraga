@@ -54,7 +54,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /no widened studio\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /Direction -> Compile -> Delta -> Verify -> Learn/);
+    assert.match(cockpit, /Direction (->|->) Compile (->|->) Delta (->|->) Verify (->|->) Learn/);
     assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /live ingestion is active/);
     assert.doesNotMatch(cockpit, /Studio is fully available/);
