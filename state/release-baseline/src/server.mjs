@@ -378,6 +378,7 @@ export function publicStatusPayload(manifest, database, supervisor) {
   const queue = status.queue ?? {};
   return {
     ...status,
+    workers: status.workers.map(({ pid, ...worker }) => worker),
     queue: {
       provider: queue.provider,
       state: queue.state,
