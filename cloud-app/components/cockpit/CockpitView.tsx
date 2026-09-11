@@ -81,6 +81,10 @@ export function CockpitView({
         </div>
         <div>
           <strong>Copilot Studio learning</strong>
+          <span>staged admission contract · runtime ingestion inactive</span>
+        </div>
+        <div>
+          <strong>Studio admission</strong>
           <span>verified + approved metadata only · source copilot-studio-mahoraga</span>
         </div>
         <div>
