@@ -51,4 +51,17 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /non-authoritative evidence plane/);
     assert.doesNotMatch(cockpit, /raw prompts|tenant IDs|credentials/);
   });
+
+  it("distinguishes a healthy published shell from a paired execution core", () => {
+    const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
+    const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(workspace, /relayState === "error" \? "Degraded" : "Ready"/);
+    assert.match(chat, /Ready to pair/);
+    assert.match(cockpit, /Workspace published/);
+    assert.match(cockpit, /No execution authority claimed/);
+    assert.match(cockpit, /Stage → verify → review → promote/);
+  });
+
+
 });

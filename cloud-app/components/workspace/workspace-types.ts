@@ -3,7 +3,7 @@ import type { RuntimeCapability, RuntimeRelay } from "@/lib/runtime-relay";
 
 export type TaskMode = "auto" | "ask" | "act";
 export type RelayState = "unpaired" | "resuming" | "pairing" | "connected" | "error";
-export type BrainState = "Connecting" | "Idle" | "Awake" | "Degraded" | "Offline";
+export type BrainState = "Connecting" | "Ready" | "Idle" | "Awake" | "Degraded" | "Offline";
 export type ChatCreditPolicy = "zero-codex" | "licensed-approved";
 export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string };
 export type WorkspaceView = "chat" | "work" | "files" | "advanced";

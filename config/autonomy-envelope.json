@@ -1,5 +1,5 @@
 {
-  "_comment": "Owner-sovereign autonomy v2. Build/test iteration self-runs; privileged actions execute from persistent owner delegation when effective platform/capability authority agrees; structurally prohibited actions remain fixed.",
+  "_comment": "Owner-sovereign autonomy v2. Authenticated cloud Codex may branch, author, test, self-review, and open a PR without an owner-PC connection; merge, deployment, governance, and verified self-update remain subject to existing owner delegation and platform gates.",
   "schemaVersion": 2,
   "kind": "autonomy-envelope",
   "selfRun": [
