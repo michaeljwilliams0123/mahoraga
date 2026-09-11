@@ -32,9 +32,9 @@ export async function GET() {
       },
       runtime: {
         provenance: {
-          state: process.env.MAHORAGA_EXPECTED_SOURCE_COMMIT ? "current" : "unknown",
-          expectedSourceCommit: process.env.MAHORAGA_EXPECTED_SOURCE_COMMIT ?? null,
-          source: "immutable-runtime",
+          state: "unknown",
+          expectedSourceCommit: null,
+          source: "paired-core-required",
         },
       },
       capabilities: {
