@@ -35,6 +35,7 @@ heartbeat.unref();
 
 process.on("message", async (message) => {
   if (message?.type === "shutdown") { clearInterval(heartbeat); shutdownBrowser(); process.exit(0); }
+  if (message?.type === "readiness.refresh") { await probeProviderReadiness(); return; }
   if (message?.type !== "task") return;
   try {
     const startedAt = Date.now();
