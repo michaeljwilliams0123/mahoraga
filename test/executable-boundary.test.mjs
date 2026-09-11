@@ -57,3 +57,12 @@ test("desktop worker keeps command and path selection bounded", async () => {
   assert.doesNotMatch(desktop, /task\?\.(?:command|executable|shell|scriptText|program)/);
   assert.doesNotMatch(desktop, /MAHORAGA_DESKTOP_(?:COMMAND|EXECUTABLE|SHELL|POWERSHELL_PATH)/);
 });
+test("Windows production startup requires immutable source-commit convergence", async () => {
+  const production = await source("scripts/start-production.ps1");
+  assert.match(production, /git\s+-C\s+\$root\s+rev-parse\s+HEAD/i);
+  assert.match(production, /\$expectedSourceCommit\s+-notmatch\s+'\^\[0-9a-fA-F\]\{40\}\$'/);
+  assert.match(production, /\$existing\.runtime\.provenance\.sourceCommit/);
+  assert.match(production, /\$status\.runtime\.provenance\.sourceCommit/);
+  assert.match(production, /\$existingSourceCommit\s+-eq\s+\$expectedSourceCommit/);
+  assert.match(production, /\$statusSourceCommit\s+-eq\s+\$expectedSourceCommit/);
+});
