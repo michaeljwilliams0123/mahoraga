@@ -3,14 +3,21 @@ import { promisify } from "node:util";
 import { createCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 
 const execFileAsync = promisify(execFile);
+
+async function defaultRunPac(command, args, options) {
+  if (process.platform === "win32" && /\.cmd$/i.test(command)) {
+    return execFileAsync(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", command, ...args], options);
+  }
+  return execFileAsync(command, args, options);
+}
 const LOGICAL_AGENTS = Object.freeze([
   Object.freeze({ displayName: "General Mahoraga", alias: "general-mahoraga" }),
-  Object.freeze({ displayName: "Mahorago Enterprise Core", alias: "enterprise-core" }),
-  Object.freeze({ displayName: "Mahorago Tenant Health Reader", alias: "tenant-health-reader" }),
+  Object.freeze({ displayName: "Mahoraga Enterprise Core", alias: "enterprise-core" }),
+  Object.freeze({ displayName: "Mahoraga Tenant Health Reader", alias: "tenant-health-reader" }),
 ]);
 const PAC_OPTIONS = Object.freeze({ windowsHide: true, timeout: 20000, maxBuffer: 128 * 1024 });
 
-export async function discoverPowerPlatformAgents({ runPac = execFileAsync, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
+export async function discoverPowerPlatformAgents({ runPac = defaultRunPac, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
   if (!isRecord(harnessMetadataByAlias)) throw new TypeError("power-platform-harness-metadata-invalid");
   const { stdout } = await runPac("pac.cmd", ["copilot", "list"], PAC_OPTIONS);
   const text = String(stdout ?? "");
@@ -32,7 +39,7 @@ export async function discoverPowerPlatformAgents({ runPac = execFileAsync, harn
   }));
 }
 
-export async function probePowerPlatformProvider({ runPac = execFileAsync, platform = process.platform } = {}) {
+export async function probePowerPlatformProvider({ runPac = defaultRunPac, platform = process.platform } = {}) {
   if (platform !== "win32") return unavailable(false);
   try {
     const [{ stdout: authOut }, agents] = await Promise.all([
