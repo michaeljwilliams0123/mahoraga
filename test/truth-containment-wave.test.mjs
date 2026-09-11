@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadManifest } from "../src/config.mjs";
-import { deriveRuntimeProvenance } from "../src/runtime.mjs";
+import { deriveRuntimeProvenance, refreshRuntimeProvenanceAuthority } from "../src/runtime.mjs";
 import { statusPayload } from "../src/server.mjs";
 
 function statusFixtures(manifest, provenance = null) {
@@ -100,4 +100,20 @@ test("runtime provenance is unknown when authoritative main cannot be observed",
   assert.equal(provenance.expectedSourceCommit, sourceCommit);
   assert.equal(provenance.authoritativeSourceCommit, null);
   assert.equal(provenance.state, "unknown");
+});
+test("runtime provenance refresh preserves the source commit loaded at process startup", async () => {
+  const startupCommit = "a".repeat(40);
+  const advancedMain = "b".repeat(40);
+  const startup = await deriveRuntimeProvenance({
+    repositoryHeadReader: async () => startupCommit,
+    expectedSourceCommit: startupCommit,
+    authoritativeHeadReader: async () => startupCommit,
+  });
+  const refreshed = await refreshRuntimeProvenanceAuthority(startup, {
+    authoritativeHeadReader: async () => advancedMain,
+  });
+  assert.equal(refreshed.sourceCommit, startupCommit);
+  assert.equal(refreshed.expectedSourceCommit, startupCommit);
+  assert.equal(refreshed.authoritativeSourceCommit, advancedMain);
+  assert.equal(refreshed.state, "runtime-drift");
 });
