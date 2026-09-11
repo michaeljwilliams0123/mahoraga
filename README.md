@@ -36,6 +36,7 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
 | Repository execution | Bounded repository worker + exact-head verification contracts |
+| Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, not merely discoverable |
 | Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
 | GitHub ⇄ Copilot Studio learning | Verified/approved metadata admission and authenticated runtime ingestion bridge merged; live activation still requires exact-head promotion/observation |
 | Microsoft / Power Platform | UCF provider-family design and Copilot Harness Assist Fabric are merged; metered Copilot-credit routes remain excluded from zero-credit policy |
@@ -55,7 +56,8 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Cloud runtime compatibility diagnostics:** PR [#298](https://github.com/michaeljwilliams0123/mahoraga/pull/298) added explicit cloud-session compatibility diagnostics so the workspace can distinguish an unreachable runtime from a reachable-but-incompatible one.
 - **Static Pages workspace export:** PR [#299](https://github.com/michaeljwilliams0123/mahoraga/pull/299) made GitHub Pages publish the canonical browser workspace without exposing server-only session or action routes.
 - **Verified Copilot Studio learning admission:** PR #303 added a bounded adapter that converts verified and approved Studio learning metadata into peer-learning events. The admission contract is merged. PR #312 adds the authenticated runtime ingestion bridge; deployed/live status still requires exact-head promotion and observation.
-- **Public status hardening:** the public /api/status projection exposes non-sensitive queue provider/state while keeping Dataverse environment name, GUID, and tenant CRM URL out of the unauthenticated response; authenticated status retains the full deployment view.
+- **Public status hardening:** the public `/api/status` projection exposes non-sensitive queue provider/state while keeping Dataverse environment name, GUID, and tenant CRM URL out of the unauthenticated response; authenticated status retains the full deployment view.
+- **Question-model readiness:** PR [#313](https://github.com/michaeljwilliams0123/mahoraga/pull/313) hardened `assistant.respond` readiness so the health probe performs a zero-credit `codex --version` callability check and fails closed when the executable cannot run.
 
 ## Owner experience
 
