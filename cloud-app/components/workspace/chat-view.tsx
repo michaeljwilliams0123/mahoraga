@@ -154,7 +154,7 @@ export function ChatView(props: ChatViewProps) {
 
         {!coreReady && relayState !== "resuming" && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Cloud workspace ready</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
             <details>
               <summary>Connect securely <ChevronDown size={15} /></summary>
               <div className="connect-controls">
