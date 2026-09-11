@@ -156,7 +156,7 @@ export function CockpitView({
         </div>
         <div>
           <strong>Adaptive review</strong>
-          <p>Direction -&gt; Compile -&gt; Delta -&gt; Verify -&gt; Learn - selective institutional memory</p>
+          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
         </div>
       </section>
 
