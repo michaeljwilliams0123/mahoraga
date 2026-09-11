@@ -154,7 +154,7 @@ export function ChatView(props: ChatViewProps) {
 
         {!coreReady && relayState !== "resuming" && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>Chat remains available to read, but execution needs the paired core.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Cloud workspace ready</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
             <details>
               <summary>Connect securely <ChevronDown size={15} /></summary>
               <div className="connect-controls">
@@ -181,7 +181,7 @@ export function ChatView(props: ChatViewProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
             }}
-            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Connect Mahoraga to execute work…"}
+            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Pair an approved runtime to execute work…"}
             aria-label="Message Mahoraga"
           />
           <div className="composer-actions">
@@ -200,7 +200,8 @@ export function ChatView(props: ChatViewProps) {
         <div className="status-line" aria-live="polite">
           {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
             : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
-              : <><Check size={14} /> {brainState}</>}
+              : brainState === "Ready" ? <><Check size={14} /> Ready to pair</>
+                : <><Check size={14} /> {brainState}</>}
           {voiceListening && <span> · listening</span>}
           {healthError && <span> · workspace health unavailable</span>}
           {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}

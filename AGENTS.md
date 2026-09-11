@@ -26,3 +26,11 @@ Optimize for autonomous execution and short feedback loops.
 - Keep capabilities isolated; do not add an unrestricted supervisor shell or caller-selected executable path. Apply connector data-class and spending limits at the execution boundary.
 - Preserve task idempotency, crash recovery, immutable update artifacts, canary health checks, rollback, and the user stop/override control.
 - During development, run focused tests for changed behavior. Run one full `npm run verify` before a protected bootstrap or release; reuse exact-head green CI evidence instead of repeating equivalent gates.
+
+## Cloud implementation lane
+
+- ChatGPT Work Codex may use the authenticated GitHub connector to inspect the repository, create bounded feature branches, write commits, open pull requests, observe exact-head CI, and complete an owner-authorized merge/deployment without connecting to an owner PC.
+- Cloud implementation follows the same repository contracts as every other lane: TypeScript stays in `cloud-app/`, Node ESM stays in `src/`, focused tests precede required CI, and protected changes remain reviewable.
+- Adaptive evolution is candidate-based. Generated or proposed changes are isolated, validated, and promoted through branch + CI + review; runtime code must not rewrite the authoritative source tree or bypass verification.
+- Connector expansion uses explicit adapters, allowlisted capabilities, scoped credentials, bounded data classes, and observable receipts. “Connect to anything” never means arbitrary code execution, secret fallback values, or unrestricted network listeners.
+- Operational dashboards display measured or explicitly unknown state. Simulated counters, synthetic “online” claims, and mock drift scores must be labeled as simulation and cannot stand in for runtime evidence.

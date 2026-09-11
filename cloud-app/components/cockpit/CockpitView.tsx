@@ -7,6 +7,16 @@ function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : "unavailable";
 }
 
+function StatusCard({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral" }) {
+  return (
+    <article className={`eclipse-status-card ${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <p>{detail}</p>
+    </article>
+  );
+}
+
 export function CockpitView({
   coreReady,
   health,
@@ -22,21 +32,21 @@ export function CockpitView({
   const deploymentCommit = health?.deployment?.commitSha;
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const paidFallback = health?.routing?.automaticPaidFallback === true;
+  const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
 
   return (
-    <section className="connection-panel" aria-label="Control Center">
-      <div className="section-heading">
+    <section className="connection-panel eclipse-console" aria-label="Control Center">
+      <header className="eclipse-header">
         <div>
-          <span className="eyebrow">Single cloud surface</span>
+          <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
+          <p>One cockpit for deployment identity, verified model routes, connector readiness, and policy-gated evolution.</p>
         </div>
-        <ShieldCheck size={20} />
-      </div>
-
-      <p>
-        This is the canonical Mahoraga browser UI. It reports host-neutral cloud deployment identity and paired-core readiness without taking
-        execution authority away from the Mahoraga core.
-      </p>
+        <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
+          <span aria-hidden="true" />
+          {coreReady ? "Core paired" : "Workspace published"}
+        </span>
+      </header>
 
       {healthError && (
         <div className="inline-alert" role="alert">
@@ -44,64 +54,96 @@ export function CockpitView({
         </div>
       )}
 
-      <div className="capability-list" style={{ marginTop: 16 }}>
-        <div>
-          <strong>Deployment</strong>
-          <span>
-            {health?.product ?? "Mahoraga"} {health?.version ?? "unknown"} · {deploymentEnvironment}
-          </span>
+      {!coreReady && !healthError && (
+        <div className="eclipse-readiness-note" role="status">
+          <ShieldCheck size={18} />
+          <div>
+            <strong>The interface is online and ready to pair.</strong>
+            <p>GitHub Pages serves the static workspace; execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
+          </div>
         </div>
+      )}
+
+      <div className="eclipse-status-grid">
+        <StatusCard
+          label="Deployment"
+          value={health?.ok ? "Published" : "Awaiting health"}
+          detail={`${deploymentProvider} · ${deploymentEnvironment}`}
+          tone={health?.ok ? "good" : "warn"}
+        />
+        <StatusCard
+          label="Execution core"
+          value={coreReady ? "Paired" : "Ready to pair"}
+          detail={coreReady ? "Encrypted relay session active" : "No execution authority claimed"}
+          tone={coreReady ? "good" : "neutral"}
+        />
+        <StatusCard
+          label="Model fabric"
+          value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`}
+          detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`}
+          tone={routable.length > 0 ? "good" : "neutral"}
+        />
+        <StatusCard
+          label="Evolution lane"
+          value="Policy gated"
+          detail="Stage → verify → review → promote"
+          tone="good"
+        />
+      </div>
+
+      <div className="eclipse-detail-grid">
+        <section className="eclipse-panel" aria-labelledby="telemetry-heading">
+          <div className="eclipse-panel-heading">
+            <div>
+              <span>Measured telemetry</span>
+              <h3 id="telemetry-heading">Deployment snapshot</h3>
+            </div>
+            <Activity size={18} />
+          </div>
+          <dl className="eclipse-metrics">
+            <div><dt>Host provider</dt><dd>{deploymentProvider}</dd></div>
+            <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
+            <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
+            <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
+            <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
+            <div><dt>Relay plaintext</dt><dd>{health?.boundaries?.relaySeesPlaintext === true ? "unexpected" : "not visible"}</dd></div>
+          </dl>
+        </section>
+
+        <section className="eclipse-panel" aria-labelledby="evolution-heading">
+          <div className="eclipse-panel-heading">
+            <div>
+              <span>Adaptive evolution</span>
+              <h3 id="evolution-heading">Verified promotion path</h3>
+            </div>
+            <ShieldCheck size={18} />
+          </div>
+          <ol className="eclipse-flow">
+            <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
+            <li><span>2</span><div><strong>Verify</strong><small>Focused tests plus required CI</small></div></li>
+            <li><span>3</span><div><strong>Review</strong><small>Exact-head evidence and policy checks</small></div></li>
+            <li><span>4</span><div><strong>Promote</strong><small>Owner-authorized merge and deployment</small></div></li>
+          </ol>
+        </section>
+      </div>
+
+      <section className="eclipse-panel eclipse-admission" aria-label="Learning and admission policy">
         <div>
-          <strong>Host provider</strong>
-          <span>{deploymentProvider}</span>
-        </div>
-        <div>
-          <strong>Git identity</strong>
-          <span>
-            <GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}
-          </span>
-        </div>
-        <div>
-          <strong>Mahoraga core</strong>
-          <span>{coreReady ? "paired · encrypted relay active" : "not paired · mutations unavailable"}</span>
-        </div>
-        <div>
-          <strong>Routing authority</strong>
-          <span>{health?.routing?.authority ?? "paired-mahoraga-core"}</span>
-        </div>
-        <div>
-          <strong>Paid fallback</strong>
-          <span>{paidFallback ? "enabled" : "disabled"}</span>
-        </div>
-        <div>
-          <strong>Capabilities</strong>
-          <span>
-            {routable.length}/{runtimeCapabilities.length} routable · {workers.size} worker{workers.size === 1 ? "" : "s"}
-          </span>
-        </div>
-        <div>
+          <span className="eyebrow">Evidence plane</span>
           <strong>Copilot Studio learning</strong>
-          <span>staged admission contract · runtime ingestion inactive</span>
+          <p>staged admission contract · runtime ingestion inactive</p>
         </div>
         <div>
           <strong>Studio admission</strong>
-          <span>verified + approved metadata only · source copilot-studio-mahoraga</span>
+          <p>verified + approved metadata only · source copilot-studio-mahoraga</p>
         </div>
         <div>
           <strong>Studio authority</strong>
-          <span>non-authoritative evidence plane · Mahoraga remains canonical</span>
+          <p>non-authoritative evidence plane · Mahoraga remains canonical</p>
         </div>
-        <div>
-          <strong>Cloud boundary</strong>
-          <span>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</span>
-        </div>
-        <div>
-          <strong>Relay plaintext visibility</strong>
-          <span>{health?.boundaries?.relaySeesPlaintext === true ? "unexpected" : "no"}</span>
-        </div>
-      </div>
+      </section>
 
-      <div className="pairing-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
+      <div className="pairing-actions eclipse-actions">
         {!coreReady && (
           <button type="button" onClick={onRequestPairing}>
             <Link2 size={16} /> Pair runtime

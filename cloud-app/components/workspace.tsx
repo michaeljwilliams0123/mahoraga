@@ -92,7 +92,7 @@ export function Workspace() {
     ? "Connecting"
     : coreReady
       ? runtimeBusy ? "Awake" : licensedRetry || runtimeError ? "Degraded" : "Idle"
-      : "Offline";
+      : relayState === "error" ? "Degraded" : "Ready";
   const brainLabel = `Mahoraga: ${brainState}`;
 
   useEffect(() => {
