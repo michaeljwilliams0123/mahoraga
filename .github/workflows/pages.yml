@@ -47,7 +47,7 @@ jobs:
           MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
           MAHORAGA_GIT_COMMIT_REF: main
           NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health
-        run: npm run build
+        run: node ../scripts/build-pages-static.mjs
 
       - name: Check Pages site availability
         id: pages_site

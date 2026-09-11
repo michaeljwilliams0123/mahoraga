@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { resolve } from "node:path";
 
 const pagesExport = process.env.MAHORAGA_PAGES_EXPORT === "1";
+const turbopackRoot = process.env.MAHORAGA_TURBOPACK_ROOT?.trim() || resolve(import.meta.dirname, "..");
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -27,7 +28,7 @@ const nextConfig: NextConfig = {
       }
     : {}),
   turbopack: {
-    root: resolve(import.meta.dirname, ".."),
+    root: turbopackRoot,
   },
   experimental: {
     // Allow importing pure operator-deck/src/lib/cockpit helpers (Deck-owned).
