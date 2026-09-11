@@ -92,7 +92,7 @@ export function createControlServer({
       setHeaders(response, manifest);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
       if (request.method === "GET" && url.pathname === "/") return redirect(response, canonicalWorkspace);
-      if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, statusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, publicStatusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
       if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
@@ -367,6 +367,11 @@ export function createControlServer({
   return server;
 }
 
+export function publicStatusPayload(manifest, database, supervisor) {
+  const status = statusPayload(manifest, database, supervisor);
+  const { environmentName, environmentId, environmentUrl, ...queue } = status.queue ?? {};
+  return { ...status, queue };
+}
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
   const workers = supervisor.status();
