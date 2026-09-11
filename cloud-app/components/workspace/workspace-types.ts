@@ -21,6 +21,7 @@ export type Health = {
   ok: boolean;
   product?: string;
   version?: string;
+  build?: { version?: string };
   deployment?: { provider?: string; environment?: string; url?: string | null; commitSha?: string | null; gitRef?: string | null };
   runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } };
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };

@@ -37,6 +37,8 @@ export function CockpitView({
   const managementPlaneReady = health?.studio?.managementPlaneReady === true;
   const delegationRuntimeReady = health?.studio?.delegationRuntimeReady === true;
   const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
+  const productName = health?.product ?? "Mahoraga";
+  const buildVersion = health?.build?.version ?? health?.version ?? "7.0.0-alpha.2";
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -69,6 +71,12 @@ export function CockpitView({
       )}
 
       <div className="eclipse-status-grid">
+        <StatusCard
+          label="Product"
+          value={productName}
+          detail={`Build provenance ${buildVersion}`}
+          tone="good"
+        />
         <StatusCard
           label="Deployment"
           value={health?.ok ? "Published" : "Awaiting health"}
@@ -105,6 +113,8 @@ export function CockpitView({
             <Activity size={18} />
           </div>
           <dl className="eclipse-metrics">
+            <div><dt>Product identity</dt><dd>{productName}</dd></div>
+            <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Host provider</dt><dd>{deploymentProvider}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
@@ -156,7 +166,7 @@ export function CockpitView({
         </div>
         <div>
           <strong>Adaptive review</strong>
-          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
+          <p>Direction -&gt; Compile -&gt; Delta -&gt; Verify -&gt; Learn - selective institutional memory</p>
         </div>
       </section>
 
