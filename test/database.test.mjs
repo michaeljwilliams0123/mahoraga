@@ -5,6 +5,8 @@ import path from "node:path";
 import os from "node:os";
 import { RuntimeDatabase } from "../src/database.mjs";
 import { createAssignmentRecord } from "../src/coordination-records.mjs";
+import { studioLearningRecordToPeerEvent } from "../src/copilot-studio-learning-adapter.mjs";
+import { peerEventToInstitutionalMemory } from "../src/peer-learning.mjs";
 
 function databaseFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-"));
@@ -204,4 +206,19 @@ test("answer evaluations persist content-free evidence and bounded retry state",
   assert.equal(database.listAnswerEvaluations(task.id).length, 2);
   const messages = database.listConversationMessages(conversation.id);
   assert.match(messages.at(-1).content, /could not verify a complete response/i);
+});
+test("Studio learning persistence is metadata-only, auditable, and idempotent by peer event", (t) => {
+  const database = databaseFixture(t);
+  assert.equal(typeof database.recordStudioLearningIngestion, "function");
+  const task = database.submitTask({ capability: "studio.delegate", dataClass: "personal", requestedMode: "hybrid", idempotencyKey: "studio-learning-source", correlationId: "studio-eval-42" });
+  const event = studioLearningRecordToPeerEvent({ correlation_id: "studio-eval-42", capability: "microsoft-visio-edit", evidence_references: ["studio-eval:test-case-42"], provenance: "copilot-studio-evaluate", confidence: 0.92, verification_state: "verified", approval_state: "approved", peer_event_type: "routing-learned", statement: "Prefer the verified Visio-capable route for semantic diagram edits.", objective_ids: ["universal-microsoft-capability"], observed_at: "2026-09-11T03:58:00.000Z" });
+  const memory = peerEventToInstitutionalMemory(event);
+  const first = database.recordStudioLearningIngestion({ sourceTaskId: task.id, peerEvent: event, memory });
+  const second = database.recordStudioLearningIngestion({ sourceTaskId: task.id, peerEvent: event, memory });
+  assert.equal(first.peerEventId, event.eventId);
+  assert.equal(first.memoryId, memory.memoryId);
+  assert.equal(second.receiptId, first.receiptId);
+  assert.equal(second.duplicate, true);
+  assert.equal(database.listStudioLearningIngestions().length, 1);
+  assert.ok(database.listReceipts(task.id).some((receipt) => receipt.phase === "learning-admitted"));
 });

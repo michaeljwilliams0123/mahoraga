@@ -6,6 +6,8 @@ import { MAX_INTEGRATION_LEASE_MS, PRIMARY_CONTROLLERS, overlappingPaths } from 
 import { receiptDigest, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { advanceRepairIncident, reconcileRepairIncidents as reconcileIncidentState } from "./repair-incidents.mjs";
 import { runStateForEvent, terminalRunType, validateRunEvent } from "./run-event-contract.mjs";
+import { validatePeerLearningEvent } from "./peer-learning.mjs";
+import { validateInstitutionalMemoryRecord } from "./institutional-memory.mjs";
 
 const TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"]);
 const PRIORITIES = new Set(["critical", "high", "normal", "low", "background"]);
@@ -167,7 +169,16 @@ export class RuntimeDatabase {
         metadata_json TEXT NOT NULL DEFAULT '{}',
         created_at TEXT NOT NULL
       );
-      CREATE TABLE IF NOT EXISTS answer_evaluations (
+      CREATE TABLE IF NOT EXISTS studio_learning_ingestions (
+        peer_event_id TEXT PRIMARY KEY,
+        memory_id TEXT NOT NULL UNIQUE,
+        source_task_id TEXT NOT NULL,
+        receipt_id TEXT NOT NULL UNIQUE,
+        peer_event_json TEXT NOT NULL,
+        memory_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(source_task_id) REFERENCES tasks(id)
+      );      CREATE TABLE IF NOT EXISTS answer_evaluations (
         id TEXT PRIMARY KEY,
         task_id TEXT NOT NULL,
         attempt_number INTEGER NOT NULL,
@@ -1243,6 +1254,34 @@ export class RuntimeDatabase {
     }));
   }
 
+
+  recordStudioLearningIngestion({ sourceTaskId, peerEvent: rawPeerEvent, memory: rawMemory }) {
+    bounded(sourceTaskId, 120, "studio learning source task");
+    const task = this.getTask(sourceTaskId);
+    if (!task || task.capability !== "studio.delegate") throw new TypeError("Studio learning source task is invalid.");
+    const peerEvent = validatePeerLearningEvent(rawPeerEvent);
+    const memory = validateInstitutionalMemoryRecord(rawMemory);
+    if (!memory.evidenceRefs.includes(`peer-event:${peerEvent.eventId}`)) throw new TypeError("Studio learning memory evidence is invalid.");
+    const peerJson = JSON.stringify(peerEvent); const memoryJson = JSON.stringify(memory);
+    const existing = this.db.prepare("SELECT * FROM studio_learning_ingestions WHERE peer_event_id=?").get(peerEvent.eventId);
+    if (existing) {
+      if (existing.source_task_id !== sourceTaskId || existing.memory_id !== memory.memoryId || existing.peer_event_json !== peerJson || existing.memory_json !== memoryJson) throw new Error("studio-learning-ingestion-conflict");
+      return normalizeStudioLearningIngestion(existing, true);
+    }
+    return this.#transaction(() => {
+      const receipt = this.recordReceipt({ task, phase: "learning-admitted", verifier: "studio-learning-ingestion", summary: "Verified Copilot Studio learning admitted to institutional memory." });
+      const createdAt = new Date().toISOString();
+      this.db.prepare("INSERT INTO studio_learning_ingestions(peer_event_id,memory_id,source_task_id,receipt_id,peer_event_json,memory_json,created_at) VALUES(?,?,?,?,?,?,?)")
+        .run(peerEvent.eventId, memory.memoryId, sourceTaskId, receipt.id, peerJson, memoryJson, createdAt);
+      this.#event("studio-learning.admitted", peerEvent.eventId, { sourceTaskId, memoryId: memory.memoryId, receiptId: receipt.id });
+      return normalizeStudioLearningIngestion(this.db.prepare("SELECT * FROM studio_learning_ingestions WHERE peer_event_id=?").get(peerEvent.eventId), false);
+    });
+  }
+
+  listStudioLearningIngestions(limit = 100) {
+    const size = Math.max(1, Math.min(Number(limit) || 100, 500));
+    return this.db.prepare("SELECT * FROM studio_learning_ingestions ORDER BY created_at DESC LIMIT ?").all(size).map((row) => normalizeStudioLearningIngestion(row, false));
+  }
   recordAnswerEvaluation({ taskId, attemptNumber, evaluatorVersion, decision, reasons, evidence }) {
     bounded(taskId, 80, "answer evaluation task id");
     const task = this.getTask(taskId);
@@ -1544,7 +1583,9 @@ function answerEvaluationIdentity(value) {
   });
 }
 
-function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
+function normalizeStudioLearningIngestion(row, duplicate = false) {
+  return Object.freeze({ peerEventId: row.peer_event_id, memoryId: row.memory_id, sourceTaskId: row.source_task_id, receiptId: row.receipt_id, duplicate, createdAt: row.created_at });
+}function normalizeTask(row) { if (!TASK_STATES.has(row.status)) throw new Error("Stored task status is invalid."); return {
   id: row.id, idempotencyKey: row.idempotency_key, correlationId: row.correlation_id, taskType: row.task_type,
   requestedOutcome: row.requested_outcome_ref ? null : row.requested_outcome,
   requestedOutcomeReference: row.requested_outcome_ref ?? null, requestedOutcomeSha256: row.requested_outcome_sha256 ?? digestText(row.requested_outcome ?? ""),

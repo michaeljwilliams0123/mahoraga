@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { studioLearningRecordToPeerEvent } from "../src/copilot-studio-learning-adapter.mjs";
+import * as studioLearning from "../src/copilot-studio-learning-adapter.mjs";
+const { studioLearningRecordToPeerEvent } = studioLearning;
 
 const APPROVED = {
   correlation_id: "studio-eval-42",
@@ -55,4 +56,32 @@ test("Studio adapter rejects unsupported event classes and sensitive evidence", 
     }),
     /peer-learning-sensitive-content/,
   );
+});
+test("runtime Studio learning ingestion requires trusted completed Studio evidence and persists metadata only", () => {
+  assert.equal(typeof studioLearning.ingestVerifiedStudioLearning, "function");
+  const proposal = Object.fromEntries(Object.entries(APPROVED).filter(([key]) => !["approval_state", "verification_state"].includes(key)));
+  let persisted = null;
+  const database = {
+    getTask: () => ({ id: "task-studio-1", capability: "studio.delegate", status: "completed", assignedWorker: "copilot-studio", correlationId: proposal.correlation_id }),
+    listReceipts: () => [{ capability: "studio.delegate", outcome: "succeeded", receipt: { details: { verified: true, providerEvidence: { authenticated: true, conversationEstablished: true } } } }],
+    recordStudioLearningIngestion: (value) => { persisted = value; return { peerEventId: value.peerEvent.eventId, memoryId: value.memory.memoryId, receiptId: "slr-1", duplicate: false }; },
+  };
+  const result = studioLearning.ingestVerifiedStudioLearning({ database, sourceTaskId: "task-studio-1", record: proposal });
+  assert.equal(result.duplicate, false);
+  assert.equal(persisted.peerEvent.source, "copilot-studio-mahoraga");
+  assert.equal(persisted.memory.zeroCredit, true);
+  assert.equal(persisted.memory.providerRequired, false);
+  assert.equal(persisted.sourceTaskId, "task-studio-1");
+});
+
+test("runtime Studio learning ingestion rejects caller-selected trust and unverified provider evidence", () => {
+  assert.equal(typeof studioLearning.ingestVerifiedStudioLearning, "function");
+  const proposal = Object.fromEntries(Object.entries(APPROVED).filter(([key]) => !["approval_state", "verification_state"].includes(key)));
+  const base = {
+    getTask: () => ({ id: "task-studio-2", capability: "studio.delegate", status: "completed", assignedWorker: "copilot-studio", correlationId: proposal.correlation_id }),
+    listReceipts: () => [{ capability: "studio.delegate", outcome: "succeeded", receipt: { details: { verified: true, providerEvidence: { authenticated: false } } } }],
+    recordStudioLearningIngestion: () => { throw new Error("should-not-persist"); },
+  };
+  assert.throws(() => studioLearning.ingestVerifiedStudioLearning({ database: base, sourceTaskId: "task-studio-2", record: { ...proposal, approval_state: "approved" } }), /studio-learning-trust-field-forbidden/);
+  assert.throws(() => studioLearning.ingestVerifiedStudioLearning({ database: base, sourceTaskId: "task-studio-2", record: proposal }), /studio-learning-provider-evidence-unverified/);
 });
