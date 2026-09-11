@@ -32,7 +32,12 @@ if (command === "validate") {
   const manifest = await loadManifest();
   const databaseFile = process.env.MAHORAGA_DATABASE_FILE ? path.resolve(process.env.MAHORAGA_DATABASE_FILE) : path.join(ROOT, manifest.runtime.database);
   const stateRoot = path.dirname(databaseFile);
-  const contentVault = await createContentVault({ root: path.join(stateRoot, "content-vault"), keyFile: path.join(stateRoot, "content-vault.key.dpapi") });
+  const vaultKey = process.env.MAHORAGA_CONTENT_VAULT_MASTER_KEY?.trim();
+  const contentVault = await createContentVault({
+    root: path.join(stateRoot, "content-vault"),
+    keyFile: path.join(stateRoot, "content-vault.key.dpapi"),
+    ...(vaultKey ? { masterKey: Buffer.from(vaultKey, "base64") } : {}),
+  });
   const database = new RuntimeDatabase(databaseFile, { contentVault });
   try {
     if (command === "status") console.log(JSON.stringify({ tasks: database.listTasks(20), workers: database.listWorkerState(), improvements: database.listImprovements() }, null, 2));
