@@ -8,6 +8,7 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const REPLAY_WINDOW_MS = 2 * 60 * 1000;
 const CORE_GATEWAY_URL = "http://127.0.0.1:4782/api/cloud/runtime";
 const REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
+export const CLOUD_OWNER_HEADER = "x-mahoraga-owner" as const;
 
 export type OwnerSession = { ownerId: string; sessionId: string; csrf: string; cookie?: string };
 export type CloudSessionCompatibility = {
@@ -36,8 +37,7 @@ export function establishOwnerSession(request: Request): OwnerSession {
   const decoded = existing ? verifyToken(existing, secret) : null;
   if (decoded) return { ownerId: decoded.ownerId, sessionId: decoded.sessionId, csrf: sign(secret, `csrf:${decoded.sessionId}`) };
   const ownerId = required("MAHORAGA_CLOUD_OWNER_ID");
-  const ownerHeader = process.env.MAHORAGA_CLOUD_OWNER_HEADER?.trim().toLowerCase() || "x-mahoraga-owner";
-  const assertedOwner = request.headers.get(ownerHeader) ?? "";
+  const assertedOwner = request.headers.get(CLOUD_OWNER_HEADER) ?? "";
   const assertedAt = Number(request.headers.get("x-mahoraga-owner-timestamp"));
   const assertionNonce = request.headers.get("x-mahoraga-owner-nonce") ?? "";
   const assertionSignature = request.headers.get("x-mahoraga-owner-signature") ?? "";
