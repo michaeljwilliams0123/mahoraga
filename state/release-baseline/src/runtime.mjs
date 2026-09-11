@@ -40,7 +40,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const provenanceRefreshTimer = setInterval(async () => {
     if (provenanceRefreshInFlight) return;
     provenanceRefreshInFlight = true;
-    try { runtimeProvenance = await deriveRuntimeProvenance({ repositoryHeadReader, expectedSourceCommit, authoritativeHeadReader }); }
+    try { runtimeProvenance = await refreshRuntimeProvenanceAuthority(runtimeProvenance, { authoritativeHeadReader }); }
     finally { provenanceRefreshInFlight = false; }
   }, 30000);
   provenanceRefreshTimer.unref?.();
@@ -115,6 +115,17 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   return { manifest, database, artifactStore, contentVault, supervisor, server, controlSessions, mcpHost, relayRuntime, pgaTelemetryRegistry, runtimeProvenance, uccp, address, stop };
 }
 
+export async function refreshRuntimeProvenanceAuthority(previous, { authoritativeHeadReader = null } = {}) {
+  if (!previous || typeof previous !== "object" || Array.isArray(previous)) throw new TypeError("runtime-provenance-invalid");
+  const sourceCommit = previous.sourceCommit === null ? null : normalizeCommit(previous.sourceCommit, "runtime-source-commit-invalid");
+  const expectedSourceCommit = previous.expectedSourceCommit === null ? null : normalizeCommit(previous.expectedSourceCommit, "runtime-expected-source-commit-invalid");
+  if (!sourceCommit) return Object.freeze({ sourceCommit: null, expectedSourceCommit, authoritativeSourceCommit: null, provenanceClass: "unknown", state: "unknown" });
+  return deriveRuntimeProvenance({
+    repositoryHeadReader: async () => sourceCommit,
+    expectedSourceCommit,
+    authoritativeHeadReader,
+  });
+}
 export async function deriveRuntimeProvenance({ repositoryHeadReader = readRepositoryHead, expectedSourceCommit = null, authoritativeHeadReader = null } = {}) {
   if (typeof repositoryHeadReader !== "function") throw new TypeError("runtime-provenance-reader-required");
   const expected = expectedSourceCommit === null || expectedSourceCommit === undefined
