@@ -37,21 +37,25 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
 | Repository execution | Bounded repository worker + exact-head verification contracts |
 | Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
-| GitHub ⇄ Copilot Studio learning | Metadata-only, content-addressed peer-learning contract merged |
-| Microsoft / Power Platform | UCF provider-family design merged; implementation is the active next slice |
+| GitHub ⇄ Copilot Studio learning | Verified/approved metadata admission and authenticated runtime ingestion bridge merged; live activation still requires exact-head promotion/observation |
+| Microsoft / Power Platform | UCF provider-family design and Copilot Harness Assist Fabric are merged; metered Copilot-credit routes remain excluded from zero-credit policy |
 | Metered OpenAI API | Disabled by default |
-| Public exposure | Persistent public exposure prohibited; bounded objective-scoped apertures only |
+| Public exposure | Persistent public exposure prohibited; public `/api/status` is redacted to non-sensitive health/routing state while deployment identity stays authenticated |
 | Windows production truth | Must be established from a fresh live-host probe; repository state alone is not proof |
 | Rollback predecessor | `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` |
 
 ## What changed recently
 
-Mahoraga's current `main` is materially ahead of the older README narrative:
+Mahoraga's current `main` is materially ahead of the older runtime baseline:
 
 - **Universal Capability Fabric:** PR [#289](https://github.com/michaeljwilliams0123/mahoraga/pull/289) added graph-v2 route metadata, deterministic recovery planning, recovery-aware routing, objective requeue across recoverable route drift, conversation capability planning, and startup recovery.
 - **Destiny bridge hardening:** PR [#291](https://github.com/michaeljwilliams0123/mahoraga/pull/291) hardened the bridge on the current repository line.
-- **GitHub ⇄ Copilot Studio learning:** PR [#292](https://github.com/michaeljwilliams0123/mahoraga/pull/292) added a zero-credit, metadata-only peer-learning contract that feeds verified lessons into institutional memory without persisting prompts, chats, or credentials.
-- **Power Platform UCF provider family:** PR [#293](https://github.com/michaeljwilliams0123/mahoraga/pull/293) defined the next Microsoft slice: Copilot Studio, Microsoft 365 Copilot, Dataverse, Power Apps, and Power Automate as capability providers behind UCF rather than a second orchestration brain.
+- **GitHub ⇄ Copilot Studio learning:** PR [#292](https://github.com/michaeljwilliams0123/mahoraga/pull/292) added a zero-credit, metadata-only peer-learning contract for mapping verified lessons toward institutional memory without persisting prompts, chats, or credentials; the authenticated runtime ingestion bridge is now merged, while live activation remains deployment-observed.
+- **Power Platform UCF provider family:** PR [#293](https://github.com/michaeljwilliams0123/mahoraga/pull/293) defined the Microsoft provider family behind UCF rather than a second orchestration brain.
+- **Cloud runtime compatibility diagnostics:** PR [#298](https://github.com/michaeljwilliams0123/mahoraga/pull/298) added explicit cloud-session compatibility diagnostics so the workspace can distinguish an unreachable runtime from a reachable-but-incompatible one.
+- **Static Pages workspace export:** PR [#299](https://github.com/michaeljwilliams0123/mahoraga/pull/299) made GitHub Pages publish the canonical browser workspace without exposing server-only session or action routes.
+- **Verified Copilot Studio learning admission:** PR #303 added a bounded adapter that converts verified and approved Studio learning metadata into peer-learning events. The admission contract is merged. PR #312 adds the authenticated runtime ingestion bridge; deployed/live status still requires exact-head promotion and observation.
+- **Public status hardening:** the public /api/status projection exposes non-sensitive queue provider/state while keeping Dataverse environment name, GUID, and tenant CRM URL out of the unauthenticated response; authenticated status retains the full deployment view.
 
 ## Owner experience
 
@@ -103,9 +107,13 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
-GitHub main is the code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or a fallback host is live. Vercel remains optional and non-gating, while Netlify remains the configured fallback path. The former Pages URL from an earlier deployment must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds.
+GitHub main is the code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or another host is live. The active browser path is cloud-first: GitHub Pages publishes the canonical static workspace from `cloud-app/`, while server-capable hosting remains a replaceable transport rather than a second product. Vercel is paused/historical and is not part of the active maintenance path; Netlify remains a fallback only. The former Pages URL from an earlier deployment must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds; the same exact-head rule applies to any replacement host.
 
 The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately.
+
+## Repository hygiene
+
+Mahoraga keeps `main` as the long-lived code authority and treats implementation branches as disposable delivery lanes. Fully merged remote branches should be pruned after their work lands; unmerged branches are retained until their commits are either merged, explicitly retired, or superseded with evidence. Generated state, historical release receipts, and rollback baselines are not "dead code" and should not be deleted merely because a newer candidate exists.
 
 ## Verification
 
