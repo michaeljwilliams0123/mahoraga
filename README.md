@@ -5,7 +5,7 @@
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner choose a provider for every step.
 
-> **Repository truth:** `main` is the canonical source. The public product identity is simply **Mahoraga**; semantic versions are build/provenance metadata. The repository currently declares build `7.0.0-alpha.2`. This README describes source state and declared capability contracts; it does **not** assert which Mahoraga build is currently running on a Windows host. The last verified rollback predecessor remains `3.6.0`.
+> **Repository truth:** `main` is the canonical source. The public product identity is simply **Mahoraga**. Semantic versions remain internal build/provenance metadata rather than product names. Repository state does not prove live-host state; runtime claims require fresh observed evidence.
 
 ## The current idea
 
@@ -30,12 +30,13 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Area | Current state |
 | --- | --- |
 | Product identity | `Mahoraga` (unversioned); semantic versions remain build/provenance metadata |
-| Repository candidate build | `7.0.0-alpha.2` |
+| Repository build metadata | Tracked in package/manifest provenance; not part of the public Mahoraga name |
 | Control plane | Node 24 ESM `.mjs` |
 | Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
 | Operational state | SQLite WAL task/event state + encrypted local content vault |
 | Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
+| Adaptive directive review | Direction -> compile -> relevant lessons -> delta evidence -> impact map -> verify -> learn; depth adapts by policy and evidence freshness |
 | Repository execution | Bounded repository worker + exact-head verification contracts |
 | Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, and stale provider-derived canaries can be refreshed in place through bounded `readiness.refresh` recovery before retry |
 | Runtime provenance | Paired core derives exact source-commit provenance, refreshes authoritative `origin/main` identity every 30 seconds, and reports `current`, `runtime-drift`, or `unknown`; Windows production startup now also requires the running process SHA to converge with the checkout SHA |
@@ -71,7 +72,14 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Cloud readiness cockpit:** PR [#330](https://github.com/michaeljwilliams0123/mahoraga/pull/330) distinguishes a healthy published GitHub Pages shell from a paired execution core, replaces misleading unpaired `Offline` language with `Ready to pair`, and adds the Eclipse telemetry cockpit without granting the browser shell execution authority.
 - **Frozen loaded-source provenance:** PR [#327](https://github.com/michaeljwilliams0123/mahoraga/pull/327) preserves the process-start source SHA while authoritative `origin/main` refreshes, so a long-running runtime cannot falsely relabel itself as newly merged code; drift remains explicit until a real restart/promotion loads the new source.
 
+- **Runtime-targeted CLI state:** PR [#333](https://github.com/michaeljwilliams0123/mahoraga/pull/333) makes `start`, `status`, and `submit` honor the same explicit runtime database target, preventing operator commands from silently inspecting a different SQLite state file.
+- **Adaptive review loop:** owner directions can now be compiled into bounded impact surfaces, relevant institutional lessons, freshness-aware evidence ladders, contradiction classes, and a deterministic stop condition before implementation expands scope.
+
 ## Owner experience
+
+### Adaptive review CLI
+
+Use `npm run review:adaptive -- "<owner direction>"` to compile a deterministic, zero-credit review contract before implementation. It identifies affected surfaces, constraints, evidence escalation order, and impact chains without activating providers or making a model call.
 
 The intended interaction model is deliberately simple:
 

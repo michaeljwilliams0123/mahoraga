@@ -37,7 +37,7 @@ test("Power Platform worker health and discovery stay deterministic and sanitize
   assert.deepEqual(found.harnessTopology.edges, []);
 });
 
-test("Studio health proves provider binding without invoking a model", async () => {
+test("Studio health separates management-plane and delegation-runtime readiness without invoking a model", async () => {
   let invoked = false;
   const result = await executeCopilotStudioCapability("studio.health", {}, worker, {
     env: { MAHORAGA_COPILOT_STUDIO_DELEGATE_BILLING_CLASS: "license-included" },
@@ -47,9 +47,26 @@ test("Studio health proves provider binding without invoking a model", async () 
   });
   assert.equal(result.verified, true);
   assert.equal(invoked, false);
+  assert.equal(result.providerHealth.managementPlaneReady, true);
+  assert.equal(result.providerHealth.delegationRuntimeReady, true);
   assert.deepEqual(result.providerHealth.platformAuthorityScopes, ["connector.invoke", "copilot.invoke"]);
   assert.equal(result.providerHealth.usageBillingClass, "deterministic-zero");
   assert.equal(result.providerHealth.delegateBillingClass, "license-included");
+});
+
+test("Studio health preserves healthy management plane when delegation runtime binding is unavailable", async () => {
+  const result = await executeCopilotStudioCapability("studio.health", {}, worker, {
+    env: {},
+    probePowerPlatformProvider: async () => ({ verified: true, providerHealth: { authenticated: true } }),
+    loadRuntimeSettings: () => { throw new Error("copilot-studio-runtime-binding-missing"); },
+  });
+  assert.equal(result.verified, false);
+  assert.equal(result.providerHealth.managementPlaneReady, true);
+  assert.equal(result.providerHealth.delegationRuntimeReady, false);
+  assert.equal(result.providerHealth.authenticated, true);
+  assert.deepEqual(result.providerHealth.platformAuthorityScopes, []);
+  assert.match(result.summary, /management plane is ready/i);
+  assert.match(result.summary, /delegation runtime binding is unavailable/i);
 });
 
 test("Studio delegate refuses billing-unknown execution before model invocation", async () => {

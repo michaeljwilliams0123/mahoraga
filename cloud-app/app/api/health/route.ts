@@ -1,3 +1,5 @@
+import path from "node:path";
+
 export const dynamic = "force-static";
 
 function deploymentUrl() {
@@ -7,6 +9,11 @@ function deploymentUrl() {
   if (netlify) return netlify;
   const vercelHost = process.env.VERCEL_URL?.trim();
   return vercelHost ? `https://${vercelHost}` : null;
+}
+
+function runtimeDatabaseTarget() {
+  const configured = process.env.MAHORAGA_DATABASE_FILE?.trim();
+  return configured ? path.basename(configured) : null;
 }
 
 function deploymentProvider() {
@@ -31,6 +38,10 @@ export async function GET() {
         gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? null,
       },
       runtime: {
+        databaseTarget: {
+          basename: runtimeDatabaseTarget(),
+          source: process.env.MAHORAGA_DATABASE_FILE ? "deployment-env" : "paired-core-required",
+        },
         provenance: {
           state: "unknown",
           expectedSourceCommit: null,

@@ -1,0 +1,73 @@
+{
+  "schemaVersion": 1,
+  "mode": "delta-first-adaptive-review",
+  "defaultSurfaces": ["repository"],
+  "evidenceLadder": [
+    "directive",
+    "trusted-ledger",
+    "git-delta",
+    "focused-tests",
+    "live-runtime",
+    "history",
+    "external-docs"
+  ],
+  "classifications": ["NEW", "ALREADY_BUILT", "EXTEND", "SUPERSEDED", "CONFLICTS", "BLOCKED"],
+  "stopConfidence": 1,
+  "minimumTrustedAuthority": 0.7,
+  "surfaceSignals": {
+    "ui": ["ui", "interface", "cockpit", "workspace", "screen", "design"],
+    "runtime": ["runtime", "worker", "process", "canary", "listener", "production", "candidate", "rollback"],
+    "provider": ["provider", "copilot", "dataverse", "plugin", "connector", "mcp"],
+    "repository": ["repo", "repository", "branch", "pr", "pull request", "issue", "merge", "code"],
+    "docs": ["readme", "docs", "documentation"],
+    "memory": ["memory", "lesson", "learn", "adaptive", "adapt", "evolve"],
+    "policy": ["policy", "authority", "zero-credit", "zero credit", "billing", "approval", "governance"],
+    "data": ["database", "sqlite", "data", "state"]
+  },
+  "constraintSignals": {
+    "preserve-zero-credit": ["zero-credit", "zero credit", "no credits", "no cost"],
+    "preserve-windows-rollback": ["3.6.0", "rollback", "windows production"],
+    "preserve-owner-authority": ["owner authority", "only me", "owner approval"],
+    "no-paid-fallback": ["paid fallback", "no paid", "metered fallback"]
+  },
+  "impactChains": {
+    "ui": ["policy", "api", "ui", "tests", "docs"],
+    "runtime": ["policy", "manifest", "router", "worker", "readiness", "receipts", "api", "ui", "tests", "docs"],
+    "provider": ["policy", "manifest", "provider", "worker", "readiness", "receipts", "router", "ui", "tests", "docs"],
+    "repository": ["policy", "repository", "tests", "docs"],
+    "docs": ["docs", "tests"],
+    "memory": ["policy", "memory", "learning", "tests", "docs"],
+    "policy": ["policy", "tests", "docs"],
+    "data": ["policy", "database", "runtime", "api", "ui", "tests", "docs"]
+  },
+  "sourceTtlMs": {
+    "default": 300000,
+    "runtime-api": 120000,
+    "git-head": 300000,
+    "github-prs": 300000,
+    "github-issues": 300000,
+    "ci": 900000,
+    "repo-contract": 86400000,
+    "institutional-memory": 604800000,
+    "user-direction": 86400000
+  },
+  "sourceAuthority": {
+    "user-direction": 1,
+    "runtime-api": 1,
+    "git-head": 1,
+    "ci": 0.95,
+    "github-prs": 0.9,
+    "github-issues": 0.9,
+    "repo-contract": 0.82,
+    "institutional-memory": 0.75,
+    "history": 0.5
+  },
+  "lessonClasses": [
+    "system-pattern",
+    "negative-memory",
+    "failure",
+    "procedure",
+    "strategy",
+    "outcome"
+  ]
+}

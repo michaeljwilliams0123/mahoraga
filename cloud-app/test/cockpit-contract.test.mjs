@@ -41,15 +41,28 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
   });
 
-  it("surfaces the governed Copilot Studio admission contract without claiming live ingestion", () => {
+  it("surfaces bounded Studio truth and the adaptive review loop", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     assert.match(cockpit, /Copilot Studio learning/);
-    assert.match(cockpit, /staged admission contract/);
-    assert.match(cockpit, /runtime ingestion inactive/);
+    assert.match(cockpit, /ingestion bridge available/);
+    assert.match(cockpit, /paired-core readiness determines live ingestion/);
+    assert.doesNotMatch(cockpit, /runtime ingestion inactive/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /non-authoritative evidence plane/);
+    assert.match(cockpit, /Direction -> Compile -> Delta -> Verify -> Learn/);
+    assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /raw prompts|tenant IDs|credentials/);
+  });
+
+  it("surfaces only a bounded runtime database target diagnostic", () => {
+    const route = readFileSync(join(root, "app/api/health/route.ts"), "utf8");
+    const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(route, /path\.basename\(configured\)/);
+    assert.match(route, /databaseTarget/);
+    assert.match(types, /databaseTarget/);
+    assert.match(cockpit, /Runtime DB target/);
+    assert.doesNotMatch(cockpit, /connection string|password|secret/i);
   });
 
   it("distinguishes a healthy published shell from a paired execution core", () => {
