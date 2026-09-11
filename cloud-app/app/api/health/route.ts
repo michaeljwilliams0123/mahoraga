@@ -30,6 +30,13 @@ export async function GET() {
         commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
         gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? null,
       },
+      runtime: {
+        provenance: {
+          state: "unknown",
+          expectedSourceCommit: null,
+          source: "paired-core-required",
+        },
+      },
       capabilities: {
         runtimeRelay: true,
         directConversationExecution: false,
