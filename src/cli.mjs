@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { loadManifest, ROOT } from "./config.mjs";
 import { RuntimeDatabase } from "./database.mjs";
 import { startRuntime } from "./runtime.mjs";

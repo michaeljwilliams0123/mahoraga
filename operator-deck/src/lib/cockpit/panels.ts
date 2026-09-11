@@ -2,7 +2,7 @@ import { previewCreditFreeHeartbeat } from "../fleet/heartbeat";
 import { VERSION_SURFACES, versionReceipt, CLOUD_APP_URL, PRODUCTION_VERSION, CANDIDATE_VERSION } from "../fleet/versions";
 import type { AdapterResult, CockpitPanelModel } from "./types";
 
-/** Observational MESH | CLOUD | WORKSPACE panel models â€” no live GH writes. */
+/** Observational MESH | CLOUD | WORKSPACE panel models — no live GH writes. */
 
 export function buildMeshPanel(input?: {
   meshReachable?: boolean | null;
@@ -20,7 +20,7 @@ export function buildMeshPanel(input?: {
         reachable === true
           ? "Mesh signal reported reachable (observational only)."
           : reachable === false
-            ? "Mesh unreachable â€” L7 experiment is out of this production helper lane."
+            ? "Mesh unreachable — L7 experiment is out of this production helper lane."
             : "Mesh panel is observational; production helpers do not drive L7 mesh src.",
       lines: [
         { label: "lane", value: "observational" },
@@ -78,7 +78,7 @@ export function buildWorkspacePanel(input?: {
       tone: coreReady ? "ok" : "warn",
       summary: coreReady
         ? "Workspace shell expects paired core; Operations stay relay-mediated."
-        : "Pair runtime before Operations â€” browser has no fleet write authority.",
+        : "Pair runtime before Operations — browser has no fleet write authority.",
       lines: [
         { label: "creditFreeNext", value: heartbeat.nextAction },
         { label: "destinyTrigger", value: heartbeat.destinyTrigger.status },
