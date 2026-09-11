@@ -348,3 +348,30 @@ test("supervisor preserves terminal waiting after route-recovery attempts are ex
   assert.equal(terminal.attemptCount, 1);
   assert.equal(terminal.errorCode, "canary-stale");
 });
+
+test("Copilot Studio health evidence becomes runtime-owned authority and billing state", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild(5151);
+  const definition = workerDefinition({
+    id: "copilot-studio", label: "Copilot Studio Agent", healthProbe: "studio.health",
+    capabilities: ["studio.health", "studio.delegate"], dataClasses: ["enterprise"],
+    costClass: "licensed-cloud", executionPlane: "licensed-cloud",
+  });
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ workers: [definition] }), database, artifactRoot: os.tmpdir(),
+    syncCoordinationMailbox: false, forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", {
+    type: "provider.readiness", observedAt: new Date().toISOString(),
+    receipt: createCapabilityReceipt("studio.health", { verified: true, summary: "Studio ready.", providerHealth: {
+      platformAuthorityScopes: ["connector.invoke", "copilot.invoke"], delegateBillingClass: "license-included",
+    } }),
+  });
+  child.emit("message", { type: "readiness.complete" });
+  const state = supervisor.status()[0];
+  assert.deepEqual(state.platformAuthorityScopes, ["connector.invoke", "copilot.invoke"]);
+  assert.deepEqual(state.billingAttestationByCapability, { "studio.delegate": "license-included" });
+});

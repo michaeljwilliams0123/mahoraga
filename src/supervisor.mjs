@@ -62,6 +62,8 @@ export class Supervisor extends EventEmitter {
         restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt,
         currentTaskId: state.currentTaskId, currentTaskStartedAt: state.currentTaskStartedAt,
         timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities, readiness,
+        platformAuthorityScopes: [...(state.platformAuthorityScopes ?? [])],
+        billingAttestationByCapability: { ...(state.billingAttestationByCapability ?? {}) },
         lastErrorCode: state.lastErrorCode ?? null, lastErrorDetail: state.lastErrorDetail ?? null,
       };
     });
@@ -123,6 +125,7 @@ export class Supervisor extends EventEmitter {
     }
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
+      platformAuthorityScopes: [], billingAttestationByCapability: {},
       spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
     for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
@@ -165,6 +168,10 @@ export class Supervisor extends EventEmitter {
         canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
         canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
         executionCellCanary = receipt.details.providerEvidence.executionCellCanary ?? null;
+        if (state.definition.id === "copilot-studio") {
+          state.platformAuthorityScopes = normalizeStudioPlatformScopes(receipt.details.providerEvidence.platformAuthorityScopes);
+          state.billingAttestationByCapability = normalizeStudioBillingAttestation(receipt.details.providerEvidence.delegateBillingClass);
+        }
       } catch {}
       for (const capability of state.definition.capabilities) {
         const exactCanary = capability === state.definition.healthProbe || (capability === "codex.execute" && executionCellCanary === "verified");
@@ -526,4 +533,14 @@ export function sanitizeWorkerDiagnostic(value) {
     /timeout|timed out/i.test(diagnostic) ? "Worker process timed out." :
     "Worker process reported diagnostic output.";
   return `${summary} Sensitive diagnostic content redacted. Diagnostic ${digest}.`;
+}
+
+function normalizeStudioPlatformScopes(value) {
+  const allowed = new Set(["connector.invoke", "copilot.invoke"]);
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item) => allowed.has(item)))].sort();
+}
+
+function normalizeStudioBillingAttestation(value) {
+  return new Set(["license-included", "metered"]).has(value) ? { "studio.delegate": value } : {};
 }

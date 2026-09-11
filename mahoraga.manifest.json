@@ -757,10 +757,42 @@
       }
     },
     {
+      "id": "power-platform",
+      "label": "Power Platform Provider",
+      "version": "provider-1.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": ["synthetic", "enterprise"],
+      "capabilities": ["powerplatform.health", "powerplatform.discover"],
+      "acceptedTaskTypes": ["microsoft-agent"],
+      "timeoutMs": 30000,
+      "concurrency": 1,
+      "healthProbe": "powerplatform.health",
+      "capabilityCanaries": {
+        "powerplatform.health": "health",
+        "powerplatform.discover": "provider-derived"
+      },
+      "billingClassByCapability": {
+        "powerplatform.health": "deterministic-zero",
+        "powerplatform.discover": "deterministic-zero"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "mcp-cli",
+        "permissionClass": "power-platform-discovery",
+        "reliability": 94,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 250,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
+    {
       "id": "copilot-studio",
       "label": "Copilot Studio Agent",
       "version": "3.2.0",
-      "enabled": false,
+      "enabled": true,
       "costClass": "licensed-cloud",
       "dataClasses": [
         "enterprise"
@@ -790,6 +822,13 @@
         "studio.configure": ["connector.invoke", "copilot.configure", "governance.manage"],
         "studio.provision": ["connector.invoke", "copilot.provision", "deployment.request"],
         "studio.deploy": ["connector.invoke", "deployment.request", "deployment.execute"]
+      },
+      "billingClassByCapability": {
+        "studio.health": "deterministic-zero",
+        "studio.delegate": "unknown",
+        "studio.configure": "unknown",
+        "studio.provision": "unknown",
+        "studio.deploy": "unknown"
       },
       "executionPlane": "licensed-cloud",
       "routing": {

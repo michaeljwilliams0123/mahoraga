@@ -1,5 +1,5 @@
 export async function collectProviderReadiness(probes, { now = () => new Date() } = {}) {
-  const required = ["desktop", "microsoft365", "signedChrome", "googleWorkspace", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
+  const required = ["desktop", "powerPlatform", "microsoft365", "signedChrome", "googleWorkspace", "microsoftQueue", "localReasoner", "githubCopilot", "primaryCodexBuilder", "workspaceAgent"];
   for (const name of required) if (typeof probes?.[name] !== "function") throw new TypeError(`provider-readiness-probe-missing:${name}`);
 
   const entries = await Promise.all(required.map(async (name) => {
@@ -9,6 +9,7 @@ export async function collectProviderReadiness(probes, { now = () => new Date() 
   const raw = Object.fromEntries(entries);
   const providers = Object.freeze({
     desktop: desktopState(raw.desktop),
+    powerPlatform: powerPlatformState(raw.powerPlatform),
     microsoft365: microsoft365State(raw.microsoft365),
     signedChrome: signedChromeState(raw.signedChrome),
     googleWorkspace: googleWorkspaceState(raw.googleWorkspace),
@@ -37,6 +38,22 @@ function desktopState(result) {
     platformSupported: receipt.platformSupported === true,
     interactive: receipt.interactive === true,
     allowlistedApplicationTypesVisible: Array.isArray(receipt.applications) ? receipt.applications.length : 0,
+  });
+}
+
+function powerPlatformState(result) {
+  const health = result?.providerHealth ?? {};
+  return Object.freeze({
+    verified: result?.verified === true,
+    platformSupported: health.platformSupported === true,
+    authenticated: health.authenticated === true,
+    authenticationClass: allowed(health.authenticationClass, ["operating-system-profile", "unverified", "unavailable"], "unavailable"),
+    publishedAgentCount: boundedCount(health.publishedAgentCount, 16),
+    activeAgentCount: boundedCount(health.activeAgentCount, 16),
+    provisionedAgentCount: boundedCount(health.provisionedAgentCount, 16),
+    logicalAliases: Object.freeze(Array.isArray(health.logicalAliases) ? health.logicalAliases.filter((x) => ["general-mahoraga", "enterprise-core", "tenant-health-reader"].includes(x)).slice(0, 3) : []),
+    zeroCreditEligible: health.zeroCreditEligible === true,
+    usageBillingClass: health.usageBillingClass === "deterministic-zero" ? "deterministic-zero" : "unknown",
   });
 }
 
@@ -144,6 +161,7 @@ export function summarizeConnectorReadiness(report) {
     Object.freeze({ connectorId: "github", family: "github", trustState: "ready", capabilities: Object.freeze(["repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "file", family: "file", trustState: "ready", capabilities: Object.freeze(["artifact.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "microsoft", family: "microsoft", trustState: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "m365.open"]), lastHealthyAt: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoft365?.verified === true || providers.microsoftQueue?.verified === true ? null : "connector-not-ready", zeroCreditReady: providers.microsoftQueue?.silentAuthAvailable === true || providers.microsoft365?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
+    Object.freeze({ connectorId: "power-platform", family: "microsoft", trustState: providers.powerPlatform?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["powerplatform.discover", "studio.delegate"]), lastHealthyAt: providers.powerPlatform?.verified === true ? report.generatedAt : null, lastFailureCode: providers.powerPlatform?.verified === true ? null : "power-platform-not-ready", zeroCreditReady: providers.powerPlatform?.verified === true && providers.powerPlatform?.zeroCreditEligible === true, updatedAt: report.generatedAt, zeroCredit: providers.powerPlatform?.zeroCreditEligible === true, providerRequired: true }),
     Object.freeze({ connectorId: "google", family: "google", trustState: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond", "artifact.inspect", "google.open"]), lastHealthyAt: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? report.generatedAt : null, lastFailureCode: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true ? null : "connector-not-ready", zeroCreditReady: providers.googleWorkspace?.verified === true || providers.signedChrome?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "queue", family: "queue", trustState: providers.microsoftQueue?.verified === true ? "ready" : "blocked", capabilities: Object.freeze(["assistant.respond"]), lastHealthyAt: providers.microsoftQueue?.verified === true ? report.generatedAt : null, lastFailureCode: providers.microsoftQueue?.verified === true ? null : "queue-not-ready", zeroCreditReady: providers.microsoftQueue?.verified === true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),
     Object.freeze({ connectorId: "owner", family: "owner", trustState: "ready", capabilities: Object.freeze(["assistant.respond", "repository.inspect"]), lastHealthyAt: report.generatedAt, lastFailureCode: null, zeroCreditReady: true, updatedAt: report.generatedAt, zeroCredit: true, providerRequired: false }),

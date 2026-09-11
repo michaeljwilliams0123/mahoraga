@@ -51,6 +51,7 @@ export function validateManifest(value) {
     if (worker.version !== undefined) throw new TypeError("Legacy worker version is not allowed; use implementation revision.");
     boundedRevision(worker.implementationRevision, "worker implementation revision");
     validateCapabilityAuthorityScopes(worker.authorityScopesByCapability, worker.capabilities);
+    validateBillingClassMap(worker.billingClassByCapability, worker.capabilities);
   }
   validateGoogleCapabilityWorkers(value);
 
@@ -106,6 +107,16 @@ export function normalizeManifestCompatibility(value, identity = null) {
     }
   }
   return applyGoogleCapabilityManifest(next);
+}
+
+const BILLING_CLASSES = new Set(["deterministic-zero", "license-included", "metered", "metered-copilot-credit", "unknown"]);
+function validateBillingClassMap(value, capabilities) {
+  if (value === undefined) return;
+  if (!isRecord(value)) throw new TypeError("Worker billing class map is invalid.");
+  const keys = Object.keys(value).sort();
+  const declared = [...capabilities].sort();
+  if (keys.length !== declared.length || keys.some((key, index) => key !== declared[index])) throw new TypeError("Worker billing class map must cover every capability exactly.");
+  for (const billingClass of Object.values(value)) if (!BILLING_CLASSES.has(billingClass)) throw new TypeError("Worker billing class is invalid.");
 }
 
 function validateProtocols(value) {

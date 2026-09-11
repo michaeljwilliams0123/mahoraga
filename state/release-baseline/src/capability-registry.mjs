@@ -1,8 +1,12 @@
 import { capabilityClass, deriveCapabilityReadiness, isCapabilityRoutable } from "./capability-readiness.mjs";
+import { validateCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 import { projectOpenAiCapabilityRoutes } from "./openai-route-registry.mjs";
+import { microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from "./microsoft-usage-cost.mjs";
 
 export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.now(), context = {}) {
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
+  const billingAttestations = context.billingAttestationByWorkerId ?? microsoftBillingAttestationFromEnv(context.env ?? process.env);
+  const microsoftHarnessEvidence = normalizeMicrosoftHarnessEvidence(context.microsoftHarnessDescriptors ?? []);
   const staticRoutes = manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
     const runtimeState = stateByWorker.get(worker.id);
     const recorded = runtimeState?.readiness?.find((item) => item.capability === capability);
@@ -46,11 +50,14 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       workload: runtimeState?.currentTaskId ? 1 : 0,
       fallbackWorkerIds: [...worker.routing.fallbackWorkerIds],
       costClass: worker.costClass,
+      billingClass: effectiveBillingClass(worker, capability, billingAttestations, runtimeState),
+      platformAuthorityScopes: [...(runtimeState?.platformAuthorityScopes ?? [])],
       dataClasses: [...worker.dataClasses],
       authorityScopes: [...(worker.authorityScopesByCapability?.[capability] ?? [])],
       executionPlane: worker.executionPlane,
       healthProbe: worker.healthProbe,
       economicTier: economicTierForCostClass(worker.costClass),
+      ...(worker.id === "copilot-studio" ? { harnessEvidence: microsoftHarnessEvidence } : {}),
     };
   }));
   return staticRoutes.concat(pairedRouteEntries(context, now));
@@ -158,4 +165,39 @@ function economicTierForCostClass(costClass) {
   if (costClass === "licensed-cloud") return 3;
   if (costClass === "metered-cloud") return 4;
   return Number.MAX_SAFE_INTEGER;
+}
+
+function effectiveBillingClass(worker, capability, attestations, runtimeState = null) {
+  const declared = worker.billingClassByCapability?.[capability] ?? defaultBillingClass(worker.costClass);
+  if (capability.startsWith("studio.") || capability.startsWith("powerplatform.")) {
+    const attestation = attestations?.[worker.id]?.[capability] ?? runtimeState?.billingAttestationByCapability?.[capability] ?? null;
+    return resolveMicrosoftBillingClass(capability, declared, attestation);
+  }
+  return declared;
+}
+
+function normalizeMicrosoftHarnessEvidence(value) {
+  if (!Array.isArray(value) || value.length > 32) throw new TypeError("microsoft-harness-evidence-invalid");
+  const seen = new Set();
+  return Object.freeze(value.map((item) => validateCopilotHarnessDescriptor(item))
+    .sort((left, right) => left.alias.localeCompare(right.alias))
+    .map((descriptor) => {
+      if (seen.has(descriptor.alias)) throw new TypeError("microsoft-harness-evidence-invalid");
+      seen.add(descriptor.alias);
+      return Object.freeze({
+        alias: descriptor.alias,
+        harnessType: descriptor.harnessType,
+        published: descriptor.published,
+        connectable: descriptor.connectable,
+        capabilityClasses: Object.freeze([...descriptor.capabilityClasses]),
+        billingClass: descriptor.billingClass,
+        zeroCreditEligible: descriptor.zeroCreditEligible,
+      });
+    }));
+}
+
+function defaultBillingClass(costClass) {
+  if (costClass === "deterministic" || costClass === "local-model") return "deterministic-zero";
+  if (costClass === "metered-cloud") return "metered";
+  return "unknown";
 }

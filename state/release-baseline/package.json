@@ -50,5 +50,9 @@
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs"
+  },
+  "dependencies": {
+    "@azure/msal-node": "5.5.0",
+    "@microsoft/agents-copilotstudio-client": "1.7.2"
   }
 }
