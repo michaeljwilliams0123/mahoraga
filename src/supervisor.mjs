@@ -7,6 +7,7 @@ import { routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
+import { capabilityClass, deriveCapabilityReadiness } from "./capability-readiness.mjs";
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
@@ -125,7 +126,7 @@ export class Supervisor extends EventEmitter {
     }
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
-      platformAuthorityScopes: [], billingAttestationByCapability: {},
+      platformAuthorityScopes: [], billingAttestationByCapability: {}, readinessRefreshInFlight: false,
       spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
     for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
@@ -200,7 +201,7 @@ export class Supervisor extends EventEmitter {
         canaryVerifiedAt, lastErrorCode: canaryStatus === "verified" ? null : message.errorCode ?? "capability-canary-failed",
       });
     } else if (message?.type === "readiness.complete") {
-      state.ready = true; state.status = "live";
+      state.readinessRefreshInFlight = false; state.ready = true; state.status = "live";
     } else if (message?.type === "heartbeat") {
       state.lastHeartbeatAt = message.timestamp;
       state.status = state.busy ? "busy" : "live";
@@ -372,16 +373,14 @@ export class Supervisor extends EventEmitter {
       if (state.busy && state.currentTaskStartedAt && now - Date.parse(state.currentTaskStartedAt) > state.definition.timeoutMs) {
         state.status = "hung"; state.process.kill(); continue;
       }
+      if (!state.busy) this.#refreshStaleReadiness(state, now);
       if (!state.ready || state.busy) continue;
       const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
       if (!task) continue;
       const route = routeTask(this.manifest, task, { workerStates: this.status() });
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
-          if (route.recoveryPlan.actions.some((action) => action.kind === "refresh-readiness")) {
-            state.ready = false;
-            state.process.send?.({ type: "readiness.refresh" });
-          }
+          if (route.recoveryPlan.actions.some((action) => action.kind === "refresh-readiness")) this.#requestReadinessRefresh(state);
           this.database.requeueForRouteRecovery({
             taskId: task.id,
             reason: route.reason ?? "routing-changed",
@@ -406,6 +405,34 @@ export class Supervisor extends EventEmitter {
       const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessagesForExecution(task.conversationId) } : executionTask;
       state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
     }
+  }
+
+  #refreshStaleReadiness(state, now) {
+    if (!state.ready || state.readinessRefreshInFlight || typeof state.process?.send !== "function") return;
+    if (state.definition.capabilities.some((capability) => this.database.hasActiveTask(capability))) return;
+    const stale = this.database.listCapabilityReadiness(state.definition.id).some((item) => {
+      const readiness = deriveCapabilityReadiness({
+        process: { status: item.processStatus, observedAt: item.processObservedAt },
+        provider: { status: item.providerStatus },
+        canary: { status: item.canaryStatus, verifiedAt: item.canaryVerifiedAt },
+        capabilityClass: capabilityClass(state.definition, item.capability),
+      }, now);
+      return readiness.reason === "canary-stale";
+    });
+    if (stale) this.#requestReadinessRefresh(state);
+  }
+
+  #requestReadinessRefresh(state) {
+    if (state.readinessRefreshInFlight || typeof state.process?.send !== "function") return false;
+    state.readinessRefreshInFlight = true;
+    state.ready = false;
+    try { state.process.send({ type: "readiness.refresh" }); }
+    catch {
+      state.readinessRefreshInFlight = false;
+      state.ready = true;
+      return false;
+    }
+    return true;
   }
 
   #scheduleRepairIncidentScan(force = false) {
