@@ -52,6 +52,9 @@ export type RuntimeChatResult = {
   objective: { id?: string } | null;
   decision: { mode?: string; execution?: string };
 };
+export type CloudSessionDiagnostic = {
+  code: "cloud-session-unavailable" | "cloud-session-unreachable" | "cloud-runtime-degraded" | "cloud-runtime-contract-incompatible";
+};
 
 export type RuntimeOperationsSnapshot = {
   generatedAt: string;
@@ -100,18 +103,29 @@ export class RuntimeRelay {
   private pairing: { resolve: (value: JsonObject) => void; reject: (reason: Error) => void } | null = null;
   private revokeAcknowledgement: (() => void) | null = null;
   private cloudSession: { csrf: string } | null = null;
+  private cloudSessionDiagnostic: CloudSessionDiagnostic | null = null;
 
   get connected() {
     return this.cloudSession !== null || (this.socket?.readyState === WebSocket.OPEN && this.session !== null);
   }
 
+  get sessionDiagnostic() { return this.cloudSessionDiagnostic; }
+
   async attach() {
-    const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
-    if (!response.ok) return null;
-    const value = await response.json() as JsonObject;
-    if (value.authenticated !== true || typeof value.csrf !== "string") return null;
-    this.cloudSession = { csrf: value.csrf };
-    return { sessionId: "same-origin-cloud" };
+    this.cloudSessionDiagnostic = null;
+    try {
+      const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
+      const value = await response.json().catch(() => ({})) as JsonObject;
+      if (!response.ok || value.authenticated !== true || typeof value.csrf !== "string") {
+        this.cloudSessionDiagnostic = sessionDiagnostic(value);
+        return null;
+      }
+      this.cloudSession = { csrf: value.csrf };
+      return { sessionId: "same-origin-cloud" };
+    } catch {
+      this.cloudSessionDiagnostic = { code: "cloud-session-unreachable" };
+      return null;
+    }
   }
 
   async pair(encodedOffer: string) {
@@ -228,6 +242,7 @@ export class RuntimeRelay {
     this.pairing = null;
     this.revokeAcknowledgement = null;
     this.cloudSession = null;
+    this.cloudSessionDiagnostic = null;
     this.rejectPending("relay-disconnected");
   }
 
@@ -392,6 +407,12 @@ function waitForOpen(socket: WebSocket) {
 function frameAad(sessionId: string, direction: string, counter: number) { return encoder.encode(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, sessionId, direction, counter })); }
 function toBase64Url(bytes: Uint8Array) { let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte); return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
 function fromBase64Url(value: string) { const base64 = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "="); const binary = atob(base64); return Uint8Array.from(binary, (character) => character.charCodeAt(0)); }
+function sessionDiagnostic(value: JsonObject): CloudSessionDiagnostic {
+  const connection = isObject(value.connection) ? value.connection : null;
+  const code = connection?.code;
+  if (code === "cloud-runtime-degraded" || code === "cloud-runtime-contract-incompatible") return { code };
+  return { code: "cloud-session-unavailable" };
+}
 function isObject(value: unknown): value is JsonObject { return Boolean(value && typeof value === "object" && !Array.isArray(value)); }
 function publicCode(value: unknown) { const code = String(value ?? "relay-request-rejected").toLowerCase().replace(/[^a-z0-9.-]+/g, "-").slice(0, 80); return /^[a-z]/.test(code) ? code : "relay-request-rejected"; }
 function relayError(code: string) { const error = new Error(code); error.name = "RuntimeRelayError"; return error; }

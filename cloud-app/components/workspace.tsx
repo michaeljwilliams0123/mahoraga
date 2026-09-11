@@ -47,6 +47,10 @@ function runtimeErrorMessage(code: string) {
     "relay-disconnected": "The encrypted brain connection closed. No alternate execution brain was used.",
     "relay-request-timeout": "Mahoraga did not answer before the bounded timeout. No paid fallback was attempted.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
+    "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
+    "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
+    "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
+    "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
   };
   return messages[code] ?? code.replaceAll("-", " ");
 }
@@ -115,7 +119,11 @@ export function Workspace() {
     setRelayState("resuming");
     void transport.attach().then((attached) => attached ?? transport.resume()).then(async (resumed) => {
       if (!active) { transport.disconnect(); return; }
-      if (!resumed) { setRelayState("unpaired"); return; }
+      if (!resumed) {
+        setRuntimeError(runtimeErrorMessage(transport.sessionDiagnostic?.code ?? "cloud-session-unavailable"));
+        setRelayState("unpaired");
+        return;
+      }
       const capabilities = await transport.capabilities();
       if (!active) { transport.disconnect(); return; }
       relay.current = transport;
