@@ -55,7 +55,8 @@ function fakeChild(pid = 4242) {
   const child = new EventEmitter();
   child.pid = pid;
   child.stderr = new EventEmitter();
-  child.send = () => {};
+  child.sent = [];
+  child.send = (message) => { child.sent.push(message); };
   child.kill = () => { child.killed = true; };
   return child;
 }
@@ -319,6 +320,32 @@ test("supervisor keeps a task queued across recoverable stale-route drift", asyn
   assert.equal(recovered.attemptCount, 1);
   assert.equal(recovered.errorCode, "route-recovery-canary-stale");
 });
+test("stale route recovery asks the worker to refresh readiness before retrying", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const manifest = manifestFixture({ repair: { enabled: false, scanIntervalMs: 1000 } });
+  const supervisor = new Supervisor({
+    manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 200,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const observedAt = new Date().toISOString();
+  database.setCapabilityReadiness({
+    workerId: "repair-worker", capability: "system.health", processStatus: "live",
+    providerStatus: "ready", canaryStatus: "stale", processObservedAt: observedAt,
+    providerObservedAt: observedAt, canaryVerifiedAt: null, lastErrorCode: null,
+  });
+  database.submitTask({
+    capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+    idempotencyKey: "supervisor-refresh-stale-readiness", maximumAttempts: 3,
+  });
+  await delay(230);
+  assert.equal(child.sent.some((message) => message?.type === "readiness.refresh"), true);
+});
+
 test("supervisor preserves terminal waiting after route-recovery attempts are exhausted", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();

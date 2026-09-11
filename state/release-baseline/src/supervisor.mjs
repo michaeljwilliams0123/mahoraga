@@ -378,6 +378,10 @@ export class Supervisor extends EventEmitter {
       const route = routeTask(this.manifest, task, { workerStates: this.status() });
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
+          if (route.recoveryPlan.actions.some((action) => action.kind === "refresh-readiness")) {
+            state.ready = false;
+            state.process.send?.({ type: "readiness.refresh" });
+          }
           this.database.requeueForRouteRecovery({
             taskId: task.id,
             reason: route.reason ?? "routing-changed",
