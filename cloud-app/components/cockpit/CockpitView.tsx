@@ -33,6 +33,7 @@ export function CockpitView({
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
+  const runtimeDatabase = health?.runtime?.databaseTarget?.basename ?? "paired core required";
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -107,6 +108,7 @@ export function CockpitView({
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
             <div><dt>Relay plaintext</dt><dd>{health?.boundaries?.relaySeesPlaintext === true ? "unexpected" : "not visible"}</dd></div>
+            <div><dt>Runtime DB target</dt><dd>{runtimeDatabase}</dd></div>
           </dl>
         </section>
 
@@ -131,15 +133,19 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Evidence plane</span>
           <strong>Copilot Studio learning</strong>
-          <p>staged admission contract · runtime ingestion inactive</p>
+          <p>ingestion bridge available - paired-core readiness determines live ingestion</p>
         </div>
         <div>
           <strong>Studio admission</strong>
-          <p>verified + approved metadata only · source copilot-studio-mahoraga</p>
+          <p>verified + approved metadata only - source copilot-studio-mahoraga</p>
         </div>
         <div>
           <strong>Studio authority</strong>
-          <p>non-authoritative evidence plane · Mahoraga remains canonical</p>
+          <p>non-authoritative evidence plane - Mahoraga remains canonical</p>
+        </div>
+        <div>
+          <strong>Adaptive review</strong>
+          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
         </div>
       </section>
 

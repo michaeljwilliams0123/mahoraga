@@ -22,6 +22,7 @@ export type Health = {
   product?: string;
   version?: string;
   deployment?: { provider?: string; environment?: string; url?: string | null; commitSha?: string | null; gitRef?: string | null };
+  runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } };
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
