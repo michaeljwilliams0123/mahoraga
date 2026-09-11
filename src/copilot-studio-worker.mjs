@@ -19,12 +19,21 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
     const provider = await probe(dependencies.providerDependencies ?? {});
     let runtimeBindingPresent = false;
     try { loadRuntimeSettings(env); runtimeBindingPresent = true; } catch {}
-    const verified = provider?.verified === true && runtimeBindingPresent;
+    const managementPlaneReady = provider?.verified === true;
+    const delegationRuntimeReady = runtimeBindingPresent;
+    const verified = managementPlaneReady && delegationRuntimeReady;
+    const summary = verified
+      ? "Copilot Studio management plane and delegation runtime are ready."
+      : managementPlaneReady
+        ? "Copilot Studio management plane is ready; delegation runtime binding is unavailable."
+        : "Copilot Studio management plane is unavailable.";
     return Object.freeze({
       verified,
-      summary: verified ? "Copilot Studio provider and runtime binding are ready." : "Copilot Studio provider or runtime binding is unavailable.",
+      summary,
       providerHealth: Object.freeze({
         authenticated: provider?.providerHealth?.authenticated === true,
+        managementPlaneReady,
+        delegationRuntimeReady,
         runtimeBindingPresent,
         platformAuthorityScopes: Object.freeze(verified ? ["connector.invoke", "copilot.invoke"] : []),
         usageBillingClass: billingClass,
