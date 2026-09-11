@@ -109,8 +109,7 @@ export function normalizeManifestCompatibility(value, identity = null) {
   return applyGoogleCapabilityManifest(next);
 }
 
-
-const BILLING_CLASSES = new Set(["deterministic-zero", "license-included", "metered", "unknown"]);
+const BILLING_CLASSES = new Set(["deterministic-zero", "license-included", "metered", "metered-copilot-credit", "unknown"]);
 function validateBillingClassMap(value, capabilities) {
   if (value === undefined) return;
   if (!isRecord(value)) throw new TypeError("Worker billing class map is invalid.");
