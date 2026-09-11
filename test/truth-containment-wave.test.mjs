@@ -88,3 +88,16 @@ test("runtime provenance detects authoritative main advancing after startup", as
   assert.equal(provenance.authoritativeSourceCommit, advancedMain);
   assert.equal(provenance.state, "runtime-drift");
 });
+
+test("runtime provenance is unknown when authoritative main cannot be observed", async () => {
+  const sourceCommit = "a".repeat(40);
+  const provenance = await deriveRuntimeProvenance({
+    repositoryHeadReader: async () => sourceCommit,
+    expectedSourceCommit: sourceCommit,
+    authoritativeHeadReader: async () => { throw new Error("remote-unavailable"); },
+  });
+  assert.equal(provenance.sourceCommit, sourceCommit);
+  assert.equal(provenance.expectedSourceCommit, sourceCommit);
+  assert.equal(provenance.authoritativeSourceCommit, null);
+  assert.equal(provenance.state, "unknown");
+});

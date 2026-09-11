@@ -125,12 +125,13 @@ export async function deriveRuntimeProvenance({ repositoryHeadReader = readRepos
     sourceCommit = null;
   }
   const expectedCommit = expected ?? sourceCommit;
+  const hasAuthoritativeHeadReader = typeof authoritativeHeadReader === "function";
   let authoritativeSourceCommit = null;
-  if (typeof authoritativeHeadReader === "function") {
+  if (hasAuthoritativeHeadReader) {
     try { authoritativeSourceCommit = normalizeCommit(await authoritativeHeadReader(), "runtime-authoritative-source-commit-invalid"); }
     catch { authoritativeSourceCommit = null; }
   }
-  const authorityCommit = authoritativeSourceCommit ?? expectedCommit;
+  const authorityCommit = hasAuthoritativeHeadReader ? authoritativeSourceCommit : expectedCommit;
   return Object.freeze({
     sourceCommit,
     expectedSourceCommit: expectedCommit,
