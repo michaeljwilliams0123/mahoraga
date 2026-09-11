@@ -162,6 +162,8 @@ export const ESSENTIAL_FILES = [
   "scripts/install-secondary-codex-runner.ps1",
   "scripts/microsoft_queue_worker.py",
   "scripts/start-production.ps1",
+  "scripts/runtime-convergence.ps1",
+  "scripts/install-runtime-convergence.ps1",
   "relay/core.mjs",
   "relay/cloudflare-worker.mjs",
   "relay/wrangler.toml",
