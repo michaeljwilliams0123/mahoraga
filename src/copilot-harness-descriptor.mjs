@@ -18,7 +18,7 @@ const OUTPUT_KEYS = new Set([
   "modelClass", "modelStatus", "memoryEnabled", "evaluation", "monitoring", "authorityScopes", "dataClasses",
   "billingClass", "zeroCreditEligible", "observedAt",
 ]);
-const GUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i;
+const GUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
 const EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i;
 const URL = /https?:\/\/[^\s]+/i;
 const SENSITIVE = [
@@ -201,8 +201,8 @@ function exact(value, keys, code) {
 
 function tokenList(value, maximumItems, maximumLength, code) {
   if (!Array.isArray(value) || value.length > maximumItems || new Set(value).size !== value.length) fail(code);
+  assertSafe(value.filter((item) => typeof item === "string"));
   const result = value.map((item) => slug(item, maximumLength, code)).sort();
-  assertSafe(result);
   return deepFreeze(result);
 }
 
