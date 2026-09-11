@@ -28,6 +28,7 @@ import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
+import { ingestVerifiedStudioLearning } from "./copilot-studio-learning-adapter.mjs";
 
 export const DEFAULT_WORKSPACE_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 
@@ -207,7 +208,12 @@ export function createControlServer({
         const task = submitTask(database, manifest, { ...body, intent: body.intent ?? body.capability, correlationId }, { source: "primary-codex", internal: true });
         return json(response, 202, { receipt: database.recordReceipt({ task, phase: "accepted", verifier: "primary-codex-intake", summary: "Authenticated Primary Codex assignment accepted." }), task });
       }
-      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/objectives") {
+      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/studio-learning") {
+        if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
+        const body = await bodyJson(request);
+        const ingestion = ingestVerifiedStudioLearning({ database, sourceTaskId: body.sourceTaskId, record: body.record });
+        return json(response, ingestion.duplicate ? 200 : 201, { ingestion });
+      }      if (request.method === "POST" && url.pathname === "/api/intake/primary-codex/objectives") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
         const body = await bodyJson(request);
         const objective = database.createObjective({ title: body.title, correlationId: body.correlationId, maximumReplans: body.maximumReplans ?? 2, tasks: body.tasks });
