@@ -10,6 +10,25 @@ const CORE_GATEWAY_URL = "http://127.0.0.1:4782/api/cloud/runtime";
 const REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
 
 export type OwnerSession = { ownerId: string; sessionId: string; csrf: string; cookie?: string };
+export type CloudSessionCompatibility = {
+  state: "ready" | "degraded" | "incompatible";
+  code: "cloud-session-ready" | "cloud-runtime-degraded" | "cloud-runtime-contract-incompatible";
+  fallback: { kind: "encrypted-relay"; windowsRollbackVersion: "3.6.0"; windowsRollbackPairing: "unsupported" } | null;
+};
+
+export function cloudSessionCompatibility(runtime: unknown, healthy: boolean): CloudSessionCompatibility {
+  const contract = isObject(runtime) ? runtime.cloudRuntime : null;
+  if (!isObject(contract) || contract.schemaVersion !== 1 || !isObject(contract.session) || contract.session.protocolVersion !== 1 || contract.session.actionProtocolVersion !== 1
+    || contract.session.transport !== "same-origin-owner-session" || !isObject(contract.fallback) || contract.fallback.kind !== "encrypted-relay"
+    || contract.fallback.windowsRollbackVersion !== "3.6.0" || contract.fallback.windowsRollbackPairing !== "unsupported") {
+    return { state: "incompatible", code: "cloud-runtime-contract-incompatible", fallback: null };
+  }
+  return {
+    state: healthy ? "ready" : "degraded",
+    code: healthy ? "cloud-session-ready" : "cloud-runtime-degraded",
+    fallback: { kind: "encrypted-relay", windowsRollbackVersion: "3.6.0", windowsRollbackPairing: "unsupported" },
+  };
+}
 
 export function establishOwnerSession(request: Request): OwnerSession {
   const secret = requiredSecret();
@@ -83,3 +102,4 @@ function sign(secret: string, value: string) { return createHmac("sha256", secre
 function cookieValue(source: string | null, name: string) { return source?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1) ?? null; }
 function safeEqual(left: string, right: string) { const a = Buffer.from(left); const b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); }
 function gatewayError(code: string, status: number) { const error = new Error(code) as Error & { status: number }; error.status = status; return error; }
+function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }

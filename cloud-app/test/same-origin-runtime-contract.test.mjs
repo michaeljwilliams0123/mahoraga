@@ -20,5 +20,6 @@ test("gateway exposes bounded liveness and readiness without model invocation", 
   assert.match(live, /modelInvocations: 0/);
   assert.match(ready, /modelInvocations: 0/);
   assert.match(session, /establishOwnerSession/);
-  assert.match(session, /state: health\.ok \? "Idle" : "Degraded"/);
+  assert.match(session, /cloudSessionCompatibility/);
+  assert.match(session, /state: connection\.state === "ready" \? "Idle" : "Degraded"/);
 });
