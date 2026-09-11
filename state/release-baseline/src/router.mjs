@@ -3,6 +3,7 @@ import { resolveCapabilityAuthority } from "./owner-authority.mjs";
 import { planCapabilityRecovery } from "./capability-recovery.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
+import { isZeroMarginalCreditEligible } from "./microsoft-usage-cost.mjs";
 
 export const routeTask = createTaskRouter();
 
@@ -15,10 +16,15 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const providerDecision = zeroCreditDecision(task, context);
     if (providerDecision?.status === "waiting") return waitingWithRecovery(providerDecision.providerId, task, null, { providerDecision });
     const ranked = rankRoutes(manifest, task, context);
-    const candidates = ranked.candidates
+    const zeroMarginalRequired = context.providerPolicy === "zero-credit" || context.providerPolicy === "credit-free" || context.creditFreeRequired === true || task?.creditFreeRequired === true;
+    const preBillingCandidates = ranked.candidates
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
-      .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
+      .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || isZeroMarginalCreditEligible(candidate.billingClass) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
+    const candidates = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => isZeroMarginalCreditEligible(candidate.billingClass)) : preBillingCandidates;
+    if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
+      return waitingWithRecovery("billing-not-zero-credit", task, ranked, { billingDecision: Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false }) });
+    }
     const reason = ranked.reason ?? (ranked.candidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
     if (candidates.length === 0) return waitingWithRecovery(reason, task, ranked, creditFreeDecision ? { creditFreeDecision } : {});
     const selected = candidates[0];
@@ -27,17 +33,19 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       grant: manifest.ownerAuthority,
       requestedScope: task.authorityScope ?? null,
       requestedTarget: task.authorityTarget ?? null,
-      platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? [],
+      platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? selected.platformAuthorityScopes ?? [],
       capabilityScopes: capabilityAuthorityScopes,
     }) : null;
     if (authorityDecision && !authorityDecision.authorized) return waitingWithRecovery(authorityDecision.reason, task, ranked, { authorityDecision });
     if (authorityDecision?.confirmationRequired) return waitingWithRecovery("owner-confirmation-required", task, ranked, { authorityDecision });
+    const billingDecision = Object.freeze({ required: zeroMarginalRequired, effectiveClass: selected.billingClass, eligible: isZeroMarginalCreditEligible(selected.billingClass) });
     const route = {
       status: "routable",
       reason: null,
       worker: resolveWorker(manifest, selected),
       decision: selected,
       alternates: candidates.slice(1),
+      billingDecision,
       ...(authorityDecision ? { authorityDecision } : {}),
     };
     const withProvider = providerDecision ? { ...route, providerDecision } : route;
