@@ -38,7 +38,7 @@ export function CockpitView({
   const delegationRuntimeReady = health?.studio?.delegationRuntimeReady === true;
   const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
   const productName = health?.product ?? "Mahoraga";
-  const buildVersion = health?.build?.version ?? health?.version ?? "7.0.0-alpha.2";
+  const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -166,7 +166,7 @@ export function CockpitView({
         </div>
         <div>
           <strong>Adaptive review</strong>
-          <p>Direction -&gt; Compile -&gt; Delta -&gt; Verify -&gt; Learn - selective institutional memory</p>
+          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
         </div>
       </section>
 

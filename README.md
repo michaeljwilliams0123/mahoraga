@@ -33,6 +33,7 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Repository build metadata | Tracked in package/manifest provenance; not part of the public Mahoraga name |
 | Control plane | Node 24 ESM `.mjs` |
 | Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
+| Control Center truth | Public identity stays Mahoraga; build version is provenance-only; runtime DB display is basename-only; Studio management-plane and delegation-runtime readiness are shown separately and fail closed |
 | Operational state | SQLite WAL task/event state + encrypted local content vault |
 | Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
@@ -74,6 +75,7 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 
 - **Runtime-targeted CLI state:** PR [#333](https://github.com/michaeljwilliams0123/mahoraga/pull/333) makes `start`, `status`, and `submit` honor the same explicit runtime database target, preventing operator commands from silently inspecting a different SQLite state file.
 - **Adaptive review loop:** owner directions can now be compiled into bounded impact surfaces, relevant institutional lessons, freshness-aware evidence ladders, contradiction classes, and a deterministic stop condition before implementation expands scope.
+- **Control Center operator truth:** the canonical cloud workspace now keeps `Mahoraga` as the public identity while surfacing build provenance separately, exposes only the runtime database basename, and distinguishes Copilot Studio management-plane readiness from delegation-runtime readiness without widening `studio.delegate` authority.
 
 ## Owner experience
 

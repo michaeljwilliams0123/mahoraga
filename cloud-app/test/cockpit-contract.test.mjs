@@ -46,7 +46,7 @@ describe("singular control center contract", () => {
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /Build provenance/);
-    assert.match(cockpit, /7\.0\.0-alpha\.2/);
+    assert.match(cockpit, /buildVersion = health\?\.build\?\.version \?\? health\?\.version \?\? "unavailable"/);
     assert.match(types, /build\?: \{ version\?: string \}/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
