@@ -30,7 +30,7 @@ if (command === "validate") {
   process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 } else if (command === "status" || command === "submit") {
   const manifest = await loadManifest();
-  const databaseFile = path.join(ROOT, manifest.runtime.database);
+  const databaseFile = process.env.MAHORAGA_DATABASE_FILE ? path.resolve(process.env.MAHORAGA_DATABASE_FILE) : path.join(ROOT, manifest.runtime.database);
   const stateRoot = path.dirname(databaseFile);
   const contentVault = await createContentVault({ root: path.join(stateRoot, "content-vault"), keyFile: path.join(stateRoot, "content-vault.key.dpapi") });
   const database = new RuntimeDatabase(databaseFile, { contentVault });
