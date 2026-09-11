@@ -34,6 +34,9 @@ export function CockpitView({
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
   const runtimeDatabase = health?.runtime?.databaseTarget?.basename ?? "paired core required";
+  const managementPlaneReady = health?.studio?.managementPlaneReady === true;
+  const delegationRuntimeReady = health?.studio?.delegationRuntimeReady === true;
+  const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -136,8 +139,16 @@ export function CockpitView({
           <p>ingestion bridge available - paired-core readiness determines live ingestion</p>
         </div>
         <div>
+          <strong>managementPlaneReady</strong>
+          <p>{managementPlaneReady ? "management plane ready - Studio control surface reachable" : "management plane unavailable - Studio control surface not verified"}</p>
+        </div>
+        <div>
+          <strong>delegationRuntimeReady</strong>
+          <p>{delegationRuntimeReady ? "delegation runtime ready - runtime binding present" : "delegation unavailable - scopes stay empty without runtime binding"}</p>
+        </div>
+        <div>
           <strong>Studio admission</strong>
-          <p>verified + approved metadata only - source copilot-studio-mahoraga</p>
+          <p>{studioFullyReady ? "verified + approved metadata only - source copilot-studio-mahoraga" : "management-ready / delegation-unavailable - not fully available; no widened studio.delegate authority"}</p>
         </div>
         <div>
           <strong>Studio authority</strong>

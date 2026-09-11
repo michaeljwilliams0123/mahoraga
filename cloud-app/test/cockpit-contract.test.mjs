@@ -47,10 +47,17 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /ingestion bridge available/);
     assert.match(cockpit, /paired-core readiness determines live ingestion/);
     assert.doesNotMatch(cockpit, /runtime ingestion inactive/);
+    assert.match(cockpit, /managementPlaneReady/);
+    assert.match(cockpit, /delegationRuntimeReady/);
+    assert.match(cockpit, /management-ready \/ delegation-unavailable/);
+    assert.match(cockpit, /not fully available/);
+    assert.match(cockpit, /no widened studio\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /Direction -> Compile -> Delta -> Verify -> Learn/);
+    assert.match(cockpit, /Direction (->|->) Compile (->|->) Delta (->|->) Verify (->|->) Learn/);
     assert.match(cockpit, /selective institutional memory/i);
+    assert.doesNotMatch(cockpit, /live ingestion is active/);
+    assert.doesNotMatch(cockpit, /Studio is fully available/);
     assert.doesNotMatch(cockpit, /raw prompts|tenant IDs|credentials/);
   });
 
@@ -61,6 +68,8 @@ describe("singular control center contract", () => {
     assert.match(route, /path\.basename\(configured\)/);
     assert.match(route, /databaseTarget/);
     assert.match(types, /databaseTarget/);
+    assert.match(types, /managementPlaneReady/);
+    assert.match(types, /delegationRuntimeReady/);
     assert.match(cockpit, /Runtime DB target/);
     assert.doesNotMatch(cockpit, /connection string|password|secret/i);
   });

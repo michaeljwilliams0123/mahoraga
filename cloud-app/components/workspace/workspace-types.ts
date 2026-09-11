@@ -26,6 +26,7 @@ export type Health = {
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
+  studio?: { managementPlaneReady?: boolean; delegationRuntimeReady?: boolean };
 };
 
 export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: string }> = Object.freeze([
