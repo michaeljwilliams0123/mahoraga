@@ -22,7 +22,7 @@ export async function GET() {
     {
       ok: true,
       product: "Mahoraga",
-      version: "7.0.0-alpha.2",
+      build: { version: "7.0.0-alpha.2" },
       deployment: {
         provider: deploymentProvider(),
         environment: process.env.MAHORAGA_DEPLOYMENT_ENV ?? process.env.CONTEXT ?? process.env.VERCEL_ENV ?? "local",

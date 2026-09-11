@@ -81,7 +81,7 @@ export function normalizeManifestCompatibility(value, identity = null) {
   const next = structuredClone(value);
   if (identity) {
     next.product = identity.product;
-    next.version = identity.version;
+    next.version = identity.buildVersion;
   }
 
   if (next.versions !== undefined) {

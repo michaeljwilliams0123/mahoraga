@@ -778,8 +778,8 @@ export const ARSENAL: ArsenalCommand[] = [
   },
   {
     id: "deny-activate",
-    label: "Activate 7.0 on Windows",
-    command: "Activate Mahoraga 7.0.0-alpha.2 on the live Windows production runtime.",
+    label: "Activate candidate on Windows",
+    command: "Activate the current Mahoraga candidate build on the live Windows production runtime.",
     owner: "repair",
     plane: "denied",
     group: "Hard deny",

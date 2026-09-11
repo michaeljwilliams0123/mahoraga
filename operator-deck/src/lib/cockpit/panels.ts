@@ -43,7 +43,7 @@ export function buildCloudPanel(input?: {
       id: "cloud",
       title: "CLOUD",
       tone: ok === true ? "ok" : ok === false ? "warn" : "neutral",
-      summary: `Vercel cloud-app ${CANDIDATE_VERSION} — observational health only.`,
+      summary: "Mahoraga cloud workspace - observational health only.",
       lines: [
         { label: "host", value: CLOUD_APP_URL },
         { label: "authority", value: String(input?.authority ?? "paired-mahoraga-core") },

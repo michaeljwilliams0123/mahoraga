@@ -5,7 +5,7 @@
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner choose a provider for every step.
 
-> **Repository truth:** `main` is the canonical source. The repository currently declares `7.0.0-alpha.2`. This README describes source state and declared capability contracts; it does **not** assert which Mahoraga build is currently running on a Windows host. The last verified rollback predecessor remains `3.6.0`.
+> **Repository truth:** `main` is the canonical source. The public product identity is simply **Mahoraga**; semantic versions are build/provenance metadata. The repository currently declares build `7.0.0-alpha.2`. This README describes source state and declared capability contracts; it does **not** assert which Mahoraga build is currently running on a Windows host. The last verified rollback predecessor remains `3.6.0`.
 
 ## The current idea
 
@@ -29,7 +29,8 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 
 | Area | Current state |
 | --- | --- |
-| Repository candidate | `7.0.0-alpha.2` |
+| Product identity | `Mahoraga` (unversioned); semantic versions remain build/provenance metadata |
+| Repository candidate build | `7.0.0-alpha.2` |
 | Control plane | Node 24 ESM `.mjs` |
 | Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
 | Operational state | SQLite WAL task/event state + encrypted local content vault |
@@ -63,6 +64,7 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Cloud provenance truth boundary:** PR [#316](https://github.com/michaeljwilliams0123/mahoraga/pull/316) keeps the browser/cloud health projection non-authoritative: unpaired cloud health reports runtime provenance as `unknown` until the paired Mahoraga core supplies it.
 - **Stale-canary recovery:** PR [#318](https://github.com/michaeljwilliams0123/mahoraga/pull/318) executes the recovery planner's existing `refresh-readiness` action by sending `readiness.refresh` to the selected worker before retry, allowing long-running healthy providers to renew readiness evidence without a process restart.
 - **Authoritative runtime-drift detection:** PR [#322](https://github.com/michaeljwilliams0123/mahoraga/pull/322) refreshes authoritative `origin/main` provenance every 30 seconds and exposes `authoritativeSourceCommit`, so a long-running paired core can move from `current` to `runtime-drift` when canonical `main` advances after startup, without invoking a model.
+- **Runtime listener truth:** PR [#324](https://github.com/michaeljwilliams0123/mahoraga/pull/324) makes runtime health/status report the actual bound listener port, including explicit or ephemeral port overrides, instead of echoing the manifest default.
 
 ## Owner experience
 
@@ -108,7 +110,7 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
 - **GitHub Pages deployment:** [workflow](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml); when Pages is enabled and the exact `main` deployment succeeds, the configured workspace URL is `https://michaeljwilliams0123.github.io/mahoraga/`.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second deployable UI.
-- **Loopback control API:** `127.0.0.1:4782` when the local runtime is running; do not expose this listener directly to the public internet.
+- **Loopback control API:** defaults to `127.0.0.1:4782`; when startup overrides the port, runtime status reports the actual bound listener. Do not expose this listener directly to the public internet.
 - **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
 - **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues

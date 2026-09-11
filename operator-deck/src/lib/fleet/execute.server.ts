@@ -160,7 +160,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
       owner: classification.owner,
       supporting,
       state: "waiting",
-      summary: `Receipt only. This console cannot reach 127.0.0.1:4782. On the Windows host, from the Mahoraga checkout: ${cli}. Production remains 3.6.0 until the 7.0 gate passes.`,
+      summary: `Receipt only. This console cannot reach 127.0.0.1:4782. On the Windows host, from the Mahoraga checkout: ${cli}. Production remains pinned until the candidate gate passes.`,
       evidence: [
         { label: "CLI", value: cli },
         { label: "Control API", value: "127.0.0.1:4782 (unreachable from here)" },

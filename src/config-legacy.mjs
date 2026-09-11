@@ -40,10 +40,10 @@ export async function loadManifest(file = MANIFEST_PATH) {
 function applyProductIdentity(manifest, identity) {
   const next = structuredClone(manifest);
   next.product = identity.product;
-  next.version = identity.version;
+  next.version = identity.buildVersion;
   if (isRecord(next.versions)) {
     for (const key of ["runtime", "controlCenter", "api"]) {
-      if (Object.hasOwn(next.versions, key)) next.versions[key] = identity.version;
+      if (Object.hasOwn(next.versions, key)) next.versions[key] = identity.buildVersion;
     }
   }
   return Object.freeze(next);

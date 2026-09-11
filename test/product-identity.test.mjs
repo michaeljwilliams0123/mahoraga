@@ -13,7 +13,7 @@ async function json(relative) {
   return JSON.parse(await readFile(path.join(ROOT, relative), "utf8"));
 }
 
-test("root, effective manifest, and cloud app share one Mahoraga product version", async () => {
+test("Mahoraga identity is stable while build-version mirrors stay aligned", async () => {
   const [identity, rootPackage, manifest, cloudPackage, onDiskManifest, cloudLock] = await Promise.all([
     loadProductIdentity(),
     json("package.json"),
@@ -24,9 +24,9 @@ test("root, effective manifest, and cloud app share one Mahoraga product version
   ]);
 
   assert.deepEqual(identity, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     product: "Mahoraga",
-    version: TARGET_VERSION,
+    buildVersion: TARGET_VERSION,
   });
 
   const mirrors = {
@@ -44,11 +44,11 @@ test("root, effective manifest, and cloud app share one Mahoraga product version
   assert.deepEqual(assertProductIdentityMirrors(identity, mirrors), mirrors);
 });
 
-test("product identity validation fails closed when any visible surface diverges", async () => {
+test("build-version validation fails closed when any technical mirror diverges", async () => {
   const identity = await loadProductIdentity();
   assert.throws(() => assertProductIdentityMirrors(identity, {
-    rootPackage: identity.version,
-    manifest: identity.version,
+    rootPackage: identity.buildVersion,
+    manifest: identity.buildVersion,
     cloudPackage: "1.0.0",
-  }), /product-version-divergence/);
+  }), /product-build-version-divergence/);
 });
