@@ -54,7 +54,7 @@ RuntimeRelay frame plaintext.
 The browser does not auto-confirm owner-gated Operations actions. It does not
 select providers directly and does not fall through to a paid model.
 
-## Deployment identity
+## Deployment identity and runtime provenance
 
 `GET /api/health` exposes only non-secret deployment and boundary metadata. The
 same route is prerendered for the Pages export,
@@ -69,8 +69,14 @@ including:
 
 Portable `MAHORAGA_*` deployment variables are preferred; Vercel variables are
 compatibility fallback for the existing deployment. See `hosting.env.example`.
-Control Center renders the provider and deployed commit SHA so stale production
-can be identified directly from the UI.
+Control Center renders the provider and deployed commit SHA so stale browser
+deployments can be identified directly from the UI.
+
+Deployment identity is not runtime identity. Authoritative runtime provenance is
+derived by the paired Mahoraga core from its exact source commit and expected
+source commit. Until the core supplies that evidence, cloud health reports
+runtime provenance as `unknown` with `source: paired-core-required`; the cloud
+surface must not infer `current` merely from deployment environment variables.
 
 ## Verification
 
