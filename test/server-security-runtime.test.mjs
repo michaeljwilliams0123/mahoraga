@@ -27,7 +27,12 @@ test("runtime protects sensitive reads and mutations behind a prompt-free local 
   });
 
   const base = `http://127.0.0.1:${runtime.address.port}`;
-  assert.equal((await fetch(`${base}/api/status`)).status, 200);
+  const publicStatusResponse = await fetch(`${base}/api/status`);
+  assert.equal(publicStatusResponse.status, 200);
+  const publicStatus = await publicStatusResponse.json();
+  assert.equal(Object.hasOwn(publicStatus.queue ?? {}, "environmentName"), false);
+  assert.equal(Object.hasOwn(publicStatus.queue ?? {}, "environmentId"), false);
+  assert.equal(Object.hasOwn(publicStatus.queue ?? {}, "environmentUrl"), false);
   assert.equal((await fetch(`${base}/api/identity`)).status, 200);
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);
   assert.equal((await fetch(`${base}/api/conversations`)).status, 401);
