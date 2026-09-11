@@ -46,4 +46,3 @@ if (command === "validate") {
   console.error("Usage: node src/cli.mjs [start [--port 4783]|validate|status|submit <capability>]");
   process.exitCode = 2;
 }
-
