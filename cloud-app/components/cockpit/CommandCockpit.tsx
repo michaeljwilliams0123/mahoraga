@@ -118,7 +118,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 pressure-test</span>
+            <span className="cockpit-eyebrow">Mahoraga pressure-test</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
