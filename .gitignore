@@ -19,6 +19,7 @@ state/artifacts/
 state/execution-cells/
 state/content-vault/
 node_modules/
+.pages-static-staging/
 .env
 .env.*
 !.env.example
