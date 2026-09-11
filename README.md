@@ -37,6 +37,7 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
 | Repository execution | Bounded repository worker + exact-head verification contracts |
 | Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, not merely discoverable |
+| Runtime provenance | Paired core derives immutable source-commit provenance and can report `current`, `runtime-drift`, or `unknown`; same-version runtimes are distinguishable by exact SHA |
 | Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
 | GitHub ⇄ Copilot Studio learning | Verified/approved metadata admission and authenticated runtime ingestion bridge merged; live activation still requires exact-head promotion/observation |
 | Microsoft / Power Platform | UCF provider-family design and Copilot Harness Assist Fabric are merged; metered Copilot-credit routes remain excluded from zero-credit policy |
@@ -58,6 +59,8 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Verified Copilot Studio learning admission:** PR #303 added a bounded adapter that converts verified and approved Studio learning metadata into peer-learning events. The admission contract is merged. PR #312 adds the authenticated runtime ingestion bridge; deployed/live status still requires exact-head promotion and observation.
 - **Public status hardening:** the public `/api/status` projection exposes non-sensitive queue provider/state while keeping Dataverse environment name, GUID, and tenant CRM URL out of the unauthenticated response; authenticated status retains the full deployment view.
 - **Question-model readiness:** PR [#313](https://github.com/michaeljwilliams0123/mahoraga/pull/313) hardened `assistant.respond` readiness so the health probe performs a zero-credit `codex --version` callability check and fails closed when the executable cannot run.
+- **Immutable runtime provenance:** PR [#315](https://github.com/michaeljwilliams0123/mahoraga/pull/315) binds paired-core status to an exact source commit and expected source commit, making same-version/different-commit drift machine-distinguishable without a model call.
+- **Cloud provenance truth boundary:** PR [#316](https://github.com/michaeljwilliams0123/mahoraga/pull/316) keeps the browser/cloud health projection non-authoritative: unpaired cloud health reports runtime provenance as `unknown` until the paired Mahoraga core supplies it.
 
 ## Owner experience
 
@@ -111,7 +114,7 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 
 GitHub main is the code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or another host is live. The active browser path is cloud-first: GitHub Pages publishes the canonical static workspace from `cloud-app/`, while server-capable hosting remains a replaceable transport rather than a second product. Vercel is paused/historical and is not part of the active maintenance path; Netlify remains a fallback only. The former Pages URL from an earlier deployment must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds; the same exact-head rule applies to any replacement host.
 
-The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately.
+The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately. Deployment metadata can identify the browser build, but authoritative runtime provenance comes only from the paired core; an unpaired cloud surface must report runtime provenance as `unknown` rather than infer it from environment variables.
 
 ## Repository hygiene
 
