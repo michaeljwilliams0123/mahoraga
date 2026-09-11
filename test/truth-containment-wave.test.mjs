@@ -3,8 +3,7 @@ import assert from "node:assert/strict";
 import { loadManifest } from "../src/config.mjs";
 import { statusPayload } from "../src/server.mjs";
 
-test("status API never marks a capability routable without fresh verified canary evidence", async () => {
-  const manifest = await loadManifest();
+function statusFixtures(manifest) {
   const worker = manifest.workers.find((item) => item.enabled);
   const observedAt = new Date().toISOString();
   const stale = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -21,6 +20,12 @@ test("status API never marks a capability routable without fresh verified canary
   const database = {
     listTasks: () => [], listImprovements: () => [], listConversations: () => [], listObjectives: () => [], listRepairIncidents: () => [],
   };
+  return { worker, supervisor, database };
+}
+
+test("status API never marks a capability routable without fresh verified canary evidence", async () => {
+  const manifest = await loadManifest();
+  const { worker, supervisor, database } = statusFixtures(manifest);
   const status = statusPayload(manifest, database, supervisor);
   assert.equal(manifest.versions, undefined);
   assert.equal(status.version, "7.0.0-alpha.2");
@@ -37,4 +42,19 @@ test("status API never marks a capability routable without fresh verified canary
     assert.ok(Date.parse(status.generatedAt) - Date.parse(capability.lastVerifiedAt) <= status.evidencePolicy.deterministicReadCanaryTtlMs);
   }
   assert.equal(status.capabilities.filter((item) => item.workerId === worker.id).some((item) => item.routable), false);
+});
+
+test("status distinguishes same-version runtimes by immutable source commit and reports drift", async () => {
+  const manifest = await loadManifest();
+  const { supervisor, database } = statusFixtures(manifest);
+  const expectedSourceCommit = "a".repeat(40);
+  const staleSourceCommit = "b".repeat(40);
+  const current = statusPayload(manifest, database, supervisor, { sourceCommit: expectedSourceCommit, expectedSourceCommit, provenanceClass: "repository-head" });
+  const stale = statusPayload(manifest, database, supervisor, { sourceCommit: staleSourceCommit, expectedSourceCommit, provenanceClass: "repository-head" });
+  assert.equal(current.version, stale.version);
+  assert.equal(current.runtime.provenance.sourceCommit, expectedSourceCommit);
+  assert.equal(current.runtime.provenance.state, "current");
+  assert.equal(stale.runtime.provenance.sourceCommit, staleSourceCommit);
+  assert.equal(stale.runtime.provenance.expectedSourceCommit, expectedSourceCommit);
+  assert.equal(stale.runtime.provenance.state, "runtime-drift");
 });
