@@ -33,6 +33,9 @@ test("runtime protects sensitive reads and mutations behind a prompt-free local 
   assert.equal(publicStatus.queue.environmentName, undefined);
   assert.equal(publicStatus.queue.environmentId, undefined);
   assert.equal(publicStatus.queue.environmentUrl, undefined);
+  assert.equal(publicStatus.queue.solutionName, undefined);
+  assert.equal(publicStatus.queue.relayId, undefined);
+  assert.deepEqual(Object.keys(publicStatus.queue).sort(), ["exactlyOnce", "leaseMs", "maximumAttempts", "outboundOnly", "pollIntervalMs", "provider", "state"]);
   assert.equal(JSON.stringify(publicStatus).includes("crm.dynamics.com"), false);
   assert.equal((await fetch(`${base}/api/identity`)).status, 200);
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);

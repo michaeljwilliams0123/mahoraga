@@ -369,8 +369,19 @@ export function createControlServer({
 
 export function publicStatusPayload(manifest, database, supervisor) {
   const status = statusPayload(manifest, database, supervisor);
-  const { environmentName, environmentId, environmentUrl, ...queue } = status.queue ?? {};
-  return { ...status, queue };
+  const queue = status.queue ?? {};
+  return {
+    ...status,
+    queue: {
+      provider: queue.provider,
+      state: queue.state,
+      pollIntervalMs: queue.pollIntervalMs,
+      leaseMs: queue.leaseMs,
+      maximumAttempts: queue.maximumAttempts,
+      outboundOnly: queue.outboundOnly,
+      exactlyOnce: queue.exactlyOnce,
+    },
+  };
 }
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
