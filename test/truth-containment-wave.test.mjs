@@ -1,9 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { loadManifest } from "../src/config.mjs";
+import { deriveRuntimeProvenance } from "../src/runtime.mjs";
 import { statusPayload } from "../src/server.mjs";
 
-function statusFixtures(manifest) {
+function statusFixtures(manifest, provenance = null) {
   const worker = manifest.workers.find((item) => item.enabled);
   const observedAt = new Date().toISOString();
   const stale = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
@@ -15,7 +16,7 @@ function statusFixtures(manifest) {
         processObservedAt: observedAt, providerObservedAt: observedAt, canaryVerifiedAt: stale,
       })),
     }],
-    health: () => ({ supervisorRunning: true, startedAt: observedAt, healthy: true, unhealthyWorkers: [], repairScan: { lastVerifiedAt: observedAt, healthy: true, checked: 1, inProgress: false, activeIncidents: 0 } }),
+    health: () => ({ supervisorRunning: true, startedAt: observedAt, healthy: true, unhealthyWorkers: [], repairScan: { lastVerifiedAt: observedAt, healthy: true, checked: 1, inProgress: false, activeIncidents: 0 }, ...(provenance ? { provenance } : {}) }),
   };
   const database = {
     listTasks: () => [], listImprovements: () => [], listConversations: () => [], listObjectives: () => [], listRepairIncidents: () => [],
@@ -46,15 +47,29 @@ test("status API never marks a capability routable without fresh verified canary
 
 test("status distinguishes same-version runtimes by immutable source commit and reports drift", async () => {
   const manifest = await loadManifest();
-  const { supervisor, database } = statusFixtures(manifest);
   const expectedSourceCommit = "a".repeat(40);
   const staleSourceCommit = "b".repeat(40);
-  const current = statusPayload(manifest, database, supervisor, { sourceCommit: expectedSourceCommit, expectedSourceCommit, provenanceClass: "repository-head" });
-  const stale = statusPayload(manifest, database, supervisor, { sourceCommit: staleSourceCommit, expectedSourceCommit, provenanceClass: "repository-head" });
+  const currentProvenance = await deriveRuntimeProvenance({ repositoryHeadReader: async () => expectedSourceCommit, expectedSourceCommit });
+  const staleProvenance = await deriveRuntimeProvenance({ repositoryHeadReader: async () => staleSourceCommit, expectedSourceCommit });
+  const currentFixtures = statusFixtures(manifest, currentProvenance);
+  const staleFixtures = statusFixtures(manifest, staleProvenance);
+  const current = statusPayload(manifest, currentFixtures.database, currentFixtures.supervisor);
+  const stale = statusPayload(manifest, staleFixtures.database, staleFixtures.supervisor);
   assert.equal(current.version, stale.version);
   assert.equal(current.runtime.provenance.sourceCommit, expectedSourceCommit);
   assert.equal(current.runtime.provenance.state, "current");
   assert.equal(stale.runtime.provenance.sourceCommit, staleSourceCommit);
   assert.equal(stale.runtime.provenance.expectedSourceCommit, expectedSourceCommit);
+  assert.equal(stale.runtime.provenance.provenanceClass, "repository-head");
   assert.equal(stale.runtime.provenance.state, "runtime-drift");
+  assert.equal(Object.isFrozen(stale.runtime.provenance), true);
+});
+
+test("runtime provenance fails closed for invalid expected identity and unknown source", async () => {
+  await assert.rejects(
+    deriveRuntimeProvenance({ repositoryHeadReader: async () => "a".repeat(40), expectedSourceCommit: "main" }),
+    /runtime-expected-source-commit-invalid/,
+  );
+  const unknown = await deriveRuntimeProvenance({ repositoryHeadReader: async () => { throw new Error("git-unavailable"); } });
+  assert.deepEqual(unknown, { sourceCommit: null, expectedSourceCommit: null, provenanceClass: "unknown", state: "unknown" });
 });
