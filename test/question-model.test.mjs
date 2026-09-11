@@ -5,6 +5,7 @@ import {
   buildQuestionPrompt,
   executeQuestionModel,
   parseCodexQuestionEvents,
+  probeQuestionModel,
 } from "../src/question-model.mjs";
 import { createCapabilityReceipt } from "../src/receipt-registry.mjs";
 import { readFile } from "node:fs/promises";
@@ -92,4 +93,15 @@ test("question model uses the installed Codex 0.145 approval configuration", asy
   const source = await readFile(new URL("../src/question-model.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /--ask-for-approval/);
   assert.match(source, /approval_policy=\\"never\\"/);
+});
+
+
+test("question-model health fails closed when the Codex executable is not callable", async () => {
+  const result = await probeQuestionModel({
+    findCli: async () => "C:\\trusted\\codex.exe",
+    runVersion: async () => ({ exitCode: 1, stderr: "Access is denied" }),
+  });
+  assert.equal(result.verified, false);
+  assert.equal(result.providerHealth.availability, "unavailable");
+  assert.equal(result.providerHealth.invocation, "not-callable");
 });
