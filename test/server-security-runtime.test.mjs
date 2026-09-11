@@ -37,6 +37,7 @@ test("runtime protects sensitive reads and mutations behind a prompt-free local 
   assert.equal(publicStatus.queue.relayId, undefined);
   assert.deepEqual(Object.keys(publicStatus.queue).sort(), ["exactlyOnce", "leaseMs", "maximumAttempts", "outboundOnly", "pollIntervalMs", "provider", "state"]);
   assert.equal(JSON.stringify(publicStatus).includes("crm.dynamics.com"), false);
+  assert.equal(publicStatus.workers.some((worker) => worker.pid !== undefined), false);
   assert.equal((await fetch(`${base}/api/identity`)).status, 200);
   assert.equal((await fetch(`${base}/api/tasks`)).status, 401);
   assert.equal((await fetch(`${base}/api/conversations`)).status, 401);
