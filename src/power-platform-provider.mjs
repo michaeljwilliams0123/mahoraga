@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { createCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 
 const execFileAsync = promisify(execFile);
 const LOGICAL_AGENTS = Object.freeze([
@@ -9,17 +10,24 @@ const LOGICAL_AGENTS = Object.freeze([
 ]);
 const PAC_OPTIONS = Object.freeze({ windowsHide: true, timeout: 20000, maxBuffer: 128 * 1024 });
 
-export async function discoverPowerPlatformAgents({ runPac = execFileAsync } = {}) {
+export async function discoverPowerPlatformAgents({ runPac = execFileAsync, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
+  if (!isRecord(harnessMetadataByAlias)) throw new TypeError("power-platform-harness-metadata-invalid");
   const { stdout } = await runPac("pac.cmd", ["copilot", "list"], PAC_OPTIONS);
   const text = String(stdout ?? "");
+  const observedAt = now();
   return Object.freeze(LOGICAL_AGENTS.flatMap(({ displayName, alias }) => {
     const line = text.split(/\r?\n/).find((item) => item.trimStart().startsWith(displayName));
     if (!line) return [];
+    const published = /\bPublished\b/i.test(line);
+    const active = /\bActive\b/i.test(line);
+    const provisioned = /\bProvisioned\b/i.test(line);
+    const metadata = Object.hasOwn(harnessMetadataByAlias, alias) ? harnessMetadataByAlias[alias] : null;
     return [Object.freeze({
       alias,
-      published: /\bPublished\b/i.test(line),
-      active: /\bActive\b/i.test(line),
-      provisioned: /\bProvisioned\b/i.test(line),
+      published,
+      active,
+      provisioned,
+      harnessDescriptor: descriptorForAgent({ alias, published, active, provisioned, metadata, observedAt }),
     })];
   }));
 }
@@ -56,6 +64,33 @@ export async function probePowerPlatformProvider({ runPac = execFileAsync, platf
   }
 }
 
+function descriptorForAgent({ alias, published, active, provisioned, metadata, observedAt }) {
+  if (metadata !== null && !isRecord(metadata)) throw new TypeError("power-platform-harness-metadata-invalid");
+  const safeMetadata = metadata ?? {
+    harnessType: "unknown",
+    capabilityClasses: [],
+    instructionsSummary: "Authorized harness metadata unavailable.",
+    knowledgeCategories: [],
+    toolKinds: [],
+    skillNames: [],
+    connectedAgentAliases: [],
+    modelClass: "unknown",
+    modelStatus: "unknown",
+    memoryEnabled: false,
+    evaluation: { state: "unknown", score: 0, observedAt },
+    monitoring: { successRate: 0, latencyMs: 0, observedAt },
+    authorityScopes: [],
+    dataClasses: [],
+    observedAt,
+  };
+  return createCopilotHarnessDescriptor({
+    alias,
+    published,
+    connectable: active && provisioned,
+    ...safeMetadata,
+  });
+}
+
 function unavailable(platformSupported) {
   return Object.freeze({
     verified: false,
@@ -72,4 +107,8 @@ function unavailable(platformSupported) {
       usageBillingClass: "deterministic-zero",
     }),
   });
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
