@@ -1,7 +1,5 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { PublicClientApplication as MsalPublicClientApplication } from "@azure/msal-node";
-import { ConnectionSettings, CopilotStudioClient } from "@microsoft/agents-copilotstudio-client";
 
 const execFileAsync = promisify(execFile);
 
@@ -12,7 +10,7 @@ export function loadCopilotStudioRuntimeSettings(env = process.env) {
   const tenantId = value(env.MAHORAGA_COPILOT_TENANT_ID);
   const appClientId = value(env.MAHORAGA_COPILOT_APP_CLIENT_ID);
   if (!tenantId || !appClientId || (!directConnectUrl && !(environmentId && schemaName))) throw safeError("copilot-studio-runtime-binding-missing");
-  const connectionSettings = new ConnectionSettings({
+  const connectionSettings = Object.freeze({
     directConnectUrl: directConnectUrl || undefined,
     environmentId: environmentId || undefined,
     schemaName: schemaName || undefined,
@@ -26,21 +24,14 @@ export function loadCopilotStudioRuntimeSettings(env = process.env) {
 
 export function createCopilotTokenProvider(settings, dependencies = {}) {
   if (!settings?.connectionSettings || !settings?.tenantId || !settings?.appClientId) throw new TypeError("copilot-studio-auth-settings-invalid");
-  const PublicClientApplication = dependencies.PublicClientApplication ?? MsalPublicClientApplication;
-  const scopeFromSettings = dependencies.scopeFromSettings ?? ((connectionSettings) => CopilotStudioClient.scopeFromSettings(connectionSettings));
   const openBrowser = dependencies.openBrowser ?? defaultOpenBrowser;
-  const scopes = Object.freeze([scopeFromSettings(settings.connectionSettings)]);
-  const client = new PublicClientApplication({
-    auth: {
-      clientId: settings.appClientId,
-      authority: `https://login.microsoftonline.com/${settings.tenantId}`,
-    },
-    system: { loggerOptions: { piiLoggingEnabled: false } },
-  });
+  let runtimePromise = null;
 
   return Object.freeze({
     async getToken({ allowInteractive = false } = {}) {
       try {
+        runtimePromise ??= loadAuthRuntime(settings, dependencies);
+        const { client, scopes } = await runtimePromise;
         const accounts = await client.getAllAccounts();
         if (Array.isArray(accounts) && accounts.length > 0) {
           try {
@@ -62,6 +53,32 @@ export function createCopilotTokenProvider(settings, dependencies = {}) {
       }
     },
   });
+}
+
+async function loadAuthRuntime(settings, dependencies) {
+  let PublicClientApplication = dependencies.PublicClientApplication;
+  let scopeFromSettings = dependencies.scopeFromSettings;
+  let connectionSettings = settings.connectionSettings;
+
+  if (!PublicClientApplication) {
+    const msal = await import("@azure/msal-node");
+    PublicClientApplication = msal.PublicClientApplication;
+  }
+  if (!scopeFromSettings) {
+    const studio = await import("@microsoft/agents-copilotstudio-client");
+    const ConnectionSettings = studio.ConnectionSettings;
+    connectionSettings = new ConnectionSettings(settings.connectionSettings);
+    scopeFromSettings = (candidate) => studio.CopilotStudioClient.scopeFromSettings(candidate);
+  }
+  const scopes = Object.freeze([scopeFromSettings(connectionSettings)]);
+  const client = new PublicClientApplication({
+    auth: {
+      clientId: settings.appClientId,
+      authority: `https://login.microsoftonline.com/${settings.tenantId}`,
+    },
+    system: { loggerOptions: { piiLoggingEnabled: false } },
+  });
+  return Object.freeze({ client, scopes });
 }
 
 async function defaultOpenBrowser(url) {
