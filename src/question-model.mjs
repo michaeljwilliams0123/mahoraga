@@ -1,4 +1,5 @@
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import path from "node:path";
 import { findInstalledCodexCli } from "./codex-builder-worker.mjs";
 import { ROOT } from "./config.mjs";
@@ -7,6 +8,7 @@ const MAX_PROMPT_BYTES = 16 * 1024;
 const MAX_EVENT_BYTES = 512 * 1024;
 const MAX_ANSWER_CHARS = 4000;
 const TIMEOUT_MS = 120_000;
+const execFileAsync = promisify(execFile);
 
 export function buildQuestionPrompt({ requestedOutcome, messages = [] } = {}) {
   const question = boundedText(requestedOutcome, 12_000, "question-model-request-invalid");
@@ -67,13 +69,35 @@ export async function executeQuestionModel({ task, run = runCodexQuestion } = {}
   };
 }
 
-export async function probeQuestionModel({ findCli = findInstalledCodexCli } = {}) {
-  const executable = await findCli();
-  return {
-    verified: true,
-    summary: "The transient read-only question model is available.",
-    providerHealth: { availability: "healthy", provider: "primary-codex-question", executable: path.basename(executable) },
-  };
+export async function probeQuestionModel({ findCli = findInstalledCodexCli, runVersion = runCodexVersionProbe } = {}) {
+  let executable;
+  try {
+    executable = await findCli();
+    const probe = await runVersion({ executable });
+    if (probe?.exitCode !== 0) {
+      return {
+        verified: false,
+        summary: "The transient question model Codex executable is not callable.",
+        providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", executable: path.basename(executable) },
+      };
+    }
+    return {
+      verified: true,
+      summary: "The transient read-only question model is available.",
+      providerHealth: { availability: "healthy", provider: "primary-codex-question", invocation: "non-interactive-cli", executable: path.basename(executable) },
+    };
+  } catch {
+    return {
+      verified: false,
+      summary: "The transient question model Codex executable is unavailable.",
+      providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", executable: executable ? path.basename(executable) : null },
+    };
+  }
+}
+
+async function runCodexVersionProbe({ executable }) {
+  const result = await execFileAsync(executable, ["--version"], { cwd: ROOT, windowsHide: true, timeout: 15_000, maxBuffer: 32 * 1024, env: questionEnvironment() });
+  return { exitCode: 0, stdout: result.stdout, stderr: result.stderr };
 }
 
 export async function runCodexQuestion({ prompt }) {
