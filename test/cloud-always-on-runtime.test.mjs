@@ -29,6 +29,9 @@ test("cloud runtime keeps core loopback-only and secrets in server environment",
   assert.doesNotMatch(gateway, /process\.env\.MAHORAGA_STATE_DIR/);
   assert.match(gateway, /MAHORAGA_CLOUD_SESSION_SECRET/);
   assert.match(gateway, /MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET/);
+  assert.match(gateway, /export const CLOUD_OWNER_HEADER = "x-mahoraga-owner" as const/);
+  assert.match(gateway, /request\.headers\.get\(CLOUD_OWNER_HEADER\)/);
+  assert.doesNotMatch(gateway, /MAHORAGA_CLOUD_OWNER_HEADER/);
   assert.match(gateway, /x-mahoraga-owner-signature/);
   assert.match(gateway, /timingSafeEqual/);
   assert.match(gateway, /request_nonces/);
