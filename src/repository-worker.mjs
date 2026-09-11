@@ -14,6 +14,13 @@ export async function readRepositoryHead() {
   return head;
 }
 
+export async function readRepositoryRemoteMainHead() {
+  const result = await run(GIT, ["-C", ROOT, "ls-remote", "--heads", "origin", "refs/heads/main"], 30000);
+  const head = result.stdout.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+  if (!/^[a-f0-9]{40}$/.test(head)) throw new Error("repository-remote-main-head-invalid");
+  return head;
+}
+
 export async function executeRepositoryCapability(capability, task = {}) {
   if (capability === "repository.inspect") {
     const packageJson = JSON.parse(await readFile(path.join(ROOT, "package.json"), "utf8"));
