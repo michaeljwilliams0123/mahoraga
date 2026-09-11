@@ -36,8 +36,8 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
 | Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
 | Repository execution | Bounded repository worker + exact-head verification contracts |
-| Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, not merely discoverable |
-| Runtime provenance | Paired core derives immutable source-commit provenance and can report `current`, `runtime-drift`, or `unknown`; same-version runtimes are distinguishable by exact SHA |
+| Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, and stale provider-derived canaries can be refreshed in place through bounded `readiness.refresh` recovery before retry |
+| Runtime provenance | Paired core derives immutable source-commit provenance, refreshes authoritative `origin/main` identity every 30 seconds, and reports `current`, `runtime-drift`, or `unknown`; same-version runtimes and post-start repository advancement are machine-distinguishable by exact SHA |
 | Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
 | GitHub ⇄ Copilot Studio learning | Verified/approved metadata admission and authenticated runtime ingestion bridge merged; live activation still requires exact-head promotion/observation |
 | Microsoft / Power Platform | UCF provider-family design and Copilot Harness Assist Fabric are merged; metered Copilot-credit routes remain excluded from zero-credit policy |
@@ -61,6 +61,8 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Question-model readiness:** PR [#313](https://github.com/michaeljwilliams0123/mahoraga/pull/313) hardened `assistant.respond` readiness so the health probe performs a zero-credit `codex --version` callability check and fails closed when the executable cannot run.
 - **Immutable runtime provenance:** PR [#315](https://github.com/michaeljwilliams0123/mahoraga/pull/315) binds paired-core status to an exact source commit and expected source commit, making same-version/different-commit drift machine-distinguishable without a model call.
 - **Cloud provenance truth boundary:** PR [#316](https://github.com/michaeljwilliams0123/mahoraga/pull/316) keeps the browser/cloud health projection non-authoritative: unpaired cloud health reports runtime provenance as `unknown` until the paired Mahoraga core supplies it.
+- **Stale-canary recovery:** PR [#318](https://github.com/michaeljwilliams0123/mahoraga/pull/318) executes the recovery planner's existing `refresh-readiness` action by sending `readiness.refresh` to the selected worker before retry, allowing long-running healthy providers to renew readiness evidence without a process restart.
+- **Authoritative runtime-drift detection:** PR [#322](https://github.com/michaeljwilliams0123/mahoraga/pull/322) refreshes authoritative `origin/main` provenance every 30 seconds and exposes `authoritativeSourceCommit`, so a long-running paired core can move from `current` to `runtime-drift` when canonical `main` advances after startup, without invoking a model.
 
 ## Owner experience
 
