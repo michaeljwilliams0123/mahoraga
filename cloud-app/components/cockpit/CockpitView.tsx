@@ -80,6 +80,14 @@ export function CockpitView({
           </span>
         </div>
         <div>
+          <strong>Copilot Studio learning</strong>
+          <span>verified + approved metadata only · source copilot-studio-mahoraga</span>
+        </div>
+        <div>
+          <strong>Studio authority</strong>
+          <span>non-authoritative evidence plane · Mahoraga remains canonical</span>
+        </div>
+        <div>
           <strong>Cloud boundary</strong>
           <span>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</span>
         </div>
