@@ -58,6 +58,7 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(requiredCapabilities.length, 2);
   assert.ok(requiredCapabilities.every((item) => item.provider === "ready" && item.canary !== "never"));
   assert.equal(status.controlCenterApi.protocolVersion, 1);
+  assert.equal(status.runtime.port, runtime.address.port, "status must report the actual bound listener port");
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
   assert.equal(status.controlCenterApi.staticAssetsSnapshotted, false);

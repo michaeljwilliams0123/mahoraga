@@ -34,7 +34,8 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     contentVaultKeyFile: paths.contentVaultKeyFile, syncCoordinationMailbox,
   });
   const baseSupervisorHealth = supervisor.health.bind(supervisor);
-  supervisor.health = (now = Date.now()) => Object.freeze({ ...baseSupervisorHealth(now), provenance: runtimeProvenance });
+  let boundPort = resolvedPort;
+  supervisor.health = (now = Date.now()) => Object.freeze({ ...baseSupervisorHealth(now), provenance: runtimeProvenance, port: boundPort });
   let provenanceRefreshInFlight = false;
   const provenanceRefreshTimer = setInterval(async () => {
     if (provenanceRefreshInFlight) return;
@@ -64,6 +65,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     server.listen(resolvedPort, manifest.runtime.host, resolve);
   });
   const address = server.address();
+  if (address && typeof address === "object") boundPort = address.port;
 
   let relayRuntime = null;
   if (relay) {
