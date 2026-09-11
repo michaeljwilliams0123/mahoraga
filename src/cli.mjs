@@ -1,4 +1,4 @@
-import path from "node:path";
+﻿import path from "node:path";
 import { loadManifest, ROOT } from "./config.mjs";
 import { RuntimeDatabase } from "./database.mjs";
 import { startRuntime } from "./runtime.mjs";
@@ -11,7 +11,7 @@ const { command, argument, port } = parseCliArguments(process.argv.slice(2), pro
 
 if (command === "validate") {
   const manifest = await loadManifest();
-  console.log(`Manifest valid: ${manifest.product} ${manifest.version} (${manifest.phase})`);
+  console.log(`Manifest valid: ${manifest.product}; build ${manifest.version}; phase ${manifest.phase}`);
 } else if (command === "start") {
   const localAccessToken = process.env.MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN ?? null;
   if (localAccessToken !== null && !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) throw new TypeError("relay-runtime-access-token-invalid");
@@ -46,3 +46,4 @@ if (command === "validate") {
   console.error("Usage: node src/cli.mjs [start [--port 4783]|validate|status|submit <capability>]");
   process.exitCode = 2;
 }
+

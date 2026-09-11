@@ -41,7 +41,7 @@ export async function validateProductIdentitySurfaces() {
 async function main() {
   if (process.argv.length !== 3 || process.argv[2] !== "validate") throw new TypeError("Usage: node scripts/product-identity.mjs validate");
   const result = await validateProductIdentitySurfaces();
-  console.log(`Product identity valid: ${result.identity.product} ${result.identity.version}`);
+  console.log(`Product identity valid: ${result.identity.product}`);
 }
 
 const invoked = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
