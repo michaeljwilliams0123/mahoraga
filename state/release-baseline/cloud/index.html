@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Mahoraga Cloud Workspace — a fast conversation-first control surface.">
   <meta name="referrer" content="no-referrer">
-  <meta name="mahoraga-ui-version" content="7.0.0-alpha.1">
+  <meta name="mahoraga-ui-version" content="7.0.0-alpha.2">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.github.com https://relay.mahoraga.app wss://relay.mahoraga.app; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Mahoraga Cloud Workspace</title>
   <link rel="manifest" href="./site.webmanifest">
@@ -18,7 +18,7 @@
     <aside class="sidebar" aria-label="Mahoraga navigation">
       <a class="brand" href="#workspace" aria-label="Mahoraga Cloud Workspace">
         <img src="./mark.svg" alt="" width="32" height="32">
-        <span><strong>Mahoraga</strong><small>Cloud workspace</small></span>
+        <span><strong>Mahoraga</strong><small>Cloud workspace · 7.0.0-alpha.2</small></span>
       </a>
 
       <button class="new-task" type="button" data-view-target="workspace"><span>＋</span> New chat</button>
@@ -56,7 +56,7 @@
             <div>
               <p class="eyebrow">Conversation workspace</p>
               <h1>What should Mahoraga work on?</h1>
-              <p>Say it naturally. Mahoraga classifies the work, selects the execution path, and keeps verification visible.</p>
+              <p>Say it naturally. Mahoraga classifies the work, selects the execution path, and keeps verification visible. Runtime sourceCommit is frozen at process start; runtime-drift is reported when main advances.</p>
             </div>
           </div>
 
@@ -65,7 +65,7 @@
               <img src="./mark.svg" alt="" width="28" height="28">
               <div>
                 <strong>Mahoraga</strong>
-                <p>I’m ready for a direct request. No skill, lane, or return fields.</p>
+                <p>I’m ready for a direct request. No skill, lane, or return fields. Provenance is immutable for the loaded process.</p>
                 <span class="message-state staged">Offline preview until a transport is ready</span>
               </div>
             </article>
@@ -100,7 +100,7 @@
       </section>
 
       <section class="view page" data-view="activity">
-        <div class="page-head"><div><p class="eyebrow">Cloud coordination</p><h1>Activity</h1><p>Repository tasks, pull requests, and deterministic workflow runs.</p></div><button id="refresh" type="button">Refresh</button></div>
+        <div class="page-head"><div><p class="eyebrow">Cloud coordination</p><h1>Activity</h1><p>Repository tasks, pull requests, and deterministic workflow runs. Main revision and runtime-drift are distinct.</p></div><button id="refresh" type="button">Refresh</button></div>
         <div class="metric-grid">
           <article><span>Open tasks</span><strong id="metric-tasks">—</strong><small>Repository issue queue</small></article>
           <article><span>Open pull requests</span><strong id="metric-prs">—</strong><small>Verified return candidates</small></article>
@@ -154,7 +154,7 @@
       </section>
 
       <section class="view page" data-view="connections">
-        <div class="page-head"><div><p class="eyebrow">Transport and authority</p><h1>Connections</h1><p>Repository telemetry is live. The authenticated Mahoraga execution bridge is staged separately.</p></div></div>
+        <div class="page-head"><div><p class="eyebrow">Transport and authority</p><h1>Connections</h1><p>Repository telemetry is live. The authenticated Mahoraga execution bridge is staged separately. sourceCommit is frozen at startup.</p></div></div>
         <div class="connection-grid">
           <article><div class="connection-icon ready">GH</div><div><h2>GitHub repository</h2><p>Cloud coordination, issues, pull requests, and Actions.</p><small id="github-visibility">Checking repository visibility…</small></div><span class="status ready">Active</span></article>
           <article><div class="connection-icon ready">CX</div><div><h2>Codex GitHub App</h2><p>Subscription-backed tasks and reviews remain controlled by your Codex account.</p><small>No API key is stored in Mahoraga.</small></div><a href="https://github.com/settings/installations">Manage ↗</a></article>
@@ -172,7 +172,7 @@
           <article><span>03</span><h2>Explicit credit use</h2><p>Deterministic Actions run without a model. Codex work begins only after an owner-approved trigger.</p></article>
           <article><span>04</span><h2>Repository-only context</h2><p>Do not upload private chats, credentials, personal documents, or unrelated files—especially while the repository is public.</p></article>
           <article><span>05</span><h2>Outbound-only relay</h2><p>The local runtime stays on 127.0.0.1. The staged bridge will authenticate allowlisted tool calls without creating a public runtime listener.</p></article>
-          <article><span>06</span><h2>Verified integration</h2><p>Path boundaries, tests, immutable Action references, and pull-request evidence protect both-direction merges.</p></article>
+          <article><span>06</span><h2>Verified integration</h2><p>Path boundaries, tests, immutable Action references, and pull-request evidence protect both-direction merges. Loaded sourceCommit is frozen; runtime-drift is explicit.</p></article>
         </div>
       </section>
     </main>
@@ -181,6 +181,6 @@
 
 
   <div id="toast" role="status" aria-live="polite"></div>
-  <script src="./app.js?v=7.0.1" defer></script>
+  <script src="./app.js?v=7.0.0-alpha.2" defer></script>
 </body>
 </html>
