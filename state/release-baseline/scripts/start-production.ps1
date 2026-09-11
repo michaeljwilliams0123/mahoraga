@@ -13,6 +13,11 @@ $healthUrl = 'http://127.0.0.1:4782/api/status'
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $root 'mahoraga.manifest.json') | ConvertFrom-Json
 $expectedVersion = [string]$manifest.version
 $expectedControlCenterVersion = [string]$manifest.versions.controlCenter
+$expectedSourceCommit = (& git -C $root rev-parse HEAD 2>$null).Trim()
+if ($LASTEXITCODE -ne 0 -or $expectedSourceCommit -notmatch '^[0-9a-fA-F]{40}$') {
+    throw 'Unable to resolve immutable Mahoraga source commit.'
+}
+$expectedSourceCommit = $expectedSourceCommit.ToLowerInvariant()
 
 if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
     throw 'The pinned Node.js runtime is unavailable.'
@@ -25,8 +30,9 @@ try {
     $existing = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
 } catch {}
 if ($existing -and $existing.product -eq 'Mahoraga') {
-    if ([string]$existing.version -eq $expectedVersion -and [string]$existing.versions.controlCenter -eq $expectedControlCenterVersion) {
-        Write-Output "Mahoraga $($existing.version) is already running at http://127.0.0.1:4782"
+    $existingSourceCommit = [string]$existing.runtime.provenance.sourceCommit
+    if ([string]$existing.version -eq $expectedVersion -and [string]$existing.versions.controlCenter -eq $expectedControlCenterVersion -and $existingSourceCommit -eq $expectedSourceCommit) {
+        Write-Output "Mahoraga $($existing.version) @ $existingSourceCommit is already running at http://127.0.0.1:4782"
         exit 0
     }
     Write-Output "Replacing Mahoraga $($existing.version) / UI protocol $($existing.versions.controlCenter) with verified runtime $expectedVersion / UI protocol $expectedControlCenterVersion."
@@ -51,8 +57,9 @@ for ($attempt = 0; $attempt -lt 30; $attempt++) {
     }
     try {
         $status = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
-        if ($status.product -eq 'Mahoraga' -and [string]$status.version -eq $expectedVersion -and [string]$status.versions.controlCenter -eq $expectedControlCenterVersion) {
-            Write-Output "Mahoraga $($status.version) production is ready at http://127.0.0.1:4782"
+        $statusSourceCommit = [string]$status.runtime.provenance.sourceCommit
+        if ($status.product -eq 'Mahoraga' -and [string]$status.version -eq $expectedVersion -and [string]$status.versions.controlCenter -eq $expectedControlCenterVersion -and $statusSourceCommit -eq $expectedSourceCommit) {
+            Write-Output "Mahoraga $($status.version) @ $statusSourceCommit production is ready at http://127.0.0.1:4782"
             exit 0
         }
     } catch {}
