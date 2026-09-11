@@ -9,7 +9,7 @@ import { createContentVault } from "./content-vault.mjs";
 import { createRelayRuntimePeer } from "./relay-runtime.mjs";
 import { createMcpHostManager } from "./mcp-host-manager.mjs";
 import { createObjectiveReleaseAuthority } from "./objective-release-authority.mjs";
-import { readRepositoryHead } from "./repository-worker.mjs";
+import { readRepositoryHead, readRepositoryRemoteMainHead } from "./repository-worker.mjs";
 import { resolveCandidateRuntimePaths } from "./state/candidate-runtime.mjs";
 import { openUccpStateStore } from "./state/schema.mjs";
 import { createAdminCognitivePlane } from "./state/core-plane.mjs";
@@ -17,9 +17,9 @@ import { ContainmentWatchdog, createUccpCanary } from "./state/watchdog.mjs";
 import { createEmergencyRollback } from "./state/rollback.mjs";
 import { createPgaTelemetryRegistry, installPgaTelemetryRoute } from "./relay/pga-status.mjs";
 
-export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot, relay = null, mcpTransports = {}, repositoryHeadReader = readRepositoryHead, expectedSourceCommit = process.env.MAHORAGA_EXPECTED_SOURCE_COMMIT ?? null } = {}) {
+export async function startRuntime({ port, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile, contentVaultMasterKey = null, primaryCodexToken: suppliedPrimaryCodexToken = null, syncCoordinationMailbox = true, webRoot, relay = null, mcpTransports = {}, repositoryHeadReader = readRepositoryHead, authoritativeHeadReader = readRepositoryRemoteMainHead, expectedSourceCommit = process.env.MAHORAGA_EXPECTED_SOURCE_COMMIT ?? null } = {}) {
   const manifest = await loadManifest();
-  const runtimeProvenance = await deriveRuntimeProvenance({ repositoryHeadReader, expectedSourceCommit });
+  let runtimeProvenance = await deriveRuntimeProvenance({ repositoryHeadReader, expectedSourceCommit, authoritativeHeadReader });
   const resolvedPort = port ?? manifest.runtime.port;
   const paths = resolveCandidateRuntimePaths({
     root: ROOT, manifest, port: resolvedPort, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile,
@@ -35,6 +35,14 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   });
   const baseSupervisorHealth = supervisor.health.bind(supervisor);
   supervisor.health = (now = Date.now()) => Object.freeze({ ...baseSupervisorHealth(now), provenance: runtimeProvenance });
+  let provenanceRefreshInFlight = false;
+  const provenanceRefreshTimer = setInterval(async () => {
+    if (provenanceRefreshInFlight) return;
+    provenanceRefreshInFlight = true;
+    try { runtimeProvenance = await deriveRuntimeProvenance({ repositoryHeadReader, expectedSourceCommit, authoritativeHeadReader }); }
+    finally { provenanceRefreshInFlight = false; }
+  }, 30000);
+  provenanceRefreshTimer.unref?.();
   const primaryCodexToken = suppliedPrimaryCodexToken ?? await loadPrimaryCodexToken();
   const controlSessions = createControlSessionManager({
     idleTtlMs: manifest.truthContracts.controlSession.idleTtlMs,
@@ -96,6 +104,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     relayRuntime?.close();
     uccp?.watchdog.stop();
     uccp?.plane.stop();
+    clearInterval(provenanceRefreshTimer);
     supervisor.stop();
     await new Promise((resolve) => server.close(resolve));
     database.close();
@@ -104,7 +113,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   return { manifest, database, artifactStore, contentVault, supervisor, server, controlSessions, mcpHost, relayRuntime, pgaTelemetryRegistry, runtimeProvenance, uccp, address, stop };
 }
 
-export async function deriveRuntimeProvenance({ repositoryHeadReader = readRepositoryHead, expectedSourceCommit = null } = {}) {
+export async function deriveRuntimeProvenance({ repositoryHeadReader = readRepositoryHead, expectedSourceCommit = null, authoritativeHeadReader = null } = {}) {
   if (typeof repositoryHeadReader !== "function") throw new TypeError("runtime-provenance-reader-required");
   const expected = expectedSourceCommit === null || expectedSourceCommit === undefined
     ? null
@@ -116,11 +125,19 @@ export async function deriveRuntimeProvenance({ repositoryHeadReader = readRepos
     sourceCommit = null;
   }
   const expectedCommit = expected ?? sourceCommit;
+  const hasAuthoritativeHeadReader = typeof authoritativeHeadReader === "function";
+  let authoritativeSourceCommit = null;
+  if (hasAuthoritativeHeadReader) {
+    try { authoritativeSourceCommit = normalizeCommit(await authoritativeHeadReader(), "runtime-authoritative-source-commit-invalid"); }
+    catch { authoritativeSourceCommit = null; }
+  }
+  const authorityCommit = hasAuthoritativeHeadReader ? authoritativeSourceCommit : expectedCommit;
   return Object.freeze({
     sourceCommit,
     expectedSourceCommit: expectedCommit,
+    authoritativeSourceCommit,
     provenanceClass: sourceCommit ? "repository-head" : "unknown",
-    state: sourceCommit && expectedCommit ? (sourceCommit === expectedCommit ? "current" : "runtime-drift") : "unknown",
+    state: sourceCommit && authorityCommit ? (sourceCommit === authorityCommit ? "current" : "runtime-drift") : "unknown",
   });
 }
 
