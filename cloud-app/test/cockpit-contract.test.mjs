@@ -40,4 +40,13 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /onOpenOperations/);
     assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
   });
+
+  it("surfaces the governed Copilot Studio learning plane without granting Studio authority", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /Copilot Studio learning/);
+    assert.match(cockpit, /copilot-studio-mahoraga/);
+    assert.match(cockpit, /verified \+ approved metadata only/);
+    assert.match(cockpit, /non-authoritative evidence plane/);
+    assert.doesNotMatch(cockpit, /raw prompts|tenant IDs|credentials/);
+  });
 });
