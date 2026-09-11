@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createCopilotHarnessDescriptor } from "../src/copilot-harness-descriptor.mjs";
 import { executePowerPlatformCapability } from "../src/power-platform-worker.mjs";
 import { executeCopilotStudioCapability } from "../src/copilot-studio-worker.mjs";
 
@@ -7,14 +8,33 @@ const worker = Object.freeze({ billingClassByCapability: Object.freeze({
   "studio.health": "deterministic-zero", "studio.delegate": "unknown",
 }) });
 
+function harnessDescriptor() {
+  return createCopilotHarnessDescriptor({
+    alias: "enterprise-core", harnessType: "github-copilot-harness", published: true, connectable: true,
+    capabilityClasses: ["analysis"], instructionsSummary: "Bounded enterprise reasoning specialist.",
+    knowledgeCategories: ["m365-enterprise"], toolKinds: ["mcp"], skillNames: ["document-analysis"], connectedAgentAliases: [],
+    modelClass: "reasoning-high", modelStatus: "production", memoryEnabled: true,
+    evaluation: { state: "passing", score: 0.9, observedAt: "2026-09-11T03:00:00.000Z" },
+    monitoring: { successRate: 0.98, latencyMs: 1200, observedAt: "2026-09-11T03:05:00.000Z" },
+    authorityScopes: ["connector.invoke", "copilot.invoke"], dataClasses: ["enterprise"], observedAt: "2026-09-11T03:10:00.000Z",
+  });
+}
+
 test("Power Platform worker health and discovery stay deterministic and sanitized", async () => {
   const probe = async () => ({ verified: true, summary: "ready", providerHealth: { logicalAliases: ["general-mahoraga"], usageBillingClass: "deterministic-zero" } });
-  const discover = async () => [{ alias: "general-mahoraga", published: true, active: true, provisioned: true }];
+  const descriptor = harnessDescriptor();
+  const discover = async () => [{ alias: "enterprise-core", published: true, active: true, provisioned: true, harnessDescriptor: descriptor }];
   const health = await executePowerPlatformCapability("powerplatform.health", {}, {}, { probePowerPlatformProvider: probe });
   const found = await executePowerPlatformCapability("powerplatform.discover", {}, {}, { discoverPowerPlatformAgents: discover });
   assert.equal(health.verified, true);
-  assert.deepEqual(found.providerHealth.logicalAliases, ["general-mahoraga"]);
+  assert.deepEqual(found.providerHealth.logicalAliases, ["enterprise-core"]);
   assert.equal(found.providerHealth.usageBillingClass, "deterministic-zero");
+  assert.deepEqual(found.harnessDescriptors, [descriptor]);
+  assert.deepEqual(found.harnessTopology.nodes, [{
+    alias: "enterprise-core", harnessType: "github-copilot-harness", published: true, connectable: true,
+    billingClass: "metered-copilot-credit", zeroCreditEligible: false,
+  }]);
+  assert.deepEqual(found.harnessTopology.edges, []);
 });
 
 test("Studio health proves provider binding without invoking a model", async () => {

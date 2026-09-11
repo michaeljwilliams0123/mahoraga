@@ -6,6 +6,7 @@ const RECOVERABLE_ROUTE_REASONS = new Set([
 ]);
 const FOLLOW_UP = /\b(?:above|that|those|previous|prior|earlier|same|continue|now compare|summarize it|summarize the above)\b/i;
 const MICROSOFT = /\b(?:microsoft\s*365|m365|outlook|sharepoint|one\s*drive|onedrive|teams|excel|word|powerpoint|copilot)\b/i;
+const COPILOT_STUDIO = /\b(?:copilot\s+studio|general\s+mahoraga|studio\s+agent)\b/i;
 const REPOSITORY = /\b(?:repo|repository|codebase|github|source code)\b/i;
 const MUTATION = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|modify|publish|repair|update|write)\b/i;
 const VERIFY = /\b(?:verify|validate|test|check)\b/i;
@@ -24,7 +25,8 @@ export function planConversationCapabilities({ content = "", attachmentCount = 0
 
   if (attachmentCount > 0 && base.capability) add(base.capability);
   if (REPOSITORY.test(text)) add("repository.inspect");
-  if (MICROSOFT.test(text) && !MUTATION.test(text)) add("m365.reason");
+  if (COPILOT_STUDIO.test(text) && !MUTATION.test(text)) add("studio.delegate");
+  if (MICROSOFT.test(text) && !COPILOT_STUDIO.test(text) && !MUTATION.test(text)) add("m365.reason");
 
   if (MUTATION.test(text) && REPOSITORY.test(text)) {
     add("codex.execute");
@@ -129,7 +131,7 @@ function readableCapability(capability) {
 
 function intentKind(capability) {
   if (capability === "assistant.respond") return "answer";
-  if (capability?.startsWith("m365.")) return "microsoft-work";
+  if (capability?.startsWith("m365.") || capability?.startsWith("studio.")) return "microsoft-work";
   if (capability?.startsWith("repository.")) return "repository-inspect";
   if (capability?.startsWith("artifact.")) return "attachment";
   return "ucf-capability";

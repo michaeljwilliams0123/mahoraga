@@ -1,3 +1,4 @@
+import { buildCopilotHarnessTopology, validateCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 import { discoverPowerPlatformAgents, probePowerPlatformProvider } from "./power-platform-provider.mjs";
 
 export async function executePowerPlatformCapability(capability, _task = {}, _worker = {}, dependencies = {}) {
@@ -6,6 +7,11 @@ export async function executePowerPlatformCapability(capability, _task = {}, _wo
   if (capability === "powerplatform.health") return probe(dependencies.providerDependencies ?? {});
   if (capability === "powerplatform.discover") {
     const agents = await discover(dependencies.providerDependencies ?? {});
+    const harnessDescriptors = Object.freeze(agents
+      .filter((item) => item?.harnessDescriptor != null)
+      .map((item) => validateCopilotHarnessDescriptor(item.harnessDescriptor))
+      .sort((left, right) => left.alias.localeCompare(right.alias)));
+    const harnessTopology = buildCopilotHarnessTopology(harnessDescriptors);
     return Object.freeze({
       verified: true,
       summary: `Power Platform discovered ${agents.length} registered Mahoraga agent role(s).`,
@@ -17,6 +23,8 @@ export async function executePowerPlatformCapability(capability, _task = {}, _wo
         zeroCreditEligible: true,
         usageBillingClass: "deterministic-zero",
       }),
+      harnessDescriptors,
+      harnessTopology,
     });
   }
   throw Object.assign(new Error("unsupported-capability"), { code: "unsupported-capability" });

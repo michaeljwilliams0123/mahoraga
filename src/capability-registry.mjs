@@ -1,10 +1,12 @@
 import { capabilityClass, deriveCapabilityReadiness, isCapabilityRoutable } from "./capability-readiness.mjs";
+import { validateCopilotHarnessDescriptor } from "./copilot-harness-descriptor.mjs";
 import { projectOpenAiCapabilityRoutes } from "./openai-route-registry.mjs";
 import { microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from "./microsoft-usage-cost.mjs";
 
 export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.now(), context = {}) {
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
   const billingAttestations = context.billingAttestationByWorkerId ?? microsoftBillingAttestationFromEnv(context.env ?? process.env);
+  const microsoftHarnessEvidence = normalizeMicrosoftHarnessEvidence(context.microsoftHarnessDescriptors ?? []);
   const staticRoutes = manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
     const runtimeState = stateByWorker.get(worker.id);
     const recorded = runtimeState?.readiness?.find((item) => item.capability === capability);
@@ -55,6 +57,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       executionPlane: worker.executionPlane,
       healthProbe: worker.healthProbe,
       economicTier: economicTierForCostClass(worker.costClass),
+      ...(worker.id === "copilot-studio" ? { harnessEvidence: microsoftHarnessEvidence } : {}),
     };
   }));
   return staticRoutes.concat(pairedRouteEntries(context, now));
@@ -171,6 +174,26 @@ function effectiveBillingClass(worker, capability, attestations, runtimeState = 
     return resolveMicrosoftBillingClass(capability, declared, attestation);
   }
   return declared;
+}
+
+function normalizeMicrosoftHarnessEvidence(value) {
+  if (!Array.isArray(value) || value.length > 32) throw new TypeError("microsoft-harness-evidence-invalid");
+  const seen = new Set();
+  return Object.freeze(value.map((item) => validateCopilotHarnessDescriptor(item))
+    .sort((left, right) => left.alias.localeCompare(right.alias))
+    .map((descriptor) => {
+      if (seen.has(descriptor.alias)) throw new TypeError("microsoft-harness-evidence-invalid");
+      seen.add(descriptor.alias);
+      return Object.freeze({
+        alias: descriptor.alias,
+        harnessType: descriptor.harnessType,
+        published: descriptor.published,
+        connectable: descriptor.connectable,
+        capabilityClasses: Object.freeze([...descriptor.capabilityClasses]),
+        billingClass: descriptor.billingClass,
+        zeroCreditEligible: descriptor.zeroCreditEligible,
+      });
+    }));
 }
 
 function defaultBillingClass(costClass) {
