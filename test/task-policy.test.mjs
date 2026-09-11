@@ -133,3 +133,16 @@ test("multiple eligible execution planes are ranked instead of rejected as ambig
   assert.equal(policy.executionPlane, "local");
   assert.deepEqual(policy.allowedWorkerIds, ["local-health", "cloud-health"]);
 });
+
+test("top-level worker costClass controls zero-credit routing priority", () => {
+  const rankedManifest = {
+    ...manifest,
+    workers: [
+      { id: "cloud-health", enabled: true, capabilities: ["system.health"], dataClasses: ["synthetic"], executionPlane: "cloud", costClass: "licensed-cloud", routing: { requiresAttendedDesktop: false, priority: 1 } },
+      { id: "local-health", enabled: true, capabilities: ["system.health"], dataClasses: ["synthetic"], executionPlane: "local", costClass: "zero-credit", routing: { requiresAttendedDesktop: false, priority: 50 } },
+    ],
+  };
+  const policy = deriveTaskPolicy({ intent: "system.health" }, { manifest: rankedManifest, internal: true });
+  assert.equal(policy.executionPlane, "local");
+  assert.deepEqual(policy.allowedWorkerIds, ["local-health", "cloud-health"]);
+});

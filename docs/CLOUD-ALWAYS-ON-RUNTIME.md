@@ -10,6 +10,10 @@ The browser automatically tries `/api/runtime/session` on page load, then falls 
 
 The gateway has an explicit action allowlist. It cannot execute a caller-supplied command, open a port forward, or select an arbitrary destination. Provider/runtime credentials exist only in Fly secrets. `licensed-approved` remains a one-turn owner action enforced by the existing concurrency, per-turn, and spend ceilings; idle and automatic retry paths never select it.
 
+## Compatibility diagnostics
+
+The authenticated session response includes a public, content-free runtime contract: the same-origin session/action protocol revision, the candidate runtime/control-plane revision, and the fallback kind. A missing or incompatible contract fails closed before the browser considers the optional encrypted relay. The immutable Windows `3.6.0` rollback is explicitly reported as pairing-unsupported; it remains a rollback/bootstrap baseline and is never modified by this cloud path.
+
 ## Production steps still required
 
 Do not activate Windows production from this candidate.

@@ -9,6 +9,12 @@ Every host deploys this same Next.js workspace and none gains execution authorit
 over the paired core. See
 [`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
 
+GitHub Pages receives a derived static export of this same workspace. That export
+keeps the UI, encrypted relay client, and public deployment-health metadata, but
+does not publish server-only session, action, readiness, or liveness routes.
+Those routes remain available only when this workspace is run on a server-capable
+host.
+
 Historical Vercel project: `mahoraga-workspace`
 
 Historical Vercel URL: `https://mahoraga-workspace.vercel.app/`

@@ -74,7 +74,7 @@ export function deriveTaskPolicy(input, {
 }
 
 function compareRoutes(left, right) {
-  const cost = routeCost(left.routing?.costClass) - routeCost(right.routing?.costClass);
+  const cost = routeCost(left.costClass ?? left.routing?.costClass) - routeCost(right.costClass ?? right.routing?.costClass);
   if (cost !== 0) return cost;
   const priority = Number(left.routing?.priority ?? 100) - Number(right.routing?.priority ?? 100);
   return priority !== 0 ? priority : left.id.localeCompare(right.id);

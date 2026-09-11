@@ -54,6 +54,16 @@ export function compatibilityVersions(manifest) {
   };
 }
 
+export function cloudRuntimeContract(manifest) {
+  const versions = compatibilityVersions(manifest);
+  return Object.freeze({
+    schemaVersion: 1,
+    session: Object.freeze({ protocolVersion: 1, actionProtocolVersion: 1, transport: "same-origin-owner-session" }),
+    candidate: Object.freeze({ runtimeVersion: versions.runtime, cloudControlPlane: versions.cloudControlPlane }),
+    fallback: Object.freeze({ kind: "encrypted-relay", windowsRollbackVersion: "3.6.0", windowsRollbackPairing: "unsupported" }),
+  });
+}
+
 export function createControlServer({
   manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault,
   controlSessions = createControlSessionManager(),
@@ -367,6 +377,7 @@ export function statusPayload(manifest, database, supervisor) {
   return {
     generatedAt,
     product: manifest.product, version: manifest.version, versions, phase: manifest.phase,
+    cloudRuntime: cloudRuntimeContract(manifest),
     controlCenterApi: {
       protocolVersion: 1,
       runtimeVersion: manifest.version,
