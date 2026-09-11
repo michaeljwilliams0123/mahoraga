@@ -346,6 +346,30 @@ test("stale route recovery asks the worker to refresh readiness before retrying"
   assert.equal(child.sent.some((message) => message?.type === "readiness.refresh"), true);
 });
 
+test("idle workers proactively renew stale readiness without waiting for a task", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ repair: { enabled: false, scanIntervalMs: 1000 } }),
+    database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 20,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const staleAt = new Date(Date.now() - (16 * 60 * 1000)).toISOString();
+  database.setCapabilityReadiness({
+    workerId: "repair-worker", capability: "repair.apply", processStatus: "live",
+    providerStatus: "ready", canaryStatus: "verified", processObservedAt: staleAt,
+    providerObservedAt: staleAt, canaryVerifiedAt: staleAt, lastErrorCode: null,
+  });
+  await delay(60);
+  const refreshes = child.sent.filter((message) => message?.type === "readiness.refresh");
+  assert.equal(refreshes.length, 1);
+  assert.equal(supervisor.status()[0].status, "live");
+});
+
 test("supervisor preserves terminal waiting after route-recovery attempts are exhausted", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();
