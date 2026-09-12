@@ -52,8 +52,21 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
   const validation = await validateWorkspace({ workspacePath, alias: request.alias, surfaces: request.surfaces, reasonCodes: request.reasonCodes });
   if (validation?.verified !== true) throw safeError("studio-pac-verification-failed");
 
+  const validatedSha256 = await snapshotWorkspace(workspacePath);
+  requireDigest(validatedSha256);
+  const prePushSha256 = await snapshotWorkspace(workspacePath);
+  requireDigest(prePushSha256);
+  if (prePushSha256 !== validatedSha256) throw safeError("studio-pac-drift-detected");
+
   await runFixedPac(runPac, ["copilot", "push", "--project-dir", workspacePath]);
   const phases = ["pull", "validate", "push"];
+
+  await runFixedPac(runPac, ["copilot", "pull", "--project-dir", workspacePath]);
+  const providerSha256 = await snapshotWorkspace(workspacePath);
+  requireDigest(providerSha256);
+  if (providerSha256 !== validatedSha256) throw safeError("studio-pac-post-push-verification-failed");
+  phases.push("verify");
+
   let evaluation = null;
   if (request.publish === true) {
     if (typeof dependencies.evaluateAgent !== "function") throw safeError("studio-pac-evaluation-required");
@@ -67,13 +80,12 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
     await runFixedPac(runPac, ["copilot", "publish", "--bot", binding.botSchemaName]);
     phases.push("publish");
   }
-  const finalSha256 = await snapshotWorkspace(workspacePath);
-  requireDigest(finalSha256);
+
   return Object.freeze({
     verified: true,
     phases: Object.freeze(phases),
     published: request.publish === true,
-    workspaceSha256: finalSha256,
+    workspaceSha256: providerSha256,
     changedFileKinds: Object.freeze(changedFileKinds),
     ...(evaluation ? { evaluation } : {}),
   });
