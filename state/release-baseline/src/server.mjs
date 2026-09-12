@@ -359,6 +359,7 @@ export function createControlServer({
       }
       json(response, 404, { error: "not-found" });
     } catch (error) {
+      if (Number.isInteger(error?.relayStatus) && error?.relayValue && typeof error.relayValue === "object") return json(response, error.relayStatus, error.relayValue);
       if (error?.code === "idempotency-conflict") return json(response, 409, { error: "idempotency-conflict" });
       if (error?.code === "foreground-run-active" || error?.code === "run-idempotency-conflict") return json(response, 409, { error: error.code });
       if (/^(?:run-|gateway-)/.test(error?.code ?? "")) return json(response, 422, { error: error.code });
@@ -537,7 +538,7 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
         body: { ...body, creditPolicy: body?.creditPolicy === "licensed-approved" ? "licensed-approved" : "zero-codex", attachmentIds: [] },
         context: { source: "owner-paired-relay-chat", attendedSession: context.attendedSession },
       });
-      if (result.status >= 400) throw relayError(result.value.error ?? "relay-chat-rejected");
+      if (result.status >= 400) throw relayError(result.value.error ?? "relay-chat-rejected", { status: result.status, value: result.value });
       return result.value;
     },
     tasks(conversationId) {
@@ -685,7 +686,12 @@ function chatCreditPolicy(value = "standard") {
   if (!new Set(["standard", "zero-codex", "licensed-approved"]).has(value)) throw relayError("chat-credit-policy-invalid");
   return value;
 }
-function relayError(code) { const error = new TypeError(code); error.code = code; return error; }
+function relayError(code, response = null) {
+  const error = new TypeError(code);
+  error.code = code;
+  if (response) { error.relayStatus = response.status; error.relayValue = response.value; }
+  return error;
+}
 
 function submitTask(database, manifest, body, options = {}) {
   const request = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);
