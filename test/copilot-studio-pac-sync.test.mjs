@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { executeCopilotStudioPacSync } from "../src/copilot-studio-pac-sync.mjs";
 
-const ENVIRONMENT_ID = "120aeae9-286f-438a-bbf3-de3ab96fcf5d";
+const ENVIRONMENT_ID = "11111111-2222-4333-8444-555555555555";
 const request = Object.freeze({
   alias: "enterprise-core",
   reasonCodes: Object.freeze(["tool-missing"]),
