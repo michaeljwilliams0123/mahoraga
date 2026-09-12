@@ -1,5 +1,6 @@
 import { loadCopilotStudioRuntimeSettings, createCopilotTokenProvider } from "./copilot-studio-auth.mjs";
 import { invokeCopilotStudioAgent } from "./copilot-studio-client.mjs";
+import { executeCopilotStudioPacSync } from "./copilot-studio-pac-sync.mjs";
 import { probePowerPlatformProvider } from "./power-platform-provider.mjs";
 import { isZeroMarginalCreditEligible, microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from "./microsoft-usage-cost.mjs";
 
@@ -64,13 +65,13 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
   if (capability === "studio.configure") {
     if (!isZeroMarginalCreditEligible(billingClass)) throw safeError("billing-not-zero-credit");
     const request = normalizeConfigureRequest(task);
-    const configureAgent = dependencies.configureAgent;
-    if (typeof configureAgent !== "function") throw safeError("studio-configure-adapter-unavailable");
-    const configured = await configureAgent(request, { env });
+    const configureAgent = dependencies.configureAgent ?? executeCopilotStudioPacSync;
+    const configured = await configureAgent(request, { env, ...(dependencies.configureDependencies ?? {}) });
     if (configured?.verified !== true) throw safeError("studio-configure-verification-failed");
     const phases = normalizePhases(configured.phases);
     const published = request.publish && phases.includes("publish");
     if (request.publish !== published) throw safeError("studio-configure-verification-failed");
+    const evaluation = normalizeEvaluation(configured.evaluation, request.publish);
     return Object.freeze({
       verified: true,
       summary: `Copilot Studio configuration verified for ${request.alias} across ${request.surfaces.length} bounded surface(s).`,
@@ -80,6 +81,7 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
         surfaces: request.surfaces,
         phases,
         published,
+        ...(evaluation ? { evaluation } : {}),
       }),
     });
   }
@@ -111,11 +113,23 @@ function normalizeTokenArray(value, allowed) {
 }
 
 function normalizePhases(value) {
-  const allowed = new Set(["pull", "validate", "push", "publish"]);
-  if (!Array.isArray(value) || value.length < 1 || value.length > 4 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
+  const allowed = new Set(["pull", "validate", "push", "verify", "evaluate", "publish"]);
+  if (!Array.isArray(value) || value.length < 4 || value.length > 6 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
   if (value.some((item) => !allowed.has(item))) throw safeError("studio-configure-verification-failed");
-  if (!value.includes("pull") || !value.includes("validate") || !value.includes("push")) throw safeError("studio-configure-verification-failed");
+  const required = ["pull", "validate", "push", "verify"];
+  if (required.some((phase) => !value.includes(phase))) throw safeError("studio-configure-verification-failed");
+  for (let index = 1; index < required.length; index += 1) {
+    if (value.indexOf(required[index - 1]) > value.indexOf(required[index])) throw safeError("studio-configure-verification-failed");
+  }
+  if (value.includes("evaluate") && value.indexOf("evaluate") < value.indexOf("verify")) throw safeError("studio-configure-verification-failed");
+  if (value.includes("publish") && (!value.includes("evaluate") || value.indexOf("evaluate") > value.indexOf("publish"))) throw safeError("studio-configure-verification-failed");
   return Object.freeze([...value]);
+}
+
+function normalizeEvaluation(value, required) {
+  if (!required && value === undefined) return null;
+  if (!value || value.state !== "passing" || !Number.isInteger(value.scoreBasisPoints) || value.scoreBasisPoints < 0 || value.scoreBasisPoints > 10000) throw safeError("studio-configure-verification-failed");
+  return Object.freeze({ state: "passing", scoreBasisPoints: value.scoreBasisPoints });
 }
 
 function safeError(code) { return Object.assign(new Error(code), { code }); }
