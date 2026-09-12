@@ -9,15 +9,19 @@ async function source(relative) {
 }
 
 test("Windows convergence controller periodically promotes verified main without model calls", async () => {
-  const [controller, installer] = await Promise.all([
+  const [controller, installer, startupInstaller] = await Promise.all([
     source("scripts/runtime-convergence.ps1"),
     source("scripts/install-runtime-convergence.ps1"),
+    source("scripts/install-production-startup.ps1"),
   ]);
   assert.match(installer, /Mahoraga Runtime Convergence/);
   assert.match(installer, /New-ScheduledTaskTrigger[\s\S]*-RepetitionInterval/);
   assert.match(installer, /-RepetitionDuration/);
   assert.doesNotMatch(installer, /Repetition\.Interval\s*=/);
   assert.match(installer, /MultipleInstances IgnoreNew/);
+  assert.match(startupInstaller, /install-runtime-convergence\.ps1/);
+  assert.match(startupInstaller, /Runtime convergence installer is missing/);
+  assert.match(startupInstaller, /&\s+\$convergenceInstaller/);
   assert.match(controller, /runtime\.provenance\.state/);
   assert.match(controller, /runtime-drift/);
   assert.match(controller, /authoritativeSourceCommit/);
