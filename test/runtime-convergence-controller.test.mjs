@@ -14,7 +14,9 @@ test("Windows convergence controller periodically promotes verified main without
     source("scripts/install-runtime-convergence.ps1"),
   ]);
   assert.match(installer, /Mahoraga Runtime Convergence/);
-  assert.match(installer, /Repetition\.Interval\s*=\s*'PT1M'/);
+  assert.match(installer, /New-ScheduledTaskTrigger[\s\S]*-RepetitionInterval/);
+  assert.match(installer, /-RepetitionDuration/);
+  assert.doesNotMatch(installer, /Repetition\.Interval\s*=/);
   assert.match(installer, /MultipleInstances IgnoreNew/);
   assert.match(controller, /runtime\.provenance\.state/);
   assert.match(controller, /runtime-drift/);
