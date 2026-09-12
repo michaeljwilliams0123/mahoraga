@@ -282,7 +282,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
     const events = [...routeEvents, event("repair", "observe", "Outbound GitHub Actions read of the four-hour cycle.")];
     const evidence: EvidenceItem[] = [{ label: "Workflow file", value: "sovereign-eight-hour-cycle.yml", href: cycle?.htmlUrl }];
     if (!cycle) {
-      events.push(event("admin", "wait", "Cycle pulse unreachable on public Actions API."));
+      events.push(event("admin", "wait", "Cycle pulse unreachable on GitHub Actions API."));
       const cell = await makeCell({
         seed: `cycle-wait:${normalized.toLowerCase()}`,
         title: "Four-hour cycle unreachable",
@@ -506,7 +506,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
         owner: "admin",
         supporting,
         state: "waiting",
-        summary: `GitHub public API did not answer (${snapshot.error}). The fleet did not fall through to a paid model.`,
+        summary: `GitHub API did not answer (${snapshot.error}). The fleet did not fall through to a paid model.`,
         evidence: [{ label: "Credit class", value: classification.credit }],
         events: [...routeEvents, event("admin", "wait", snapshot.error ?? "github-unreachable")],
       });
@@ -553,7 +553,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
     classification.intent === "github-admin"
   ) {
     const [snapshot, contracts] = await Promise.all([loadGithubSnapshot(), loadRepoContracts()]);
-    const events = [...routeEvents, event("admin", "observe", "Outbound GitHub API read — no token, public metadata only.")];
+    const events = [...routeEvents, event("admin", "observe", "Outbound GitHub API read — no token, repository metadata only.")];
     const evidence: EvidenceItem[] = [{ label: "Credit class", value: classification.credit }];
     if (!snapshot.ok) {
       events.push(event("admin", "wait", snapshot.error ?? "github-unreachable"));
@@ -564,7 +564,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
         owner: classification.owner,
         supporting,
         state: "waiting",
-        summary: `GitHub public API did not answer (${snapshot.error}). The fleet did not fall through to a paid model.`,
+        summary: `GitHub API did not answer (${snapshot.error}). The fleet did not fall through to a paid model.`,
         evidence,
         events,
       });

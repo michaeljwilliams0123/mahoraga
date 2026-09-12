@@ -25,7 +25,7 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "repository",
     plane: "live",
     group: "Live on this deck",
-    hint: "Public GitHub head, issues, README. No token.",
+    hint: "GitHub head, issues, README. No token.",
     keywords: "inspect repo repository mahoraga head sha",
     intent: "repository-inspect",
   },
@@ -36,7 +36,7 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "repository",
     plane: "live",
     group: "Live on this deck",
-    hint: "Zero-token health vs public main.",
+    hint: "Zero-token health vs protected main.",
     keywords: "health status gap verify system",
     intent: "health-scan",
   },
@@ -177,14 +177,14 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "admin",
     plane: "live",
     group: "Live on this deck",
-    hint: "Public metadata plus write-status when gh is present.",
+    hint: "Repository metadata plus write-status when gh is present.",
     keywords: "admin github issues pulls labels branch",
     intent: "github-admin",
   },
   {
     id: "scout-repo",
-    label: "Scout public repo",
-    command: "Fetch https://github.com/michaeljwilliams0123/mahoraga and extract the current public summary.",
+    label: "Scout repository",
+    command: "Fetch https://github.com/michaeljwilliams0123/mahoraga and extract the current repository summary.",
     owner: "scout",
     plane: "live",
     group: "Live on this deck",
@@ -678,7 +678,7 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "admin",
     plane: "loopback",
     group: "Loopback runtime",
-    hint: "Repo audit CLI. This deck already reads public metadata live.",
+    hint: "Repo audit CLI. This deck already reads repository metadata live.",
     keywords: "github audit script cli",
     intent: "loopback-denied",
     cliHint: "npm run github:audit",
@@ -791,7 +791,7 @@ export const ARSENAL: ArsenalCommand[] = [
 
 export const AGENT_SIGNATURE: Record<AgentId, string> = {
   coordinator: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny.",
-  scout: "Fetch https://github.com/michaeljwilliams0123/mahoraga and extract the current public summary.",
+  scout: "Fetch https://github.com/michaeljwilliams0123/mahoraga and extract the current repository summary.",
   admin: "Inspect the Protect main GitHub ruleset and prove exact-head Verify is enforced.",
   assurance: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces.",
   relay: "Inspect the last Validate Destiny Codex Relay workflow run.",
@@ -826,7 +826,7 @@ export const PLANE_ACTION: Record<CommandPlane, string> = {
 };
 
 export const PLANE_COPY: Record<CommandPlane, string> = {
-  live: "Runs now. Public GitHub, allowlisted GET, isolation, and denials. Zero tokens.",
+  live: "Runs now. GitHub, allowlisted GET, isolation, and denials. Zero tokens.",
   write: "Owner gh session. Merge, comment, close, dispatch, delete eligible branches. Respects Protect main.",
   github: "Reads live Actions metadata. Dispatch is on the write plane.",
   loopback: "Correct plane is 127.0.0.1:4782 on your host. Dispatch prints the exact CLI receipt.",
