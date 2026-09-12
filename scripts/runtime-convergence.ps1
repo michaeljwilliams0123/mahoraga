@@ -173,10 +173,11 @@ if ($liveAuthority -ne $targetCommit) { throw 'Running Mahoraga authority does n
 Write-Output "Verifying protected main $targetCommit before candidate activation."
 Invoke-VerificationGate
 
+$centralStateReady = Test-Path -LiteralPath (Join-Path $stateRoot 'mahoraga.sqlite') -PathType Leaf
 $rollbackWorktree = Ensure-RollbackWorktree $sourceCommit
 $sourceWorktree = $null
 $migrationMarker = Join-Path $convergenceRoot 'durable-state-migrated.json'
-if (-not (Test-Path -LiteralPath $migrationMarker -PathType Leaf)) {
+if (-not $centralStateReady -and -not (Test-Path -LiteralPath $migrationMarker -PathType Leaf)) {
     $sourceWorktree = Find-SourceWorktree $sourceCommit
 }
 
