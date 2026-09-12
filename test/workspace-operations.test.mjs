@@ -128,6 +128,17 @@ test("operationsSnapshot returns required bounded metadata fields with determini
     incidents: [{ id: "inc-1", recoveryState: "open" }],
     evolution: [{ id: "evo-1", state: "verified", headSha: HEAD }],
   });
+  context.interactionReadiness = Object.freeze({
+    ready: true,
+    capability: "assistant.respond",
+    workerId: "question-model",
+    provider: "ready",
+    canary: "verified",
+    reason: null,
+    evidenceLevel: "verified",
+    lastObservedAt: "2026-09-07T02:00:00.000Z",
+    lastVerifiedAt: "2026-09-07T02:00:00.000Z",
+  });
 
   const first = operationsSnapshot(context);
   const second = operationsSnapshot(context);
@@ -151,6 +162,7 @@ test("operationsSnapshot returns required bounded metadata fields with determini
   assert.ok("candidate" in first.update);
   assert.ok("activationState" in first.update);
   assert.ok("rollbackReady" in first.update);
+  assert.deepEqual(first.interactionReadiness, context.interactionReadiness);
   assert.deepEqual(first, second);
   assertNoSensitiveKeys(first);
 });

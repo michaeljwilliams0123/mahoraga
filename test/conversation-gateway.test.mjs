@@ -15,7 +15,18 @@ function fixture(t) {
     database,
     manifest: { version: "test" },
     supervisor: { status: () => [] },
-    capabilityResolver: () => [{ capability: "system.health", routable: true, workerIds: ["local-core"] }],
+    capabilityResolver: () => [{
+      capability: "system.health",
+      routable: true,
+      workerId: "local-core",
+      workerIds: ["local-core"],
+      provider: "ready",
+      canary: "verified",
+      routingReason: null,
+      evidenceLevel: "verified",
+      lastObservedAt: "2026-09-12T17:32:57.000Z",
+      lastVerifiedAt: "2026-09-12T17:32:57.000Z",
+    }],
     submitTask: (body) => database.submitTask({
       capability: body.intent,
       dataClass: "synthetic",
@@ -52,9 +63,20 @@ test("task transitions publish durable RunEvents transactionally before replay",
   assert.doesNotMatch(JSON.stringify(events), /Health verified|Verify system health/);
 });
 
-test("gateway capabilities expose routability without manifest secrets", (t) => {
+test("gateway capabilities preserve readiness evidence without manifest secrets", (t) => {
   const { gateway } = fixture(t);
-  assert.deepEqual(gateway.capabilities(), [{ capability: "system.health", routable: true, workerIds: ["local-core"] }]);
+  assert.deepEqual(gateway.capabilities(), [{
+    capability: "system.health",
+    routable: true,
+    workerId: "local-core",
+    workerIds: ["local-core"],
+    provider: "ready",
+    canary: "verified",
+    routingReason: null,
+    evidenceLevel: "verified",
+    lastObservedAt: "2026-09-12T17:32:57.000Z",
+    lastVerifiedAt: "2026-09-12T17:32:57.000Z",
+  }]);
 });
 
 test("gateway retries are idempotent before mutating the conversation", (t) => {
