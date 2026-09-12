@@ -370,6 +370,30 @@ test("idle workers proactively renew stale readiness without waiting for a task"
   assert.equal(supervisor.status()[0].status, "live");
 });
 
+test("idle workers renew verified readiness before the write canary expires", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ repair: { enabled: false, scanIntervalMs: 1000 } }),
+    database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 20,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const nearlyExpiredAt = new Date(Date.now() - ((15 * 60 * 1000) - 30000)).toISOString();
+  database.setCapabilityReadiness({
+    workerId: "repair-worker", capability: "repair.apply", processStatus: "live",
+    providerStatus: "ready", canaryStatus: "verified", processObservedAt: nearlyExpiredAt,
+    providerObservedAt: nearlyExpiredAt, canaryVerifiedAt: nearlyExpiredAt, lastErrorCode: null,
+  });
+  await delay(60);
+  const refreshes = child.sent.filter((message) => message?.type === "readiness.refresh");
+  assert.equal(refreshes.length, 1);
+  assert.equal(supervisor.status()[0].status, "live");
+});
+
 test("supervisor preserves terminal waiting after route-recovery attempts are exhausted", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();
