@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTaskRouter } from "../src/router.mjs";
 import { isZeroMarginalCreditEligible } from "../src/resource-economy.mjs";
+import { loadManifest, validateManifest } from "../src/config.mjs";
+import { ESSENTIAL_FILES } from "../src/repair.mjs";
 
 const NOW = Date.parse("2026-09-12T04:15:00.000Z");
 const CAPABILITY = "cloud.free.task";
@@ -104,4 +106,16 @@ test("zero-credit routing holds a free-tier route until current quota evidence i
   assert.equal(admitted.status, "routable");
   assert.equal(admitted.billingDecision.effectiveClass, "free-tier-zero");
   assert.equal(admitted.billingDecision.eligible, true);
+});
+
+test("manifest validation recognizes the shared free-tier billing class", async () => {
+  const value = structuredClone(await loadManifest());
+  const worker = value.workers.find((item) => item.id === "question-model");
+  worker.billingClassByCapability = Object.fromEntries(worker.capabilities.map((capability) => [capability, "free-tier-zero"]));
+  assert.doesNotThrow(() => validateManifest(value));
+});
+
+test("self-healer protects provider-neutral economy dependencies", () => {
+  assert.equal(ESSENTIAL_FILES.includes("src/resource-economy.mjs"), true);
+  assert.equal(ESSENTIAL_FILES.includes("src/microsoft-usage-cost.mjs"), true);
 });
