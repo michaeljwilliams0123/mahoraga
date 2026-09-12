@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { classifyTaskIntent } from "./task-intent.mjs";
 import { capabilityIndex } from "./router.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
+import { projectOperationsInteractionReadiness } from "./workspace-operations.mjs";
 
 export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null, relayHandlers = {} } = {}) {
   if (!database || typeof database.createConversationRun !== "function") throw gatewayError("gateway-database-required");
@@ -15,13 +16,39 @@ export function createConversationGateway({ database, manifest, supervisor, subm
   };
   const emit = (runId, type, payload, options) => notify(database.appendRunEvent(runId, type, payload, options));
 
+  const projectCapabilities = () => {
+    const values = resolveCapabilities();
+    if (!Array.isArray(values)) throw gatewayError("gateway-capabilities-invalid");
+    return values.map((item) => {
+      const projected = {
+        capability: item.capability,
+        routable: item.routable === true,
+        workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
+      };
+      if (typeof item.provider === "string") projected.provider = item.provider;
+      if (typeof item.canary === "string") projected.canary = item.canary;
+      if (item.routingReason != null) projected.routingReason = item.routingReason;
+      if (typeof item.evidenceLevel === "string") projected.evidenceLevel = item.evidenceLevel;
+      if (item.lastObservedAt != null) projected.lastObservedAt = item.lastObservedAt;
+      if (item.lastVerifiedAt != null) projected.lastVerifiedAt = item.lastVerifiedAt;
+      if (typeof item.workerId === "string") projected.workerId = item.workerId;
+      return Object.freeze(projected);
+    }).sort((left, right) => left.capability.localeCompare(right.capability));
+  };
+
   const api = {
     chat(input, context = {}) { return relayCall(relayHandlers, "chat", input, context); },
     tasks(conversationId, context = {}) { return relayCall(relayHandlers, "tasks", conversationId, context); },
     messages(conversationId, context = {}) { return relayCall(relayHandlers, "messages", conversationId, context); },
     messageContent(input, context = {}) { return relayCall(relayHandlers, "messageContent", input, context); },
     taskAction(input, context = {}) { return relayCall(relayHandlers, "taskAction", input, context); },
-    operationsSnapshot(context = {}) { return relayCall(relayHandlers, "operationsSnapshot", null, context); },
+    async operationsSnapshot(context = {}) {
+      const snapshot = await relayCall(relayHandlers, "operationsSnapshot", null, context);
+      const lane = snapshot?.interactionReadiness?.provider && snapshot.interactionReadiness.provider !== "unknown"
+        ? snapshot.interactionReadiness
+        : projectOperationsInteractionReadiness(projectLaneFromCapabilities(projectCapabilities()));
+      return Object.freeze({ ...snapshot, interactionReadiness: projectOperationsInteractionReadiness(lane) });
+    },
     operationsAction(input, context = {}) { return relayCall(relayHandlers, "operationsAction", input, context); },
 
     createRun(input, context = {}) {
@@ -110,20 +137,7 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     },
 
     capabilities() {
-      const values = resolveCapabilities();
-      if (!Array.isArray(values)) throw gatewayError("gateway-capabilities-invalid");
-      return values.map((item) => Object.freeze({
-        capability: item.capability,
-        routable: item.routable === true,
-        ...(typeof item.workerId === "string" ? { workerId: item.workerId } : {}),
-        workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
-        ...(typeof item.provider === "string" ? { provider: item.provider } : {}),
-        ...(typeof item.canary === "string" ? { canary: item.canary } : {}),
-        ...(item.routingReason === null || typeof item.routingReason === "string" ? { routingReason: item.routingReason } : {}),
-        ...(typeof item.evidenceLevel === "string" ? { evidenceLevel: item.evidenceLevel } : {}),
-        ...(item.lastObservedAt === null || typeof item.lastObservedAt === "string" ? { lastObservedAt: item.lastObservedAt } : {}),
-        ...(item.lastVerifiedAt === null || typeof item.lastVerifiedAt === "string" ? { lastVerifiedAt: item.lastVerifiedAt } : {}),
-      })).sort((left, right) => left.capability.localeCompare(right.capability));
+      return projectCapabilities();
     },
 
     getImprovement(candidateId) {
@@ -143,6 +157,21 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     close() { listeners.clear(); },
   };
   return Object.freeze(api);
+}
+
+function projectLaneFromCapabilities(capabilities) {
+  const route = (Array.isArray(capabilities) ? capabilities : []).find((item) => item?.capability === "assistant.respond") ?? null;
+  return {
+    ready: route?.routable === true,
+    capability: "assistant.respond",
+    workerId: route?.workerId ?? route?.workerIds?.[0] ?? null,
+    provider: route?.provider ?? "unknown",
+    canary: route?.canary ?? "never",
+    reason: route?.routable === true ? null : route?.routingReason ?? "route-unavailable",
+    evidenceLevel: route?.evidenceLevel ?? "unknown",
+    lastObservedAt: route?.lastObservedAt ?? null,
+    lastVerifiedAt: route?.lastVerifiedAt ?? null,
+  };
 }
 
 function gatewayIntentFromPlan(plan) {
