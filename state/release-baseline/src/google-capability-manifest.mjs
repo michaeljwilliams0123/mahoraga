@@ -35,6 +35,7 @@ export const GOOGLE_CAPABILITY_WORKERS = Object.freeze([
     costClass: "licensed-cloud",
     dataClasses: Object.freeze(["enterprise"]),
     capabilities: Object.freeze(["google.health", "google.open"]),
+    billingClassByCapability: Object.freeze({ "google.health": "deterministic-zero", "google.open": "license-included" }),
     acceptedTaskTypes: Object.freeze(["google-workspace"]),
     timeoutMs: 120000,
     concurrency: 1,
@@ -61,6 +62,7 @@ export const GOOGLE_CAPABILITY_WORKERS = Object.freeze([
     costClass: "deterministic",
     dataClasses: Object.freeze(["synthetic", "personal", "enterprise"]),
     capabilities: Object.freeze(["chrome.health", "chrome.open"]),
+    billingClassByCapability: Object.freeze({ "chrome.health": "deterministic-zero", "chrome.open": "deterministic-zero" }),
     acceptedTaskTypes: Object.freeze(["chrome"]),
     timeoutMs: 60000,
     concurrency: 1,
@@ -132,6 +134,7 @@ function sameWorkerBoundary(actual, expected) {
   if (fields.some((field) => actual[field] !== expected[field])) return false;
   if (actual.routing?.requiresAttendedDesktop !== true || actual.routing?.interfaceType !== expected.routing.interfaceType || actual.routing?.permissionClass !== expected.routing.permissionClass) return false;
   if (JSON.stringify(actual.capabilities) !== JSON.stringify(expected.capabilities)) return false;
+  if (JSON.stringify(actual.billingClassByCapability) !== JSON.stringify(expected.billingClassByCapability)) return false;
   if (JSON.stringify(actual.policy) !== JSON.stringify(expected.policy)) return false;
   return true;
 }
