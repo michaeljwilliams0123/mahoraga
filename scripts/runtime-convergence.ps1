@@ -138,9 +138,16 @@ if ($currentControllerCommit -ne $targetCommit) {
 
 $live = Get-LiveStatus
 if (-not $live) {
+    $occupiedPid = Get-ListenerPid
+    if ($occupiedPid) {
+        Write-Receipt @{ state = 'listener-conflict'; fromCommit = $null; attemptedCommit = $targetCommit; listenerPid = $occupiedPid }
+        throw "Port $Port is occupied but does not expose a verified Mahoraga status endpoint."
+    }
+
     Write-Output "No candidate is active on port $Port; verifying protected main before bootstrap."
-    Invoke-VerificationGate
+    $bootstrapProcess = $null
     try {
+        Invoke-VerificationGate
         $bootstrapProcess = Start-Candidate $ControllerRoot $targetCommit
         $bootstrapped = Wait-ForCommit $targetCommit $true
         if (-not $bootstrapped) { throw 'Bootstrapped candidate failed exact-head live canary.' }
@@ -148,8 +155,10 @@ if (-not $live) {
         Write-Output "Mahoraga candidate bootstrapped at protected main $targetCommit on port $Port."
         exit 0
     } catch {
-        $failedPid = Get-ListenerPid
-        if ($failedPid) { Stop-Listener $failedPid }
+        if ($bootstrapProcess) {
+            $failedPid = Get-ListenerPid
+            if ($failedPid -and $failedPid -eq $bootstrapProcess.Id) { Stop-Listener $failedPid }
+        }
         Write-Receipt @{ state = 'bootstrap-failed'; fromCommit = $null; attemptedCommit = $targetCommit; error = $_.Exception.Message }
         throw
     }
