@@ -1,11 +1,11 @@
 # Cloud-only deployment inputs
 
-Mahoraga presents one public interaction surface even though its execution
-plane is separated for security and durability:
+Mahoraga presents one owner-facing browser interaction surface even though its
+private source repository and execution plane are separated for security and durability:
 
 | Plane | Deployment | Responsibility |
 | --- | --- | --- |
-| Workspace | Host-neutral `cloud-app/`; GitHub Pages publishes current approved `main`, Cloudflare Workers is the migration candidate | The only browser UI, files, research, approvals, and connection state |
+| Workspace | Host-neutral `cloud-app/`; canonical origin is runtime-configured and verified; Pages is optional static export; Cloudflare Workers is a server-capable candidate | The only browser UI, files, research, approvals, and connection state |
 | Encrypted relay | Cloudflare Worker + Durable Object at `mahoraga-relay.mahoraga-mjw0123.workers.dev` | Owner/origin authentication, replay protection, and ciphertext forwarding only |
 | Runtime engine | Long-running remote container/VM with a persistent volume | Deterministic workers, task state, Git coordination, and zero-Codex provider routing |
 | Repository ledger | GitHub Actions and pull requests | Deterministic task staging, verification, integration, and audit receipts |
@@ -18,10 +18,11 @@ its authenticated outbound encrypted relay connection.
 
 ## Hosting transition
 
-The production browser address is
-`https://michaeljwilliams0123.github.io/mahoraga/`. Its Pages workflow rebuilds
-the single `cloud-app/` source after every approved `main` update. Vercel is
-paused and non-canonical.
+The production browser address is the exact verified origin configured through
+`MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN`. GitHub Pages may publish
+a derived static export of `cloud-app/` when enabled, but a Pages URL is not
+inferred to be canonical merely because the private repository has Pages enabled.
+Vercel is paused and non-canonical.
 
 Cloudflare Workers is the designated replacement-host candidate. This means
 Workers hosting, not Cloudflare Tunnel: no `cloudflared` tunnel, ngrok, reverse
@@ -35,9 +36,9 @@ Provide choices and connector authorization, not secret values in chat or Git:
 1. **Cloudflare Workers project access:** import `michaeljwilliams0123/mahoraga`
    through Workers Builds with `cloud-app/` as the application root, or authorize
    an equivalent protected deployment path. Do not commit account tokens.
-2. **Workspace production origin:** keep the current verified GitHub Pages origin until
-   the Workers root, health route, exact Git SHA, and encrypted pairing canary all
-   pass. Then choose the verified Workers/custom domain in a separate cutover.
+2. **Workspace production origin:** keep the currently configured verified origin
+   until the replacement root, health route, exact Git SHA, and encrypted pairing
+   canary all pass. Then choose the verified Workers/custom domain in a separate cutover.
 3. **Workspace access policy:** choose an approved identity boundary for
    production and previews. The relay origin policy must match the exact canonical
    production origin after cutover.
@@ -90,8 +91,9 @@ direct GitHub mutation authority.
 
 ## Production acceptance
 
-- The canonical `https://michaeljwilliams0123.github.io/mahoraga/` is rebuilt
-  from each approved `main` head.
+- The canonical browser origin is configuration-backed, loads the approved
+  `main` head, and reports that exact Git SHA; an optional Pages export is not
+  treated as canonical without the same evidence.
 - A replacement host loads the same unified Chat, Control Center, Operations,
   and Connections workspace and reports its provider plus exact Git SHA.
 - No legacy `cloud/`, `web/`, loopback frontend, historical duplicate Vercel
