@@ -62,3 +62,16 @@ test("Windows convergence fails closed when 4783 is occupied but status is unava
     /if\s*\(\$failedPid\s+-and\s+\$failedPid\s+-eq\s+\$bootstrapProcess\.Id\)\s*\{\s*Stop-Listener\s+\$failedPid\s*\}/i,
   );
 });
+
+test("Windows convergence reuses only a coherent canonical centralized state bundle", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.match(controller, /\$centralStateDatabase\s*=\s*Join-Path\s+\$stateRoot\s+['"]mahoraga\.sqlite['"]/i);
+  assert.match(controller, /\$centralStateVaultKey\s*=\s*Join-Path\s+\$stateRoot\s+['"]content-vault\.key\.dpapi['"]/i);
+  assert.match(controller, /\$centralStateVaultRoot\s*=\s*Join-Path\s+\$stateRoot\s+['"]content-vault['"]/i);
+  assert.match(
+    controller,
+    /\$centralStateReady\s*=\s*\(Test-Path\s+-LiteralPath\s+\$centralStateDatabase\s+-PathType\s+Leaf\)\s*-and\s*\(Test-Path\s+-LiteralPath\s+\$centralStateVaultKey\s+-PathType\s+Leaf\)\s*-and\s*\(Test-Path\s+-LiteralPath\s+\$centralStateVaultRoot\s+-PathType\s+Container\)/i,
+  );
+  assert.match(controller, /if\s*\(-not\s+\$centralStateReady\s+-and\s+-not\s+\(Test-Path[\s\S]*\$migrationMarker/);
+  assert.ok(controller.indexOf("$centralStateReady") < controller.indexOf("Find-SourceWorktree $sourceCommit"));
+});
