@@ -15,18 +15,8 @@ type PendingConfirmation = {
   receiptId: string;
 };
 
-type SnapshotWithLane = RuntimeOperationsSnapshot & {
-  interactionReadiness?: {
-    ready?: boolean;
-    provider?: string;
-    canary?: string;
-    reason?: string | null;
-    evidenceLevel?: string;
-  };
-};
-
 export function OperationsView({ coreReady, relay, onRequestPairing }: OperationsViewProps) {
-  const [snapshot, setSnapshot] = useState<SnapshotWithLane | null>(null);
+  const [snapshot, setSnapshot] = useState<RuntimeOperationsSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pendingConfirmation, setPendingConfirmation] = useState<PendingConfirmation | null>(null);
@@ -42,7 +32,7 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
     setError(null);
     try {
       const next = await relay.operationsSnapshot();
-      setSnapshot(next as SnapshotWithLane);
+      setSnapshot(next);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "operations-snapshot-failed");
       setSnapshot(null);

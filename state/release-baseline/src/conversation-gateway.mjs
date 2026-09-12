@@ -115,7 +115,14 @@ export function createConversationGateway({ database, manifest, supervisor, subm
       return values.map((item) => Object.freeze({
         capability: item.capability,
         routable: item.routable === true,
+        ...(typeof item.workerId === "string" ? { workerId: item.workerId } : {}),
         workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
+        ...(typeof item.provider === "string" ? { provider: item.provider } : {}),
+        ...(typeof item.canary === "string" ? { canary: item.canary } : {}),
+        ...(item.routingReason === null || typeof item.routingReason === "string" ? { routingReason: item.routingReason } : {}),
+        ...(typeof item.evidenceLevel === "string" ? { evidenceLevel: item.evidenceLevel } : {}),
+        ...(item.lastObservedAt === null || typeof item.lastObservedAt === "string" ? { lastObservedAt: item.lastObservedAt } : {}),
+        ...(item.lastVerifiedAt === null || typeof item.lastVerifiedAt === "string" ? { lastVerifiedAt: item.lastVerifiedAt } : {}),
       })).sort((left, right) => left.capability.localeCompare(right.capability));
     },
 

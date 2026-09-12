@@ -38,6 +38,7 @@ export function operationsSnapshot({
   supervisor,
   repositoryHeadReader,
   headSha = null,
+  interactionReadiness = null,
   now = () => new Date().toISOString(),
 } = {}) {
   if (!database || typeof database.listTasks !== "function") throw operationsError("operations-database-required");
@@ -108,6 +109,7 @@ export function operationsSnapshot({
       activationState: candidate?.state ?? "idle",
       rollbackReady: true,
     }),
+    interactionReadiness: projectInteractionReadiness(interactionReadiness),
   });
 }
 
@@ -248,6 +250,21 @@ function projectEvolution(item) {
     id: String(item.id ?? "unknown"),
     state: String(item.state ?? item.status ?? "unknown"),
   };
+}
+
+function projectInteractionReadiness(value) {
+  const route = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return Object.freeze({
+    ready: route.ready === true,
+    capability: "assistant.respond",
+    workerId: typeof route.workerId === "string" ? route.workerId : null,
+    provider: typeof route.provider === "string" ? route.provider : "unknown",
+    canary: typeof route.canary === "string" ? route.canary : "never",
+    reason: route.ready === true ? null : typeof route.reason === "string" ? route.reason : "route-unavailable",
+    evidenceLevel: typeof route.evidenceLevel === "string" ? route.evidenceLevel : "unknown",
+    lastObservedAt: typeof route.lastObservedAt === "string" ? route.lastObservedAt : null,
+    lastVerifiedAt: typeof route.lastVerifiedAt === "string" ? route.lastVerifiedAt : null,
+  });
 }
 
 function requireTaskId(value) {
