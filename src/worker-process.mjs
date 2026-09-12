@@ -17,7 +17,14 @@ import { executeSignedChromeCapability } from "./signed-chrome-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
-import { executeQuestionModel, probeQuestionModel } from "./question-model.mjs";
+import {
+  createQuestionModelExecutionState,
+  executeQuestionModel,
+  loadQuestionModelExecutionState,
+  probeQuestionModel,
+  probeQuestionModelExecutionState,
+  saveQuestionModelExecutionState,
+} from "./question-model.mjs";
 import { executeNativeCloudModel, probeNativeCloudModel } from "./native-cloud-model.mjs";
 import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
 
@@ -28,6 +35,9 @@ const manifest = await loadManifest();
 let artifactStorePromise = null;
 const worker = manifest.workers.find((item) => item.id === workerId && item.enabled);
 if (!worker) process.exit(3);
+const questionModelExecutionState = workerId === "question-model"
+  ? await loadQuestionModelExecutionState()
+  : createQuestionModelExecutionState();
 
 process.send({ type: "process.ready", workerId, pid: process.pid, capabilities: worker.capabilities });
 const heartbeat = setInterval(() => process.send?.({ type: "heartbeat", workerId, timestamp: new Date().toISOString() }), manifest.runtime.heartbeatIntervalMs);
@@ -43,7 +53,22 @@ process.on("message", async (message) => {
     const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
     process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
   } catch (error) {
-    process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode: classifyError(error) });
+    const errorCode = classifyError(error);
+    process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode });
+    if (workerId === "question-model" && errorCode === "question-model-usage-limit") {
+      try { await saveQuestionModelExecutionState(questionModelExecutionState); }
+      catch {
+        process.send?.({
+          type: "provider.readiness",
+          workerId,
+          capability: worker.healthProbe,
+          receipt: null,
+          observedAt: new Date().toISOString(),
+          errorCode: "question-model-state-persistence-failed",
+        });
+      }
+      await probeProviderReadiness();
+    }
   }
 });
 
@@ -74,18 +99,20 @@ async function probeCapabilityCanaries() {
     try {
       let result;
       if (canaryMode === "provider-derived") {
-        result = {
-          verified: true,
-          summary: `${capability} inherits verified readiness from ${worker.healthProbe} without exercising a side effect.`,
-          providerHealth: { canaryMode, sourceCapability: worker.healthProbe },
-        };
+        result = workerId === "question-model" && capability === "assistant.respond"
+          ? probeQuestionModelExecutionState({ executionState: questionModelExecutionState })
+          : {
+            verified: true,
+            summary: `${capability} inherits verified readiness from ${worker.healthProbe} without exercising a side effect.`,
+            providerHealth: { canaryMode, sourceCapability: worker.healthProbe },
+          };
       } else {
         result = capability === "artifact.inspect"
           ? await artifactInspectionCanary()
           : await execute(capability, { id: `startup-canary-${workerId}`, requestedOutcome: `Verify ${capability} without external content.` });
       }
       const receipt = createCapabilityReceipt(capability, result, { observedAt, durationMs: Date.now() - startedAt });
-      process.send?.({ type: "capability.canary", workerId, capability, receipt, observedAt });
+      process.send?.({ type: "capability.canary", workerId, capability, receipt, observedAt, errorCode: result?.providerHealth?.reasonCode ?? null });
     } catch (error) {
       process.send?.({ type: "capability.canary", workerId, capability, receipt: null, observedAt, errorCode: classifyError(error) });
     }
@@ -125,7 +152,7 @@ async function execute(capability, task) {
     case "assistant.health":
       return probeQuestionModel();
     case "assistant.respond":
-      return executeQuestionModel({ task });
+      return executeQuestionModel({ task, executionState: questionModelExecutionState });
     case "provider.gap":
       return {
         verified: true,
@@ -165,6 +192,7 @@ function artifactStoreForWorker() {
 }
 
 function classifyError(error) {
+  if (error?.code === "question-model-usage-limit") return error.code;
   if (error?.message === "unsupported-capability") return "unsupported-capability";
   if (error?.code === "ENOENT") return "required-file-missing";
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
