@@ -31,7 +31,8 @@ test("Copilot Studio settings require tenant, client, and exactly one connection
     MAHORAGA_COPILOT_SCHEMA_NAME: "schema",
   });
   assert.equal(settings.connectionSettings.environmentId, "environment");
-  assert.equal(settings.connectionSettings.schemaName, "schema");
+  assert.equal(settings.connectionSettings.agentIdentifier, "schema");
+  assert.equal(Object.hasOwn(settings.connectionSettings, "schemaName"), false);
 });
 
 test("silent token acquisition never opens a browser and returns authentication-required safely", async () => {

@@ -13,7 +13,7 @@ export function loadCopilotStudioRuntimeSettings(env = process.env) {
   const connectionSettings = Object.freeze({
     directConnectUrl: directConnectUrl || undefined,
     environmentId: environmentId || undefined,
-    schemaName: schemaName || undefined,
+    agentIdentifier: schemaName || undefined,
     appClientId,
     tenantId,
     authority: "https://login.microsoftonline.com",
