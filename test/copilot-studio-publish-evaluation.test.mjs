@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { executeCopilotStudioPacSync } from "../src/copilot-studio-pac-sync.mjs";
 
-const ENVIRONMENT_ID = "120aeae9-286f-438a-bbf3-de3ab96fcf5d";
+const ENVIRONMENT_ID = "22222222-3333-4444-8555-666666666666";
 const request = Object.freeze({
   alias: "general-mahoraga",
   reasonCodes: Object.freeze(["connected-agent-missing"]),
