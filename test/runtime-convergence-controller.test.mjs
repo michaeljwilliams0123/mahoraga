@@ -39,3 +39,26 @@ test("Windows convergence controller periodically promotes verified main without
   assert.match(controller, /Wait-ForCommit\s+\$targetCommit\s+\$true/);
   assert.doesNotMatch(controller, /codex\s+exec|openai|model invocation|gemini/i);
 });
+
+test("Windows convergence bootstraps protected main when the 4783 candidate is absent", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.doesNotMatch(controller, /No paired candidate runtime is active; convergence is a no-op/i);
+  assert.match(controller, /bootstrap/i);
+  assert.match(controller, /Start-Candidate\s+\$ControllerRoot\s+\$targetCommit/);
+  assert.match(controller, /Wait-ForCommit\s+\$targetCommit\s+\$true/);
+  assert.match(controller, /state\s*=\s*['"]bootstrapped['"]/i);
+  assert.match(controller, /npm\.cmd['"]?\s+run\s+verify/i);
+});
+
+test("Windows convergence fails closed when 4783 is occupied but status is unavailable", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const noLiveBlock = controller.match(/if \(-not \$live\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.match(noLiveBlock, /Get-ListenerPid/);
+  assert.match(noLiveBlock, /listener-conflict/i);
+  assert.match(noLiveBlock, /throw/i);
+  assert.ok(noLiveBlock.indexOf("Get-ListenerPid") < noLiveBlock.indexOf("Start-Candidate"));
+  assert.match(
+    noLiveBlock,
+    /if\s*\(\$failedPid\s+-and\s+\$failedPid\s+-eq\s+\$bootstrapProcess\.Id\)\s*\{\s*Stop-Listener\s+\$failedPid\s*\}/i,
+  );
+});
