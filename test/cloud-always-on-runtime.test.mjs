@@ -6,7 +6,8 @@ const read = (file) => readFile(new URL(`../${file}`, import.meta.url), "utf8");
 
 test("OCI production profile is durable, always on, and bounded by health checks", async () => {
   const [dockerfile, fly, service] = await Promise.all([read("Dockerfile.cloud"), read("deploy/fly/fly.toml"), read("scripts/cloud-service.mjs")]);
-  assert.match(dockerfile, /VOLUME \["\/var\/lib\/mahoraga"\]/);
+  assert.match(dockerfile, /MAHORAGA_STATE_DIR=\/var\/lib\/mahoraga/);
+  assert.doesNotMatch(dockerfile, /^\s*VOLUME\b/m);
   assert.match(dockerfile, /\/api\/ready/);
   assert.match(fly, /auto_stop_machines = "off"/);
   assert.match(fly, /min_machines_running = 1/);
