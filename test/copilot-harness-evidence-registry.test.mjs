@@ -49,7 +49,7 @@ function descriptor() {
   });
 }
 
-test("UCF preserves sanitized Copilot harness model, memory, evaluation, and monitoring evidence", async () => {
+test("UCF preserves sanitized Copilot harness model, memory, evaluation, and monitoring quality evidence", async () => {
   const manifest = await loadManifest();
   const state = verifiedState(manifest, "copilot-studio");
   state.platformAuthorityScopes = ["connector.invoke", "copilot.invoke"];
@@ -57,19 +57,13 @@ test("UCF preserves sanitized Copilot harness model, memory, evaluation, and mon
   const registry = buildCapabilityRegistry(manifest, [state], NOW, { microsoftHarnessDescriptors: [descriptor()] });
   const studio = registry.find((entry) => entry.workerId === "copilot-studio" && entry.capability === "studio.delegate");
 
-  assert.deepEqual(studio.harnessEvidence, [{
+  assert.deepEqual(studio.harnessQualityEvidence, [{
     alias: "enterprise-core",
-    harnessType: "github-copilot-harness",
-    published: true,
-    connectable: true,
-    capabilityClasses: ["analysis", "workflow-design"],
     modelClass: "reasoning-high",
     modelStatus: "production",
     memoryEnabled: true,
     evaluation: { state: "passing", score: 0.94, observedAt: "2026-09-12T02:50:00.000Z" },
     monitoring: { successRate: 0.98, latencyMs: 1100, observedAt: "2026-09-12T02:55:00.000Z" },
-    billingClass: "metered-copilot-credit",
-    zeroCreditEligible: false,
     observedAt: "2026-09-12T02:56:00.000Z",
   }]);
 });
