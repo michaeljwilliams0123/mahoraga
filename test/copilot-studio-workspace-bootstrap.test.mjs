@@ -31,7 +31,6 @@ test("missing Studio workspace is cloned from trusted schema and environment bin
     assert.equal(result.verified, true);
     assert.deepEqual(calls, [[
       "copilot", "clone", "--bot", "mhg_enterprise_core",
-      "--display-name", "enterprise-core",
       "--environment", ENVIRONMENT_ID,
       "--output-dir", root,
     ]]);
