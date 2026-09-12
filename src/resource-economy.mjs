@@ -22,13 +22,24 @@ export function validateBillingClass(value) {
   return value;
 }
 
-export function isZeroMarginalCreditEligible(billingClass) {
+export function isZeroMarginalCreditEligible(billingClass, quotaAttestation = null, now = Date.now()) {
   if (!BILLING_CLASS_SET.has(billingClass)) return false;
-  return billingClass === "deterministic-zero"
-    || billingClass === "free-tier-zero"
-    || billingClass === "license-included";
+  if (billingClass === "deterministic-zero" || billingClass === "license-included") return true;
+  if (billingClass !== "free-tier-zero") return false;
+  return hasFreshFreeTierAllowance(quotaAttestation, now);
 }
 
 export function economicTierForBillingClass(billingClass) {
   return BILLING_CLASS_SET.has(billingClass) ? ECONOMIC_TIERS[billingClass] : Number.MAX_SAFE_INTEGER;
+}
+
+export function hasFreshFreeTierAllowance(value, now = Date.now()) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  if (value.status !== "available") return false;
+  if (!Number.isFinite(now) || now < 0) return false;
+  const observedAt = Date.parse(value.observedAt);
+  const expiresAt = Date.parse(value.expiresAt);
+  if (!Number.isFinite(observedAt) || !Number.isFinite(expiresAt)) return false;
+  if (observedAt > now || expiresAt <= now || expiresAt <= observedAt) return false;
+  return true;
 }
