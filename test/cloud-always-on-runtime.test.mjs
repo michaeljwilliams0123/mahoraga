@@ -30,6 +30,17 @@ test("cloud supervisor strips candidate-only runtime port from inherited cloud e
   assert.ok(service.indexOf("delete shared.MAHORAGA_RUNTIME_PORT;") < service.indexOf('start("core"'));
 });
 
+test("cloud supervisor emits source provenance and listener-boundary lifecycle evidence", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(service, /MAHORAGA_SOURCE_COMMIT/);
+  assert.match(service, /cloud-supervisor-bootstrap/);
+  assert.match(service, /cloud-child-spawn/);
+  assert.match(service, /cloud-core-ready/);
+  assert.match(service, /cloud-workspace-ready/);
+  assert.match(service, /waitReady\("http:\/\/127\.0\.0\.1:3000\/api\/live"/);
+});
+
 test("cloud supervisor shutdown is safe before idle liveness initialization", async () => {
   const service = await read("scripts/cloud-service.mjs");
   assert.match(service, /let idleTimer = null;/);
