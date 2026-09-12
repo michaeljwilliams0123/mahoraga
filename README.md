@@ -5,7 +5,7 @@
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner choose a provider for every step.
 
-> **Repository truth:** `main` is the canonical source. The public product identity is simply **Mahoraga**. Semantic versions remain internal build/provenance metadata rather than product names. Repository state does not prove live-host state; runtime claims require fresh observed evidence.
+> **Repository truth:** this repository is **private** and `main` is the canonical source. The product identity is simply **Mahoraga**. Semantic versions remain internal build/provenance metadata rather than product names. Repository visibility is not a runtime or Microsoft authority signal, and repository state does not prove live-host state; runtime claims require fresh observed evidence.
 
 ## The current idea
 
@@ -30,7 +30,8 @@ Provider outages, stale sessions, quota conditions, and route drift are treated 
 | Area | Current state |
 | --- | --- |
 | Product identity | `Mahoraga` (unversioned); semantic versions remain build/provenance metadata |
-| Repository build metadata | Tracked in package/manifest provenance; not part of the public Mahoraga name |
+| Repository visibility | Private; source access does not grant runtime, Microsoft, relay, or deployment authority |
+| Repository build metadata | Tracked in package/manifest provenance; not part of the Mahoraga product name |
 | Control plane | Node 24 ESM `.mjs` |
 | Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
 | Control Center truth | Public identity stays Mahoraga; build version is provenance-only; runtime DB display is basename-only; Studio management-plane and delegation-runtime readiness are shown separately and fail closed; the evolution lane mirrors verified convergence rather than implying direct activation authority |
@@ -127,7 +128,7 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 ## Workspace and control surfaces
 
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
-- **GitHub Pages deployment:** [workflow](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml); when Pages is enabled and the exact `main` deployment succeeds, the configured workspace URL is `https://michaeljwilliams0123.github.io/mahoraga/`.
+- **Browser deployment:** `cloud-app/` is host-neutral. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages is an optional derived static export, not production authority.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second deployable UI.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; when startup overrides the port, runtime status reports the actual bound listener. Do not expose this listener directly to the public internet.
 - **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
@@ -135,7 +136,7 @@ See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](
 - **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
 - **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
 
-GitHub main is the code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or another host is live. The active browser path is cloud-first: GitHub Pages publishes the canonical static workspace from `cloud-app/`, while server-capable hosting remains a replaceable transport rather than a second product. Vercel is paused/historical and is not part of the active maintenance path; Netlify remains a fallback only. The former Pages URL from an earlier deployment must not be presented as live unless a fresh Pages deployment for the exact `main` SHA succeeds; the same exact-head rule applies to any replacement host.
+GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or another host is live. The active browser source is host-neutral `cloud-app/`; whichever server-capable or static host is selected remains a replaceable transport rather than a second product or authority plane. GitHub Pages may publish a derived static export when enabled, but neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact `main` SHA and passes the required pairing/health checks. Vercel is paused/historical and Netlify remains fallback-only.
 
 The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately. Deployment metadata can identify the browser build, but authoritative runtime provenance comes only from the paired core; an unpaired cloud surface must report runtime provenance as `unknown` rather than infer it from environment variables.
 
