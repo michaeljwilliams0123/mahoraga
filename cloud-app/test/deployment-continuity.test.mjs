@@ -36,8 +36,8 @@ test("deployment continuity keeps private main authoritative while browser hosti
 
   assert.match(readme, /GitHub `main` is the private code authority/i);
   assert.match(readme, /GitHub Pages is an optional derived static export/i);
-  assert.match(cloudReadme, /GitHub is the private source\/evolution ledger/i);
-  assert.match(cloudReadme, /presentation is host-neutral/i);
+  assert.match(cloudReadme, /GitHub `main` is the private code authority/i);
+  assert.match(cloudReadme, /`cloud-app\/` is host-neutral/i);
   for (const source of [readme, cloudReadme]) {
     assert.match(source, /Netlify/i);
     assert.match(source, /Vercel/i);
