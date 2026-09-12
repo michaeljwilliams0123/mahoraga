@@ -64,7 +64,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /no widened studio\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /Direction (->|->) Compile (->|->) Delta (->|->) Verify (->|->) Learn/);
+    assert.match(cockpit, /Direction → Compile → Delta → Verify → Learn/);
     assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /live ingestion is active/);
     assert.doesNotMatch(cockpit, /Studio is fully available/);
@@ -82,6 +82,12 @@ describe("singular control center contract", () => {
     assert.match(types, /delegationRuntimeReady/);
     assert.match(cockpit, /Runtime DB target/);
     assert.doesNotMatch(cockpit, /connection string|password|secret/i);
+  });
+
+  it("keeps the single public identity Mahoraga across the hero and control center", () => {
+    const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
+    assert.match(chat, /one-kicker">Mahoraga</);
+    assert.doesNotMatch(chat, /Mahoraga One/);
   });
 
   it("distinguishes a healthy published shell from a paired execution core", () => {
