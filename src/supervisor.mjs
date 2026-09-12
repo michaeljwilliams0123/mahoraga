@@ -11,7 +11,6 @@ import { capabilityClass, deriveCapabilityReadiness } from "./capability-readine
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
-const READINESS_RENEWAL_LEAD_MS = 60_000;
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
@@ -417,7 +416,7 @@ export class Supervisor extends EventEmitter {
         provider: { status: item.providerStatus },
         canary: { status: item.canaryStatus, verifiedAt: item.canaryVerifiedAt },
         capabilityClass: capabilityClass(state.definition, item.capability),
-      }, now + READINESS_RENEWAL_LEAD_MS);
+      }, now);
       return readiness.reason === "canary-stale";
     });
     if (stale) this.#requestReadinessRefresh(state);
