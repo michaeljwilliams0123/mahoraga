@@ -341,7 +341,7 @@ export const ARSENAL: ArsenalCommand[] = [
     owner: "admin",
     plane: "write",
     group: "GitHub writes",
-    hint: "Ruleset 22327855 is active. This is the #128 proof.",
+    hint: "Ruleset 22502690 Protect main - exact-head Verify is active. This is the #128 proof.",
     keywords: "protect main ruleset branch protection 78",
     intent: "github-write",
     writeVerb: "protect-inspect",
