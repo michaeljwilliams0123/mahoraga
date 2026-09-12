@@ -1,9 +1,9 @@
 name: Railway Live Smoke
 
 on:
-  push:
+  pull_request:
     branches:
-      - ops/railway-live-smoke-20260911
+      - main
 
 permissions:
   contents: read
