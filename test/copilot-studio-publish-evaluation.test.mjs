@@ -31,19 +31,19 @@ function dependencies(overrides = {}) {
 test("publish is blocked when evaluation evidence is unavailable", async () => {
   const fixture = dependencies();
   await assert.rejects(() => executeCopilotStudioPacSync(request, fixture.value), /studio-pac-evaluation-required/);
-  assert.deepEqual(fixture.calls, ["pull", "push"]);
+  assert.deepEqual(fixture.calls, ["pull", "push", "pull"]);
 });
 
-test("failed evaluation blocks publish after push", async () => {
+test("failed evaluation blocks publish after verified push", async () => {
   const fixture = dependencies({ evaluateAgent: async () => ({ verified: false, state: "failing", score: 0.4 }) });
   await assert.rejects(() => executeCopilotStudioPacSync(request, fixture.value), /studio-pac-evaluation-failed/);
-  assert.deepEqual(fixture.calls, ["pull", "push"]);
+  assert.deepEqual(fixture.calls, ["pull", "push", "pull"]);
 });
 
-test("verified passing evaluation admits explicit publish", async () => {
+test("verified passing evaluation admits explicit publish after provider verification", async () => {
   const fixture = dependencies({ evaluateAgent: async () => ({ verified: true, state: "passing", score: 0.93 }) });
   const result = await executeCopilotStudioPacSync(request, fixture.value);
-  assert.deepEqual(fixture.calls, ["pull", "push", "publish"]);
-  assert.deepEqual(result.phases, ["pull", "validate", "push", "evaluate", "publish"]);
+  assert.deepEqual(fixture.calls, ["pull", "push", "pull", "publish"]);
+  assert.deepEqual(result.phases, ["pull", "validate", "push", "verify", "evaluate", "publish"]);
   assert.deepEqual(result.evaluation, { state: "passing", scoreBasisPoints: 9300 });
 });
