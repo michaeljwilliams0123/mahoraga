@@ -1,0 +1,28 @@
+name: Railway Live Smoke
+
+on:
+  push:
+    branches:
+      - ops/railway-live-smoke-20260911
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Probe Railway workspace health
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://mahoraga-runtime-direct-production.up.railway.app"
+          for path in /api/ready /api/live; do
+            body="$(mktemp)"
+            code="$(curl --silent --show-error --location --connect-timeout 10 --max-time 20 --output "$body" --write-out '%{http_code}' "$base$path" || true)"
+            echo "$path => HTTP $code"
+            head -c 1000 "$body" || true
+            echo
+            test "$code" = "200"
+          done
