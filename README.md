@@ -76,6 +76,8 @@ Mahoraga's current `main` is materially ahead of the older runtime baseline:
 - **Verified live-brain convergence:** PR [#351](https://github.com/michaeljwilliams0123/mahoraga/pull/351) added the zero-credit Windows convergence controller that advances a drifted paired core only after exact protected-main identity, candidate verification, canary readiness, state migration, and rollback checks succeed.
 - **Idle readiness renewal:** PR [#353](https://github.com/michaeljwilliams0123/mahoraga/pull/353) makes the supervisor renew stale canary evidence while a worker is truly idle, with a single in-flight refresh guard; queued work retains the task-driven recovery and attempt contract.
 - **Windows convergence trigger compatibility:** PR [#357](https://github.com/michaeljwilliams0123/mahoraga/pull/357) creates the one-minute convergence recurrence through supported ScheduledTasks parameters, preserving the existing exact-head, canary, durable-state, and rollback boundaries.
+- **Canonical Railway container:** PR [#368](https://github.com/michaeljwilliams0123/mahoraga/pull/368) makes Railway use the same Node 24 cloud container definition as the governed cloud runtime instead of a divergent Railpack-detected build path.
+- **Encrypted relay continuity:** PR [#370](https://github.com/michaeljwilliams0123/mahoraga/pull/370) adds bounded encrypted relay continuity across runtime replacement, including authenticated reattach/keepalive state and protected local continuity storage. Merge status does not prove a stale paired runtime has converged; live provenance remains authoritative.
 - **Adaptive review loop:** owner directions can now be compiled into bounded impact surfaces, relevant institutional lessons, freshness-aware evidence ladders, contradiction classes, and a deterministic stop condition before implementation expands scope.
 - **Control Center operator truth:** the canonical cloud workspace now keeps `Mahoraga` as the public identity while surfacing build provenance separately, exposes only the runtime database basename, distinguishes Copilot Studio management-plane readiness from delegation-runtime readiness, and describes core evolution as stage → verify → canary → converge without widening browser authority.
 
@@ -139,7 +141,7 @@ The browser workspace is a client of the paired Mahoraga core. GitHub source ver
 
 ## Repository hygiene
 
-Mahoraga keeps `main` as the long-lived code authority and treats implementation branches as disposable delivery lanes. Fully merged remote branches should be pruned after their work lands; unmerged branches are retained until their commits are either merged, explicitly retired, or superseded with evidence. Generated state, historical release receipts, and rollback baselines are not "dead code" and should not be deleted merely because a newer candidate exists.
+Mahoraga keeps `main` as the long-lived code authority and treats implementation branches as disposable delivery lanes. Fully merged remote branches should be pruned after their work lands. Branches backing closed PRs that GitHub explicitly records as duplicate, empty WIP, superseded, or abandoned should also be retired instead of preserved indefinitely merely because squash/rebase history makes their commits appear unique. Unmerged branches without an explicit retirement decision are retained for merge/extract review. Generated state, historical release receipts, and rollback baselines are not "dead code" and should not be deleted merely because a newer candidate exists.
 
 ## Verification
 
