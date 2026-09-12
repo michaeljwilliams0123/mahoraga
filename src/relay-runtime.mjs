@@ -4,6 +4,9 @@ import { createTwinInbox, validateTwinEvent } from "./twin-federation.mjs";
 const DEFAULT_RELAY_URL = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair/local";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
 const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement", "operations-snapshot", "operations-action"]);
+const REATTACH_FALLBACK_ERRORS = new Set(["relay-session-missing", "relay-session-reattach-invalid"]);
+const STATE_KEYS = new Set(["schemaVersion", "context", "privateKeyJwk", "publicKey", "peerPublicKey", "sessionId", "sendCounter", "receivedCounters"]);
+const DIRECTIONS = new Set(["ui-to-runtime", "runtime-to-ui"]);
 
 export function createRelayRuntimePeer({
   relayUrl = DEFAULT_RELAY_URL,
@@ -18,29 +21,39 @@ export function createRelayRuntimePeer({
   onReceipt = () => {},
   killSwitch = () => false,
   allowedDestinations = [DEFAULT_RELAY_URL],
+  sessionStateStore = null,
+  heartbeatIntervalMs = 300_000,
 } = {}) {
   if (!Array.isArray(allowedDestinations) || !allowedDestinations.includes(relayUrl) || new URL(relayUrl).protocol !== "wss:") fail("relay-runtime-url-invalid");
-  if (!pairing || !pairing.privateKey || !pairing.publicKey || !pairing.publicOffer) fail("relay-runtime-pairing-invalid");
+  if (!pairing || !pairing.privateKey || !pairing.publicKey || !pairing.publicOffer || !pairing.context) fail("relay-runtime-pairing-invalid");
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{2,119}$/.test(deviceId)) fail("relay-runtime-device-invalid");
   if (!gateway || ["createRun", "chat", "tasks", "messages", "messageContent", "taskAction", "operationsSnapshot", "operationsAction", "replay", "cancelRun", "capabilities"].some((name) => typeof gateway[name] !== "function")) fail("relay-runtime-gateway-invalid");
   if (typeof localAccessToken !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(localAccessToken)) fail("relay-runtime-access-token-invalid");
   if (typeof WebSocketImpl !== "function") fail("relay-runtime-websocket-invalid");
   if (!Number.isSafeInteger(retryBudget) || retryBudget < 0 || retryBudget > 32 || typeof random !== "function" || typeof onReceipt !== "function" || typeof killSwitch !== "function") fail("relay-runtime-retry-policy-invalid");
+  if (sessionStateStore !== null && (!sessionStateStore || ["load", "save", "clear"].some((name) => typeof sessionStateStore[name] !== "function"))) fail("relay-runtime-session-store-invalid");
+  if (!Number.isSafeInteger(heartbeatIntervalMs) || heartbeatIntervalMs < 0 || heartbeatIntervalMs > 900_000 || (heartbeatIntervalMs > 0 && heartbeatIntervalMs < 1_000)) fail("relay-runtime-heartbeat-invalid");
 
   const twinState = normalizeTwin(twin);
+  const fallbackPairing = pairing;
+  let activePairing = pairing;
   let socket = null;
   let session = null;
   let pairingResult = null;
   let connectPromise = null;
   let reconnectTimer = null;
+  let heartbeatTimer = null;
   let reconnectAttempts = 0;
   let stopped = false;
   let circuit = "closed";
+  let stateLoaded = false;
+  let restoredSession = false;
 
   const api = {
     async connect() {
       if (killSwitch()) { circuit = "open"; receipt("kill-switch", { attempt: reconnectAttempts }); fail("relay-runtime-kill-switch-active"); }
       stopped = false;
+      if (!stateLoaded) await restorePersistedState();
       if (socketReady(socket) && session) return Object.freeze({ sessionId: session.sessionId, deviceId });
       if (connectPromise) return connectPromise;
       connectPromise = connectInternal().finally(() => { connectPromise = null; });
@@ -53,13 +66,14 @@ export function createRelayRuntimePeer({
       if (event.federationId !== twinState.federationId) fail("relay-runtime-twin-federation-mismatch");
       if (event.originPeerId !== twinState.peerId) fail("relay-runtime-twin-origin-mismatch");
       const frame = await sealFrame(session, { type: "twin-event", event }, { direction: "runtime-to-ui" });
+      await persistSessionState();
       socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
       return Object.freeze({ accepted: true, eventId: event.eventId, sessionId: session.sessionId });
     },
     close() {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      reconnectTimer = null;
+      reconnectTimer = null; stopHeartbeat();
       if (socket) socket.close?.(1000, "runtime-shutdown");
       socket = null; session = null; pairingResult = null;
     },
@@ -72,6 +86,7 @@ export function createRelayRuntimePeer({
         reconnectAttempts,
         retryBudget,
         circuit,
+        restoredSession,
       });
     },
     twinInboxSnapshot() { return twinState?.inbox.snapshot() ?? null; },
@@ -82,18 +97,30 @@ export function createRelayRuntimePeer({
     socket = new WebSocketImpl(relayUrl, [LOCAL_RELAY_PROTOCOL, `mahoraga-auth-${localAccessToken}`]);
     const opened = await waitForOpen(socket);
     if (!opened) fail("relay-runtime-connect-failed");
-    const paired = await waitForPairing(socket, Boolean(session && pairingResult));
+    let reattach = Boolean(session && pairingResult);
+    let paired;
+    try {
+      paired = await waitForPairing(socket, reattach);
+    } catch (cause) {
+      if (!reattach || !REATTACH_FALLBACK_ERRORS.has(String(cause?.message ?? ""))) throw cause;
+      await clearPersistedState();
+      activePairing = fallbackPairing; session = null; pairingResult = null; restoredSession = false; reattach = false;
+      paired = await waitForPairing(socket, false);
+    }
     if (!paired?.sessionId || paired.paired !== true || !paired.peerPublicKey) fail("relay-runtime-pairing-response-invalid");
+    if (reattach && !samePublicKey(pairingResult.peerPublicKey, paired.peerPublicKey)) fail("relay-runtime-peer-key-changed");
     pairingResult = paired;
-    session ??= await deriveRelaySession(pairing.privateKey, paired.peerPublicKey, pairing.context);
+    session ??= await deriveRelaySession(activePairing.privateKey, paired.peerPublicKey, activePairing.context);
     if (!/^rls-[A-Za-z0-9_-]{32}$/.test(paired.sessionId)) fail("relay-runtime-session-invalid");
     session.sessionId = paired.sessionId;
+    await persistSessionState();
     socket.addEventListener("message", (event) => { void receive(event); });
-    socket.addEventListener("close", () => { if (!stopped && session) { socket = null; scheduleReconnect(); } }, { once: true });
+    socket.addEventListener("close", () => { stopHeartbeat(); if (!stopped && session) { socket = null; scheduleReconnect(); } }, { once: true });
     reconnectAttempts = 0;
     circuit = "closed";
-    receipt("connected", { sessionId: session.sessionId });
+    receipt(restoredSession ? "reattached" : "connected", { sessionId: session.sessionId });
     socket.send(JSON.stringify({ action: "replay", sessionId: session.sessionId, to: "local", afterCounter: session.receivedCounters.get("ui-to-runtime") ?? 0 }));
+    startHeartbeat();
     return Object.freeze({ sessionId: session.sessionId, deviceId });
   }
 
@@ -121,11 +148,11 @@ export function createRelayRuntimePeer({
 
   function waitForPairing(currentSocket, reattach) {
     return new Promise((resolve, reject) => {
-      const remaining = Date.parse(pairing.publicOffer.expiresAt) - Date.now();
+      const remaining = reattach ? 10_000 : Date.parse(activePairing.publicOffer.expiresAt) - Date.now();
       const timer = setTimeout(() => reject(new Error("relay-runtime-pairing-timeout")), Math.max(1_000, Math.min(300_000, remaining)));
       const onMessage = (event) => {
         let value; try { value = JSON.parse(String(event.data)); } catch { return; }
-        if (value.type !== "paired") return;
+        if (value.type !== "paired" && value.accepted !== false) return;
         if (!value.accepted) { clearTimeout(timer); reject(new Error(value.error || "relay-runtime-pairing-rejected")); return; }
         if (value.result?.paired !== true || !value.result.peerPublicKey) return;
         clearTimeout(timer); resolve(value.result);
@@ -134,8 +161,8 @@ export function createRelayRuntimePeer({
       currentSocket.addEventListener("error", () => { clearTimeout(timer); reject(new Error("relay-runtime-pairing-failed")); }, { once: true });
       if (reattach) currentSocket.send(JSON.stringify({ action: "reattach-local", deviceId, sessionId: session.sessionId }));
       else {
-        const offer = pairing.publicOffer;
-        currentSocket.send(JSON.stringify({ action: "pair-local", deviceId, pairingId: offer.pairingId, code: offer.code, devicePublicKey: pairing.publicKey }));
+        const offer = activePairing.publicOffer;
+        currentSocket.send(JSON.stringify({ action: "pair-local", deviceId, pairingId: offer.pairingId, code: offer.code, devicePublicKey: activePairing.publicKey }));
       }
     });
   }
@@ -145,7 +172,7 @@ export function createRelayRuntimePeer({
     let envelope; try { envelope = JSON.parse(String(event.data)); } catch { return; }
     if (envelope.type !== "frame" || !envelope.frame) return;
     let request;
-    try { request = await openFrame(session, envelope.frame); } catch { return; }
+    try { request = await openFrame(session, envelope.frame); await persistSessionState(); } catch { return; }
     if (request?.type === "twin-event") {
       await receiveTwinEvent(request.event);
       return;
@@ -154,10 +181,12 @@ export function createRelayRuntimePeer({
       if (!request || typeof request !== "object" || !ACTIONS.has(request.type) || typeof request.requestId !== "string") throw error("relay-runtime-request-invalid");
       const result = await dispatch(request.type, request.payload);
       const frame = await sealFrame(session, { requestId: request.requestId, result }, { direction: "runtime-to-ui" });
+      await persistSessionState();
       socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
     } catch (cause) {
       try {
         const frame = await sealFrame(session, { requestId: request?.requestId ?? "invalid", error: publicCode(cause) }, { direction: "runtime-to-ui" });
+        await persistSessionState();
         socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "local", frame }));
       } catch { /* a closed peer ends this request */ }
     }
@@ -192,10 +221,95 @@ export function createRelayRuntimePeer({
     throw error("relay-runtime-request-invalid");
   }
 
+  async function restorePersistedState() {
+    stateLoaded = true;
+    if (!sessionStateStore) return;
+    let stored;
+    try { stored = await sessionStateStore.load(); } catch { await clearPersistedState(); receipt("session-restore-rejected", { reason: "store-read-failed" }); return; }
+    if (!stored) return;
+    try {
+      const restored = await deserializeSessionState(stored);
+      activePairing = restored.pairing; pairingResult = restored.pairingResult; session = restored.session; restoredSession = true;
+      receipt("session-restored", { sessionId: session.sessionId });
+    } catch {
+      await clearPersistedState();
+      activePairing = fallbackPairing; session = null; pairingResult = null; restoredSession = false;
+      receipt("session-restore-rejected", { reason: "state-invalid" });
+    }
+  }
+
+  async function persistSessionState() {
+    if (!sessionStateStore || !session || !pairingResult?.peerPublicKey) return;
+    await sessionStateStore.save(await serializeSessionState(activePairing, pairingResult.peerPublicKey, session));
+  }
+
+  async function clearPersistedState() {
+    if (sessionStateStore) { try { await sessionStateStore.clear(); } catch { /* stale encrypted state remains unusable */ } }
+  }
+
+  function startHeartbeat() {
+    stopHeartbeat();
+    if (heartbeatIntervalMs === 0) return;
+    heartbeatTimer = setInterval(() => {
+      if (!socketReady(socket) || !session) return;
+      try { socket.send(JSON.stringify({ action: "keepalive", sessionId: session.sessionId, side: "local" })); } catch { /* reconnect path owns transport recovery */ }
+    }, heartbeatIntervalMs);
+    heartbeatTimer.unref?.();
+  }
+  function stopHeartbeat() { if (heartbeatTimer) clearInterval(heartbeatTimer); heartbeatTimer = null; }
+
   function receipt(state, detail) {
     onReceipt(Object.freeze({ schemaVersion: 1, type: "relay-egress", state, destination: relayUrl, capabilityAllowlist: [...ACTIONS].sort(), observedAt: new Date().toISOString(), ...detail }));
   }
 }
+
+async function serializeSessionState(pairing, peerPublicKey, session) {
+  const privateKeyJwk = await crypto.subtle.exportKey("jwk", pairing.privateKey);
+  return Object.freeze({
+    schemaVersion: 1,
+    context: structuredClone(pairing.context),
+    privateKeyJwk,
+    publicKey: structuredClone(pairing.publicKey),
+    peerPublicKey: structuredClone(peerPublicKey),
+    sessionId: session.sessionId,
+    sendCounter: session.sendCounter,
+    receivedCounters: Object.fromEntries([...session.receivedCounters.entries()]),
+  });
+}
+
+async function deserializeSessionState(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).length !== STATE_KEYS.size || Object.keys(value).some((key) => !STATE_KEYS.has(key))) fail("relay-runtime-session-state-invalid");
+  if (value.schemaVersion !== 1 || !/^rls-[A-Za-z0-9_-]{32}$/.test(value.sessionId) || !Number.isSafeInteger(value.sendCounter) || value.sendCounter < 0) fail("relay-runtime-session-state-invalid");
+  validatePairingContext(value.context); validatePublicKey(value.publicKey); validatePublicKey(value.peerPublicKey);
+  const jwk = value.privateKeyJwk;
+  if (!jwk || jwk.kty !== "EC" || jwk.crv !== "P-256" || typeof jwk.d !== "string" || jwk.x !== value.publicKey.x || jwk.y !== value.publicKey.y) fail("relay-runtime-session-state-invalid");
+  const counters = new Map();
+  if (!value.receivedCounters || typeof value.receivedCounters !== "object" || Array.isArray(value.receivedCounters)) fail("relay-runtime-session-state-invalid");
+  for (const [direction, counter] of Object.entries(value.receivedCounters)) {
+    if (!DIRECTIONS.has(direction) || !Number.isSafeInteger(counter) || counter < 0) fail("relay-runtime-session-state-invalid");
+    counters.set(direction, counter);
+  }
+  let privateKey;
+  try { privateKey = await crypto.subtle.importKey("jwk", jwk, { name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]); }
+  catch { fail("relay-runtime-session-state-invalid"); }
+  const session = await deriveRelaySession(privateKey, value.peerPublicKey, value.context);
+  session.sessionId = value.sessionId; session.sendCounter = value.sendCounter; session.receivedCounters = counters;
+  const publicKey = Object.freeze(structuredClone(value.publicKey));
+  const context = Object.freeze(structuredClone(value.context));
+  return {
+    pairing: Object.freeze({ privateKey, publicKey, context, publicOffer: Object.freeze({ schemaVersion: 1, ...context, devicePublicKey: publicKey }) }),
+    pairingResult: Object.freeze({ sessionId: value.sessionId, paired: true, peerPublicKey: Object.freeze(structuredClone(value.peerPublicKey)) }),
+    session,
+  };
+}
+
+function validatePairingContext(value) {
+  if (!value || value.protocolVersion !== "1.0.0" || !/^pair-[a-f0-9-]{36}$/.test(value.pairingId) || !/^[A-Z2-9]{8}$/.test(value.code) || !Number.isFinite(Date.parse(value.expiresAt))) fail("relay-runtime-session-state-invalid");
+}
+function validatePublicKey(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.kty !== "EC" || value.crv !== "P-256" || typeof value.x !== "string" || typeof value.y !== "string" || !/^[A-Za-z0-9_-]{20,80}$/.test(value.x) || !/^[A-Za-z0-9_-]{20,80}$/.test(value.y)) fail("relay-runtime-session-state-invalid");
+}
+function samePublicKey(left, right) { try { validatePublicKey(left); validatePublicKey(right); return left.kty === right.kty && left.crv === right.crv && left.x === right.x && left.y === right.y; } catch { return false; } }
 
 function normalizeTwin(value) {
   if (value === null) return null;
