@@ -173,10 +173,16 @@ if ($liveAuthority -ne $targetCommit) { throw 'Running Mahoraga authority does n
 Write-Output "Verifying protected main $targetCommit before candidate activation."
 Invoke-VerificationGate
 
-$centralStateReady = Test-Path -LiteralPath (Join-Path $stateRoot 'mahoraga.sqlite') -PathType Leaf
+$centralStateDatabase = Join-Path $stateRoot 'mahoraga.sqlite'
+$centralStateVaultKey = Join-Path $stateRoot 'content-vault.key.dpapi'
+$centralStateVaultRoot = Join-Path $stateRoot 'content-vault'
+$centralStateReady = (Test-Path -LiteralPath $centralStateDatabase -PathType Leaf) -and (Test-Path -LiteralPath $centralStateVaultKey -PathType Leaf) -and (Test-Path -LiteralPath $centralStateVaultRoot -PathType Container)
 $rollbackWorktree = Ensure-RollbackWorktree $sourceCommit
 $sourceWorktree = $null
 $migrationMarker = Join-Path $convergenceRoot 'durable-state-migrated.json'
+if ((Test-Path -LiteralPath $migrationMarker -PathType Leaf) -and -not $centralStateReady) {
+    throw 'Centralized candidate state is incomplete after recorded migration.'
+}
 if (-not $centralStateReady -and -not (Test-Path -LiteralPath $migrationMarker -PathType Leaf)) {
     $sourceWorktree = Find-SourceWorktree $sourceCommit
 }
