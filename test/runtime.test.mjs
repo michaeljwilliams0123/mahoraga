@@ -31,6 +31,16 @@ test("runtime exposes only the canonical GitHub Pages workspace as its interacti
   assert.throws(() => canonicalWorkspaceUrl("https://user:secret@example.com/"), /canonical-workspace-url-invalid/);
 });
 
+test("interaction readiness follows assistant.respond routing rather than process health", async () => {
+  const server = await import("../src/server.mjs");
+  assert.equal(typeof server.interactionReadinessProjection, "function");
+  const observedAt = "2026-09-12T17:32:57.000Z";
+  const blocked = server.interactionReadinessProjection([{ capability: "assistant.respond", routable: false, workerId: "question-model", provider: "unavailable", canary: "failed", routingReason: "provider-unavailable", evidenceLevel: "inferred", lastObservedAt: observedAt, lastVerifiedAt: null }]);
+  assert.deepEqual(blocked, { ready: false, capability: "assistant.respond", workerId: "question-model", provider: "unavailable", canary: "failed", reason: "provider-unavailable", evidenceLevel: "inferred", lastObservedAt: observedAt, lastVerifiedAt: null });
+  const ready = server.interactionReadinessProjection([{ capability: "assistant.respond", routable: true, workerId: "question-model", provider: "ready", canary: "verified", routingReason: null, evidenceLevel: "verified", lastObservedAt: observedAt, lastVerifiedAt: observedAt }]);
+  assert.equal(ready.ready, true);
+  assert.equal(ready.reason, null);
+});
 test("cloud runtime dispatch is fixed-path, bearer-only, and bounded", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
