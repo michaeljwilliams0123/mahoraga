@@ -45,16 +45,17 @@ test("PAC sync requires Windows and a known logical agent before invoking PAC", 
   assert.equal(invoked, false);
 });
 
-test("PAC sync performs pull, bounded mutation, validation and push in order", async () => {
+test("PAC sync performs pull, bounded mutation, validation, push and provider verification in order", async () => {
   const { calls, dependencies } = fixture();
   const result = await executeCopilotStudioPacSync(request, dependencies);
   assert.equal(result.verified, true);
-  assert.deepEqual(result.phases, ["pull", "validate", "push"]);
+  assert.deepEqual(result.phases, ["pull", "validate", "push", "verify"]);
   assert.equal(result.published, false);
-  assert.deepEqual(calls.map((item) => item[0]), ["workspace", "pac", "mutate", "validate", "pac"]);
+  assert.deepEqual(calls.map((item) => item[0]), ["workspace", "pac", "mutate", "validate", "pac", "pac"]);
   assert.deepEqual(calls.filter((item) => item[0] === "pac").map((item) => item.slice(1, 3)), [
     ["copilot", "pull"],
     ["copilot", "push"],
+    ["copilot", "pull"],
   ]);
 });
 
@@ -68,20 +69,18 @@ test("PAC sync refuses push when mutation or deterministic validation fails", as
   }
 });
 
-test("PAC sync publishes only after verified push, evaluation, and explicit publish request", async () => {
+test("PAC sync publishes only after verified push, provider verification, evaluation, and explicit publish request", async () => {
   const { calls, dependencies } = fixture();
   dependencies.evaluateAgent = async () => ({ verified: true, state: "passing", score: 0.95 });
   const result = await executeCopilotStudioPacSync({ ...request, publish: true }, dependencies);
-  assert.deepEqual(result.phases, ["pull", "validate", "push", "evaluate", "publish"]);
+  assert.deepEqual(result.phases, ["pull", "validate", "push", "verify", "evaluate", "publish"]);
   assert.equal(result.published, true);
   const pacCalls = calls.filter((item) => item[0] === "pac");
   assert.equal(pacCalls.at(-1)[2], "publish");
 });
 
-test("PAC sync detects remote drift and does not push unknown changes", async () => {
+test("PAC sync detects mutation-base drift and does not push unknown changes", async () => {
   const { calls, dependencies } = fixture();
-  let snapshots = 0;
-  dependencies.snapshotWorkspace = async () => (++snapshots === 1 ? "a".repeat(64) : "b".repeat(64));
   dependencies.applyMutation = async ({ workspacePath }) => {
     calls.push(["mutate", workspacePath]);
     return { verified: true, changedFiles: ["agent.mcs.yaml"] };
