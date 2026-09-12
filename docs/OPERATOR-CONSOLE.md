@@ -1,8 +1,10 @@
 # Integrated operator surface
 
-Mahoraga has one browser UI: the `cloud-app/` workspace. The last verified
-production deployment is `https://michaeljwilliams0123.github.io/mahoraga/` while a
-provider-neutral Cloudflare Workers replacement is staged and verified.
+Mahoraga has one browser UI: the host-neutral `cloud-app/` workspace. The
+canonical production browser origin is the exact host configured through
+`MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` only after its deployed
+Git SHA, health, and encrypted pairing state are verified. GitHub Pages may
+publish a derived static export when enabled; it is not execution authority.
 
 The former operator-console concept is integrated into that workspace rather
 than deployed as a second application.
@@ -23,7 +25,7 @@ is not a separate hosted project or user-facing surface.
 
 ## Protect main
 
-Ruleset `22327855` **Protect main — exact-head Verify** is active on the default
+Ruleset `22502690` **Protect main - exact-head Verify** is active on the default
 branch.
 
 Required checks:
@@ -34,29 +36,28 @@ Required checks:
 The unified cloud-workspace build may run as an observational job. Hosting
 provider status must not gate PR completion.
 
-Strict up-to-date. No bypass actors. A file in git is not branch protection.
+Strict up-to-date. Pull request required. Squash merge only. Deletion and
+non-fast-forward updates are blocked. No bypass actors. A file in git is not
+branch protection.
 
 ## Deployment truth
 
-GitHub is the evolution/source plane. The browser build is now host-neutral:
-`/api/health` prefers `MAHORAGA_*` deployment metadata and retains Vercel
-variables only as compatibility fallback, while also recognizing Netlify's
-deployment metadata. Control Center renders the hosting provider, environment,
-Git ref, and exact deployed SHA.
+GitHub `main` is the evolution/source plane. The browser build is host-neutral:
+`/api/health` prefers `MAHORAGA_*` deployment metadata and retains provider
+variables only as compatibility inputs. Control Center renders the hosting
+provider, environment, Git ref, and exact deployed SHA without treating the
+provider itself as authority.
 
-The Vercel project `mahoraga-workspace` is the last verified production host,
-but Vercel Git deployment is frozen while the account quota is exhausted.
-Historical duplicate Vercel projects remain non-canonical and must not be used
-as production truth.
+No historical Pages, Vercel, Railway, Cloudflare, Netlify, or other provider URL
+is canonical merely because it once deployed successfully or appears in repo
+metadata. A server-capable host may replace a static host where server routes are
+required, but it must not create a tunnel or generic proxy to the local/core
+runtime.
 
-Cloudflare Workers is the designated replacement-host candidate. Workers may
-host the browser application only; it must not create a tunnel or generic proxy
-to the local/core runtime. See
-[`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
-
-A new provider becomes canonical only after its root page, health route, exact
-Git SHA, encrypted relay pairing, and zero-paid-fallback boundary pass the same
-activation canary.
+A provider becomes canonical only after the configured production origin's root
+page, health route, exact Git SHA, encrypted relay pairing, and zero-paid-fallback
+boundary pass the activation canary. Repository visibility and hosting-provider
+identity do not grant execution authority.
 
 ## Four-hour self-update
 
