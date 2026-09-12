@@ -24,6 +24,12 @@ test("cloud supervisor uses the manifest production core port without a candidat
   assert.doesNotMatch(service, /\["src\/cli\.mjs", "start", "--port", "4782"\]/);
 });
 
+test("cloud supervisor strips ambient runtime-port overrides before starting the production core", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /delete shared\.MAHORAGA_RUNTIME_PORT;/);
+  assert.ok(service.indexOf("delete shared.MAHORAGA_RUNTIME_PORT;") < service.indexOf('start("core"'));
+});
+
 test("cloud supervisor shutdown is safe before idle liveness initialization", async () => {
   const service = await read("scripts/cloud-service.mjs");
   assert.match(service, /let idleTimer = null;/);
