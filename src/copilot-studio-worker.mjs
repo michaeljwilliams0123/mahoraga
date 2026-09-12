@@ -1,5 +1,6 @@
 import { loadCopilotStudioRuntimeSettings, createCopilotTokenProvider } from "./copilot-studio-auth.mjs";
 import { invokeCopilotStudioAgent } from "./copilot-studio-client.mjs";
+import { executeCopilotStudioPacSync } from "./copilot-studio-pac-sync.mjs";
 import { probePowerPlatformProvider } from "./power-platform-provider.mjs";
 import { isZeroMarginalCreditEligible, microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from "./microsoft-usage-cost.mjs";
 
@@ -64,9 +65,8 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
   if (capability === "studio.configure") {
     if (!isZeroMarginalCreditEligible(billingClass)) throw safeError("billing-not-zero-credit");
     const request = normalizeConfigureRequest(task);
-    const configureAgent = dependencies.configureAgent;
-    if (typeof configureAgent !== "function") throw safeError("studio-configure-adapter-unavailable");
-    const configured = await configureAgent(request, { env });
+    const configureAgent = dependencies.configureAgent ?? executeCopilotStudioPacSync;
+    const configured = await configureAgent(request, { env, ...(dependencies.configureDependencies ?? {}) });
     if (configured?.verified !== true) throw safeError("studio-configure-verification-failed");
     const phases = normalizePhases(configured.phases);
     const published = request.publish && phases.includes("publish");
