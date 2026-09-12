@@ -46,11 +46,17 @@ export function resolveMicrosoftBillingClass(capability, declaredClass, runtimeA
 }
 
 export function microsoftBillingAttestationFromEnv(env = process.env) {
-  const value = typeof env.MAHORAGA_COPILOT_STUDIO_DELEGATE_BILLING_CLASS === "string"
-    ? env.MAHORAGA_COPILOT_STUDIO_DELEGATE_BILLING_CLASS.trim()
-    : "";
-  if (!new Set(["license-included", "metered"]).has(value)) return Object.freeze({});
+  const entries = [
+    ["studio.delegate", "MAHORAGA_COPILOT_STUDIO_DELEGATE_BILLING_CLASS"],
+    ["studio.configure", "MAHORAGA_COPILOT_STUDIO_CONFIGURE_BILLING_CLASS"],
+  ];
+  const studio = {};
+  for (const [capability, envName] of entries) {
+    const value = typeof env[envName] === "string" ? env[envName].trim() : "";
+    if (new Set(["license-included", "metered"]).has(value)) studio[capability] = value;
+  }
+  if (Object.keys(studio).length === 0) return Object.freeze({});
   return Object.freeze({
-    "copilot-studio": Object.freeze({ "studio.delegate": value }),
+    "copilot-studio": Object.freeze(studio),
   });
 }
