@@ -47,7 +47,7 @@ if (command === "validate") {
     ...(process.env.MAHORAGA_CONTENT_VAULT_ROOT ? { contentVaultRoot: process.env.MAHORAGA_CONTENT_VAULT_ROOT } : {}),
     ...(vaultKey ? { contentVaultMasterKey: Buffer.from(vaultKey, "base64") } : {}),
   });
-  console.log(`Mahoraga ${runtime.manifest.version} is ready at http://${runtime.address.address}:${runtime.address.port}${runtime.uccp ? " [UCCP candidate isolated]" : ""}`);
+  console.log(`Mahoraga is ready at http://${runtime.address.address}:${runtime.address.port}${runtime.uccp ? " [UCCP candidate isolated]" : ""}`);
   const shutdown = async () => { await runtime.stop(); process.exit(0); };
   process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 } else if (command === "status" || command === "submit") {
