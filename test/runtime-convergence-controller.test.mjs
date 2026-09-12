@@ -49,3 +49,14 @@ test("Windows convergence bootstraps protected main when the 4783 candidate is a
   assert.match(controller, /state\s*=\s*['"]bootstrapped['"]/i);
   assert.match(controller, /npm\.cmd['"]?\s+run\s+verify/i);
 });
+
+test("Windows convergence fails closed when 4783 is occupied but status is unavailable", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const noLiveBlock = controller.match(/if \(-not \$live\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.match(noLiveBlock, /Get-ListenerPid/);
+  assert.match(noLiveBlock, /listener-conflict/i);
+  assert.match(noLiveBlock, /throw/i);
+  assert.ok(noLiveBlock.indexOf("Get-ListenerPid") < noLiveBlock.indexOf("Start-Candidate"));
+  assert.doesNotMatch(noLiveBlock, /\$failedPid\s*=\s*Get-ListenerPid[\s\S]*Stop-Listener\s+\$failedPid/i);
+  assert.match(noLiveBlock, /\$bootstrapProcess\.Id/);
+});
