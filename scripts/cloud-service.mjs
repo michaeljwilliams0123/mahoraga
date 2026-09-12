@@ -19,6 +19,7 @@ const shared = { ...process.env,
   MAHORAGA_CORE_URL: "http://127.0.0.1:4782",
   HOSTNAME: "0.0.0.0", PORT: "3000",
 };
+delete shared.MAHORAGA_RUNTIME_PORT;
 
 start("core", process.execPath, ["src/cli.mjs", "start"]);
 await waitReady("http://127.0.0.1:4782/api/status", 30_000);
