@@ -3,6 +3,7 @@ import path from "node:path";
 import { loadProductIdentity } from "./product-identity.mjs";
 import { applyGoogleCapabilityManifest, validateGoogleCapabilityWorkers } from "./google-capability-manifest.mjs";
 import { validateCapabilityAuthorityScopes, validateOwnerAuthorityGrant } from "./owner-authority.mjs";
+import { validateBillingClass } from "./resource-economy.mjs";
 import * as legacy from "./config-legacy.mjs";
 
 export const ROOT = legacy.ROOT;
@@ -109,14 +110,19 @@ export function normalizeManifestCompatibility(value, identity = null) {
   return applyGoogleCapabilityManifest(next);
 }
 
-const BILLING_CLASSES = new Set(["deterministic-zero", "license-included", "metered", "metered-copilot-credit", "unknown"]);
 function validateBillingClassMap(value, capabilities) {
   if (value === undefined) return;
   if (!isRecord(value)) throw new TypeError("Worker billing class map is invalid.");
   const keys = Object.keys(value).sort();
   const declared = [...capabilities].sort();
   if (keys.length !== declared.length || keys.some((key, index) => key !== declared[index])) throw new TypeError("Worker billing class map must cover every capability exactly.");
-  for (const billingClass of Object.values(value)) if (!BILLING_CLASSES.has(billingClass)) throw new TypeError("Worker billing class is invalid.");
+  for (const billingClass of Object.values(value)) {
+    try {
+      validateBillingClass(billingClass);
+    } catch {
+      throw new TypeError("Worker billing class is invalid.");
+    }
+  }
 }
 
 function validateProtocols(value) {
