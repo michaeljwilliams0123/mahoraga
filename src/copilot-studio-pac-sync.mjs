@@ -27,6 +27,7 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
 
   const binding = await resolveAgent(request.alias, { env });
   if (!binding || binding.alias !== request.alias || !safeName(binding.workspaceName)) throw safeError("studio-pac-agent-invalid");
+  if (request.publish === true && (!safeName(binding.botSchemaName) || !safeEnvironmentId(binding.environmentId))) throw safeError("studio-pac-agent-binding-missing");
   const workspaceRoot = path.resolve(dependencies.workspaceRoot ?? path.join(env.LOCALAPPDATA ?? process.cwd(), "Mahoraga", SAFE_ROOT_NAME));
   const workspacePath = path.resolve(workspaceRoot, binding.workspaceName);
   if (!inside(workspaceRoot, workspacePath)) throw safeError("studio-pac-workspace-invalid");
@@ -76,8 +77,7 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
     if (score < 0 || score > 1) throw safeError("studio-pac-evaluation-failed");
     evaluation = Object.freeze({ state: "passing", scoreBasisPoints: Math.round(score * 10000) });
     phases.push("evaluate");
-    if (!safeName(binding.botSchemaName)) throw safeError("studio-pac-agent-invalid");
-    await runFixedPac(runPac, ["copilot", "publish", "--bot", binding.botSchemaName]);
+    await runFixedPac(runPac, ["copilot", "publish", "--bot", binding.botSchemaName, "--environment", binding.environmentId]);
     phases.push("publish");
   }
 
@@ -179,7 +179,9 @@ function normalizeChangedFiles(files, workspacePath) {
 function fixedOperation(args) {
   if (!Array.isArray(args) || args[0] !== "copilot") return false;
   if (["pull", "push"].includes(args[1])) return args.length === 4 && args[2] === "--project-dir" && typeof args[3] === "string";
-  if (args[1] === "publish") return args.length === 4 && args[2] === "--bot" && safeName(args[3]);
+  if (args[1] === "publish") return args.length === 6
+    && args[2] === "--bot" && safeName(args[3])
+    && args[4] === "--environment" && safeEnvironmentId(args[5]);
   if (args[1] === "clone") return args.length === 8
     && args[2] === "--bot" && safeName(args[3])
     && args[4] === "--environment" && safeEnvironmentId(args[5])
