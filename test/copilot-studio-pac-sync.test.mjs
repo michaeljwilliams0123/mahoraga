@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { executeCopilotStudioPacSync } from "../src/copilot-studio-pac-sync.mjs";
 
+const ENVIRONMENT_ID = "120aeae9-286f-438a-bbf3-de3ab96fcf5d";
 const request = Object.freeze({
   alias: "enterprise-core",
   reasonCodes: Object.freeze(["tool-missing"]),
@@ -17,7 +18,7 @@ function fixture() {
     dependencies: {
       platform: "win32",
       workspaceRoot: "C:\\Mahoraga\\Studio",
-      resolveAgent: async (alias) => ({ alias, workspaceName: "enterprise-core", botSchemaName: "mhg_enterprise_core" }),
+      resolveAgent: async (alias) => ({ alias, workspaceName: "enterprise-core", botSchemaName: "mhg_enterprise_core", environmentId: ENVIRONMENT_ID }),
       ensureWorkspace: async ({ workspacePath }) => { calls.push(["workspace", workspacePath]); return { verified: true, workspacePath }; },
       runPac: async (_command, args) => { calls.push(["pac", ...args]); return { stdout: "ok", stderr: "" }; },
       snapshotWorkspace: async (_workspacePath) => "a".repeat(64),
