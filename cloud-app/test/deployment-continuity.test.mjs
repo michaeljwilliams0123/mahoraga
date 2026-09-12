@@ -28,16 +28,19 @@ test("health route reports deployment identity from either supported host", asyn
   assert.match(health, /provider/);
 });
 
-test("deployment continuity docs treat Vercel as optional and GitHub main as authority", async () => {
+test("deployment continuity keeps private main authoritative while browser hosting stays replaceable", async () => {
   const [readme, cloudReadme] = await Promise.all([
     readRepo("README.md"),
     readApp("README.md"),
   ]);
 
+  assert.match(readme, /GitHub `main` is the private code authority/i);
+  assert.match(readme, /GitHub Pages is an optional derived static export/i);
+  assert.match(cloudReadme, /GitHub `main` is the private code authority/i);
+  assert.match(cloudReadme, /`cloud-app\/` is host-neutral/i);
   for (const source of [readme, cloudReadme]) {
-    assert.match(source, /GitHub main/i);
     assert.match(source, /Netlify/i);
     assert.match(source, /Vercel/i);
-    assert.match(source, /non-gating|optional|fallback/i);
+    assert.match(source, /non-canonical|paused|optional|fallback/i);
   }
 });

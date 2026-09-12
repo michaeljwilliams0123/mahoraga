@@ -2,9 +2,10 @@
 
 `cloud-app/` is the **single browser UI source** for Mahoraga.
 
-GitHub main is the code authority. GitHub Pages is the primary static browser
-path for the current approved head at `https://michaeljwilliams0123.github.io/mahoraga/`.
-Vercel is paused/historical rather than an active maintenance target; Cloudflare
+GitHub `main` is the private code authority. `cloud-app/` is host-neutral, and the
+canonical production origin is the runtime-configured verified workspace host rather
+than a repository-visibility or hosting-provider default. GitHub Pages may publish a
+derived static export when enabled; Vercel is paused/historical, and Cloudflare
 Workers remains a server-capable replacement-host candidate where server routes are required.
 Every host deploys this same Next.js workspace and none gains execution authority
 over the paired core. See
