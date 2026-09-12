@@ -32,3 +32,17 @@ test("Windows cloud runtime persists encrypted relay credentials across verified
   assert.match(convergence, /MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN/);
   assert.match(convergence, /ConvertTo-SecureString/);
 });
+
+test("relay crypto continuity state is encrypted in the local-only content vault", async () => {
+  const [cli, runtime] = await Promise.all([source("src/cli.mjs"), source("src/relay-runtime.mjs")]);
+  assert.match(cli, /relay-session\.vaultref/);
+  assert.match(cli, /classification:\s*"local-only"/);
+  assert.match(cli, /ownerType:\s*"relay-session"/);
+  assert.match(cli, /contentVault\.put/);
+  assert.match(cli, /sessionStateStore/);
+  assert.doesNotMatch(cli, /privateKeyJwk.*writeFile|writeFile.*privateKeyJwk/);
+  assert.match(runtime, /sessionStateStore/);
+  assert.match(runtime, /crypto\.subtle\.exportKey\("jwk"/);
+  assert.match(runtime, /reattach-local/);
+  assert.match(runtime, /action:\s*"keepalive"/);
+});
