@@ -13,6 +13,7 @@ test("Railway default container stays byte-identical to the canonical cloud runt
   assert.equal(railway, canonical);
   assert.match(railway, /^FROM node:24-/m);
   assert.match(railway, /MAHORAGA_STATE_DIR=\/var\/lib\/mahoraga/);
+  assert.doesNotMatch(railway, /^\s*VOLUME\b/m);
   assert.match(railway, /HEALTHCHECK .*\/api\/ready/);
   assert.match(railway, /CMD \["node", "scripts\/cloud-service\.mjs"\]/);
 });
