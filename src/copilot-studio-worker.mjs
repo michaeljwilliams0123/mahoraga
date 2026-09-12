@@ -113,10 +113,15 @@ function normalizeTokenArray(value, allowed) {
 }
 
 function normalizePhases(value) {
-  const allowed = new Set(["pull", "validate", "push", "evaluate", "publish"]);
-  if (!Array.isArray(value) || value.length < 1 || value.length > 5 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
+  const allowed = new Set(["pull", "validate", "push", "verify", "evaluate", "publish"]);
+  if (!Array.isArray(value) || value.length < 4 || value.length > 6 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
   if (value.some((item) => !allowed.has(item))) throw safeError("studio-configure-verification-failed");
-  if (!value.includes("pull") || !value.includes("validate") || !value.includes("push")) throw safeError("studio-configure-verification-failed");
+  const required = ["pull", "validate", "push", "verify"];
+  if (required.some((phase) => !value.includes(phase))) throw safeError("studio-configure-verification-failed");
+  for (let index = 1; index < required.length; index += 1) {
+    if (value.indexOf(required[index - 1]) > value.indexOf(required[index])) throw safeError("studio-configure-verification-failed");
+  }
+  if (value.includes("evaluate") && value.indexOf("evaluate") < value.indexOf("verify")) throw safeError("studio-configure-verification-failed");
   if (value.includes("publish") && (!value.includes("evaluate") || value.indexOf("evaluate") > value.indexOf("publish"))) throw safeError("studio-configure-verification-failed");
   return Object.freeze([...value]);
 }
