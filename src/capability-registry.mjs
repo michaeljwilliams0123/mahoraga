@@ -7,6 +7,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
   const billingAttestations = context.billingAttestationByWorkerId ?? microsoftBillingAttestationFromEnv(context.env ?? process.env);
   const microsoftHarnessEvidence = normalizeMicrosoftHarnessEvidence(context.microsoftHarnessDescriptors ?? []);
+  const microsoftHarnessQualityEvidence = normalizeMicrosoftHarnessQualityEvidence(context.microsoftHarnessDescriptors ?? []);
   const staticRoutes = manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
     const runtimeState = stateByWorker.get(worker.id);
     const recorded = runtimeState?.readiness?.find((item) => item.capability === capability);
@@ -57,7 +58,10 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       executionPlane: worker.executionPlane,
       healthProbe: worker.healthProbe,
       economicTier: economicTierForCostClass(worker.costClass),
-      ...(worker.id === "copilot-studio" ? { harnessEvidence: microsoftHarnessEvidence } : {}),
+      ...(worker.id === "copilot-studio" ? {
+        harnessEvidence: microsoftHarnessEvidence,
+        harnessQualityEvidence: microsoftHarnessQualityEvidence,
+      } : {}),
     };
   }));
   return staticRoutes.concat(pairedRouteEntries(context, now));
@@ -192,6 +196,26 @@ function normalizeMicrosoftHarnessEvidence(value) {
         capabilityClasses: Object.freeze([...descriptor.capabilityClasses]),
         billingClass: descriptor.billingClass,
         zeroCreditEligible: descriptor.zeroCreditEligible,
+      });
+    }));
+}
+
+function normalizeMicrosoftHarnessQualityEvidence(value) {
+  if (!Array.isArray(value) || value.length > 32) throw new TypeError("microsoft-harness-evidence-invalid");
+  const seen = new Set();
+  return Object.freeze(value.map((item) => validateCopilotHarnessDescriptor(item))
+    .sort((left, right) => left.alias.localeCompare(right.alias))
+    .map((descriptor) => {
+      if (seen.has(descriptor.alias)) throw new TypeError("microsoft-harness-evidence-invalid");
+      seen.add(descriptor.alias);
+      return Object.freeze({
+        alias: descriptor.alias,
+        modelClass: descriptor.modelClass,
+        modelStatus: descriptor.modelStatus,
+        memoryEnabled: descriptor.memoryEnabled,
+        evaluation: Object.freeze({ ...descriptor.evaluation }),
+        monitoring: Object.freeze({ ...descriptor.monitoring }),
+        observedAt: descriptor.observedAt,
       });
     }));
 }
