@@ -39,6 +39,11 @@ export function CockpitView({
   const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
   const productName = health?.product ?? "Mahoraga";
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
+  const receipt = health?.convergence?.receipts?.[0];
+  const provenanceState = receipt?.state ?? health?.runtime?.provenance?.state ?? "unknown";
+  const provenanceCommit = receipt?.expectedSourceCommit ?? health?.runtime?.provenance?.expectedSourceCommit;
+  const provenanceSource = receipt?.source ?? health?.runtime?.provenance?.source ?? "paired-core-required";
+  const receiptBound = receipt?.bounded === true && provenanceState === "bound";
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -90,6 +95,12 @@ export function CockpitView({
           tone={coreReady ? "good" : "neutral"}
         />
         <StatusCard
+          label="Convergence receipt"
+          value={receiptBound ? "Bound" : provenanceState}
+          detail={`${receipt?.plane ?? "host-local"} · contract ${receipt?.contract ?? buildVersion}`}
+          tone={receiptBound ? "good" : "neutral"}
+        />
+        <StatusCard
           label="Model fabric"
           value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`}
           detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`}
@@ -117,6 +128,10 @@ export function CockpitView({
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Host provider</dt><dd>{deploymentProvider}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
+            <div><dt>Convergence plane</dt><dd>{receipt?.plane ?? "host-local"}</dd></div>
+            <div><dt>Receipt state</dt><dd>{provenanceState}</dd></div>
+            <div><dt>Expected source commit</dt><dd>{shortSha(provenanceCommit)}</dd></div>
+            <div><dt>Receipt source</dt><dd>{provenanceSource}</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
@@ -166,7 +181,7 @@ export function CockpitView({
         </div>
         <div>
           <strong>Adaptive review</strong>
-          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
+          <p>Direction -&gt; Compile -&gt; Delta -&gt; Verify -&gt; Learn - selective institutional memory</p>
         </div>
       </section>
 

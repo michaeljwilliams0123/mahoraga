@@ -24,11 +24,31 @@ function deploymentProvider() {
   return "local";
 }
 
+function hostLocalConvergenceReceipt() {
+  const sourceCommit =
+    process.env.MAHORAGA_CONVERGENCE_SOURCE_COMMIT?.trim() ||
+    process.env.MAHORAGA_GIT_COMMIT_SHA?.trim() ||
+    process.env.COMMIT_REF?.trim() ||
+    process.env.VERCEL_GIT_COMMIT_SHA?.trim() ||
+    null;
+  const bound = Boolean(sourceCommit);
+  return {
+    contract: "7.0.0-alpha.2",
+    plane: "host-local",
+    state: bound ? "bound" : "unbound",
+    expectedSourceCommit: sourceCommit,
+    source: bound ? "host-local-receipt" : "paired-core-required",
+    bounded: true,
+  };
+}
+
 export async function GET() {
+  const convergence = hostLocalConvergenceReceipt();
   return Response.json(
     {
       ok: true,
       product: "Mahoraga",
+      version: "7.0.0-alpha.2",
       build: { version: "7.0.0-alpha.2" },
       deployment: {
         provider: deploymentProvider(),
@@ -43,10 +63,13 @@ export async function GET() {
           source: process.env.MAHORAGA_DATABASE_FILE ? "deployment-env" : "paired-core-required",
         },
         provenance: {
-          state: "unknown",
-          expectedSourceCommit: null,
-          source: "paired-core-required",
+          state: convergence.state,
+          expectedSourceCommit: convergence.expectedSourceCommit,
+          source: convergence.source,
         },
+      },
+      convergence: {
+        receipts: [convergence],
       },
       capabilities: {
         runtimeRelay: true,

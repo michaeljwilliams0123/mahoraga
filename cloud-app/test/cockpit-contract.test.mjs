@@ -84,6 +84,20 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(cockpit, /connection string|password|secret/i);
   });
 
+  it("projects host-local convergence receipts through the 7.0.0-alpha.2 health contract", () => {
+    const route = readFileSync(join(root, "app/api/health/route.ts"), "utf8");
+    const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(route, /version:\s*"7\.0\.0-alpha\.2"/);
+    assert.match(route, /host-local-receipt/);
+    assert.match(route, /convergence:/);
+    assert.match(types, /convergence\?: \{ receipts\?: ConvergenceReceipt\[\] \}/);
+    assert.match(cockpit, /Convergence receipt/);
+    assert.match(cockpit, /Expected source commit/);
+    assert.match(cockpit, /host-local/);
+    assert.doesNotMatch(cockpit, /connection string|password|secret/i);
+  });
+
   it("distinguishes a healthy published shell from a paired execution core", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");

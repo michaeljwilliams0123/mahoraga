@@ -17,6 +17,15 @@ export type QuickAction = {
   requiresCore?: boolean;
 };
 
+export type ConvergenceReceipt = {
+  contract?: string;
+  plane?: string;
+  state?: string;
+  expectedSourceCommit?: string | null;
+  source?: string;
+  bounded?: boolean;
+};
+
 export type Health = {
   ok: boolean;
   product?: string;
@@ -24,6 +33,7 @@ export type Health = {
   build?: { version?: string };
   deployment?: { provider?: string; environment?: string; url?: string | null; commitSha?: string | null; gitRef?: string | null };
   runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } };
+  convergence?: { receipts?: ConvergenceReceipt[] };
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
