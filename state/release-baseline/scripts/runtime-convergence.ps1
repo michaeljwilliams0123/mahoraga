@@ -9,6 +9,7 @@ $runtimeHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.mahorag
 $stateRoot = Join-Path $runtimeHome 'state\candidate-4783'
 $convergenceRoot = Join-Path $runtimeHome 'convergence'
 $rollbackRoot = Join-Path $runtimeHome 'rollback'
+$relaySecretFile = Join-Path $runtimeHome 'secrets\relay-token.dpapi'
 $healthUrl = "http://127.0.0.1:$Port/api/status"
 $repository = 'origin'
 
@@ -16,6 +17,16 @@ function Resolve-Commit([string]$Value, [string]$Label) {
     $commit = ([string]$Value).Trim().ToLowerInvariant()
     if ($commit -notmatch '^[0-9a-f]{40}$') { throw "$Label commit is invalid." }
     return $commit
+}
+
+function Read-RelayToken {
+    if (-not (Test-Path -LiteralPath $relaySecretFile -PathType Leaf)) { return $null }
+    $ciphertext = (Get-Content -Raw -LiteralPath $relaySecretFile).Trim()
+    if (-not $ciphertext) { throw 'Stored relay token is empty.' }
+    $secureToken = ConvertTo-SecureString $ciphertext
+    $relayToken = [System.Net.NetworkCredential]::new('', $secureToken).Password
+    if ($relayToken -notmatch '^[A-Za-z0-9_-]{32,256}$') { throw 'Stored relay token is invalid.' }
+    return $relayToken
 }
 
 function Get-LiveStatus {
@@ -67,10 +78,20 @@ function Start-Candidate([string]$Root, [string]$ExpectedCommit) {
     New-Item -ItemType Directory -Path $convergenceRoot -Force | Out-Null
     $env:MAHORAGA_DATABASE_FILE = Join-Path $stateRoot 'mahoraga.sqlite'
     $env:MAHORAGA_EXPECTED_SOURCE_COMMIT = $ExpectedCommit
-    return Start-Process -FilePath $node `
-        -ArgumentList @('src\cli.mjs','start','--port',[string]$Port) `
-        -WorkingDirectory $Root -WindowStyle Hidden `
-        -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    $relayToken = Read-RelayToken
+    $previousRelayToken = $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN
+    try {
+        if ($relayToken) { $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN = $relayToken }
+        else { Remove-Item Env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN -ErrorAction SilentlyContinue }
+        return Start-Process -FilePath $node `
+            -ArgumentList @('src\cli.mjs','start','--port',[string]$Port) `
+            -WorkingDirectory $Root -WindowStyle Hidden `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+    } finally {
+        $relayToken = $null
+        if ($null -ne $previousRelayToken) { $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN = $previousRelayToken }
+        else { Remove-Item Env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN -ErrorAction SilentlyContinue }
+    }
 }
 
 function Wait-ForCommit([string]$Commit, [bool]$RequireCurrent) {
