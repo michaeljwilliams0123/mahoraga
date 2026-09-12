@@ -44,6 +44,34 @@ test("cloud runtime dispatch is fixed-path, bearer-only, and bounded", async (t)
   assert.deepEqual(await rejected.json(), { error: "cloud-core-action-not-allowed" });
 });
 
+test("cloud runtime preserves zero-credit chat rejection semantics", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  const response = await fetch(`${base}/api/cloud/runtime`, {
+    method: "POST",
+    headers: { ...AUTH, "content-type": "application/json" },
+    body: JSON.stringify({
+      type: "chat",
+      payload: {
+        mode: "auto",
+        content: "Can you explain why it rains outside?",
+        creditPolicy: "zero-codex",
+        idempotencyKey: "relay-zero-credit-runtime",
+      },
+    }),
+  });
+  assert.equal(response.status, 409);
+  assert.deepEqual(await response.json(), {
+    error: "zero-credit-provider-unavailable",
+    decision: {
+      mode: "ask",
+      execution: "task",
+      capability: "assistant.respond",
+      intentKind: "answer",
+      reasonCode: "general-question",
+    },
+  });
+});
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
