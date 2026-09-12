@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, readdir } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -8,6 +8,7 @@ import { applyCopilotStudioWorkspaceMutation, validateCopilotStudioWorkspace } f
 const execFileAsync = promisify(execFile);
 const ALIASES = new Set(["general-mahoraga", "enterprise-core", "tenant-health-reader"]);
 const SAFE_ROOT_NAME = "copilot-studio-sync";
+const BINDING_DIRECTORY = ".mahoraga-bindings";
 const MAX_SNAPSHOT_FILES = 2048;
 const MAX_SNAPSHOT_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_SNAPSHOT_TOTAL_BYTES = 32 * 1024 * 1024;
@@ -108,20 +109,24 @@ async function runFixedPac(runPac, args) {
 }
 
 export async function ensureCopilotStudioWorkspace({ workspaceRoot, workspacePath, binding, runPac }) {
+  assertTrustedBinding(binding);
   await mkdir(workspaceRoot, { recursive: true });
   let info = await lstat(workspacePath).catch(() => null);
   if (info?.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
-  if (info?.isDirectory()) return Object.freeze({ verified: true, workspacePath, bootstrapped: false });
-  if (info !== null) throw safeError("studio-pac-workspace-invalid");
-  if (!safeName(binding?.botSchemaName) || !safeEnvironmentId(binding?.environmentId) || !ALIASES.has(binding?.alias) || binding?.workspaceName !== binding.alias) {
-    throw safeError("studio-pac-agent-binding-missing");
+  if (info?.isDirectory()) {
+    await verifyWorkspaceBinding(workspaceRoot, binding);
+    return Object.freeze({ verified: true, workspacePath, bootstrapped: false });
   }
+  if (info !== null) throw safeError("studio-pac-workspace-invalid");
+
   await runFixedPac(runPac, [
     "copilot", "clone", "--bot", binding.botSchemaName,
+    "--display-name", binding.workspaceName,
     "--environment", binding.environmentId, "--output-dir", workspaceRoot,
   ]);
   info = await lstat(workspacePath).catch(() => null);
   if (!info?.isDirectory() || info.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
+  await persistWorkspaceBinding(workspaceRoot, binding);
   return Object.freeze({ verified: true, workspacePath, bootstrapped: true });
 }
 
@@ -148,6 +153,69 @@ export async function snapshotCopilotStudioWorkspace(workspacePath) {
   }
   rows.sort();
   return createHash("sha256").update(rows.join("\n"), "utf8").digest("hex");
+}
+
+async function verifyWorkspaceBinding(workspaceRoot, binding) {
+  const file = await bindingReceiptPath(workspaceRoot, binding.alias, { requireDirectory: true });
+  const info = await lstat(file).catch(() => null);
+  if (info === null) throw safeError("studio-pac-workspace-binding-missing");
+  if (!info.isFile() || info.isSymbolicLink() || info.size < 1 || info.size > 1024) throw safeError("studio-pac-workspace-binding-mismatch");
+  let value;
+  try { value = JSON.parse(await readFile(file, "utf8")); } catch { throw safeError("studio-pac-workspace-binding-mismatch"); }
+  const keys = value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value).sort() : [];
+  if (keys.join(",") !== "alias,bindingSha256,schemaVersion"
+    || value.schemaVersion !== 1
+    || value.alias !== binding.alias
+    || value.bindingSha256 !== workspaceBindingSha256(binding)) {
+    throw safeError("studio-pac-workspace-binding-mismatch");
+  }
+}
+
+async function persistWorkspaceBinding(workspaceRoot, binding) {
+  const file = await bindingReceiptPath(workspaceRoot, binding.alias, { createDirectory: true });
+  const existing = await lstat(file).catch(() => null);
+  if (existing !== null) {
+    await verifyWorkspaceBinding(workspaceRoot, binding);
+    return;
+  }
+  const value = Object.freeze({ schemaVersion: 1, alias: binding.alias, bindingSha256: workspaceBindingSha256(binding) });
+  const temp = `${file}.${process.pid}-${Date.now()}.tmp`;
+  try {
+    await writeFile(temp, `${JSON.stringify(value)}\n`, { encoding: "utf8", mode: 0o600, flag: "wx" });
+    await rename(temp, file);
+  } catch (error) {
+    await rm(temp, { force: true }).catch(() => {});
+    throw safeError(error?.code === "EEXIST" ? "studio-pac-workspace-binding-mismatch" : "studio-pac-workspace-invalid");
+  }
+}
+
+async function bindingReceiptPath(workspaceRoot, alias, { createDirectory = false, requireDirectory = false } = {}) {
+  const root = path.resolve(workspaceRoot);
+  const directory = path.resolve(root, BINDING_DIRECTORY);
+  if (!inside(root, directory)) throw safeError("studio-pac-workspace-invalid");
+  let info = await lstat(directory).catch(() => null);
+  if (info === null && createDirectory) {
+    await mkdir(directory, { mode: 0o700 });
+    info = await lstat(directory).catch(() => null);
+  }
+  if (info === null && requireDirectory) throw safeError("studio-pac-workspace-binding-missing");
+  if (info !== null && (!info.isDirectory() || info.isSymbolicLink())) throw safeError("studio-pac-workspace-binding-mismatch");
+  const file = path.resolve(directory, `${alias}.json`);
+  if (!inside(directory, file)) throw safeError("studio-pac-workspace-invalid");
+  return file;
+}
+
+function workspaceBindingSha256(binding) {
+  return createHash("sha256").update(`${binding.alias}\0${binding.botSchemaName}\0${binding.environmentId}`, "utf8").digest("hex");
+}
+
+function assertTrustedBinding(binding) {
+  if (!safeName(binding?.botSchemaName)
+    || !safeEnvironmentId(binding?.environmentId)
+    || !ALIASES.has(binding?.alias)
+    || binding?.workspaceName !== binding.alias) {
+    throw safeError("studio-pac-agent-binding-missing");
+  }
 }
 
 async function defaultResolveAgent(alias, { env }) {
@@ -182,10 +250,11 @@ function fixedOperation(args) {
   if (args[1] === "publish") return args.length === 6
     && args[2] === "--bot" && safeName(args[3])
     && args[4] === "--environment" && safeEnvironmentId(args[5]);
-  if (args[1] === "clone") return args.length === 8
+  if (args[1] === "clone") return args.length === 10
     && args[2] === "--bot" && safeName(args[3])
-    && args[4] === "--environment" && safeEnvironmentId(args[5])
-    && args[6] === "--output-dir" && typeof args[7] === "string";
+    && args[4] === "--display-name" && safeName(args[5])
+    && args[6] === "--environment" && safeEnvironmentId(args[7])
+    && args[8] === "--output-dir" && typeof args[9] === "string";
   return false;
 }
 
