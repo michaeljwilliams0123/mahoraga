@@ -19,7 +19,7 @@ const shared = { ...process.env,
   HOSTNAME: "0.0.0.0", PORT: "3000",
 };
 
-start("core", process.execPath, ["src/cli.mjs", "start", "--port", "4782"]);
+start("core", process.execPath, ["src/cli.mjs", "start"]);
 await waitReady("http://127.0.0.1:4782/api/status", 30_000);
 start("workspace", npmCommand(), ["--prefix", "cloud-app", "run", "start", "--", "-H", "0.0.0.0", "-p", shared.PORT]);
 

@@ -18,6 +18,12 @@ test("OCI production profile is durable, always on, and bounded by health checks
   assert.doesNotMatch(service, /openai|anthropic|generateText|chat\.completions/i);
 });
 
+test("cloud supervisor uses the manifest production core port without a candidate-only CLI override", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /start\("core", process\.execPath, \["src\/cli\.mjs", "start"\]\);/);
+  assert.doesNotMatch(service, /\["src\/cli\.mjs", "start", "--port", "4782"\]/);
+});
+
 test("cloud runtime keeps core loopback-only and secrets in server environment", async () => {
   const [service, gateway, action, edge] = await Promise.all([read("scripts/cloud-service.mjs"), read("cloud-app/lib/cloud-owner-gateway.ts"), read("cloud-app/app/api/runtime/action/route.ts"), read("deploy/cloudflare-owner-gateway/worker.mjs")]);
   assert.match(service, /127\.0\.0\.1:4782/);
