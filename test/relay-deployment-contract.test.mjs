@@ -21,6 +21,16 @@ test("release packages and attests the host-neutral relay without embedded crede
   assert.match(cli, /MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN/);
 });
 
+test("private-repository relay deployment keeps legacy workspace trust explicit and removable", async () => {
+  const [deploy, docs] = await Promise.all([read("scripts/configure-cloudflare-relay.ps1"), read("docs/DESTINY-CODEX-RELAY.md")]);
+  assert.match(deploy, /MAHORAGA_LEGACY_WORKSPACE_ORIGIN/);
+  assert.match(deploy, /secret bulk/i);
+  assert.match(deploy, /MAHORAGA_LEGACY_WORKSPACE_ORIGIN['"]?\s*=\s*\$null/);
+  assert.match(docs, /canonical HTTPS workspace origin/i);
+  assert.match(docs, /MAHORAGA_LEGACY_WORKSPACE_ORIGIN/);
+  assert.doesNotMatch(docs, /exact canonical GitHub Pages origin allowed to pair remotely/i);
+});
+
 test("verification keeps repository gates while dedicated Vercel workspace verification is frozen", async () => {
   const [verify, vercel, packageSource] = await Promise.all([read(".github/workflows/verify.yml"), read("cloud-app/vercel.json"), read("package.json")]);
   assert.match(verify, /npm run verify:conversation-plane/);
