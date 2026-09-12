@@ -95,7 +95,7 @@ test("repository declares one canonical workspace source without reviving legacy
 
   const rootReadme = sources[0];
   assert.match(rootReadme, /Deployment availability is observed[\s\S]*separately from source verification/);
-  assert.match(rootReadme, /historical URL[\s\S]*not canonical until/i);
+  assert.match(rootReadme, /runtime-configured origin[\s\S]*until/i);
   assert.match(rootReadme, /GitHub `main` is the private code authority/i);
 });
 
