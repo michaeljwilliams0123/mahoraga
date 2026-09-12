@@ -49,3 +49,21 @@ test("Windows convergence bootstraps protected main when the 4783 candidate is a
   assert.match(controller, /state\s*=\s*['"]bootstrapped['"]/i);
   assert.match(controller, /npm\.cmd['"]?\s+run\s+verify/i);
 });
+
+test("Windows convergence treats an occupied unhealthy 4783 listener as a conflict", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const emptyStatusBranch = controller.indexOf("if (-not $live)");
+  const listenerProbe = controller.indexOf("Get-ListenerPid", emptyStatusBranch);
+  const candidateStart = controller.indexOf("Start-Candidate $ControllerRoot $targetCommit", emptyStatusBranch);
+  assert.ok(emptyStatusBranch >= 0 && listenerProbe > emptyStatusBranch && listenerProbe < candidateStart);
+  assert.match(controller.slice(emptyStatusBranch, candidateStart), /port-conflict|listener-conflict|occupied/i);
+});
+
+test("Windows convergence records verification-gate failures in bootstrap failure evidence", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const emptyStatusBranch = controller.indexOf("if (-not $live)");
+  const tryIndex = controller.indexOf("try {", emptyStatusBranch);
+  const verifyIndex = controller.indexOf("Invoke-VerificationGate", emptyStatusBranch);
+  const failedReceipt = controller.indexOf("state = 'bootstrap-failed'", emptyStatusBranch);
+  assert.ok(emptyStatusBranch >= 0 && tryIndex > emptyStatusBranch && verifyIndex > tryIndex && failedReceipt > verifyIndex);
+});
