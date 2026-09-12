@@ -97,8 +97,8 @@ export function CockpitView({
         />
         <StatusCard
           label="Evolution lane"
-          value="Policy gated"
-          detail="Stage → verify → review → promote"
+          value="Verified convergence"
+          detail="Drift → verify → canary → activate"
           tone="good"
         />
       </div>
@@ -129,15 +129,15 @@ export function CockpitView({
           <div className="eclipse-panel-heading">
             <div>
               <span>Adaptive evolution</span>
-              <h3 id="evolution-heading">Verified promotion path</h3>
+              <h3 id="evolution-heading">Verified convergence path</h3>
             </div>
             <ShieldCheck size={18} />
           </div>
           <ol className="eclipse-flow">
             <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
-            <li><span>2</span><div><strong>Verify</strong><small>Focused tests plus required CI</small></div></li>
-            <li><span>3</span><div><strong>Review</strong><small>Exact-head evidence and policy checks</small></div></li>
-            <li><span>4</span><div><strong>Promote</strong><small>Owner-authorized merge and deployment</small></div></li>
+            <li><span>2</span><div><strong>Verify</strong><small>Exact-head CI plus rollback checkpoint</small></div></li>
+            <li><span>3</span><div><strong>Canary</strong><small>Prove candidate and runtime readiness</small></div></li>
+            <li><span>4</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
           </ol>
         </section>
       </div>
@@ -166,7 +166,7 @@ export function CockpitView({
         </div>
         <div>
           <strong>Adaptive review</strong>
-          <p>Direction -> Compile -> Delta -> Verify -> Learn - selective institutional memory</p>
+          <p>Direction → Compile → Delta → Verify → Learn - selective institutional memory</p>
         </div>
       </section>
 
