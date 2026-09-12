@@ -3,6 +3,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { applyCopilotStudioWorkspaceMutation, validateCopilotStudioWorkspace } from "./copilot-studio-workspace-mutation.mjs";
 
 const execFileAsync = promisify(execFile);
 const ALIASES = new Set(["general-mahoraga", "enterprise-core", "tenant-health-reader"]);
@@ -17,9 +18,8 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
   const runPac = dependencies.runPac ?? defaultRunPac;
   const ensureWorkspace = dependencies.ensureWorkspace ?? defaultEnsureWorkspace;
   const snapshotWorkspace = dependencies.snapshotWorkspace ?? defaultSnapshotWorkspace;
-  const applyMutation = dependencies.applyMutation;
-  const validateWorkspace = dependencies.validateWorkspace;
-  if (typeof applyMutation !== "function" || typeof validateWorkspace !== "function") throw safeError("studio-pac-mutation-adapter-unavailable");
+  const applyMutation = dependencies.applyMutation ?? applyCopilotStudioWorkspaceMutation;
+  const validateWorkspace = dependencies.validateWorkspace ?? validateCopilotStudioWorkspace;
 
   const binding = await resolveAgent(request.alias);
   if (!binding || binding.alias !== request.alias || !safeName(binding.workspaceName)) throw safeError("studio-pac-agent-invalid");
@@ -120,8 +120,7 @@ function normalizeChangedFiles(files, workspacePath) {
 }
 
 function fixedOperation(args) {
-  if (!Array.isArray(args)) return false;
-  if (args[0] !== "copilot") return false;
+  if (!Array.isArray(args) || args[0] !== "copilot") return false;
   if (["pull", "push"].includes(args[1])) return args.length === 4 && args[2] === "--project-dir" && typeof args[3] === "string";
   if (args[1] === "publish") return args.length === 4 && args[2] === "--bot" && safeName(args[3]);
   return false;
