@@ -39,3 +39,13 @@ test("Windows convergence controller periodically promotes verified main without
   assert.match(controller, /Wait-ForCommit\s+\$targetCommit\s+\$true/);
   assert.doesNotMatch(controller, /codex\s+exec|openai|model invocation|gemini/i);
 });
+
+test("Windows convergence bootstraps protected main when the 4783 candidate is absent", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.doesNotMatch(controller, /No paired candidate runtime is active; convergence is a no-op/i);
+  assert.match(controller, /bootstrap/i);
+  assert.match(controller, /Start-Candidate\s+\$ControllerRoot\s+\$targetCommit/);
+  assert.match(controller, /Wait-ForCommit\s+\$targetCommit\s+\$true/);
+  assert.match(controller, /state\s*=\s*['"]bootstrapped['"]/i);
+  assert.match(controller, /npm\.cmd['"]?\s+run\s+verify/i);
+});
