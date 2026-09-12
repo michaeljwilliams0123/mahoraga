@@ -31,7 +31,14 @@ type PairingOffer = {
 export type RuntimeCapability = {
   capability: string;
   routable: boolean;
+  workerId?: string | null;
   workerIds: string[];
+  provider?: string;
+  canary?: string;
+  routingReason?: string | null;
+  evidenceLevel?: string;
+  lastObservedAt?: string | null;
+  lastVerifiedAt?: string | null;
 };
 export type RuntimeTask = {
   id: string;
@@ -72,6 +79,17 @@ export type RuntimeOperationsSnapshot = {
   repairs: { activeIncidents: number; lastRepairState: string };
   verification: { state: string; exactHeadSha: string | null };
   update: { candidate: { id: string; state: string } | null; activationState: string; rollbackReady: boolean };
+  interactionReadiness: {
+    ready: boolean;
+    capability: "assistant.respond";
+    workerId: string | null;
+    provider: string;
+    canary: string;
+    reason: string | null;
+    evidenceLevel: string;
+    lastObservedAt: string | null;
+    lastVerifiedAt: string | null;
+  };
 };
 
 export type RuntimeOperationsActionInput = {

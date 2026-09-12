@@ -254,7 +254,14 @@ export function createControlServer({
         return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) });
       }
       if (request.method === "GET" && url.pathname === "/api/operations") {
-        return json(response, 200, operationsSnapshot({ database, manifest, supervisor, repositoryHeadReader }));
+        const capabilities = capabilityIndex(manifest, supervisor.status());
+        return json(response, 200, operationsSnapshot({
+          database,
+          manifest,
+          supervisor,
+          repositoryHeadReader,
+          interactionReadiness: interactionReadinessProjection(capabilities),
+        }));
       }
       if (request.method === "POST" && url.pathname === "/api/operations/action") {
         const body = await bodyJson(request);
@@ -596,7 +603,15 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       } catch {
         headSha = null;
       }
-      return operationsSnapshot({ database, manifest, supervisor, headSha, now: () => new Date().toISOString() });
+      const capabilities = capabilityIndex(manifest, supervisor.status());
+      return operationsSnapshot({
+        database,
+        manifest,
+        supervisor,
+        headSha,
+        interactionReadiness: interactionReadinessProjection(capabilities),
+        now: () => new Date().toISOString(),
+      });
     },
     async operationsAction(input, _context) {
       return executeOperationsAction(input, {
