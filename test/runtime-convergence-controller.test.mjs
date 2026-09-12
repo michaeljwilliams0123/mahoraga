@@ -62,3 +62,10 @@ test("Windows convergence fails closed when 4783 is occupied but status is unava
     /if\s*\(\$failedPid\s+-and\s+\$failedPid\s+-eq\s+\$bootstrapProcess\.Id\)\s*\{\s*Stop-Listener\s+\$failedPid\s*\}/i,
   );
 });
+
+test("Windows convergence reuses canonical centralized state before legacy worktree discovery", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.match(controller, /\$centralStateReady\s*=\s*Test-Path[\s\S]*mahoraga\.sqlite/);
+  assert.match(controller, /if\s*\(-not\s+\$centralStateReady\s+-and\s+-not\s+\(Test-Path[\s\S]*\$migrationMarker/);
+  assert.ok(controller.indexOf("$centralStateReady") < controller.indexOf("Find-SourceWorktree $sourceCommit"));
+});
