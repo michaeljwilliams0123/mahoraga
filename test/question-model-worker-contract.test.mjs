@@ -14,3 +14,15 @@ test("assistant responses have a dedicated transient provider worker", async () 
   assert.equal(questionModel.routing.executionType, "transient-read-only");
   assert.equal(questionModel.costClass, "licensed-cloud");
 });
+
+test("question-model worker feeds real quota failures back into readiness without a paid probe", async () => {
+  const source = await readFile(new URL("../src/worker-process.mjs", import.meta.url), "utf8");
+  assert.match(source, /createQuestionModelExecutionState/);
+  assert.match(source, /loadQuestionModelExecutionState/);
+  assert.match(source, /saveQuestionModelExecutionState/);
+  assert.match(source, /workerId\s*===\s*["']question-model["'][\s\S]*await loadQuestionModelExecutionState\(\)/);
+  assert.match(source, /executeQuestionModel\(\{ task, executionState: questionModelExecutionState \}\)/);
+  assert.match(source, /question-model-usage-limit[\s\S]*saveQuestionModelExecutionState\(questionModelExecutionState\)/);
+  assert.match(source, /probeQuestionModelExecutionState/);
+  assert.match(source, /probeProviderReadiness\(\)/);
+});
