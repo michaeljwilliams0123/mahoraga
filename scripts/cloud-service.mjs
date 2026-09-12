@@ -8,6 +8,7 @@ const receiptFile = path.join(stateRoot, "idle-receipts.ndjson");
 const children = new Map();
 const restartHistory = new Map();
 let stopping = false;
+let idleTimer = null;
 mkdirSync(stateRoot, { recursive: true });
 
 const shared = { ...process.env,
@@ -23,7 +24,7 @@ start("core", process.execPath, ["src/cli.mjs", "start"]);
 await waitReady("http://127.0.0.1:4782/api/status", 30_000);
 start("workspace", npmCommand(), ["--prefix", "cloud-app", "run", "start", "--", "-H", "0.0.0.0", "-p", shared.PORT]);
 
-const idleTimer = setInterval(async () => {
+idleTimer = setInterval(async () => {
   const receipt = { schemaVersion: 1, type: "idle-liveness", observedAt: new Date().toISOString(), modelInvocations: 0, core: false, workspace: false };
   try { receipt.core = (await fetch("http://127.0.0.1:4782/api/status", { signal: AbortSignal.timeout(4_000) })).ok; } catch {}
   try { receipt.workspace = (await fetch("http://127.0.0.1:3000/api/live", { signal: AbortSignal.timeout(4_000) })).ok; } catch {}
@@ -50,7 +51,7 @@ function start(name, command, args) {
     setTimeout(() => start(name, command, args), delay).unref();
   });
 }
-async function shutdown(reason) { if (stopping) return; stopping = true; clearInterval(idleTimer); for (const child of children.values()) child.kill("SIGTERM"); await Promise.all([...children.values()].map((child) => new Promise((resolve) => child.once("exit", resolve)))); rotateAndAppend({ schemaVersion: 1, type: "supervisor-stopped", reason, observedAt: new Date().toISOString(), modelInvocations: 0 }); }
+async function shutdown(reason) { if (stopping) return; stopping = true; if (idleTimer) clearInterval(idleTimer); for (const child of children.values()) child.kill("SIGTERM"); await Promise.all([...children.values()].map((child) => new Promise((resolve) => child.once("exit", resolve)))); rotateAndAppend({ schemaVersion: 1, type: "supervisor-stopped", reason, observedAt: new Date().toISOString(), modelInvocations: 0 }); }
 async function waitReady(url, timeoutMs) { const end = Date.now() + timeoutMs; while (Date.now() < end) { try { if ((await fetch(url, { signal: AbortSignal.timeout(1_000) })).ok) return; } catch {} await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error("cloud-core-readiness-timeout"); }
 function rotateAndAppend(value) { if (existsSync(receiptFile) && statSync(receiptFile).size > 1024 * 1024) renameSync(receiptFile, `${receiptFile}.previous`); appendFileSync(receiptFile, `${JSON.stringify(value)}\n`, { encoding: "utf8", mode: 0o600 }); }
 function npmCommand() { return process.platform === "win32" ? "npm.cmd" : "npm"; }
