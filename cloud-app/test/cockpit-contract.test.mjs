@@ -64,7 +64,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /no widened studio\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /Direction (->|->) Compile (->|->) Delta (->|->) Verify (->|->) Learn/);
+    assert.match(cockpit, /Direction → Compile → Delta → Verify → Learn/);
     assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /live ingestion is active/);
     assert.doesNotMatch(cockpit, /Studio is fully available/);
@@ -84,6 +84,12 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(cockpit, /connection string|password|secret/i);
   });
 
+  it("keeps the single public identity Mahoraga across the hero and control center", () => {
+    const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
+    assert.match(chat, /one-kicker">Mahoraga</);
+    assert.doesNotMatch(chat, /Mahoraga One/);
+  });
+
   it("distinguishes a healthy published shell from a paired execution core", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
@@ -92,6 +98,16 @@ describe("singular control center contract", () => {
     assert.match(chat, /Ready to pair/);
     assert.match(cockpit, /Workspace published/);
     assert.match(cockpit, /No execution authority claimed/);
-    assert.match(cockpit, /Stage → verify → review → promote/);
+  });
+
+  it("describes the live evolution lane as verified canary-backed convergence", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /Verified convergence/);
+    assert.match(cockpit, /Drift → verify → canary → activate/);
+    assert.match(cockpit, /Verified convergence path/);
+    assert.match(cockpit, /Exact-head CI plus rollback checkpoint/);
+    assert.match(cockpit, /Prove candidate and runtime readiness/);
+    assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
+    assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });
 });

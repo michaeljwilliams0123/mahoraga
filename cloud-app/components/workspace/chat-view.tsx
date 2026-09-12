@@ -97,7 +97,7 @@ export function ChatView(props: ChatViewProps) {
         {messages.length === 0 ? (
           <div className="one-hero">
             <div className="aura-mark" aria-hidden="true"><span /><span /><span /><Sparkles size={24} /></div>
-            <span className="one-kicker">Mahoraga One</span>
+            <span className="one-kicker">Mahoraga</span>
             <h1>Say what you want.<br /><em>Mahoraga handles the lanes.</em></h1>
             <p>Talk, build, hand off, create, report, or ship from one conversation. The brain chooses the route and keeps the machinery out of your way.</p>
 
