@@ -3,18 +3,18 @@
 `cloud-app/` is Mahoraga's single cloud-hosted workspace and only browser UI.
 It is a thin encrypted client of the authoritative Mahoraga core: one
 conversation surface, one pairing view, and no browser-side provider or brain
-selector. GitHub Pages publishes this same source; no second local or static UI remains.
+selector. Any GitHub Pages deployment is a derived static export of this same source; no second local or static UI remains.
 The workspace source is host-neutral; a hosting provider never becomes a second
 execution plane or authority boundary.
 
-The canonical production address is
-`https://michaeljwilliams0123.github.io/mahoraga/`. Its Pages workflow exports
-`cloud-app/` from every approved `main` head and embeds that exact commit in the
-health response. A separately managed custom domain may replace it
-by setting `MAHORAGA_WORKSPACE_URL` on the runtime. The loopback root redirects
-to the canonical HTTPS address; the loopback process remains the API,
-encrypted-relay, Conversation Gateway, policy/router, and execution service—not
-another frontend.
+The canonical production address is the verified origin configured through
+`MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN`. Repository visibility and
+GitHub Pages do not choose that origin. When Pages is enabled, its workflow may
+export `cloud-app/` for the exact approved `main` head and embed that commit in
+the health response, but the export is not execution authority. The loopback
+root redirects to the canonical HTTPS address; the loopback process remains the
+API, encrypted-relay, Conversation Gateway, policy/router, and execution
+service—not another frontend.
 
 ## Single-core execution
 
@@ -92,9 +92,11 @@ continues to use the core's existing vault boundary.
 
 ## Deployment and verification
 
-GitHub is the source/evolution and production presentation plane for the single
-workspace. Every push to approved `main` rebuilds `cloud-app/` as a static Pages
-export. Historical Vercel projects remain non-canonical while paused.
+GitHub is the private source/evolution ledger for the single workspace. Browser
+presentation is host-neutral: an enabled Pages workflow may emit a static export,
+while a server-capable host may serve the same source. Neither becomes canonical
+until exact-head deployment and pairing/health evidence match the configured
+production origin. Historical Vercel projects remain non-canonical while paused.
 
 Cloudflare Workers is the designated Vercel-independent hosting candidate. It
 hosts only the browser application; it must not expose the local runtime or
@@ -119,8 +121,9 @@ That command type-checks, runs the workspace contract tests, and performs a
 production Next.js build. `GET /api/health` reports the client/core boundary and
 never claims direct browser-side provider authority.
 
-The legacy `cloud/` and `web/` entry points remain retired. GitHub Pages deploys
-the one `cloud-app/` source rather than maintaining a duplicate frontend.
+The legacy `cloud/` and `web/` entry points remain retired. Any browser host,
+including an optional Pages export, deploys the one `cloud-app/` source rather
+than maintaining a duplicate frontend.
 
 The remaining infrastructure choices and secret-free owner inputs are listed in
 [`CLOUD-ONLY-DEPLOYMENT.md`](CLOUD-ONLY-DEPLOYMENT.md).
