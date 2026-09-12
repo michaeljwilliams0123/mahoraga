@@ -1,4 +1,6 @@
-const BILLING_CLASSES = Object.freeze(new Set(["deterministic-zero", "license-included", "metered", "metered-copilot-credit", "unknown"]));
+import { isZeroMarginalCreditEligible, validateBillingClass } from "./resource-economy.mjs";
+
+export { isZeroMarginalCreditEligible };
 const DETERMINISTIC = Object.freeze(new Set(["powerplatform.health", "powerplatform.discover", "studio.health"]));
 const STUDIO_BILLING_UNKNOWN = Object.freeze(new Set(["studio.delegate", "studio.configure", "studio.provision", "studio.deploy"]));
 const HARNESS_TYPES = Object.freeze(new Set(["standard-harness", "copilot-chat-harness", "github-copilot-harness", "unknown"]));
@@ -28,14 +30,12 @@ export function classifyCopilotHarnessUsage({ harnessType, operation, runtimeAtt
   return "unknown";
 }
 
-export function isZeroMarginalCreditEligible(billingClass) {
-  if (!BILLING_CLASSES.has(billingClass)) return false;
-  return billingClass === "deterministic-zero" || billingClass === "license-included";
-}
-
 export function validateMicrosoftBillingClass(value) {
-  if (!BILLING_CLASSES.has(value)) throw new TypeError("microsoft-billing-class-invalid");
-  return value;
+  try {
+    return validateBillingClass(value);
+  } catch {
+    throw new TypeError("microsoft-billing-class-invalid");
+  }
 }
 
 export function resolveMicrosoftBillingClass(capability, declaredClass, runtimeAttestation = null) {
