@@ -96,6 +96,11 @@ export class RelayDurableObject {
         result = await this.broker.reattachRemote({ owner, origin, deviceId: input.deviceId, sessionId: input.sessionId, resumeCredential: input.resumeCredential, socket });
         this.roles.set(socket, { sessionId: result.sessionId, side: "remote" });
         send(socket, { type: "paired", accepted: true, result });
+      } else if (input.action === "keepalive") {
+        exact(input, ["action", "sessionId", "side"]);
+        this.requireRole(socket, input.sessionId, input.side);
+        result = this.broker.heartbeat({ owner, origin, sessionId: input.sessionId, side: input.side });
+        send(socket, { type: "keepalive-accepted", accepted: true, expiresAt: result.expiresAt });
       } else if (input.action === "forward") {
         exact(input, ["action", "frame", "from", "sessionId"]);
         this.requireRole(socket, input.sessionId, input.from);
