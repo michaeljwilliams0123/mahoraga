@@ -10,6 +10,13 @@ Website Q&A                   bdefb9eb-446d-f111-ab0d-6045bd029290 Published    
 Mahoraga Enterprise Core      501917a0-9e8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
 Mahoraga Tenant Health Reader 3fed8376-1c8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned`;
 
+const legacyNameFixture = `Connected as owner@example.com
+Connected to... Secret Environment
+Name                          Copilot ID                           Component State Is Managed Solution ID                          Status Code State Code
+General Mahoraga              22839bcc-f587-f111-ab10-6045bd029e2e Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
+Mahorago Enterprise Core      501917a0-9e8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned
+Mahorago Tenant Health Reader 3fed8376-1c8e-f111-8076-000d3a30cfe7 Published       False      fd140aae-4df4-11dd-bd17-0019b9312238 Active      Provisioned`;
+
 const enterpriseHarnessMetadata = Object.freeze({
   harnessType: "github-copilot-harness",
   capabilityClasses: ["analysis", "workflow-design"],
@@ -34,6 +41,15 @@ test("Power Platform discovery returns only allowlisted logical aliases and boun
   assert.equal(agents.every((item) => item.published && item.active && item.provisioned), true);
   const serialized = JSON.stringify(agents);
   for (const forbidden of ["22839bcc", "fd140aae", "Secret Environment", "owner@example.com", "Website Q&A"]) assert.equal(serialized.includes(forbidden), false);
+});
+
+test("Power Platform discovery recognizes legacy Mahorago display names but emits canonical aliases only", async () => {
+  const agents = await discoverPowerPlatformAgents({ runPac: async () => ({ stdout: legacyNameFixture }) });
+  assert.deepEqual(agents.map((item) => item.alias), ["general-mahoraga", "enterprise-core", "tenant-health-reader"]);
+  const serialized = JSON.stringify(agents);
+  assert.equal(serialized.includes("Mahorago"), false);
+  assert.equal(serialized.includes("501917a0"), false);
+  assert.equal(serialized.includes("3fed8376"), false);
 });
 
 test("Power Platform health reports sanitized zero-credit discovery readiness", async () => {
