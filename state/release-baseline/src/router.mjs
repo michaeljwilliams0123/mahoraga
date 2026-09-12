@@ -3,7 +3,7 @@ import { resolveCapabilityAuthority } from "./owner-authority.mjs";
 import { planCapabilityRecovery } from "./capability-recovery.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
-import { isZeroMarginalCreditEligible } from "./microsoft-usage-cost.mjs";
+import { isZeroMarginalCreditEligible } from "./resource-economy.mjs";
 
 export const routeTask = createTaskRouter();
 
