@@ -101,10 +101,12 @@ export async function ensureCopilotStudioWorkspace({ workspaceRoot, workspacePat
   if (info?.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
   if (info?.isDirectory()) return Object.freeze({ verified: true, workspacePath, bootstrapped: false });
   if (info !== null) throw safeError("studio-pac-workspace-invalid");
-  if (!safeName(binding?.botSchemaName) || !ALIASES.has(binding?.alias) || binding?.workspaceName !== binding.alias) throw safeError("studio-pac-agent-binding-missing");
+  if (!safeName(binding?.botSchemaName) || !safeEnvironmentId(binding?.environmentId) || !ALIASES.has(binding?.alias) || binding?.workspaceName !== binding.alias) {
+    throw safeError("studio-pac-agent-binding-missing");
+  }
   await runFixedPac(runPac, [
     "copilot", "clone", "--bot", binding.botSchemaName,
-    "--display-name", binding.alias, "--output-dir", workspaceRoot,
+    "--environment", binding.environmentId, "--output-dir", workspaceRoot,
   ]);
   info = await lstat(workspacePath).catch(() => null);
   if (!info?.isDirectory() || info.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
@@ -137,9 +139,11 @@ export async function snapshotCopilotStudioWorkspace(workspacePath) {
 }
 
 async function defaultResolveAgent(alias, { env }) {
+  const prefix = `MAHORAGA_STUDIO_${alias.replace(/-/g, "_").toUpperCase()}`;
   const workspaceName = alias;
-  const botSchemaName = env[`MAHORAGA_STUDIO_${alias.replace(/-/g, "_").toUpperCase()}_SCHEMA`];
-  return Object.freeze({ alias, workspaceName, botSchemaName: botSchemaName ?? "" });
+  const botSchemaName = env[`${prefix}_SCHEMA`];
+  const environmentId = env[`${prefix}_ENVIRONMENT`];
+  return Object.freeze({ alias, workspaceName, botSchemaName: botSchemaName ?? "", environmentId: environmentId ?? "" });
 }
 
 function normalizeChangedFiles(files, workspacePath) {
@@ -166,7 +170,7 @@ function fixedOperation(args) {
   if (args[1] === "publish") return args.length === 4 && args[2] === "--bot" && safeName(args[3]);
   if (args[1] === "clone") return args.length === 8
     && args[2] === "--bot" && safeName(args[3])
-    && args[4] === "--display-name" && ALIASES.has(args[5])
+    && args[4] === "--environment" && safeEnvironmentId(args[5])
     && args[6] === "--output-dir" && typeof args[7] === "string";
   return false;
 }
@@ -176,5 +180,6 @@ function inside(root, candidate) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 function safeName(value) { return typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$/.test(value); }
+function safeEnvironmentId(value) { return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value); }
 function requireDigest(value) { if (!/^[a-f0-9]{64}$/.test(String(value ?? ""))) throw safeError("studio-pac-workspace-invalid"); }
 function safeError(code) { return Object.assign(new Error(code), { code }); }
