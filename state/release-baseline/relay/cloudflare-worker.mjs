@@ -3,7 +3,6 @@ import { createRelayBroker } from "./core.mjs";
 const STATE_KEY = "relay-broker-v1";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
 const TWIN_RELAY_PROTOCOL = "mahoraga-twin-v1";
-const CANONICAL_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io";
 
 export function createCloudflareRelayHandler() {
   return Object.freeze({
@@ -64,7 +63,7 @@ export class RelayDurableObject {
     let input;
     try { input = JSON.parse(String(event.data)); } catch { return send(socket, { accepted: false, error: "relay-message-invalid" }); }
     const owner = request.headers.get("cf-access-authenticated-user-email");
-    const origin = trustedPeer(request) ? CANONICAL_PAGES_ORIGIN : request.headers.get("origin");
+    const origin = trustedPeer(request) ? primaryWorkspaceOrigin(this.env) : request.headers.get("origin");
     try {
       let result;
       if (input.action === "pair-local") {
@@ -125,7 +124,7 @@ export class RelayDurableObject {
 
   #closed(socket, request) {
     const role = this.roles.get(socket); if (!role || !this.broker) return;
-    const origin = trustedPeer(request) ? CANONICAL_PAGES_ORIGIN : request.headers.get("origin");
+    const origin = trustedPeer(request) ? primaryWorkspaceOrigin(this.env) : request.headers.get("origin");
     try { this.broker.unregisterSocket({ owner: request.headers.get("cf-access-authenticated-user-email"), origin, sessionId: role.sessionId, side: role.side, socket }); } catch { /* socket cleanup is best effort */ }
     this.roles.delete(socket);
   }
@@ -150,15 +149,18 @@ export default handler;
 
 function validEnvironment(env) {
   try {
-    if (!env || typeof env.MAHORAGA_OWNER_IDENTITY !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(env.MAHORAGA_LOCAL_RELAY_TOKEN ?? "")) return false;
+    if (!env || typeof env.MAHORAGA_OWNER_IDENTITY !== "string" || typeof env.MAHORAGA_WORKSPACE_ORIGIN !== "string" || !/^[A-Za-z0-9_-]{32,256}$/.test(env.MAHORAGA_LOCAL_RELAY_TOKEN ?? "")) return false;
     return workspaceOrigins(env).every((value) => {
       const origin = new URL(value);
       return origin.protocol === "https:" && origin.origin === value;
     });
   } catch { return false; }
 }
+function primaryWorkspaceOrigin(env) {
+  return env.MAHORAGA_WORKSPACE_ORIGIN;
+}
 function workspaceOrigins(env) {
-  return [...new Set([env.MAHORAGA_WORKSPACE_ORIGIN, CANONICAL_PAGES_ORIGIN])];
+  return [...new Set([env.MAHORAGA_WORKSPACE_ORIGIN, env.MAHORAGA_LEGACY_WORKSPACE_ORIGIN].filter(Boolean))];
 }
 function protocolAuthorized(request, token, protocol) {
   const values = (request.headers.get("sec-websocket-protocol") ?? "").split(",").map((value) => value.trim());
