@@ -40,10 +40,10 @@ Canonical machine-readable copies:
 7. **Do not spend your way around the lock.** No Destiny fire, Cloud Pro
    spend, or metered OpenAI API from an agent session in order to rebuild
    the stack.
-8. **Protect main.** Ruleset `22327855`. Required checks: Verify
-   (ubuntu-latest), Verify (windows-latest). `Verify unified Vercel
-   workspace` may run, but must not gate PR completion. Never squash-merge
-   a blocked PR.
+8. **Protect main.** Ruleset `22502690` (`Protect main - exact-head Verify`).
+   Required checks: Verify (ubuntu-latest), Verify (windows-latest). `Verify
+   unified Vercel workspace` may run, but must not gate PR completion. Never
+   squash-merge a blocked or stale-head PR.
 9. **Keep public exposure bounded.** Persistent, unbounded public exposure
    is prohibited. Mahoraga-controlled specialized-purpose apertures are a
    first-class capability. They must be objective-bound, independently
@@ -122,12 +122,15 @@ transfer root credentials that establish ownership.
 | Surface | Language | Role |
 |---|---|---|
 | Control plane `src/`, `scripts/`, `test/`, `relay/` | Node ESM `.mjs` | Supervisor, workers, verify, learning/evolution cycles |
-| Browser workspace `cloud-app/` | TypeScript | One UI source published on Pages: Chat, Control Center, Operations, Connections |
+| Browser workspace `cloud-app/` | TypeScript | One host-neutral UI source: Chat, Control Center, Operations, Connections |
 | Operator reference `operator-deck/` | TypeScript | Non-deployable bounded reference/control helpers |
 | Copilot profiles `.github/agents/` | Markdown | Specialist prompts, not live workers |
 | Release baseline `state/release-baseline/` | Mirror of essentials | Self-healer restore source |
 
-The browser UI host is **GitHub Pages** from approved `main`. Google Workspace is identity,
+The browser production origin is the exact verified host configured through
+`MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN`. GitHub Pages may publish
+a derived static export when enabled, but neither repository visibility nor a
+hosting provider grants execution authority. Google Workspace is identity,
 mail, and docs — not the app host.
 
 ## What an agent may do
