@@ -91,6 +91,28 @@ test("PAC sync detects remote drift and does not push unknown changes", async ()
   assert.equal(calls.some((item) => item[0] === "pac" && item[2] === "push"), false);
 });
 
+test("PAC sync fails closed when local workspace drifts after validation and before push", async () => {
+  const { calls, dependencies } = fixture();
+  const digests = ["a".repeat(64), "b".repeat(64), "c".repeat(64)];
+  dependencies.snapshotWorkspace = async () => digests.shift() ?? "c".repeat(64);
+  await assert.rejects(() => executeCopilotStudioPacSync(request, dependencies), /studio-pac-drift-detected/);
+  assert.equal(calls.some((item) => item[0] === "pac" && item[2] === "push"), false);
+});
+
+test("PAC sync fails closed when post-push pull does not match the validated workspace", async () => {
+  const { calls, dependencies } = fixture();
+  const digests = ["a".repeat(64), "b".repeat(64), "b".repeat(64), "c".repeat(64)];
+  dependencies.snapshotWorkspace = async () => digests.shift() ?? "c".repeat(64);
+  dependencies.evaluateAgent = async () => ({ verified: true, state: "passing", score: 0.95 });
+  await assert.rejects(
+    () => executeCopilotStudioPacSync({ ...request, publish: true }, dependencies),
+    /studio-pac-post-push-verification-failed/,
+  );
+  const pacOperations = calls.filter((item) => item[0] === "pac").map((item) => item[2]);
+  assert.deepEqual(pacOperations, ["pull", "push", "pull"]);
+  assert.equal(pacOperations.includes("publish"), false);
+});
+
 test("PAC sync receipt is sanitized and contains no agent content or identifiers", async () => {
   const { dependencies } = fixture();
   const result = await executeCopilotStudioPacSync(request, dependencies);
