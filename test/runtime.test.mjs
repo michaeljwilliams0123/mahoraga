@@ -24,8 +24,9 @@ test("Primary Codex intake bearer comparison fails closed", () => {
   assert.equal(bearerMatches({ headers: { authorization: "Bearer wrong" } }, "x".repeat(32)), false);
 });
 
-test("runtime exposes only the canonical GitHub Pages workspace as its interaction surface", () => {
-  assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
+test("runtime uses only an explicitly configured workspace origin", () => {
+  assert.equal(DEFAULT_WORKSPACE_URL, null);
+  assert.equal(canonicalWorkspaceUrl(null), null);
   assert.equal(canonicalWorkspaceUrl("https://workspace.example/"), "https://workspace.example/");
   assert.throws(() => canonicalWorkspaceUrl("http://127.0.0.1:4782/"), /canonical-workspace-url-invalid/);
   assert.throws(() => canonicalWorkspaceUrl("https://user:secret@example.com/"), /canonical-workspace-url-invalid/);
@@ -90,7 +91,7 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(status.controlCenterApi.runtimeVersion, status.version);
   assert.equal(status.controlCenterApi.controlCenterVersion, status.versions.controlCenter);
   assert.equal(status.controlCenterApi.staticAssetsSnapshotted, false);
-  assert.equal(status.controlCenterApi.interactionSurface, "github-pages-workspace");
+  assert.equal(status.controlCenterApi.interactionSurface, "configured-workspace-origin");
   assert.equal(status.controlCenterApi.localUiRetired, true);
   const statusResponse = await fetch(`${base}/api/status`);
   assert.equal(statusResponse.headers.get("x-mahoraga-runtime-version"), status.version);
@@ -107,8 +108,8 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   assert.equal(world.capabilityGraph.creditCost, 0);
   assert.equal(world.capabilityGraph.paidFallback, false);
   const workspaceRedirect = await fetch(base, { redirect: "manual" });
-  assert.equal(workspaceRedirect.status, 307);
-  assert.equal(workspaceRedirect.headers.get("location"), DEFAULT_WORKSPACE_URL);
+  assert.equal(workspaceRedirect.status, 503);
+  assert.deepEqual(await workspaceRedirect.json(), { error: "workspace-origin-not-configured" });
   runtime.database.createSecondaryAssignment({
     title: "Verify controller bridge", taskArea: "secondary-connectivity", expectedTask: "Return bounded repository evidence.",
     expectedBaseCommit: "abcdef0123456789", allowedPaths: ["coordination/results"],

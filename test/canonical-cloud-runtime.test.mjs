@@ -24,7 +24,8 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
     read("docs/CLOUD-WORKSPACE.md"),
     read("docs/CLOUDFLARE-WORKERS-CUTOVER.md"),
   ]);
-  assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
+  assert.equal(DEFAULT_WORKSPACE_URL, null);
+  assert.equal(canonicalWorkspaceUrl(null), null);
   assert.match(workspace, /Mahoraga One|Mahoraga handles the lanes/);
   for (const label of ["Chat", "Work", "Files", "Advanced"]) {
     assert.match(workspace, new RegExp(`label: "${label}"`));
