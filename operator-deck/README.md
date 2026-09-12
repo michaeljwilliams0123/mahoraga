@@ -2,7 +2,7 @@
 
 `operator-deck/` is a **TypeScript reference/control-library layer** for `michaeljwilliams0123/mahoraga`.
 
-It is **not** a second browser application and is not deployed separately. The singular browser UI is `cloud-app/`, which now contains Chat, Control Center, Operations, and Connections in one Vercel workspace.
+It is **not** a second browser application and is not deployed separately. The singular browser UI is `cloud-app/`, which contains Chat, Control Center, Operations, and Connections in one host-neutral workspace.
 
 ## Why this directory remains
 
@@ -10,7 +10,7 @@ The directory preserves bounded, reusable operator concepts and compatibility he
 
 ## Canonical operator surface
 
-Use `https://michaeljwilliams0123.github.io/mahoraga/` for all browser interaction. GitHub Pages publishes the approved `main` head; historical Vercel projects are not user-facing production surfaces.
+Use the verified production origin configured by `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` for browser interaction. The private GitHub repository remains source authority; GitHub Pages may provide a derived static export when enabled, but a Pages URL is not automatically production authority. Historical Vercel projects are not user-facing production surfaces.
 
 - **Chat** — encrypted RuntimeRelay conversation path using the zero-Codex policy.
 - **Control Center** — cloud deployment identity, Git SHA, core status, routing policy, and capability readiness.
