@@ -52,3 +52,14 @@ test("build-version validation fails closed when any technical mirror diverges",
     cloudPackage: "1.0.0",
   }), /product-build-version-divergence/);
 });
+
+test("runtime-facing identity never appends build version to Mahoraga", async () => {
+  const [cliSource, workerSource] = await Promise.all([
+    readFile(path.join(ROOT, "src", "cli.mjs"), "utf8"),
+    readFile(path.join(ROOT, "src", "worker-process.mjs"), "utf8"),
+  ]);
+
+  const versionBrandedIdentity = /Mahoraga\s+\$\{manifest\.version\}/;
+  assert.doesNotMatch(cliSource, versionBrandedIdentity);
+  assert.doesNotMatch(workerSource, versionBrandedIdentity);
+});

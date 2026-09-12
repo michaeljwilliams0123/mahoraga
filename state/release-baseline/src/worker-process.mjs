@@ -136,7 +136,7 @@ async function execute(capability, task) {
     case "artifact.inspect":
       return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
     case "system.health":
-      return { verified: true, summary: `Mahoraga ${manifest.version} local runtime is responsive.`, version: manifest.version, phase: manifest.phase };
+      return { verified: true, summary: "Mahoraga local runtime is responsive.", version: manifest.version, phase: manifest.phase };
     case "manifest.validate":
       await loadManifest();
       return { verified: true, summary: "Canonical manifest passed validation.", workers: manifest.workers.length };
