@@ -53,7 +53,15 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
 
   await runFixedPac(runPac, ["copilot", "push", "--project-dir", workspacePath]);
   const phases = ["pull", "validate", "push"];
+  let evaluation = null;
   if (request.publish === true) {
+    if (typeof dependencies.evaluateAgent !== "function") throw safeError("studio-pac-evaluation-required");
+    const evaluated = await dependencies.evaluateAgent({ alias: request.alias, surfaces: request.surfaces, reasonCodes: request.reasonCodes });
+    if (evaluated?.verified !== true || evaluated.state !== "passing" || !Number.isFinite(Number(evaluated.score))) throw safeError("studio-pac-evaluation-failed");
+    const score = Number(evaluated.score);
+    if (score < 0 || score > 1) throw safeError("studio-pac-evaluation-failed");
+    evaluation = Object.freeze({ state: "passing", scoreBasisPoints: Math.round(score * 10000) });
+    phases.push("evaluate");
     if (!safeName(binding.botSchemaName)) throw safeError("studio-pac-agent-invalid");
     await runFixedPac(runPac, ["copilot", "publish", "--bot", binding.botSchemaName]);
     phases.push("publish");
@@ -66,6 +74,7 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
     published: request.publish === true,
     workspaceSha256: finalSha256,
     changedFileKinds: Object.freeze(changedFileKinds),
+    ...(evaluation ? { evaluation } : {}),
   });
 }
 
