@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdir, readdir, stat } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -8,6 +8,9 @@ import { applyCopilotStudioWorkspaceMutation, validateCopilotStudioWorkspace } f
 const execFileAsync = promisify(execFile);
 const ALIASES = new Set(["general-mahoraga", "enterprise-core", "tenant-health-reader"]);
 const SAFE_ROOT_NAME = "copilot-studio-sync";
+const MAX_SNAPSHOT_FILES = 2048;
+const MAX_SNAPSHOT_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_SNAPSHOT_TOTAL_BYTES = 32 * 1024 * 1024;
 
 export async function executeCopilotStudioPacSync(request, dependencies = {}) {
   const platform = dependencies.platform ?? process.platform;
@@ -17,7 +20,7 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
   const resolveAgent = dependencies.resolveAgent ?? defaultResolveAgent;
   const runPac = dependencies.runPac ?? defaultRunPac;
   const ensureWorkspace = dependencies.ensureWorkspace ?? defaultEnsureWorkspace;
-  const snapshotWorkspace = dependencies.snapshotWorkspace ?? defaultSnapshotWorkspace;
+  const snapshotWorkspace = dependencies.snapshotWorkspace ?? snapshotCopilotStudioWorkspace;
   const applyMutation = dependencies.applyMutation ?? applyCopilotStudioWorkspaceMutation;
   const validateWorkspace = dependencies.validateWorkspace ?? validateCopilotStudioWorkspace;
 
@@ -88,10 +91,28 @@ async function defaultEnsureWorkspace({ workspaceRoot, workspacePath }) {
   return Object.freeze({ verified: info?.isDirectory() === true, workspacePath });
 }
 
-async function defaultSnapshotWorkspace(workspacePath) {
-  const entries = await readdir(workspacePath, { recursive: true, withFileTypes: true });
-  const rows = entries.filter((item) => item.isFile()).map((item) => path.join(item.parentPath ?? item.path ?? workspacePath, item.name))
-    .map((item) => path.relative(workspacePath, item).replace(/\\/g, "/")).sort();
+export async function snapshotCopilotStudioWorkspace(workspacePath) {
+  const root = path.resolve(workspacePath);
+  const rootInfo = await lstat(root).catch(() => null);
+  if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
+  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  const files = entries.filter((item) => item.isFile() || item.isSymbolicLink());
+  if (files.length > MAX_SNAPSHOT_FILES) throw safeError("studio-pac-workspace-invalid");
+  const rows = [];
+  let totalBytes = 0;
+  for (const entry of files) {
+    const parent = entry.parentPath ?? entry.path ?? root;
+    const absolute = path.resolve(parent, entry.name);
+    if (!inside(root, absolute)) throw safeError("studio-pac-workspace-invalid");
+    const info = await lstat(absolute);
+    if (!info.isFile() || info.isSymbolicLink() || info.size > MAX_SNAPSHOT_FILE_BYTES) throw safeError("studio-pac-workspace-invalid");
+    totalBytes += info.size;
+    if (totalBytes > MAX_SNAPSHOT_TOTAL_BYTES) throw safeError("studio-pac-workspace-invalid");
+    const relative = path.relative(root, absolute).replace(/\\/g, "/");
+    const fileSha256 = createHash("sha256").update(await readFile(absolute)).digest("hex");
+    rows.push(`${relative}\0${info.size}\0${fileSha256}`);
+  }
+  rows.sort();
   return createHash("sha256").update(rows.join("\n"), "utf8").digest("hex");
 }
 
