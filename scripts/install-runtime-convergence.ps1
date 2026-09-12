@@ -14,18 +14,40 @@ if ($LASTEXITCODE -ne 0) { throw 'Unable to fetch protected main.' }
 $target = (& git -C $root rev-parse origin/main).Trim()
 if ($target -notmatch '^[0-9a-fA-F]{40}$') { throw 'Protected main commit is invalid.' }
 
-if (-not (Test-Path -LiteralPath $controllerRoot -PathType Container)) {
+function New-ControllerWorktree {
+    if (Test-Path -LiteralPath $controllerRoot) {
+        & git -C $root worktree remove --force $controllerRoot 2>$null
+        if ($LASTEXITCODE -ne 0 -and (Test-Path -LiteralPath $controllerRoot)) {
+            Remove-Item -LiteralPath $controllerRoot -Recurse -Force
+        }
+        & git -C $root worktree prune
+        if ($LASTEXITCODE -ne 0) { throw 'Unable to prune stale convergence worktree metadata.' }
+    }
     & git -C $root worktree add --detach $controllerRoot $target
     if ($LASTEXITCODE -ne 0) { throw 'Unable to create dedicated convergence worktree.' }
+}
+
+if (-not (Test-Path -LiteralPath $controllerRoot -PathType Container)) {
+    New-ControllerWorktree
 } else {
-    & git -C $controllerRoot fetch origin main --quiet
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh convergence worktree.' }
-    & git -C $controllerRoot reset --hard $target | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw 'Unable to align convergence worktree.' }
+    & git -C $controllerRoot sparse-checkout disable 2>$null
+    $sparseDisableExit = $LASTEXITCODE
+    if ($sparseDisableExit -eq 0) {
+        & git -C $controllerRoot fetch origin main --quiet
+    }
+    if ($sparseDisableExit -ne 0 -or $LASTEXITCODE -ne 0) {
+        New-ControllerWorktree
+    } else {
+        & git -C $controllerRoot reset --hard $target | Out-Null
+        if ($LASTEXITCODE -ne 0) { New-ControllerWorktree }
+    }
 }
 
 $controller = Join-Path $controllerRoot 'scripts\runtime-convergence.ps1'
-if (-not (Test-Path -LiteralPath $controller -PathType Leaf)) { throw 'Runtime convergence controller is missing.' }
+if (-not (Test-Path -LiteralPath $controller -PathType Leaf)) {
+    New-ControllerWorktree
+}
+if (-not (Test-Path -LiteralPath $controller -PathType Leaf)) { throw 'Runtime convergence controller is missing after repair.' }
 
 $argument = "-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$controller`" -ControllerRoot `"$controllerRoot`" -Port 4783"
 $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $argument -WorkingDirectory $controllerRoot
