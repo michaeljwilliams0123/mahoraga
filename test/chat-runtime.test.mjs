@@ -17,7 +17,7 @@ test("unified chat intake separates questions from explicit actions", { concurre
     primaryCodexToken: TOKEN,
     syncCoordinationMailbox: false,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
 
   const zeroCredit = await fetch(`${base}/api/chat`, {
@@ -88,7 +88,7 @@ test("repository head failure leaves autonomous chat intake unpersisted", { conc
       throw error;
     },
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
 
   const acted = await fetch(`${base}/api/chat`, {
@@ -113,7 +113,7 @@ test("owner-paired relay starts a credit-free protocol objective without spendin
     syncCoordinationMailbox: false,
     repositoryHeadReader: async () => expectedHead,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
   const result = await runtime.server.conversationGateway.chat({
     mode: "act", content: "Update the Mahoraga interface and apply the change", idempotencyKey: "relay-chat-act-runtime",
@@ -140,7 +140,7 @@ test("owner chat can target exact registered capabilities without opening public
     syncCoordinationMailbox: false,
     repositoryHeadReader: async () => expectedHead,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
 
   const evolve = await fetch(`${base}/api/chat`, {
@@ -178,7 +178,7 @@ test("licensed-approved admits only one explicit answer turn", { concurrency: fa
     primaryCodexToken: TOKEN,
     syncCoordinationMailbox: false,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
 
   const answer = await fetch(`${base}/api/chat`, {
@@ -211,7 +211,7 @@ test("paired relay preserves zero-codex by default and passes only explicit lice
     primaryCodexToken: TOKEN,
     syncCoordinationMailbox: false,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const context = {
     mechanism: "owner-paired-relay",
     attendedSession: { active: true, sessionId: "rls-11111111111111111111111111111111" },
@@ -231,7 +231,7 @@ test("paired relay preserves zero-codex by default and passes only explicit lice
 test("public chat composes repo and M365 work through UCF with attended-session continuity", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-ucf-chat-runtime-"));
   const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: Buffer.alloc(32, 61), primaryCodexToken: TOKEN, syncCoordinationMailbox: false, repositoryHeadReader: async () => "f".repeat(40) });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const nonceResponse = await fetch(`${base}/api/session/bootstrap-nonce`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } });
   const { nonce } = await nonceResponse.json();
@@ -254,7 +254,7 @@ test("public chat composes repo and M365 work through UCF with attended-session 
 test("public chat keeps natural M365 follow-up on enterprise reasoning lane", { concurrency: false }, async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-ucf-m365-followup-"));
   const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: Buffer.alloc(32, 67), primaryCodexToken: TOKEN, syncCoordinationMailbox: false });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const nonceResponse = await fetch(`${base}/api/session/bootstrap-nonce`, { method: "POST", headers: { authorization: `Bearer ${TOKEN}` } });
   const { nonce } = await nonceResponse.json();
