@@ -107,7 +107,7 @@ test("Studio configure applies only a sanitized known-agent improvement candidat
     }),
   }, worker, {
     env: { MAHORAGA_COPILOT_STUDIO_CONFIGURE_BILLING_CLASS: "license-included" },
-    configureAgent: async (request) => { calls.push(request); return { verified: true, phases: ["pull", "validate", "push"] }; },
+    configureAgent: async (request) => { calls.push(request); return { verified: true, phases: ["pull", "validate", "push", "verify"] }; },
   });
   assert.equal(result.verified, true);
   assert.equal(calls.length, 1);
@@ -120,7 +120,7 @@ test("Studio configure applies only a sanitized known-agent improvement candidat
   });
   assert.deepEqual(result.providerReceipt, {
     alias: "enterprise-core", reasonCodes: ["connected-agent-missing", "tool-missing"], surfaces: ["connected-agents", "tools"],
-    phases: ["pull", "validate", "push"], published: false,
+    phases: ["pull", "validate", "push", "verify"], published: false,
   });
 });
 
