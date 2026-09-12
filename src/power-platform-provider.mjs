@@ -19,19 +19,19 @@ async function defaultRunPac(command, args, options) {
     : execFileAsync("pac", ["copilot", "list"], options);
 }
 const LOGICAL_AGENTS = Object.freeze([
-  Object.freeze({ displayName: "General Mahoraga", alias: "general-mahoraga" }),
-  Object.freeze({ displayName: "Mahoraga Enterprise Core", alias: "enterprise-core" }),
-  Object.freeze({ displayName: "Mahoraga Tenant Health Reader", alias: "tenant-health-reader" }),
+  Object.freeze({ displayNames: Object.freeze(["General Mahoraga"]), alias: "general-mahoraga" }),
+  Object.freeze({ displayNames: Object.freeze(["Mahoraga Enterprise Core", "Mahorago Enterprise Core"]), alias: "enterprise-core" }),
+  Object.freeze({ displayNames: Object.freeze(["Mahoraga Tenant Health Reader", "Mahorago Tenant Health Reader"]), alias: "tenant-health-reader" }),
 ]);
 const PAC_OPTIONS = Object.freeze({ windowsHide: true, timeout: 20000, maxBuffer: 128 * 1024 });
 
 export async function discoverPowerPlatformAgents({ runPac = defaultRunPac, harnessMetadataByAlias = {}, now = () => new Date().toISOString() } = {}) {
   if (!isRecord(harnessMetadataByAlias)) throw new TypeError("power-platform-harness-metadata-invalid");
   const { stdout } = await runPac("pac.cmd", ["copilot", "list"], PAC_OPTIONS);
-  const text = String(stdout ?? "");
+  const lines = String(stdout ?? "").split(/\r?\n/);
   const observedAt = now();
-  return Object.freeze(LOGICAL_AGENTS.flatMap(({ displayName, alias }) => {
-    const line = text.split(/\r?\n/).find((item) => item.trimStart().startsWith(displayName));
+  return Object.freeze(LOGICAL_AGENTS.flatMap(({ displayNames, alias }) => {
+    const line = lines.find((item) => displayNames.some((displayName) => item.trimStart().startsWith(displayName)));
     if (!line) return [];
     const published = /\bPublished\b/i.test(line);
     const active = /\bActive\b/i.test(line);
