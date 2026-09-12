@@ -7,6 +7,7 @@ const stateRoot = "/var/lib/mahoraga";
 const receiptFile = path.join(stateRoot, "idle-receipts.ndjson");
 const children = new Map();
 const restartHistory = new Map();
+const sourceCommit = process.env.RAILWAY_GIT_COMMIT_SHA?.trim() || process.env.MAHORAGA_SOURCE_COMMIT?.trim() || null;
 let stopping = false;
 let idleTimer = null;
 mkdirSync(stateRoot, { recursive: true });
@@ -19,10 +20,15 @@ const shared = { ...process.env,
   MAHORAGA_CORE_URL: "http://127.0.0.1:4782",
   HOSTNAME: "0.0.0.0", PORT: "3000",
 };
+delete shared.MAHORAGA_RUNTIME_PORT;
+emitLifecycle("cloud-supervisor-bootstrap", { coreUrl: shared.MAHORAGA_CORE_URL, workspacePort: Number(shared.PORT) });
 
 start("core", process.execPath, ["src/cli.mjs", "start"]);
-await waitReady("http://127.0.0.1:4782/api/status", 30_000);
+await waitReady("http://127.0.0.1:4782/api/status", 30_000, "cloud-core-readiness-timeout");
+emitLifecycle("cloud-core-ready", { url: "http://127.0.0.1:4782/api/status" });
 start("workspace", npmCommand(), ["--prefix", "cloud-app", "run", "start", "--", "-H", "0.0.0.0", "-p", shared.PORT]);
+await waitReady("http://127.0.0.1:3000/api/live", 30_000, "cloud-workspace-readiness-timeout");
+emitLifecycle("cloud-workspace-ready", { url: "http://127.0.0.1:3000/api/live" });
 
 idleTimer = setInterval(async () => {
   const receipt = { schemaVersion: 1, type: "idle-liveness", observedAt: new Date().toISOString(), modelInvocations: 0, core: false, workspace: false };
@@ -38,6 +44,7 @@ function start(name, command, args) {
   if (stopping) return;
   const child = spawn(command, args, { cwd: root, env: shared, stdio: "inherit", windowsHide: true });
   children.set(name, child);
+  emitLifecycle("cloud-child-spawn", { process: name, pid: child.pid ?? null });
   child.once("exit", (code) => {
     children.delete(name);
     if (stopping) return;
@@ -52,6 +59,7 @@ function start(name, command, args) {
   });
 }
 async function shutdown(reason) { if (stopping) return; stopping = true; if (idleTimer) clearInterval(idleTimer); for (const child of children.values()) child.kill("SIGTERM"); await Promise.all([...children.values()].map((child) => new Promise((resolve) => child.once("exit", resolve)))); rotateAndAppend({ schemaVersion: 1, type: "supervisor-stopped", reason, observedAt: new Date().toISOString(), modelInvocations: 0 }); }
-async function waitReady(url, timeoutMs) { const end = Date.now() + timeoutMs; while (Date.now() < end) { try { if ((await fetch(url, { signal: AbortSignal.timeout(1_000) })).ok) return; } catch {} await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error("cloud-core-readiness-timeout"); }
+async function waitReady(url, timeoutMs, timeoutCode) { const end = Date.now() + timeoutMs; while (Date.now() < end) { try { if ((await fetch(url, { signal: AbortSignal.timeout(1_000) })).ok) return; } catch {} await new Promise((resolve) => setTimeout(resolve, 250)); } throw new Error(timeoutCode); }
+function emitLifecycle(type, fields = {}) { console.log(JSON.stringify({ schemaVersion: 1, type, observedAt: new Date().toISOString(), modelInvocations: 0, sourceCommit, ...fields })); }
 function rotateAndAppend(value) { if (existsSync(receiptFile) && statSync(receiptFile).size > 1024 * 1024) renameSync(receiptFile, `${receiptFile}.previous`); appendFileSync(receiptFile, `${JSON.stringify(value)}\n`, { encoding: "utf8", mode: 0o600 }); }
 function npmCommand() { return process.platform === "win32" ? "npm.cmd" : "npm"; }

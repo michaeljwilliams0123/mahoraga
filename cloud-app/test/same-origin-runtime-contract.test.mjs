@@ -23,3 +23,13 @@ test("gateway exposes bounded liveness and readiness without model invocation", 
   assert.match(session, /cloudSessionCompatibility/);
   assert.match(session, /state: connection\.state === "ready" \? "Idle" : "Degraded"/);
 });
+
+test("production readiness fails closed when deployment provenance is missing or stale", async () => {
+  const ready = await read("app/api/ready/route.ts");
+  assert.match(ready, /RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(ready, /MAHORAGA_EXPECTED_GIT_SHA/);
+  assert.match(ready, /deployment-provenance-missing/);
+  assert.match(ready, /deployment-provenance-mismatch/);
+  assert.match(ready, /gitSha/);
+  assert.match(ready, /503/);
+});
