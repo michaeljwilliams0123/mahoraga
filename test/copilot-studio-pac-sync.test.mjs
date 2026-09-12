@@ -68,10 +68,11 @@ test("PAC sync refuses push when mutation or deterministic validation fails", as
   }
 });
 
-test("PAC sync publishes only after verified push and explicit publish request", async () => {
+test("PAC sync publishes only after verified push, evaluation, and explicit publish request", async () => {
   const { calls, dependencies } = fixture();
+  dependencies.evaluateAgent = async () => ({ verified: true, state: "passing", score: 0.95 });
   const result = await executeCopilotStudioPacSync({ ...request, publish: true }, dependencies);
-  assert.deepEqual(result.phases, ["pull", "validate", "push", "publish"]);
+  assert.deepEqual(result.phases, ["pull", "validate", "push", "evaluate", "publish"]);
   assert.equal(result.published, true);
   const pacCalls = calls.filter((item) => item[0] === "pac");
   assert.equal(pacCalls.at(-1)[2], "publish");
