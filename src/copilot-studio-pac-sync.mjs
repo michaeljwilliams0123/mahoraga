@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { lstat, mkdir, readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -19,14 +19,15 @@ export async function executeCopilotStudioPacSync(request, dependencies = {}) {
 
   const resolveAgent = dependencies.resolveAgent ?? defaultResolveAgent;
   const runPac = dependencies.runPac ?? defaultRunPac;
-  const ensureWorkspace = dependencies.ensureWorkspace ?? defaultEnsureWorkspace;
+  const ensureWorkspace = dependencies.ensureWorkspace ?? ensureCopilotStudioWorkspace;
   const snapshotWorkspace = dependencies.snapshotWorkspace ?? snapshotCopilotStudioWorkspace;
   const applyMutation = dependencies.applyMutation ?? applyCopilotStudioWorkspaceMutation;
   const validateWorkspace = dependencies.validateWorkspace ?? validateCopilotStudioWorkspace;
+  const env = dependencies.env ?? process.env;
 
-  const binding = await resolveAgent(request.alias);
+  const binding = await resolveAgent(request.alias, { env });
   if (!binding || binding.alias !== request.alias || !safeName(binding.workspaceName)) throw safeError("studio-pac-agent-invalid");
-  const workspaceRoot = path.resolve(dependencies.workspaceRoot ?? path.join(process.env.LOCALAPPDATA ?? process.cwd(), "Mahoraga", SAFE_ROOT_NAME));
+  const workspaceRoot = path.resolve(dependencies.workspaceRoot ?? path.join(env.LOCALAPPDATA ?? process.cwd(), "Mahoraga", SAFE_ROOT_NAME));
   const workspacePath = path.resolve(workspaceRoot, binding.workspaceName);
   if (!inside(workspaceRoot, workspacePath)) throw safeError("studio-pac-workspace-invalid");
   const workspace = await ensureWorkspace({ workspaceRoot, workspacePath, binding, runPac });
@@ -94,10 +95,20 @@ async function runFixedPac(runPac, args) {
   catch { throw safeError("studio-pac-command-failed"); }
 }
 
-async function defaultEnsureWorkspace({ workspaceRoot, workspacePath }) {
+export async function ensureCopilotStudioWorkspace({ workspaceRoot, workspacePath, binding, runPac }) {
   await mkdir(workspaceRoot, { recursive: true });
-  const info = await stat(workspacePath).catch(() => null);
-  return Object.freeze({ verified: info?.isDirectory() === true, workspacePath });
+  let info = await lstat(workspacePath).catch(() => null);
+  if (info?.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
+  if (info?.isDirectory()) return Object.freeze({ verified: true, workspacePath, bootstrapped: false });
+  if (info !== null) throw safeError("studio-pac-workspace-invalid");
+  if (!safeName(binding?.botSchemaName) || !ALIASES.has(binding?.alias) || binding?.workspaceName !== binding.alias) throw safeError("studio-pac-agent-binding-missing");
+  await runFixedPac(runPac, [
+    "copilot", "clone", "--bot", binding.botSchemaName,
+    "--display-name", binding.alias, "--output-dir", workspaceRoot,
+  ]);
+  info = await lstat(workspacePath).catch(() => null);
+  if (!info?.isDirectory() || info.isSymbolicLink()) throw safeError("studio-pac-workspace-invalid");
+  return Object.freeze({ verified: true, workspacePath, bootstrapped: true });
 }
 
 export async function snapshotCopilotStudioWorkspace(workspacePath) {
@@ -125,9 +136,9 @@ export async function snapshotCopilotStudioWorkspace(workspacePath) {
   return createHash("sha256").update(rows.join("\n"), "utf8").digest("hex");
 }
 
-async function defaultResolveAgent(alias) {
+async function defaultResolveAgent(alias, { env }) {
   const workspaceName = alias;
-  const botSchemaName = process.env[`MAHORAGA_STUDIO_${alias.replace(/-/g, "_").toUpperCase()}_SCHEMA`];
+  const botSchemaName = env[`MAHORAGA_STUDIO_${alias.replace(/-/g, "_").toUpperCase()}_SCHEMA`];
   return Object.freeze({ alias, workspaceName, botSchemaName: botSchemaName ?? "" });
 }
 
@@ -153,6 +164,10 @@ function fixedOperation(args) {
   if (!Array.isArray(args) || args[0] !== "copilot") return false;
   if (["pull", "push"].includes(args[1])) return args.length === 4 && args[2] === "--project-dir" && typeof args[3] === "string";
   if (args[1] === "publish") return args.length === 4 && args[2] === "--bot" && safeName(args[3]);
+  if (args[1] === "clone") return args.length === 8
+    && args[2] === "--bot" && safeName(args[3])
+    && args[4] === "--display-name" && ALIASES.has(args[5])
+    && args[6] === "--output-dir" && typeof args[7] === "string";
   return false;
 }
 
