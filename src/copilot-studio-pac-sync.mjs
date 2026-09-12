@@ -121,7 +121,6 @@ export async function ensureCopilotStudioWorkspace({ workspaceRoot, workspacePat
 
   await runFixedPac(runPac, [
     "copilot", "clone", "--bot", binding.botSchemaName,
-    "--display-name", binding.workspaceName,
     "--environment", binding.environmentId, "--output-dir", workspaceRoot,
   ]);
   info = await lstat(workspacePath).catch(() => null);
@@ -250,11 +249,10 @@ function fixedOperation(args) {
   if (args[1] === "publish") return args.length === 6
     && args[2] === "--bot" && safeName(args[3])
     && args[4] === "--environment" && safeEnvironmentId(args[5]);
-  if (args[1] === "clone") return args.length === 10
+  if (args[1] === "clone") return args.length === 8
     && args[2] === "--bot" && safeName(args[3])
-    && args[4] === "--display-name" && safeName(args[5])
-    && args[6] === "--environment" && safeEnvironmentId(args[7])
-    && args[8] === "--output-dir" && typeof args[9] === "string";
+    && args[4] === "--environment" && safeEnvironmentId(args[5])
+    && args[6] === "--output-dir" && typeof args[7] === "string";
   return false;
 }
 
