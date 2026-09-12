@@ -15,6 +15,26 @@ export function createConversationGateway({ database, manifest, supervisor, subm
   };
   const emit = (runId, type, payload, options) => notify(database.appendRunEvent(runId, type, payload, options));
 
+  const projectCapabilities = () => {
+    const values = resolveCapabilities();
+    if (!Array.isArray(values)) throw gatewayError("gateway-capabilities-invalid");
+    return values.map((item) => {
+      const projected = {
+        capability: item.capability,
+        routable: item.routable === true,
+        workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
+      };
+      if (typeof item.provider === "string") projected.provider = item.provider;
+      if (typeof item.canary === "string") projected.canary = item.canary;
+      if (item.routingReason === null || typeof item.routingReason === "string") projected.routingReason = item.routingReason;
+      if (typeof item.evidenceLevel === "string") projected.evidenceLevel = item.evidenceLevel;
+      if (item.lastObservedAt != null) projected.lastObservedAt = item.lastObservedAt;
+      if (item.lastVerifiedAt != null) projected.lastVerifiedAt = item.lastVerifiedAt;
+      if (typeof item.workerId === "string") projected.workerId = item.workerId;
+      return Object.freeze(projected);
+    }).sort((left, right) => left.capability.localeCompare(right.capability));
+  };
+
   const api = {
     chat(input, context = {}) { return relayCall(relayHandlers, "chat", input, context); },
     tasks(conversationId, context = {}) { return relayCall(relayHandlers, "tasks", conversationId, context); },
@@ -110,20 +130,7 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     },
 
     capabilities() {
-      const values = resolveCapabilities();
-      if (!Array.isArray(values)) throw gatewayError("gateway-capabilities-invalid");
-      return values.map((item) => Object.freeze({
-        capability: item.capability,
-        routable: item.routable === true,
-        ...(typeof item.workerId === "string" ? { workerId: item.workerId } : {}),
-        workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
-        ...(typeof item.provider === "string" ? { provider: item.provider } : {}),
-        ...(typeof item.canary === "string" ? { canary: item.canary } : {}),
-        ...(item.routingReason === null || typeof item.routingReason === "string" ? { routingReason: item.routingReason } : {}),
-        ...(typeof item.evidenceLevel === "string" ? { evidenceLevel: item.evidenceLevel } : {}),
-        ...(item.lastObservedAt === null || typeof item.lastObservedAt === "string" ? { lastObservedAt: item.lastObservedAt } : {}),
-        ...(item.lastVerifiedAt === null || typeof item.lastVerifiedAt === "string" ? { lastVerifiedAt: item.lastVerifiedAt } : {}),
-      })).sort((left, right) => left.capability.localeCompare(right.capability));
+      return projectCapabilities();
     },
 
     getImprovement(candidateId) {
@@ -144,6 +151,7 @@ export function createConversationGateway({ database, manifest, supervisor, subm
   };
   return Object.freeze(api);
 }
+
 
 function gatewayIntentFromPlan(plan) {
   return Object.freeze({

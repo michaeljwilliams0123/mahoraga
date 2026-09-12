@@ -2,7 +2,6 @@ import { createHash } from "node:crypto";
 import { classifyTaskIntent } from "./task-intent.mjs";
 import { capabilityIndex } from "./router.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
-import { projectOperationsInteractionReadiness } from "./workspace-operations.mjs";
 
 export function createConversationGateway({ database, manifest, supervisor, submitTask, capabilityResolver = null, relayHandlers = {} } = {}) {
   if (!database || typeof database.createConversationRun !== "function") throw gatewayError("gateway-database-required");
@@ -27,7 +26,7 @@ export function createConversationGateway({ database, manifest, supervisor, subm
       };
       if (typeof item.provider === "string") projected.provider = item.provider;
       if (typeof item.canary === "string") projected.canary = item.canary;
-      if (item.routingReason != null) projected.routingReason = item.routingReason;
+      if (item.routingReason === null || typeof item.routingReason === "string") projected.routingReason = item.routingReason;
       if (typeof item.evidenceLevel === "string") projected.evidenceLevel = item.evidenceLevel;
       if (item.lastObservedAt != null) projected.lastObservedAt = item.lastObservedAt;
       if (item.lastVerifiedAt != null) projected.lastVerifiedAt = item.lastVerifiedAt;
@@ -42,13 +41,7 @@ export function createConversationGateway({ database, manifest, supervisor, subm
     messages(conversationId, context = {}) { return relayCall(relayHandlers, "messages", conversationId, context); },
     messageContent(input, context = {}) { return relayCall(relayHandlers, "messageContent", input, context); },
     taskAction(input, context = {}) { return relayCall(relayHandlers, "taskAction", input, context); },
-    async operationsSnapshot(context = {}) {
-      const snapshot = await relayCall(relayHandlers, "operationsSnapshot", null, context);
-      const lane = snapshot?.interactionReadiness?.provider && snapshot.interactionReadiness.provider !== "unknown"
-        ? snapshot.interactionReadiness
-        : projectOperationsInteractionReadiness(projectLaneFromCapabilities(projectCapabilities()));
-      return Object.freeze({ ...snapshot, interactionReadiness: projectOperationsInteractionReadiness(lane) });
-    },
+    operationsSnapshot(context = {}) { return relayCall(relayHandlers, "operationsSnapshot", null, context); },
     operationsAction(input, context = {}) { return relayCall(relayHandlers, "operationsAction", input, context); },
 
     createRun(input, context = {}) {
@@ -159,20 +152,6 @@ export function createConversationGateway({ database, manifest, supervisor, subm
   return Object.freeze(api);
 }
 
-function projectLaneFromCapabilities(capabilities) {
-  const route = (Array.isArray(capabilities) ? capabilities : []).find((item) => item?.capability === "assistant.respond") ?? null;
-  return {
-    ready: route?.routable === true,
-    capability: "assistant.respond",
-    workerId: route?.workerId ?? route?.workerIds?.[0] ?? null,
-    provider: route?.provider ?? "unknown",
-    canary: route?.canary ?? "never",
-    reason: route?.routable === true ? null : route?.routingReason ?? "route-unavailable",
-    evidenceLevel: route?.evidenceLevel ?? "unknown",
-    lastObservedAt: route?.lastObservedAt ?? null,
-    lastVerifiedAt: route?.lastVerifiedAt ?? null,
-  };
-}
 
 function gatewayIntentFromPlan(plan) {
   return Object.freeze({
