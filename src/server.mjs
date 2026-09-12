@@ -254,7 +254,14 @@ export function createControlServer({
         return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) });
       }
       if (request.method === "GET" && url.pathname === "/api/operations") {
-        return json(response, 200, operationsSnapshot({ database, manifest, supervisor, repositoryHeadReader }));
+        const capabilities = capabilityIndex(manifest, supervisor.status());
+        return json(response, 200, operationsSnapshot({
+          database,
+          manifest,
+          supervisor,
+          repositoryHeadReader,
+          interactionReadiness: interactionReadinessProjection(capabilities),
+        }));
       }
       if (request.method === "POST" && url.pathname === "/api/operations/action") {
         const body = await bodyJson(request);
@@ -391,6 +398,20 @@ export function publicStatusPayload(manifest, database, supervisor) {
     },
   };
 }
+export function interactionReadinessProjection(capabilities) {
+  const route = (Array.isArray(capabilities) ? capabilities : []).find((item) => item?.capability === "assistant.respond") ?? null;
+  return {
+    ready: route?.routable === true,
+    capability: "assistant.respond",
+    workerId: route?.workerId ?? null,
+    provider: route?.provider ?? "unknown",
+    canary: route?.canary ?? "never",
+    reason: route?.routable === true ? null : route?.routingReason ?? "route-unavailable",
+    evidenceLevel: route?.evidenceLevel ?? "unknown",
+    lastObservedAt: route?.lastObservedAt ?? null,
+    lastVerifiedAt: route?.lastVerifiedAt ?? null,
+  };
+}
 export function statusPayload(manifest, database, supervisor) {
   const tasks = database.listTasks();
   const workers = supervisor.status();
@@ -426,7 +447,7 @@ export function statusPayload(manifest, database, supervisor) {
       lastObservedAt: runtimeHealth.startedAt ? generatedAt : null,
     },
     taskCounts: Object.fromEntries(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user", "completed", "failed", "cancelled"].map((state) => [state, tasks.filter((task) => task.status === state).length])),
-    workers, capabilities, expertSkills: listExpertSkills(), connections: connectionProjections(manifest.connections, capabilities),
+    workers, capabilities, interactionReadiness: interactionReadinessProjection(capabilities), expertSkills: listExpertSkills(), connections: connectionProjections(manifest.connections, capabilities),
     evidencePolicy: {
       routeRequiresFreshCanary: true,
       writeCanaryTtlMs: manifest.truthContracts.capabilityReadiness.writeCanaryTtlMs,
@@ -582,7 +603,15 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       } catch {
         headSha = null;
       }
-      return operationsSnapshot({ database, manifest, supervisor, headSha, now: () => new Date().toISOString() });
+      const capabilities = capabilityIndex(manifest, supervisor.status());
+      return operationsSnapshot({
+        database,
+        manifest,
+        supervisor,
+        headSha,
+        interactionReadiness: interactionReadinessProjection(capabilities),
+        now: () => new Date().toISOString(),
+      });
     },
     async operationsAction(input, _context) {
       return executeOperationsAction(input, {

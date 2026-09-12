@@ -22,6 +22,17 @@ const ALLOWED_ACTION_KEYS = new Set([
 ]);
 
 const CONFIRMATION_REQUIRED = new Set(["task.cancel", "task.retry", "repair.request"]);
+const BLOCKED_LANE = Object.freeze({
+  ready: false,
+  capability: "assistant.respond",
+  workerId: null,
+  provider: "unknown",
+  canary: "never",
+  reason: "route-unavailable",
+  evidenceLevel: "unknown",
+  lastObservedAt: null,
+  lastVerifiedAt: null,
+});
 
 /** Pure classification ported from operator-deck fleet status semantics (retire browser authority). */
 export function classifyOperationalTone(state) {
@@ -32,6 +43,21 @@ export function classifyOperationalTone(state) {
   return "neutral";
 }
 
+export function projectOperationsInteractionReadiness(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return BLOCKED_LANE;
+  return Object.freeze({
+    ready: value.ready === true,
+    capability: "assistant.respond",
+    workerId: typeof value.workerId === "string" ? value.workerId : null,
+    provider: typeof value.provider === "string" && value.provider.length > 0 ? value.provider : "unknown",
+    canary: typeof value.canary === "string" && value.canary.length > 0 ? value.canary : "never",
+    reason: value.ready === true ? null : (typeof value.reason === "string" && value.reason.length > 0 ? value.reason : "route-unavailable"),
+    evidenceLevel: typeof value.evidenceLevel === "string" && value.evidenceLevel.length > 0 ? value.evidenceLevel : "unknown",
+    lastObservedAt: typeof value.lastObservedAt === "string" ? value.lastObservedAt : null,
+    lastVerifiedAt: typeof value.lastVerifiedAt === "string" ? value.lastVerifiedAt : null,
+  });
+}
+
 export function operationsSnapshot({
   database,
   manifest,
@@ -39,6 +65,7 @@ export function operationsSnapshot({
   repositoryHeadReader,
   headSha = null,
   now = () => new Date().toISOString(),
+  interactionReadiness = null,
 } = {}) {
   if (!database || typeof database.listTasks !== "function") throw operationsError("operations-database-required");
   if (!manifest || typeof manifest !== "object") throw operationsError("operations-manifest-required");
@@ -108,6 +135,7 @@ export function operationsSnapshot({
       activationState: candidate?.state ?? "idle",
       rollbackReady: true,
     }),
+    interactionReadiness: projectOperationsInteractionReadiness(interactionReadiness),
   });
 }
 
@@ -146,7 +174,6 @@ export async function executeOperationsAction(input, context = {}) {
       receiptId: `ops-${createHash("sha256").update(`pending:${idempotencyKey}`).digest("hex").slice(0, 24)}`,
       result: null,
     });
-    // Pending confirmations are not side effects; do not store as completed receipts.
     return receipt;
   }
 
@@ -205,7 +232,6 @@ async function dispatchAction(actionId, input, context) {
       ? input.incidentId
       : null;
     if (!incidentId) throw operationsError("operations-incident-required");
-    // Bounded acknowledgment only — actual repair remains supervisor-owned.
     return Object.freeze({
       incidentId,
       accepted: true,
@@ -319,5 +345,4 @@ function operationsError(code) {
   return error;
 }
 
-// Keep randomUUID import referenced for potential future receipt minting without changing public surface.
 void randomUUID;
