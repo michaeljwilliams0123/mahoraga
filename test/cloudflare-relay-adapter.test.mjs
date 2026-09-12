@@ -27,7 +27,9 @@ test("Cloudflare relay adapter rejects unauthenticated, cross-origin, and non-We
   const ordinaryHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: env.MAHORAGA_WORKSPACE_ORIGIN } });
   assert.equal((await handler.fetch(ordinaryHttp, env)).status, 426);
   const pagesHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: pagesOrigin } });
-  assert.equal((await handler.fetch(pagesHttp, env)).status, 426);
+  assert.equal((await handler.fetch(pagesHttp, env)).status, 403);
+  const legacyPagesHttp = new Request("https://relay.example/pair", { headers: { "cf-access-authenticated-user-email": env.MAHORAGA_OWNER_IDENTITY, origin: pagesOrigin } });
+  assert.equal((await handler.fetch(legacyPagesHttp, { ...env, MAHORAGA_LEGACY_WORKSPACE_ORIGIN: pagesOrigin })).status, 426);
   const localWithoutToken = new Request("https://relay.example/pair/local", { headers: { upgrade: "websocket" } });
   assert.equal((await handler.fetch(localWithoutToken, env)).status, 403);
   const twinWithoutToken = new Request("https://relay.example/pair/twin", { headers: { upgrade: "websocket" } });
