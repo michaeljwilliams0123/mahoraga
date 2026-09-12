@@ -71,6 +71,7 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
     const phases = normalizePhases(configured.phases);
     const published = request.publish && phases.includes("publish");
     if (request.publish !== published) throw safeError("studio-configure-verification-failed");
+    const evaluation = normalizeEvaluation(configured.evaluation, request.publish);
     return Object.freeze({
       verified: true,
       summary: `Copilot Studio configuration verified for ${request.alias} across ${request.surfaces.length} bounded surface(s).`,
@@ -80,6 +81,7 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
         surfaces: request.surfaces,
         phases,
         published,
+        ...(evaluation ? { evaluation } : {}),
       }),
     });
   }
@@ -111,11 +113,18 @@ function normalizeTokenArray(value, allowed) {
 }
 
 function normalizePhases(value) {
-  const allowed = new Set(["pull", "validate", "push", "publish"]);
-  if (!Array.isArray(value) || value.length < 1 || value.length > 4 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
+  const allowed = new Set(["pull", "validate", "push", "evaluate", "publish"]);
+  if (!Array.isArray(value) || value.length < 1 || value.length > 5 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
   if (value.some((item) => !allowed.has(item))) throw safeError("studio-configure-verification-failed");
   if (!value.includes("pull") || !value.includes("validate") || !value.includes("push")) throw safeError("studio-configure-verification-failed");
+  if (value.includes("publish") && (!value.includes("evaluate") || value.indexOf("evaluate") > value.indexOf("publish"))) throw safeError("studio-configure-verification-failed");
   return Object.freeze([...value]);
+}
+
+function normalizeEvaluation(value, required) {
+  if (!required && value === undefined) return null;
+  if (!value || value.state !== "passing" || !Number.isInteger(value.scoreBasisPoints) || value.scoreBasisPoints < 0 || value.scoreBasisPoints > 10000) throw safeError("studio-configure-verification-failed");
+  return Object.freeze({ state: "passing", scoreBasisPoints: value.scoreBasisPoints });
 }
 
 function safeError(code) { return Object.assign(new Error(code), { code }); }
