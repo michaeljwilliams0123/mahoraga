@@ -1,161 +1,290 @@
 # Mahoraga
 
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
-[![Deploy Workspace](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
+[![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-**Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner choose a provider for every step.
+**Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
-> **Repository truth:** this repository is **private** and `main` is the canonical source. The product identity is simply **Mahoraga**. Semantic versions remain internal build/provenance metadata rather than product names. Repository visibility is not a runtime or Microsoft authority signal, and repository state does not prove live-host state; runtime claims require fresh observed evidence.
+> **Canonical truth model:** GitHub `main` is the **private code authority** and source/evolution authority. A merged commit does not prove a deployment is current, and a healthy deployment does not prove every worker/provider is routable. Source truth, deployment truth, live-runtime truth, provider readiness, and execution authority are separate evidence domains and must stay separate.
+>
+> **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; private source access does not itself grant Microsoft, relay, runtime, provider, or deployment authority.
 
-## The current idea
+## Current review baseline
 
-Mahoraga plans against **capabilities, not vendors**. A user asks for an outcome; Mahoraga decides which registered route can satisfy each part of the objective under the current authority, identity, data, health, cost, and verification constraints.
+This README was reconciled against protected `main` on **2026-09-13** at source commit `f438e57357a5f8183687360364d2644734d54657` (PR #453). The SHA is an audit anchor for this documentation pass, not a permanent claim that `main` will remain at that commit.
+
+At that review point:
+
+- protected `main` required exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` checks;
+- squash was the only allowed protected-main merge method;
+- no bypass actors were configured;
+- GitHub remained the authoritative source ledger;
+- GitLab remained a secondary assurance plane;
+- Railway `mahoraga-runtime-main` remained the intended canonical cloud runtime/workspace service;
+- merged source capability was ahead of fully observed live Railway capability, so deployment claims remained fail-closed.
+
+## Capability-first architecture
+
+Mahoraga plans against **capabilities, evidence, authority, and cost**, not vendor names. A user asks for an outcome; Mahoraga compiles the objective into required capabilities, observes current state, derives authority, ranks lawful routes, executes through the best admitted path, verifies results, persists receipts/state, and recovers or reroutes when a recoverable path drifts.
 
 ```mermaid
 flowchart LR
-    O[Owner objective] --> G[Goal / intent compiler]
-    G --> U[Universal Capability Fabric]
-    U --> A[Authority + identity + data + cost resolver]
-    A --> R[Dynamic route planner]
-    R --> P[Local / GitHub / Microsoft / browser / desktop / AI providers]
+    O[Owner objective] --> I[Conversation / objective intake]
+    I --> G[Goal + capability compilation]
+    G --> W[World state + evidence]
+    W --> A[Canonical AuthorityDecision]
+    A --> R[Universal Capability Fabric / router]
+    R --> P[Local / GitHub / Microsoft / browser / desktop / model providers]
     P --> V[Verification + typed receipts]
+    V --> S[Durable task / event / result state]
+    S --> F[One owner-facing result]
     V -->|recoverable drift| R
-    V --> F[One owner-facing result]
 ```
 
-Provider outages, stale sessions, quota conditions, and route drift are treated as recoverable objective state when another lawful route can be refreshed, repaired, substituted, or provisioned. The objective lineage and idempotency identity stay intact across route changes.
+The architecture is intentionally fail-closed. A provider being installed, declared, enabled, or reachable does not make it routable by itself. The route must still satisfy current authority, data-class, identity, billing/cost, quota, provider health, canary/readiness, attendance, lease, provenance, and verification requirements.
+
+## Truth boundaries
+
+| Truth domain | What establishes it | What it does **not** prove |
+| --- | --- | --- |
+| **Source truth** | Protected GitHub `main`, exact commit SHA, ruleset, exact-head CI | That Railway or Windows is running that SHA |
+| **Deployment truth** | Host/provider deployment metadata plus served source provenance | That all workers/providers are healthy or authorized |
+| **Live-runtime truth** | Fresh runtime/process/listener/worker/provider observations | That source policy or CI gates were satisfied unless provenance is tied back to source |
+| **Provider readiness** | Fresh provider + canary + quota/billing evidence | Owner authority for a side effect |
+| **Execution authority** | Canonical `AuthorityDecision` and capability-specific policy | Provider readiness, cost eligibility, or successful execution |
+| **Verification truth** | Capability-specific receipts/tests/postconditions | Broader authority than the verified action |
+
+This separation is one of Mahoraga's core invariants. UI surfaces must show **unknown / unavailable / hold / degraded** when evidence is absent rather than inferring success from neighboring signals.
 
 ## Current repository state
 
-| Area | Current state |
+| Area | Current source state |
 | --- | --- |
-| Product identity | `Mahoraga` (unversioned); semantic versions remain build/provenance metadata |
-| Repository visibility | Private; source access does not grant runtime, Microsoft, relay, or deployment authority |
-| Repository build metadata | Tracked in package/manifest provenance; not part of the Mahoraga product name |
-| Control plane | Node 24 ESM `.mjs` |
-| Browser workspace | TypeScript in `cloud-app/`; one deployable UI source |
-| Control Center truth | Public identity stays Mahoraga; build version is provenance-only; runtime DB display is basename-only; Studio management-plane and delegation-runtime readiness are shown separately and fail closed; the evolution lane mirrors verified convergence rather than implying direct activation authority |
-| Operational state | SQLite WAL task/event state + encrypted local content vault |
-| Universal routing | UCF graph v2, richer route metadata, ranked routing, adaptive recovery |
-| Autonomous objectives | Durable plan / challenge / synthesize / implement / verify / integrate flow |
-| Adaptive directive review | Direction -> compile -> relevant lessons -> delta evidence -> impact map -> verify -> learn; depth adapts by policy and evidence freshness |
-| Repository execution | Bounded repository worker + exact-head verification contracts |
-| Question answering | `assistant.respond` uses a transient read-only Codex question model; readiness requires the CLI to be callable, stale provider-derived canaries refresh in place, and idle workers proactively renew stale canary evidence before new work arrives |
-| Runtime provenance and convergence | Paired core derives exact source-commit provenance, refreshes authoritative `origin/main` identity every 30 seconds, reports `current`, `runtime-drift`, or `unknown`, and the Windows convergence controller can promote a verified drifted candidate only through exact-head, canary, durable-state, and rollback gates |
-| Browser / desktop | Provider-neutral browser and attended Windows desktop contracts |
-| GitHub ⇄ Copilot Studio learning | Verified/approved metadata admission and authenticated runtime ingestion bridge merged; live activation still requires exact-head promotion/observation |
-| Microsoft / Power Platform | UCF provider-family design and Copilot Harness Assist Fabric are merged; Windows Node 24 PAC discovery uses a constrained compatibility launcher limited to deterministic `auth list` / `copilot list`; metered Copilot-credit routes remain excluded from zero-credit policy |
-| Metered OpenAI API | Disabled by default |
-| Public exposure | Persistent public exposure prohibited; public `/api/status` is redacted to non-sensitive health/routing state while deployment identity stays authenticated |
-| Windows production truth | Must be established from a fresh live-host probe; repository state alone is not proof |
-| Rollback predecessor | `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` |
+| Product identity | `Mahoraga` (unversioned); semantic versions are provenance/build metadata |
+| Runtime / control plane | Node 24 ESM `.mjs` across `src/`, `scripts/`, `test/`, and `relay/` |
+| Browser workspace | TypeScript under [`cloud-app/`](cloud-app/); canonical owner-facing browser source |
+| Operator helpers | [`operator-deck/`](operator-deck/) is a reference/control surface, not a second product/runtime |
+| Durable operational state | SQLite WAL task/event state, leases, crash recovery, persistent objectives/conversations, typed receipts, encrypted content vault |
+| Authority | Canonical `AuthorityDecision` envelope feeds routing/admission; callers cannot self-assert trusted provider/billing authority |
+| Universal routing | UCF graph/ranked routing with evidence-aware recovery and fail-closed admission |
+| Objective execution | Durable plan / challenge / synthesize / implement / verify / integrate flow |
+| Answer execution | `assistant.respond` can route through verified zero-credit open-weight execution; licensed question-model plumbing remains separately governed and is not an automatic fallback for zero-credit requests |
+| Zero-credit provider order | `codespaces-open-weight` → `local-open-weight` → deterministic-only / waiting state, subject to fresh evidence |
+| Paid / metered model policy | No automatic paid/licensed fallback; metered OpenAI API execution remains disabled by default unless separately authorized |
+| Relay | Authenticated/encrypted relay contracts with replay protection and continuity receipts |
+| Browser / desktop | Provider-neutral browser contracts and attended Windows desktop capability boundaries |
+| Microsoft | Graph/M365, Power Platform/Dataverse, Copilot Studio, PAC-backed discovery/admin, and bounded connected-agent/configuration contracts enter through the same authority/routing fabric |
+| GitHub delivery | Protected `main`, exact-head cross-platform Verify, bounded repository execution, squash-only merge policy |
+| GitLab assurance | Secondary runner/credential/head/repair assurance plane; never source authority |
+| Windows production | Must be established from a fresh host probe; repository state alone is not production proof |
+| Rollback predecessor | Protected predecessor remains `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until governed activation evidence supersedes it |
 
-## What changed recently
+## Latest accepted execution vertical
 
-Mahoraga's current `main` is materially ahead of the older runtime baseline:
+The most important recent source evolution is the cloud answer path assembled across the current repository line:
 
-- **Universal Capability Fabric:** PR [#289](https://github.com/michaeljwilliams0123/mahoraga/pull/289) added graph-v2 route metadata, deterministic recovery planning, recovery-aware routing, objective requeue across recoverable route drift, conversation capability planning, and startup recovery.
-- **Destiny bridge hardening:** PR [#291](https://github.com/michaeljwilliams0123/mahoraga/pull/291) hardened the bridge on the current repository line.
-- **GitHub ⇄ Copilot Studio learning:** PR [#292](https://github.com/michaeljwilliams0123/mahoraga/pull/292) added a zero-credit, metadata-only peer-learning contract for mapping verified lessons toward institutional memory without persisting prompts, chats, or credentials; the authenticated runtime ingestion bridge is now merged, while live activation remains deployment-observed.
-- **Power Platform UCF provider family:** PR [#293](https://github.com/michaeljwilliams0123/mahoraga/pull/293) defined the Microsoft provider family behind UCF rather than a second orchestration brain.
-- **Cloud runtime compatibility diagnostics:** PR [#298](https://github.com/michaeljwilliams0123/mahoraga/pull/298) added explicit cloud-session compatibility diagnostics so the workspace can distinguish an unreachable runtime from a reachable-but-incompatible one.
-- **Static Pages workspace export:** PR [#299](https://github.com/michaeljwilliams0123/mahoraga/pull/299) made GitHub Pages publish the canonical browser workspace without exposing server-only session or action routes.
-- **Verified Copilot Studio learning admission:** PR #303 added a bounded adapter that converts verified and approved Studio learning metadata into peer-learning events. The admission contract is merged. PR #312 adds the authenticated runtime ingestion bridge; deployed/live status still requires exact-head promotion and observation.
-- **Public status hardening:** the public `/api/status` projection exposes non-sensitive queue provider/state while keeping Dataverse environment name, GUID, and tenant CRM URL out of the unauthenticated response; authenticated status retains the full deployment view.
-- **Question-model readiness:** PR [#313](https://github.com/michaeljwilliams0123/mahoraga/pull/313) hardened `assistant.respond` readiness so the health probe performs a zero-credit `codex --version` callability check and fails closed when the executable cannot run.
-- **Immutable runtime provenance:** PR [#315](https://github.com/michaeljwilliams0123/mahoraga/pull/315) binds paired-core status to an exact source commit and expected source commit, making same-version/different-commit drift machine-distinguishable without a model call.
-- **Cloud provenance truth boundary:** PR [#316](https://github.com/michaeljwilliams0123/mahoraga/pull/316) keeps the browser/cloud health projection non-authoritative: unpaired cloud health reports runtime provenance as `unknown` until the paired Mahoraga core supplies it.
-- **Stale-canary recovery:** PR [#318](https://github.com/michaeljwilliams0123/mahoraga/pull/318) executes the recovery planner's existing `refresh-readiness` action by sending `readiness.refresh` to the selected worker before retry, allowing long-running healthy providers to renew readiness evidence without a process restart.
-- **Authoritative runtime-drift detection:** PR [#322](https://github.com/michaeljwilliams0123/mahoraga/pull/322) refreshes authoritative `origin/main` provenance every 30 seconds and exposes `authoritativeSourceCommit`, so a long-running paired core can move from `current` to `runtime-drift` when canonical `main` advances after startup, without invoking a model.
-- **Canonical product identity:** PR [#323](https://github.com/michaeljwilliams0123/mahoraga/pull/323) makes `Mahoraga` the single public/product name across browser and operator surfaces while keeping semantic versions as build/provenance metadata.
-- **Runtime listener truth:** PR [#324](https://github.com/michaeljwilliams0123/mahoraga/pull/324) makes runtime health/status report the actual bound listener port, including explicit or ephemeral port overrides, instead of echoing the manifest default.
-- **Safe Windows PAC discovery:** PR [#325](https://github.com/michaeljwilliams0123/mahoraga/pull/325) fixes Node 24 PAC discovery on Windows through a constrained `cmd.exe` compatibility path that allowlists only `pac auth list` and `pac copilot list`; non-Windows execution remains direct and the path does not invoke a model or consume Copilot credits.
-- **Frozen loaded-source provenance:** PR [#327](https://github.com/michaeljwilliams0123/mahoraga/pull/327) preserves the process-start source SHA while authoritative `origin/main` refreshes, so a long-running runtime cannot falsely relabel itself as newly merged code; drift remains explicit until a real restart/promotion loads the new source.
-- **Startup source convergence:** PR [#329](https://github.com/michaeljwilliams0123/mahoraga/pull/329) makes the Windows production launcher require the live runtime provenance `sourceCommit` to match the checkout's exact `git rev-parse HEAD`, preventing same-version stale processes from being accepted as current.
-- **Cloud readiness cockpit:** PR [#330](https://github.com/michaeljwilliams0123/mahoraga/pull/330) distinguishes a healthy published GitHub Pages shell from a paired execution core, replaces misleading unpaired `Offline` language with `Ready to pair`, and adds the Eclipse telemetry cockpit without granting the browser shell execution authority.
-- **Runtime-targeted CLI state:** PR [#333](https://github.com/michaeljwilliams0123/mahoraga/pull/333) makes `start`, `status`, and `submit` honor the same explicit runtime database target, preventing operator commands from silently inspecting a different SQLite state file.
-- **Verified live-brain convergence:** PR [#351](https://github.com/michaeljwilliams0123/mahoraga/pull/351) added the zero-credit Windows convergence controller that advances a drifted paired core only after exact protected-main identity, candidate verification, canary readiness, state migration, and rollback checks succeed.
-- **Idle readiness renewal:** PR [#353](https://github.com/michaeljwilliams0123/mahoraga/pull/353) makes the supervisor renew stale canary evidence while a worker is truly idle, with a single in-flight refresh guard; queued work retains the task-driven recovery and attempt contract.
-- **Windows convergence trigger compatibility:** PR [#357](https://github.com/michaeljwilliams0123/mahoraga/pull/357) creates the one-minute convergence recurrence through supported ScheduledTasks parameters, preserving the existing exact-head, canary, durable-state, and rollback boundaries.
-- **Canonical Railway container:** PR [#368](https://github.com/michaeljwilliams0123/mahoraga/pull/368) makes Railway use the same Node 24 cloud container definition as the governed cloud runtime instead of a divergent Railpack-detected build path.
-- **Encrypted relay continuity:** PR [#370](https://github.com/michaeljwilliams0123/mahoraga/pull/370) adds bounded encrypted relay continuity across runtime replacement, including authenticated reattach/keepalive state and protected local continuity storage. Merge status does not prove a stale paired runtime has converged; live provenance remains authoritative.
-- **Adaptive review loop:** owner directions can now be compiled into bounded impact surfaces, relevant institutional lessons, freshness-aware evidence ladders, contradiction classes, and a deterministic stop condition before implementation expands scope.
-- **Control Center operator truth:** the canonical cloud workspace now keeps `Mahoraga` as the public identity while surfacing build provenance separately, exposes only the runtime database basename, distinguishes Copilot Studio management-plane readiness from delegation-runtime readiness, and describes core evolution as stage → verify → canary → converge without widening browser authority.
+```text
+owner UI/request
+→ authenticated owner session / encrypted relay
+→ canonical AuthorityDecision
+→ provider + cost/quota admission
+→ verified zero-credit model route
+→ optional bounded tool/capability execution
+→ durable task/event/result persistence
+→ verified returned answer
+```
 
-## Owner experience
+The backend contract is now materially stronger than the older README described:
 
-### Adaptive review CLI
+- **PR #424 — deployment provenance readiness:** production readiness can validate the running Railway Git SHA against the trusted expected SHA and fail closed on stale/missing provenance.
+- **PR #430 — canonical authority envelope:** routing decisions can carry one normalized `AuthorityDecision` instead of scattered authority interpretations.
+- **PR #431 — production relay continuity fix:** preserves required relay token state during production startup.
+- **PR #432 — provider readiness reasons:** preserves explicit reason codes rather than collapsing readiness into a boolean.
+- **PR #435 — encrypted relay simulator:** adds deterministic zero-credit security/communication simulation evidence; simulator evidence is diagnostic and must not be presented as proof of real model execution.
+- **PR #441 — provider readiness UI:** carries provider-reason detail into the cloud workspace while preserving fail-closed routing.
+- **PR #445 — zero-credit answer acceptance vertical:** adds fail-closed real-model execution for admitted zero-credit providers, canonical provider admission, billing/quota evidence checks, persistence, and routing coverage.
+- **PR #450 — source-status reconciliation:** adds a dated source-truth reconciliation note while explicitly separating source from live-runtime truth.
+- **PR #453 — Railway persistent-state permission repair:** initializes the mounted state directory at container start, repairs ownership, then drops privileges to `node` before Mahoraga runs.
 
-Use `npm run review:adaptive -- "<owner direction>"` to compile a deterministic, zero-credit review contract before implementation. It identifies affected surfaces, constraints, evidence escalation order, and impact chains without activating providers or making a model call.
+Older architecture milestones remain important, but the README no longer treats a very long historical PR list as current-state documentation. Use Git history, the architecture specs, and the issue tracker for full chronology.
 
-The intended interaction model is deliberately simple:
+## Zero-credit answer admission
 
-1. Give Mahoraga one objective in the conversation.
-2. Mahoraga compiles the objective into capability requirements.
-3. UCF ranks eligible routes using authority, data class, authentication state, health, cost, reliability, latency, workload, attendance, idempotency, and recovery quality.
-4. Work executes through the best lawful route available at that moment.
-5. Results are verified with capability-specific evidence and typed receipts.
-6. Recoverable failures refresh, retry, repair, or reroute without forcing the owner to restart the objective.
-7. The owner receives one synthesized result; route details remain diagnostic metadata in advanced/control surfaces.
+Mahoraga's zero-credit path is evidence-driven, not label-driven.
 
-Interactive sign-in or consent can still appear when an external platform requires it. That becomes a resumable authentication wait state rather than a new objective.
+For an open-weight answer route to become eligible, source code requires the expected provider identity/cost class and current provider evidence. Missing, stale, or exhausted billing/quota/canary evidence must produce a hold/unavailable result rather than silently crossing into a paid provider.
+
+Current source supports the zero-credit model configuration boundary through environment-backed values such as:
+
+- `MAHORAGA_ZERO_CREDIT_MODEL_URL`
+- `MAHORAGA_ZERO_CREDIT_MODEL_ID`
+- optional `MAHORAGA_ZERO_CREDIT_MODEL_TOKEN`
+
+Those variables describe an execution endpoint; they do **not** themselves prove zero-dollar eligibility. Cost/quota/provider evidence must still satisfy the admission contract.
+
+A separately governed licensed question-model path may exist for explicitly permitted work. It is not an automatic fallback for zero-credit requests and must never be used to hide missing zero-credit readiness.
+
+## Cloud / Railway production model
+
+The intended canonical server-capable cloud service is Railway **`mahoraga-runtime-main`** in the `Mahoraga` project.
+
+Current service configuration observed during this README reconciliation:
+
+- source repository: `michaeljwilliams0123/mahoraga`;
+- branch/source intent: authoritative `main`;
+- builder: root `Dockerfile`;
+- public service domain: `mahoraga-runtime-main-production.up.railway.app` on port `3000`;
+- start command: `node scripts/cloud-service.mjs`;
+- Railway platform healthcheck: `/api/live`;
+- stricter application/provenance readiness boundary: `/api/ready`;
+- persistent volume: `500 MB` mounted at `/var/lib/mahoraga`;
+- canonical state directory: `MAHORAGA_STATE_DIR=/var/lib/mahoraga` in the production image.
+
+### Liveness is not readiness
+
+Railway's platform healthcheck intentionally targets `/api/live`. That endpoint answers the narrow question: **is the workspace/container listener alive?**
+
+Mahoraga's `/api/ready` is stronger and may return non-200 while the container is alive. It can incorporate deployment provenance and paired-core/application readiness. Do not weaken `/api/ready` merely to make Railway green, and do not report `/api/live = 200` as proof that Mahoraga can execute an owner request.
+
+### Persistent state and privilege drop
+
+Railway mounts volumes at runtime. A build-time `chown` is therefore insufficient because the mounted directory can replace the image-owned path with a root-owned mount.
+
+Current source handles that boundary through [`scripts/docker-entrypoint.sh`](scripts/docker-entrypoint.sh):
+
+1. resolve `${MAHORAGA_STATE_DIR:-/var/lib/mahoraga}`;
+2. create the directory if necessary;
+3. repair ownership to `node:node`;
+4. immediately execute the application through `gosu node`.
+
+Mahoraga itself does **not** run as root. The root bootstrap exists only to establish writable mounted state before privilege drop.
+
+## Observed cloud status during this README reconciliation
+
+> **Time-sensitive snapshot — 2026-09-13.** This subsection records what was observed while updating the README. It is not a promise that deployment state remains unchanged after the documentation commit.
+
+- GitHub protected `main`: `f438e57357a5f8183687360364d2644734d54657` (PR #453 merged).
+- Railway canonical service: `mahoraga-runtime-main`.
+- Railway volume: mounted at `/var/lib/mahoraga`.
+- Latest Railway deployment observed during the review: **DEPLOYING**, but still tied to older source commit `5750b04b4281509b7533f46a571265aaff52411d` rather than the then-current GitHub head.
+- Therefore the #453 volume-permission repair was merged in source but **not yet proven live on the canonical Railway service** during this snapshot.
+- Legacy/non-canonical Railway services still existed (`mahoraga-runtime-direct`, an older failed `mahoraga-runtime`, plus empty candidate/fresh service records). They must not silently become production authority or fallback routes.
+- The canonical Railway variable-name set did not yet expose `MAHORAGA_CLOUD_OWNER_ID` or the zero-credit model URL/model variables during this review. Fresh owner-session admission and live zero-credit model execution therefore remained unproven.
+
+This is why issue [#377](https://github.com/michaeljwilliams0123/mahoraga/issues/377) remains the deployment-convergence authority: source readiness and a running container are not enough; the canonical service must serve the intended exact `main` provenance and pass the separate live/readiness acceptance checks.
+
+## Owner session / cloud gateway
+
+A fresh browser session is not supposed to self-assert owner identity. The server-side session boundary requires the configured owner identity plus a valid signed assertion from the owner gateway.
+
+Current owner-gateway code expects `MAHORAGA_CLOUD_OWNER_ID` and signed owner headers. The Cloudflare owner-gateway implementation can proxy an HTTPS origin while keeping the runtime itself behind an authenticated owner route. Historical variable names such as `MAHORAGA_FLY_ORIGIN` are transport-era naming, not a requirement that the runtime be hosted on Fly.
+
+The intended pattern is:
+
+```text
+owner browser
+→ authenticated owner gateway / Access boundary
+→ signed owner assertion
+→ Mahoraga cloud session
+→ runtime request
+```
+
+If the owner identity/gateway is absent, session establishment must fail closed. Do not replace that boundary with an unauthenticated public session just to make the UI interactive.
+
+## Workspace and UI surfaces
+
+- **Canonical browser source:** [`cloud-app/`](cloud-app/)
+- **Production server-capable target:** Railway `mahoraga-runtime-main`, once exact-source deployment and owner-session readiness are freshly proven.
+- **GitHub Pages:** GitHub Pages is an optional derived static export. It is not runtime authority and cannot expose server-only action/session routes.
+- **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
+- **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
+- **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.
+- **Netlify:** fallback hosting only; it does not change Mahoraga authority.
+
+GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages remains optional; neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact authoritative source SHA and passes the required pairing/health checks.
+
+The UI should expose evidence without inventing it. Current open UI follow-ups intentionally separate real runtime receipts from simulations:
+
+- [#451](https://github.com/michaeljwilliams0123/mahoraga/issues/451) — surface zero-credit admission, provider/cost class, quota/billing freshness, and hold/deny reasons from canonical runtime evidence.
+- [#452](https://github.com/michaeljwilliams0123/mahoraga/issues/452) — surface a real encrypted-relay → authority → model → persistence → answer receipt chain without presenting simulator evidence as production execution.
 
 ## Capability families
 
-Mahoraga can register multiple routes for the same capability and multiple capabilities from one provider. Declared or enabled does not automatically mean routable; a route still needs current process/provider/canary/authority evidence.
+Mahoraga can register multiple routes for one capability and multiple capabilities from one provider. `enabled` is not synonymous with `routable`.
 
-- **Deterministic local:** supervisor, local core, repository worker, self-healer, task store, verification, release/update logic.
-- **Repository / delivery:** GitHub, GitLab, Actions, releases, repository coordination, bounded builder lanes.
-- **Browser:** browser status and provider-neutral browser contracts; interactive browser execution remains isolated from the loopback control plane.
-- **Desktop:** attended Windows/application capability contracts for work that cannot be satisfied through a native API or connector.
-- **OpenAI / Codex:** bounded builder and coordination routes subject to declared authority, readiness, and spending policy; Codex is not a code-review transport.
-- **Microsoft:** Graph/M365, Copilot Studio, Dataverse/Power Platform, Power Apps/flows, and queue capabilities progressively entering UCF behind explicit billing/authority admission.
-- **Local / future models:** local reasoning and future adapters can be admitted through the same capability graph without replacing the planner.
-- **MCP / connectors:** fixed, validated transports can expose additional capabilities without granting themselves broader authority.
+- **Deterministic local:** supervisor, local core, task/event store, repository worker, self-healer, verification, release/update logic.
+- **Repository / delivery:** GitHub, GitLab assurance, Actions, releases, repository coordination, bounded implementation lanes.
+- **Model / answer:** zero-credit open-weight execution plus separately governed licensed/model routes under explicit cost and authority policy.
+- **Browser:** provider-neutral browser contracts and signed-session/cloud browser work behind bounded authority.
+- **Desktop:** attended Windows/application capabilities for work that cannot be satisfied through a native connector/API.
+- **Microsoft:** Graph/M365, Copilot Studio, Dataverse/Power Platform, Power Apps/flows, PAC-backed discovery/administration, and bounded configuration/delegation routes.
+- **MCP / connectors:** typed transports can expose additional capabilities without granting themselves broader authority.
+- **Local / future providers:** new providers can enter through the same capability graph if they satisfy evidence, authority, cost, and verification contracts.
 
 ## Microsoft and Power Platform direction
 
-The current design treats Microsoft as a **provider family**, not as a separate Mahoraga brain. Preferred transport order is:
+Microsoft remains a **provider family**, not a second Mahoraga brain.
 
-1. Native authenticated Power Platform / Copilot Studio / Graph / connector APIs.
-2. PAC-backed discovery and bounded administration.
-3. A narrowly scoped, expiring callback transport only when a Microsoft integration genuinely requires inbound reachability and no outbound/native path is practical.
+Preferred transport order:
 
-The default Microsoft admission policy is zero-credit first. `deterministic-zero` and runtime-attested `license-included` routes may be eligible; `metered` and `unknown` routes stay blocked under the default zero-credit policy. No paid fallback is automatic.
+1. native authenticated Graph / Power Platform / Copilot Studio / connector APIs;
+2. PAC-backed discovery and bounded administration;
+3. a narrowly scoped, expiring callback transport only when an integration genuinely requires inbound reachability and no outbound/native path is practical.
+
+The default Microsoft cost posture is zero-credit first. `deterministic-zero` and runtime-attested `license-included` routes may be eligible; `metered` and `unknown` routes remain blocked under the default zero-credit policy unless the owner separately authorizes spend.
 
 See [`docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md`](docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md).
 
-## Workspace and control surfaces
+## GitHub authority and merge governance
 
-- **Canonical browser source:** [`cloud-app/`](cloud-app/)
-- **Browser deployment:** `cloud-app/` is host-neutral. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages is an optional derived static export, not production authority.
-- **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second deployable UI.
-- **Loopback control API:** defaults to `127.0.0.1:4782`; when startup overrides the port, runtime status reports the actual bound listener. Do not expose this listener directly to the public internet.
-- **GitHub Actions:** https://github.com/michaeljwilliams0123/mahoraga/actions
-- **Pull requests:** https://github.com/michaeljwilliams0123/mahoraga/pulls
-- **Issues / task intake:** https://github.com/michaeljwilliams0123/mahoraga/issues
-- **Releases:** https://github.com/michaeljwilliams0123/mahoraga/releases
+Protected `main` is governed by the active ruleset **`Protect main - exact-head Verify`**.
 
-GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification: a green `Verify Mahoraga` run does not prove that Pages or another host is live. The active browser source is host-neutral `cloud-app/`; whichever server-capable or static host is selected remains a replaceable transport rather than a second product or authority plane. GitHub Pages may publish a derived static export when enabled, but neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact `main` SHA and passes the required pairing/health checks. Vercel is paused/historical and Netlify remains fallback-only.
+At this README review point the active ruleset required:
 
-The browser workspace is a client of the paired Mahoraga core. GitHub source verification, Pages availability, and live Windows runtime health are separate facts and should be reported separately. Deployment metadata can identify the browser build, but authoritative runtime provenance comes only from the paired core; an unpaired cloud surface must report runtime provenance as `unknown` rather than infer it from environment variables.
+- pull requests for protected `main` changes;
+- squash merge as the allowed merge method;
+- strict exact-head status checks;
+- `Verify (ubuntu-latest)`;
+- `Verify (windows-latest)`;
+- no deletion / non-fast-forward updates to protected `main`;
+- no configured bypass actors; the current owner connection cannot bypass the ruleset.
 
-## Repository hygiene
+A stale successful workflow is not merge evidence for a newer head. Every protected change must be evaluated at its exact current PR SHA.
 
-Mahoraga keeps `main` as the long-lived code authority and treats implementation branches as disposable delivery lanes. Fully merged remote branches should be pruned after their work lands. Branches backing closed PRs that GitHub explicitly records as duplicate, empty WIP, superseded, or abandoned should also be retired instead of preserved indefinitely merely because squash/rebase history makes their commits appear unique. Unmerged branches without an explicit retirement decision are retained for merge/extract review. Generated state, historical release receipts, and rollback baselines are not "dead code" and should not be deleted merely because a newer candidate exists.
+Codex is **not** a Mahoraga code-review transport. Do not spend Codex credits to obtain or retry review. Deterministic repository verification is the required merge authority.
+
+## GitLab assurance plane
+
+GitLab is deliberately secondary to GitHub. It can independently prove runner health, credential readiness, GitHub-head observation, and bounded repair-decision logic, but it does not become source authority and a GitLab SHA must not be presented as the GitHub source SHA.
+
+Historical GitLab MR `!3` is merged and retains its exact-head shared-runner smoke evidence. During this README reconciliation, the latest observed GitLab `main` assurance pipeline was successful and included:
+
+- contract tests;
+- shared-runner smoke;
+- GitHub credential readiness;
+- GitHub-head assurance;
+- repair-dispatch decision;
+- repair confirmation.
+
+Treat that as **assurance-plane health**, not proof that Railway or Windows is running current GitHub `main`.
 
 ## Verification
 
-Mahoraga's canonical repository gate is deterministic and zero-model-credit:
+The canonical repository gate is deterministic and zero-model-credit:
 
 ```powershell
 npm.cmd run validate
 npm.cmd run verify
 ```
 
-On non-Windows shells, `npm run validate` and `npm run verify` are equivalent. Windows launcher/reference code derives the current profile dynamically with `GetFolderPath('UserProfile')`; do not commit a username or a user-specific absolute path.
+On non-Windows shells:
 
-`npm run verify` validates the runtime manifest, product identity, coordination contracts, GitHub/Codex handshakes, self-upgrade contract, repository assurance, live-protection expectations, PDF authority, repair baseline, and the Node test suite. Exact-head GitHub verification remains the merge authority for protected work.
+```bash
+npm run validate
+npm run verify
+```
+
+`npm run verify` validates the runtime manifest, product identity, coordination contracts, GitHub/Codex handshakes, self-upgrade contract, repository assurance, live-protection expectations, PDF authority, release/repair baseline integrity, and the Node test suite.
 
 Useful bounded checks:
 
@@ -164,39 +293,78 @@ npm.cmd run status
 npm.cmd run providers:probe
 npm.cmd run gap:audit
 npm.cmd run github:audit
+npm.cmd run review:adaptive -- "<owner direction>"
 ```
 
-Provider discovery or an enabled manifest flag is not proof of task readiness. Write-capable routes require current evidence and fail closed when the required provider, canary, authentication, attended session, or integration lease is absent.
+Provider discovery is not proof of task readiness. Write-capable or side-effecting routes require current authority and fail closed when the required provider, canary, authentication, attendance, lease, cost, quota, or integration evidence is missing.
 
-## Repository rules for AI agents
+### Windows path examples
+
+Windows launchers must derive the current user's profile dynamically rather than committing a machine/user-specific path. The contract uses `[Environment]::GetFolderPath('UserProfile')` and must not hard-code a `C:\Users\<name>` path in tracked documentation or launchers.
+
+## Repository rules for agents and contributors
 
 Before editing, read [`AGENTS.md`](AGENTS.md), [`docs/ECOSYSTEM-LOCK.md`](docs/ECOSYSTEM-LOCK.md), and [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
 
-The short version:
+Core rules:
 
-- `cloud-app/` and `operator-deck/` stay TypeScript; do not rewrite the product as JavaScript.
-- `src/`, `scripts/`, `test/`, and `relay/` stay Node ESM `.mjs` unless a bounded migration is explicitly started.
-- Preserve task idempotency, crash recovery, typed receipts, repair baseline, exact-head verification, canaries, rollback, and owner stop/override authority.
-- Keep credentials, tokens, private content, tenant identifiers, cookies, and other secrets out of Git, coordination artifacts, ordinary diagnostics, and model prompts.
-- Do not use Codex as a code-review path or spend credits to recover from review-bot quota conditions.
+- `cloud-app/` and `operator-deck/` stay TypeScript; do not rewrite the UI as JavaScript.
+- `src/`, `scripts/`, `test/`, and `relay/` stay Node ESM `.mjs` unless a bounded migration is explicitly approved.
+- Preserve idempotency, leases, crash recovery, typed receipts, immutable/release baselines, exact-head verification, canaries, rollback, and owner stop/override authority.
+- Keep credentials, tokens, cookies, private content, tenant identifiers, and secret-bearing diagnostics out of Git, coordination artifacts, model prompts, and ordinary logs.
+- Do not add an unrestricted supervisor shell, arbitrary caller-selected executable, broad UI automation interpreter, or generic public loopback aperture.
+- Do not use Codex for code review or spend credits to recover from review-bot quota conditions.
 - Do not treat a model refusal as permission to replace or simplify the architecture.
-- The loopback API must never become a generic public endpoint. Any remote aperture must be capability-scoped, authenticated, time-bounded, auditable, independently validated, and automatically closed.
-- Do not activate `7.0.0-alpha.1` or `7.0.0-alpha.2` on Windows from an ordinary chat/PR flow; activation belongs to the governed release/evolution channel with canary, checkpoint, and rollback evidence.
+- Any remote aperture must be capability-scoped, authenticated, auditable, independently validated, and closed/expired according to policy.
+- Ordinary chat/PR work does not directly activate a new Windows production candidate; activation belongs to the governed release/evolution channel.
 
-## Key architecture documents
+## Current unresolved live gates
 
+The following are intentionally tracked as **gates**, not papered over as success:
+
+| Gate | Current meaning |
+| --- | --- |
+| [#377 Railway convergence](https://github.com/michaeljwilliams0123/mahoraga/issues/377) | One canonical Railway production service must repeatedly deploy authoritative `main`, expose exact served provenance, keep liveness/readiness distinct, and prevent stale services from regaining authority |
+| [#388 Windows runtime convergence](https://github.com/michaeljwilliams0123/mahoraga/issues/388) | Repository evolution must not be confused with the paired Windows runtime; live host evidence is still required before claiming the Windows brain is current/healthy |
+| [#412 private-repo operator reads](https://github.com/michaeljwilliams0123/mahoraga/issues/412) | `operator-deck` needs authenticated server-side GitHub reads and must fail closed rather than falling back to misleading public-state assumptions |
+| [#451 zero-credit UI evidence](https://github.com/michaeljwilliams0123/mahoraga/issues/451) | UI still needs complete canonical zero-credit provider/quota/billing observability |
+| [#452 execution receipt chain](https://github.com/michaeljwilliams0123/mahoraga/issues/452) | UI still needs a real relay/authority/model/persistence/answer receipt chain tied to one transaction |
+
+Other open issues may represent future capability work rather than current production blockers; use the issue tracker for the complete queue.
+
+## Release and runtime truth
+
+`7.0.0-alpha.2` remains repository build/candidate metadata. It is **not** the product name and a merged source head does not prove that a Windows machine or Railway service has loaded it.
+
+The protected rollback predecessor remains `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until a later candidate completes the governed activation, canary, checkpoint, state, and rollback evidence required to supersede it.
+
+The governing rule is simple:
+
+**source truth ≠ deployment truth ≠ live-runtime truth ≠ provider readiness ≠ execution authority.**
+
+Mahoraga should make each of those states observable, preserve their provenance, and refuse to invent the missing links.
+
+## Key architecture and status documents
+
+- [Current source-status reconciliation — 2026-09-13](docs/MAHORAGA-CURRENT-STATUS-2026-09-13.md)
 - [Universal Capability Fabric design](docs/superpowers/specs/2026-09-10-universal-capability-fabric-design.md)
 - [Power Platform UCF provider design](docs/superpowers/specs/2026-09-10-power-platform-ucf-provider-design.md)
-- [Production / repository truth](docs/PRODUCTION-STATUS.md)
+- [Personal sovereign evolution model](docs/superpowers/specs/2026-09-12-personal-sovereign-evolution-design.md)
 - [Cloud workspace contract](docs/CLOUD-WORKSPACE.md)
+- [Always-on cloud runtime](docs/CLOUD-ALWAYS-ON-RUNTIME.md)
+- [Provider adapter contracts](docs/PROVIDER-ADAPTER-CONTRACTS.md)
 - [Update channel](docs/UPDATE-CHANNEL.md)
 - [Zero-credit automation](docs/ZERO-CREDIT-AUTOMATION.md)
 - [Credit-free autonomy](docs/CREDIT-FREE-AUTONOMY.md)
 - [GitHub operations](docs/GITHUB-OPERATIONS.md)
 - [Ecosystem lock](docs/ECOSYSTEM-LOCK.md)
+- [Historical production/repository status](docs/PRODUCTION-STATUS.md)
 
-## Release truth
+## Useful repository surfaces
 
-`7.0.0-alpha.2` is the repository candidate line. A merged change, green hosted workflow, or manifest declaration does not by itself prove that a particular Windows machine is running that candidate. Live production claims require fresh process/listener/version/worker/provider evidence from the target host.
+- GitHub Actions: <https://github.com/michaeljwilliams0123/mahoraga/actions>
+- Pull requests: <https://github.com/michaeljwilliams0123/mahoraga/pulls>
+- Issues / task intake: <https://github.com/michaeljwilliams0123/mahoraga/issues>
+- Releases: <https://github.com/michaeljwilliams0123/mahoraga/releases>
 
-The repository's protected rollback predecessor remains `3.6.0` until a later candidate completes its governed activation, canary, checkpoint, and rollback evidence. This distinction is intentional: **source truth, deployment truth, and live-runtime truth are separate.**
+Keep the owner experience simple, but keep the underlying truth explicit: **one objective in, evidence-backed execution out.**
