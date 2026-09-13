@@ -20,3 +20,15 @@ test("communication simulator exercises encrypted owner-paired chat round trip",
   assert.equal(report.assertions.replayRejected, true);
   assert.equal(report.assertions.noPlaintextInFrames, true);
 });
+
+test("communication simulator accepts production-shaped allowed origin arrays", async () => {
+  const report = await runCommunicationSimulation({
+    ownerIdentity: "owner@example.com",
+    allowedOrigin: ["https://mahoraga.example", "https://alternate.example"],
+    now: () => 0,
+  });
+
+  assert.equal(report.ok, true);
+  assert.equal(report.assertions.originBound, true);
+  assert.equal(report.assertions.encryptedRoundTrip, true);
+});
