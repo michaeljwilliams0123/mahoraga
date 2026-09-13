@@ -163,13 +163,14 @@ export class Supervisor extends EventEmitter {
       this.#setProcessReadiness(state, "live", state.lastHeartbeatAt);
     } else if (message?.type === "provider.readiness") {
       const observedAt = message.observedAt ?? new Date().toISOString();
-      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null; let executionCellCanary = null;
+      let providerStatus = "unavailable"; let canaryStatus = "failed"; let canaryVerifiedAt = null; let executionCellCanary = null; let providerReasonCode = null;
       try {
         const receipt = validateCapabilityReceipt(state.definition.healthProbe, message.receipt);
         providerStatus = receipt.outcome === "succeeded" ? "ready" : "unavailable";
         canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
         canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
         executionCellCanary = receipt.details.providerEvidence.executionCellCanary ?? null;
+        providerReasonCode = boundedProviderReasonCode(receipt.details.providerEvidence.reasonCode);
         if (state.definition.id === "copilot-studio") {
           state.platformAuthorityScopes = normalizeStudioPlatformScopes(receipt.details.providerEvidence.platformAuthorityScopes);
           state.billingAttestationByCapability = normalizeStudioBillingAttestation(receipt.details.providerEvidence.delegateBillingClass);
@@ -182,7 +183,7 @@ export class Supervisor extends EventEmitter {
           canaryStatus: exactCanary ? canaryStatus : "never",
           processObservedAt: state.lastHeartbeatAt, providerObservedAt: observedAt,
           canaryVerifiedAt: exactCanary ? canaryVerifiedAt : null,
-          lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? "provider-probe-failed",
+          lastErrorCode: providerStatus === "ready" ? null : message.errorCode ?? providerReasonCode ?? "provider-probe-failed",
         });
       }
       state.status = "live";
@@ -575,4 +576,10 @@ function normalizeStudioPlatformScopes(value) {
 
 function normalizeStudioBillingAttestation(value) {
   return new Set(["license-included", "metered"]).has(value) ? { "studio.delegate": value } : {};
+}
+
+function boundedProviderReasonCode(value) {
+  if (typeof value !== "string") return null;
+  const code = value.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 80);
+  return code || null;
 }

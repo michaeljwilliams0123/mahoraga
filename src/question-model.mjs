@@ -161,7 +161,7 @@ export async function probeQuestionModel({ findCli = findInstalledCodexCli, runV
       return {
         verified: false,
         summary: "The transient question model Codex executable is not callable.",
-        providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", executable: path.basename(executable) },
+        providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", reasonCode: "question-model-cli-not-callable", executable: path.basename(executable) },
       };
     }
     return {
@@ -173,7 +173,7 @@ export async function probeQuestionModel({ findCli = findInstalledCodexCli, runV
     return {
       verified: false,
       summary: "The transient question model Codex executable is unavailable.",
-      providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", executable: executable ? path.basename(executable) : null },
+      providerHealth: { availability: "unavailable", provider: "primary-codex-question", invocation: "not-callable", reasonCode: "question-model-cli-not-callable", executable: executable ? path.basename(executable) : null },
     };
   }
 }
