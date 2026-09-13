@@ -4,6 +4,8 @@ import { Link2, ShieldCheck, Unplug } from "lucide-react";
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
 
+type DisplayCapability = RuntimeCapability & { providerReasonCode?: string | null };
+
 function capabilitySummary(capability: RuntimeCapability) {
   const workers = capability.workerIds.length > 0 ? capability.workerIds.join(", ") : "no workers reported";
   return `${capability.routable ? "routable" : "not routable"} · ${workers}`;
@@ -16,7 +18,8 @@ export function ConnectionsView({
   onRequestPairing,
   onDisconnect,
 }: ConnectionsViewProps) {
-  const routableCount = runtimeCapabilities.filter((capability) => capability.routable).length;
+  const displayCapabilities = runtimeCapabilities as DisplayCapability[];
+  const routableCount = displayCapabilities.filter((capability) => capability.routable).length;
 
   return (
     <section className="connection-panel" aria-label="Connections">
@@ -53,21 +56,21 @@ export function ConnectionsView({
         <div>
           <strong>Capability readiness</strong>
           <span>
-            {routableCount}/{runtimeCapabilities.length} routable
+            {routableCount}/{displayCapabilities.length} routable
           </span>
         </div>
       </div>
 
-      {coreReady && runtimeCapabilities.length === 0 && <p className="muted">The paired core reported no capability records.</p>}
+      {coreReady && displayCapabilities.length === 0 && <p className="muted">The paired core reported no capability records.</p>}
 
-      {runtimeCapabilities.length > 0 && (
+      {displayCapabilities.length > 0 && (
         <div className="capability-list" style={{ marginTop: 16 }}>
-          {runtimeCapabilities.map((capability) => (
+          {displayCapabilities.map((capability) => (
             <div key={capability.capability}>
               <strong>{capability.capability}</strong>
               <span>{capabilitySummary(capability)}</span>
-              {!capability.routable && capability.routingReason && (
-                <span>Readiness reason · {capability.routingReason}</span>
+              {!capability.routable && (capability.providerReasonCode ?? capability.routingReason) && (
+                <span>Readiness reason · {capability.providerReasonCode ?? capability.routingReason}</span>
               )}
             </div>
           ))}
