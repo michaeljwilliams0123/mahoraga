@@ -14,6 +14,7 @@ export async function runCommunicationSimulation({ ownerIdentity, allowedOrigin,
   const localSocket = captureSocket();
   const remoteSocket = captureSocket();
   const broker = createRelayBroker({ ownerIdentity, allowedOrigin, now });
+  const remoteOrigin = Array.isArray(allowedOrigin) ? allowedOrigin[0] : allowedOrigin;
   const local = await createPairingOffer({ now, ttlMs: 300_000 });
   const remote = await acceptPairingOffer(local.publicOffer, { now: () => Number(now()) + 1 });
   const runtimeSession = await deriveRelaySession(local.privateKey, remote.publicKey, local.context);
@@ -28,7 +29,7 @@ export async function runCommunicationSimulation({ ownerIdentity, allowedOrigin,
     socket: localSocket,
   });
   const ownerBound = await rejectsCode(() => broker.pairRemote({
-    owner: "unauthorized@example.com", origin: allowedOrigin,
+    owner: "unauthorized@example.com", origin: remoteOrigin,
     pairingId: local.context.pairingId, code: local.context.code, devicePublicKey: remote.publicKey,
   }), "relay-owner-required");
   const originBound = await rejectsCode(() => broker.pairRemote({
@@ -37,7 +38,7 @@ export async function runCommunicationSimulation({ ownerIdentity, allowedOrigin,
   }), "relay-origin-required");
 
   const paired = await broker.pairRemote({
-    owner: ownerIdentity, origin: allowedOrigin,
+    owner: ownerIdentity, origin: remoteOrigin,
     pairingId: local.context.pairingId, code: local.context.code,
     devicePublicKey: remote.publicKey, socket: remoteSocket,
   });
@@ -47,7 +48,7 @@ export async function runCommunicationSimulation({ ownerIdentity, allowedOrigin,
   const correlationId = `sim-${createHash("sha256").update(SYNTHETIC_PROMPT).digest("hex").slice(0, 16)}`;
   const request = { type: "chat", correlationId, classification: "synthetic", content: SYNTHETIC_PROMPT };
   const requestFrame = await sealFrame(uiSession, request, { direction: "ui-to-runtime" });
-  const requestForward = broker.forward({ owner: ownerIdentity, origin: allowedOrigin, sessionId: uiSession.sessionId, from: "remote", frame: requestFrame });
+  const requestForward = broker.forward({ owner: ownerIdentity, origin: remoteOrigin, sessionId: uiSession.sessionId, from: "remote", frame: requestFrame });
   const deliveredRequest = localSocket.messages.at(-1)?.frame;
   const openedRequest = await openFrame(runtimeSession, deliveredRequest);
 
