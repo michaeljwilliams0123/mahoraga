@@ -450,3 +450,30 @@ test("Copilot Studio health evidence becomes runtime-owned authority and billing
   assert.deepEqual(state.platformAuthorityScopes, ["connector.invoke", "copilot.invoke"]);
   assert.deepEqual(state.billingAttestationByCapability, { "studio.delegate": "license-included" });
 });
+
+test("provider readiness preserves bounded provider reason codes", (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const supervisor = new Supervisor({
+    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", {
+    type: "provider.readiness",
+    receipt: createCapabilityReceipt("system.health", {
+      verified: false,
+      summary: "Provider executable is unavailable.",
+      providerHealth: { availability: "unavailable", reasonCode: "question-model-cli-unavailable" },
+    }),
+    observedAt: new Date().toISOString(),
+  });
+
+  const readiness = database.listCapabilityReadiness("repair-worker")
+    .find((item) => item.capability === "system.health");
+  assert.equal(readiness.providerStatus, "unavailable");
+  assert.equal(readiness.lastErrorCode, "question-model-cli-unavailable");
+});

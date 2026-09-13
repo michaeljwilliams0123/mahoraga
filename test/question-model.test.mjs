@@ -84,6 +84,7 @@ test("question-model health fails closed when the Codex executable is not callab
   assert.equal(result.verified, false);
   assert.equal(result.providerHealth.availability, "unavailable");
   assert.equal(result.providerHealth.invocation, "not-callable");
+  assert.equal(result.providerHealth.reasonCode, "question-model-cli-not-callable");
 });
 
 test("question model classifies Codex quota exhaustion instead of generic incompleteness", async () => {
