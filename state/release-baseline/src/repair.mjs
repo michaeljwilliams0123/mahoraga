@@ -56,6 +56,8 @@ export const ESSENTIAL_FILES = [
   "src/autonomy-orchestrator.mjs",
   "src/credit-free-autonomy.mjs",
   "src/credit-free-operator.mjs",
+  "src/resource-economy.mjs",
+  "src/microsoft-usage-cost.mjs",
   "src/native-cloud-model.mjs",
   "src/cloud-browser-provider.mjs",
   "src/autonomy-heartbeat.mjs",

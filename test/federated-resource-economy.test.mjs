@@ -30,12 +30,17 @@ function verifiedState(manifest, workerId) {
   };
 }
 
-test("resource economy distinguishes free-tier and subscription-included routes from metered routes", () => {
+test("resource economy distinguishes evidence-bound free-tier and subscription-included routes from metered routes", () => {
   assert.equal(validateBillingClass("deterministic-zero"), "deterministic-zero");
   assert.equal(validateBillingClass("free-tier-zero"), "free-tier-zero");
   assert.equal(validateBillingClass("license-included"), "license-included");
   assert.equal(isZeroMarginalCreditEligible("deterministic-zero"), true);
-  assert.equal(isZeroMarginalCreditEligible("free-tier-zero"), true);
+  assert.equal(isZeroMarginalCreditEligible("free-tier-zero"), false);
+  assert.equal(isZeroMarginalCreditEligible("free-tier-zero", {
+    status: "available",
+    observedAt: "2026-09-12T03:44:30.000Z",
+    expiresAt: "2026-09-12T03:50:00.000Z",
+  }, NOW), true);
   assert.equal(isZeroMarginalCreditEligible("license-included"), true);
   assert.equal(isZeroMarginalCreditEligible("metered-copilot-credit"), false);
   assert.equal(isZeroMarginalCreditEligible("metered"), false);

@@ -21,8 +21,8 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const preBillingCandidates = normalizedCandidates
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
-      .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || isZeroMarginalCreditEligible(candidate.billingClass) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
-    const candidates = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => isZeroMarginalCreditEligible(candidate.billingClass)) : preBillingCandidates;
+      .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || zeroMarginalEligible(candidate, context) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
+    const candidates = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
     if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
       return waitingWithRecovery("billing-not-zero-credit", task, ranked, { billingDecision: Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false }) });
     }
@@ -39,7 +39,11 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     }) : null;
     if (authorityDecision && !authorityDecision.authorized) return waitingWithRecovery(authorityDecision.reason, task, ranked, { authorityDecision });
     if (authorityDecision?.confirmationRequired) return waitingWithRecovery("owner-confirmation-required", task, ranked, { authorityDecision });
-    const billingDecision = Object.freeze({ required: zeroMarginalRequired, effectiveClass: selected.billingClass, eligible: isZeroMarginalCreditEligible(selected.billingClass) });
+    const billingDecision = Object.freeze({
+      required: zeroMarginalRequired,
+      effectiveClass: selected.billingClass,
+      eligible: zeroMarginalEligible(selected, context),
+    });
     const route = {
       status: "routable",
       reason: null,
@@ -91,6 +95,18 @@ function zeroCreditDecision(task, context) {
 
 function isAutonomySelfUpgrade(task) {
   return typeof task.capability === "string" && (task.capability.startsWith("autonomy.") || task.capability.startsWith("self-upgrade."));
+}
+
+function zeroMarginalEligible(candidate, context) {
+  return isZeroMarginalCreditEligible(
+    candidate.billingClass,
+    resourceEconomyAttestationFor(context, candidate),
+    Number.isFinite(context.now) ? context.now : Date.now(),
+  );
+}
+
+function resourceEconomyAttestationFor(context, candidate) {
+  return context.resourceEconomyAttestationByWorkerId?.[candidate.workerId]?.[candidate.capability] ?? null;
 }
 
 function normalizeCandidateBilling(candidate) {
