@@ -1,23 +1,34 @@
 export type FreeTierAdmissionState = "available" | "missing" | "expired" | "exhausted";
-export type FreeTierAdmission = { state: FreeTierAdmissionState; label: string; held: boolean; observedAt: string | null; expiresAt: string | null; routeCount: number };
+export type FreeTierAdmission = { state: FreeTierAdmissionState; label: string; held: boolean; holdReason: string | null; observedAt: string | null; expiresAt: string | null; routeCount: number };
 
 type QuotaAttestation = { status?: string | null; observedAt?: string | null; expiresAt?: string | null };
+type CapabilityProjection = { billingClass: string | null; routingReason: string | null; quotaAttestation: QuotaAttestation | null };
 
 export function projectFreeTierAdmission(capabilities: unknown[] | null | undefined, now = Date.now()): FreeTierAdmission | null {
-  const routes = (Array.isArray(capabilities) ? capabilities : []).map(normalizeCapability).filter((item) => item?.billingClass === "free-tier-zero");
+  const routes = (Array.isArray(capabilities) ? capabilities : []).map(normalizeCapability).filter((item): item is CapabilityProjection => item?.billingClass === "free-tier-zero" || item?.routingReason === "billing-not-zero-credit");
   if (routes.length === 0) return null;
-  const states = routes.map((route) => classify(route?.quotaAttestation ?? null, now));
-  const selected = states.find((item) => item.state === "available") ?? states.find((item) => item.state === "exhausted") ?? states.find((item) => item.state === "expired") ?? states[0];
+  const evaluated = routes.map((route) => ({ ...classify(route.quotaAttestation, now), routingReason: route.routingReason }));
+  const selected = evaluated.find((item) => item.state === "available") ?? evaluated.find((item) => item.state === "exhausted") ?? evaluated.find((item) => item.state === "expired") ?? evaluated[0];
+  const explicitHold = evaluated.find((item) => item.routingReason === "billing-not-zero-credit") ?? null;
   const labels: Record<FreeTierAdmissionState, string> = { available: "Free tier available", missing: "Evidence missing", expired: "Evidence expired", exhausted: "Free tier exhausted" };
-  return { ...selected, label: labels[selected.state], held: selected.state !== "available", routeCount: routes.length };
+  return {
+    state: selected.state,
+    label: labels[selected.state],
+    held: selected.state !== "available" || explicitHold !== null,
+    holdReason: explicitHold?.routingReason ?? (selected.state !== "available" ? `free-tier-${selected.state}` : null),
+    observedAt: selected.observedAt,
+    expiresAt: selected.expiresAt,
+    routeCount: routes.length,
+  };
 }
 
-function normalizeCapability(value: unknown): { billingClass: string | null; quotaAttestation: QuotaAttestation | null } | null {
+function normalizeCapability(value: unknown): CapabilityProjection | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
   const evidence = item.quotaAttestation;
   return {
     billingClass: typeof item.billingClass === "string" ? item.billingClass : null,
+    routingReason: typeof item.routingReason === "string" ? item.routingReason : null,
     quotaAttestation: evidence && typeof evidence === "object" && !Array.isArray(evidence) ? evidence as QuotaAttestation : null,
   };
 }
