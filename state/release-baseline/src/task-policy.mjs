@@ -91,7 +91,7 @@ export function policyTaskInput(request, policy, manifest) {
     intent: policy.intent,
     capability: policy.capability,
     dataClass: policy.dataClass,
-    requestedMode: manifest.defaultAutonomyMode,
+    requestedMode: request.requestedMode ?? manifest.defaultAutonomyMode,
     idempotencyKey: request.idempotencyKey,
     correlationId: request.correlationId,
     taskType: policy.intent.split(".")[0],

@@ -25,7 +25,13 @@ import {
   probeQuestionModelExecutionState,
   saveQuestionModelExecutionState,
 } from "./question-model.mjs";
-import { executeNativeCloudModel, probeNativeCloudModel } from "./native-cloud-model.mjs";
+import {
+  executeNativeCloudModel,
+  executeZeroCreditAnswerModel,
+  probeNativeCloudModel,
+  probeZeroCreditAnswerModel,
+  zeroCreditProviderEvidenceFromEnv,
+} from "./native-cloud-model.mjs";
 import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
 
 const workerId = process.argv[2];
@@ -49,7 +55,7 @@ process.on("message", async (message) => {
   if (message?.type !== "task") return;
   try {
     const startedAt = Date.now();
-    const result = await execute(message.capability, message.task);
+    const result = await execute(message.capability, message.task, message.admission);
     const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
     process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
   } catch (error) {
@@ -124,7 +130,21 @@ async function artifactInspectionCanary() {
   return { verified: true, summary: "Artifact inspection dependencies are available.", providerHealth: { storage: "ready" } };
 }
 
-async function execute(capability, task) {
+async function execute(capability, task, admission = null) {
+  if (workerId === "codespaces-open-weight") {
+    if (capability === "assistant.health") return probeZeroCreditAnswerModel({ providerId: workerId });
+    if (capability === "assistant.respond") {
+      const evidence = zeroCreditProviderEvidenceFromEnv({ providerId: workerId });
+      const routed = validateZeroCreditExecutionAdmission(admission);
+      return executeZeroCreditAnswerModel({
+        task,
+        authorityDecision: routed?.authorityDecision ?? null,
+        providerDecision: routed?.providerDecision ?? null,
+        providerEvidence: evidence.value,
+      });
+    }
+    throw new Error("unsupported-capability");
+  }
   if (workerId === "native-cloud-model") {
     if (capability === "assistant.health") return probeNativeCloudModel();
     if (capability === "assistant.respond") return executeNativeCloudModel({ task });
@@ -149,43 +169,32 @@ async function execute(capability, task) {
   if (capability.startsWith("google.")) return executeGoogleWorkspaceCapability(capability, task, worker);
   if (capability.startsWith("chrome.")) return executeSignedChromeCapability(capability, task, worker);
   switch (capability) {
-    case "assistant.health":
-      return probeQuestionModel();
-    case "assistant.respond":
-      return executeQuestionModel({ task, executionState: questionModelExecutionState });
-    case "provider.gap":
-      return {
-        verified: true,
-        outcome: "provider-unavailable",
-        provider: "microsoft365",
-        summary: "Mahoraga kept this enterprise request local and recorded a provider gap. The Microsoft 365 execution provider is not enabled; attach a local copy for private inspection or activate an approved Microsoft provider before retrying the link.",
-      };
-    case "artifact.inspect":
-      return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
-    case "system.health":
-      return { verified: true, summary: "Mahoraga local runtime is responsive.", version: manifest.version, phase: manifest.phase };
-    case "manifest.validate":
-      await loadManifest();
-      return { verified: true, summary: "Canonical manifest passed validation.", workers: manifest.workers.length };
-    case "repair.scan": {
-      const scan = await scanRepairState(manifest);
-      return { verified: scan.healthy, summary: scan.healthy ? `Offline repair baseline is healthy across ${scan.checked} essential files.` : `Offline repair scan found ${scan.issues.length} issue(s).`, ...scan };
-    }
-    case "repair.apply":
-      return applyAutomaticRepairs(manifest);
-    default:
-      throw new Error("unsupported-capability");
+    case "assistant.health": return probeQuestionModel();
+    case "assistant.respond": return executeQuestionModel({ task, executionState: questionModelExecutionState });
+    case "provider.gap": return { verified: true, outcome: "provider-unavailable", provider: "microsoft365", summary: "Mahoraga kept this enterprise request local and recorded a provider gap. The Microsoft 365 execution provider is not enabled; attach a local copy for private inspection or activate an approved Microsoft provider before retrying the link." };
+    case "artifact.inspect": return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });
+    case "system.health": return { verified: true, summary: "Mahoraga local runtime is responsive.", version: manifest.version, phase: manifest.phase };
+    case "manifest.validate": await loadManifest(); return { verified: true, summary: "Canonical manifest passed validation.", workers: manifest.workers.length };
+    case "repair.scan": { const scan = await scanRepairState(manifest); return { verified: scan.healthy, summary: scan.healthy ? `Offline repair baseline is healthy across ${scan.checked} essential files.` : `Offline repair scan found ${scan.issues.length} issue(s).`, ...scan }; }
+    case "repair.apply": return applyAutomaticRepairs(manifest);
+    default: throw new Error("unsupported-capability");
   }
+}
+
+function validateZeroCreditExecutionAdmission(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.authorityDecision?.decision !== "allow") return null;
+  if (value.providerDecision?.status !== "selected" || value.providerDecision?.providerId !== workerId) return null;
+  if (value.providerDecision?.costClass !== worker.costClass) return null;
+  if (value.billingDecision?.required !== true || value.billingDecision?.eligible !== true || value.billingDecision?.effectiveClass !== "deterministic-zero") return null;
+  return Object.freeze({ authorityDecision: value.authorityDecision, providerDecision: value.providerDecision });
 }
 
 function artifactStoreForWorker() {
   if (!artifactStorePromise) artifactStorePromise = (async () => {
     const artifactRoot = process.env.MAHORAGA_ARTIFACT_ROOT ?? path.join(ROOT, "state", "artifacts");
     const stateRoot = path.dirname(artifactRoot);
-    const contentVault = await createContentVault({
-      root: process.env.MAHORAGA_CONTENT_VAULT_ROOT ?? path.join(stateRoot, "content-vault"),
-      keyFile: process.env.MAHORAGA_CONTENT_VAULT_KEY_FILE ?? path.join(stateRoot, "content-vault.key.dpapi"),
-    });
+    const contentVault = await createContentVault({ root: process.env.MAHORAGA_CONTENT_VAULT_ROOT ?? path.join(stateRoot, "content-vault"), keyFile: process.env.MAHORAGA_CONTENT_VAULT_KEY_FILE ?? path.join(stateRoot, "content-vault.key.dpapi") });
     return new LocalArtifactStore(artifactRoot, { contentVault });
   })();
   return artifactStorePromise;
@@ -195,6 +204,7 @@ function classifyError(error) {
   if (error?.code === "question-model-usage-limit") return error.code;
   if (error?.message === "unsupported-capability") return "unsupported-capability";
   if (error?.code === "ENOENT") return "required-file-missing";
+  if (/zero-credit/i.test(error?.message ?? "")) return error?.code ?? "zero-credit-provider-failed";
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";
   if (/repository/i.test(error?.message ?? "")) return "repository-verification-failed";
   if (/microsoft-queue|dataverse/i.test(error?.message ?? "")) return "microsoft-queue-provider-failed";
