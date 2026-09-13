@@ -40,7 +40,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       evidenceLevel: readiness.evidenceLevel,
       lastObservedAt: readiness.lastObservedAt,
       lastVerifiedAt: readiness.lastVerifiedAt,
-      routingReason: readiness.reason,
+      routingReason: readiness.routable ? null : recorded?.lastErrorCode ?? readiness.reason,
       interfaceType: worker.routing.interfaceType,
       permissionClass: worker.routing.permissionClass,
       reliability: worker.routing.reliability,
