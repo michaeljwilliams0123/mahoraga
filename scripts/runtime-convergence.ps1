@@ -40,11 +40,11 @@ function Get-ListenerPid {
     return [int]$listener.OwningProcess
 }
 
-function Stop-Listener([int]$Pid) {
-    if (-not $Pid) { return }
-    $process = Get-Process -Id $Pid -ErrorAction SilentlyContinue
+function Stop-Listener([int]$ProcessId) {
+    if (-not $ProcessId) { return }
+    $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
     if (-not $process -or $process.ProcessName -ne 'node') { throw 'Candidate listener is not a Node.js process.' }
-    Stop-Process -Id $Pid
+    Stop-Process -Id $ProcessId
     $process.WaitForExit(5000) | Out-Null
 }
 
