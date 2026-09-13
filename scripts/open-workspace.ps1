@@ -1,6 +1,7 @@
 param(
+    [Parameter(Mandatory=$true)]
     [ValidatePattern('^https://[A-Za-z0-9.-]+/?$')]
-    [string]$WorkspaceUri = 'https://michaeljwilliams0123.github.io/mahoraga/'
+    [string]$WorkspaceUri
 )
 
 $ErrorActionPreference = 'Stop'

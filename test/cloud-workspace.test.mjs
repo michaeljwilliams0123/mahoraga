@@ -47,7 +47,8 @@ test("legacy duplicate UI entry points stay retired and Pages publishes cloud-ap
     read(".github/workflows/autonomous-integration.yml"),
     read(".github/workflows/pages.yml"),
   ]);
-  assert.match(server, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+  assert.doesNotMatch(server, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+  assert.match(server, /interactionSurface: "configured-workspace-origin"/);
   assert.match(server, /localUiRetired: true/);
   assert.match(pages, /cloud-app/);
   assert.match(pages, /deploy-pages/);

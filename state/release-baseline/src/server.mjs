@@ -30,9 +30,10 @@ import { planConversationCapabilities } from "./conversation-capability-planner.
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
 import { ingestVerifiedStudioLearning } from "./copilot-studio-learning-adapter.mjs";
 
-export const DEFAULT_WORKSPACE_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
+export const DEFAULT_WORKSPACE_URL = null;
 
-export function canonicalWorkspaceUrl(value = process.env.MAHORAGA_WORKSPACE_URL ?? DEFAULT_WORKSPACE_URL) {
+export function canonicalWorkspaceUrl(value = process.env.MAHORAGA_WORKSPACE_URL ?? process.env.MAHORAGA_WORKSPACE_ORIGIN ?? DEFAULT_WORKSPACE_URL) {
+  if (value == null || String(value).trim() === "") return null;
   let parsed;
   try { parsed = new URL(value); } catch { throw new TypeError("canonical-workspace-url-invalid"); }
   if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.search || parsed.hash ||
@@ -92,7 +93,10 @@ export function createControlServer({
     try {
       setHeaders(response, manifest);
       const url = new URL(request.url, `http://${manifest.runtime.host}:${manifest.runtime.port}`);
-      if (request.method === "GET" && url.pathname === "/") return redirect(response, canonicalWorkspace);
+      if (request.method === "GET" && url.pathname === "/") {
+        if (!canonicalWorkspace) return json(response, 503, { error: "workspace-origin-not-configured" });
+        return redirect(response, canonicalWorkspace);
+      }
       if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, publicStatusPayload(manifest, database, supervisor));
       if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
       if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
@@ -429,7 +433,7 @@ export function statusPayload(manifest, database, supervisor) {
       controlCenterVersion: versions.controlCenter,
       assetSetId: `${manifest.version}:${versions.controlCenter}`,
       staticAssetsSnapshotted: false,
-      interactionSurface: "github-pages-workspace",
+      interactionSurface: "configured-workspace-origin",
       localUiRetired: true,
     },
     environment: manifest.environment, featureFlags: manifest.featureFlags, queue: manifest.queue,
