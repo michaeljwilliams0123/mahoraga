@@ -118,7 +118,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga pressure-test</span>
+            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 workspace</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
@@ -128,6 +128,25 @@ export function CommandCockpit({
             </span>
           </div>
         </header>
+
+        <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
+          <h3>CONVERGENCE</h3>
+          <p>Windows PowerShell PID collision fixed on main (#460 / #388). Helper param is ProcessId. Cloud UI only — Windows production stays 3.6.0.</p>
+          <dl>
+            <div>
+              <dt>candidate</dt>
+              <dd>7.0.0-alpha.2</dd>
+            </div>
+            <div>
+              <dt>merged</dt>
+              <dd>PR 460</dd>
+            </div>
+            <div>
+              <dt>windows runtime</dt>
+              <dd>3.6.0 locked</dd>
+            </div>
+          </dl>
+        </aside>
 
         <nav className="cockpit-tabs" aria-label="Cockpit panels">
           {COCKPIT_PANEL_IDS.map((id) => (
