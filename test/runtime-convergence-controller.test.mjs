@@ -75,3 +75,9 @@ test("Windows convergence reuses only a coherent canonical centralized state bun
   assert.match(controller, /if\s*\(-not\s+\$centralStateReady\s+-and\s+-not\s+\(Test-Path[\s\S]*\$migrationMarker/);
   assert.ok(controller.indexOf("$centralStateReady") < controller.indexOf("Find-SourceWorktree $sourceCommit"));
 });
+
+test("Windows convergence stop helper never shadows PowerShell automatic PID", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.doesNotMatch(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$Pid\s*\)/i);
+  assert.match(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$ProcessId\s*\)/i);
+});
