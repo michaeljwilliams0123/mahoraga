@@ -16,7 +16,6 @@ import { executeGoogleWorkspaceCapability } from "./google-workspace-worker.mjs"
 import { executeSignedChromeCapability } from "./signed-chrome-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
-import { createAuthorityDecision } from "./authority-decision.mjs";
 import { createContentVault } from "./content-vault.mjs";
 import {
   createQuestionModelExecutionState,
@@ -56,7 +55,7 @@ process.on("message", async (message) => {
   if (message?.type !== "task") return;
   try {
     const startedAt = Date.now();
-    const result = await execute(message.capability, message.task);
+    const result = await execute(message.capability, message.task, message.admission);
     const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
     process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
   } catch (error) {
@@ -131,22 +130,18 @@ async function artifactInspectionCanary() {
   return { verified: true, summary: "Artifact inspection dependencies are available.", providerHealth: { storage: "ready" } };
 }
 
-async function execute(capability, task) {
+async function execute(capability, task, admission = null) {
   if (workerId === "codespaces-open-weight") {
     if (capability === "assistant.health") return probeZeroCreditAnswerModel({ providerId: workerId });
     if (capability === "assistant.respond") {
-      const providerDecision = Object.freeze({ status: "selected", providerId: workerId, costClass: worker.costClass });
       const evidence = zeroCreditProviderEvidenceFromEnv({ providerId: workerId });
-      const billingDecision = Object.freeze({ required: true, effectiveClass: "deterministic-zero", eligible: evidence.ok === true });
-      const authorityDecision = createAuthorityDecision({
-        ownerGrant: manifest.ownerAuthority ?? null,
+      const routed = validateZeroCreditExecutionAdmission(admission);
+      return executeZeroCreditAnswerModel({
         task,
-        candidate: { workerId, costClass: worker.costClass, billingClass: "deterministic-zero", requiresAttendedDesktop: false },
-        providerDecision,
-        billingDecision,
-        legacyReason: evidence.ok ? null : evidence.reasonCode,
+        authorityDecision: routed?.authorityDecision ?? null,
+        providerDecision: routed?.providerDecision ?? null,
+        providerEvidence: evidence.value,
       });
-      return executeZeroCreditAnswerModel({ task, authorityDecision, providerDecision, providerEvidence: evidence.value });
     }
     throw new Error("unsupported-capability");
   }
@@ -184,6 +179,15 @@ async function execute(capability, task) {
     case "repair.apply": return applyAutomaticRepairs(manifest);
     default: throw new Error("unsupported-capability");
   }
+}
+
+function validateZeroCreditExecutionAdmission(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.authorityDecision?.decision !== "allow") return null;
+  if (value.providerDecision?.status !== "selected" || value.providerDecision?.providerId !== workerId) return null;
+  if (value.providerDecision?.costClass !== worker.costClass) return null;
+  if (value.billingDecision?.required !== true || value.billingDecision?.eligible !== true || value.billingDecision?.effectiveClass !== "deterministic-zero") return null;
+  return Object.freeze({ authorityDecision: value.authorityDecision, providerDecision: value.providerDecision });
 }
 
 function artifactStoreForWorker() {
