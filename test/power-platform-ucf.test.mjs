@@ -102,7 +102,8 @@ test("GitHub Copilot harness evidence is visible to UCF but cannot widen standar
   const route = routeTask(manifest, { capability: "studio.delegate", dataClass: "enterprise", requestedMode: "hybrid" }, context);
   assert.equal(route.status, "routable");
   assert.equal(route.billingDecision.effectiveClass, "license-included");
-  assert.equal(route.authorityDecision.authorized, true);
+  assert.equal(route.authorityDecision.decision, "allow");
+  assert.equal(route.authorityDecision.evidence.ownerAuthority.authorized, true);
   assert.equal(route.decision.harnessEvidence[0].zeroCreditEligible, false);
 });
 
@@ -135,5 +136,6 @@ test("Studio zero-credit routing can use supervisor-owned health evidence withou
   assert.equal(route.status, "routable");
   assert.equal(route.worker.id, "copilot-studio");
   assert.equal(route.billingDecision.effectiveClass, "license-included");
-  assert.equal(route.authorityDecision.authorized, true);
+  assert.equal(route.authorityDecision.decision, "allow");
+  assert.equal(route.authorityDecision.evidence.ownerAuthority.authorized, true);
 });

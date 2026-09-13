@@ -4,17 +4,30 @@ import { planCapabilityRecovery } from "./capability-recovery.mjs";
 import { selectZeroCreditProvider } from "./zero-credit-provider-selector.mjs";
 import { classifyAutonomyProvider, isCreditFreeWorkerId, selectCreditFreeExecutionPlane } from "./credit-free-autonomy.mjs";
 import { isZeroMarginalCreditEligible } from "./resource-economy.mjs";
+import { createAuthorityDecision } from "./authority-decision.mjs";
 
 export const routeTask = createTaskRouter();
 
 export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
   return function routeTask(manifest, task, context = {}) {
+    const ownerGrant = manifest.ownerAuthority ?? null;
     const creditFreeDecision = creditFreeGate(task, context);
     if (creditFreeDecision && !creditFreeDecision.ok) {
-      return waitingWithRecovery(creditFreeDecision.reason, task, null, { creditFreeDecision });
+      const authorityDecision = createAuthorityDecision({
+        ownerGrant, task, creditFreeDecision, context, legacyReason: creditFreeDecision.reason,
+      });
+      return waitingWithRecovery(creditFreeDecision.reason, task, null, { creditFreeDecision, authorityDecision });
     }
+
     const providerDecision = zeroCreditDecision(task, context);
-    if (providerDecision?.status === "waiting") return waitingWithRecovery(providerDecision.providerId, task, null, { providerDecision });
+    if (providerDecision?.status === "waiting") {
+      const authorityDecision = createAuthorityDecision({
+        ownerGrant, task, providerDecision, creditFreeDecision, context,
+        legacyReason: providerDecision.providerId ?? "provider-unavailable",
+      });
+      return waitingWithRecovery(providerDecision.providerId, task, null, { providerDecision, authorityDecision });
+    }
+
     const ranked = rankRoutes(manifest, task, context);
     const zeroMarginalRequired = context.providerPolicy === "zero-credit" || context.providerPolicy === "credit-free" || context.creditFreeRequired === true || task?.creditFreeRequired === true;
     const normalizedCandidates = ranked.candidates.map(normalizeCandidateBilling);
@@ -23,27 +36,64 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
       .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || zeroMarginalEligible(candidate, context) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
     const candidates = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
+
     if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
-      return waitingWithRecovery("billing-not-zero-credit", task, ranked, { billingDecision: Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false }) });
+      const billingDecision = Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false });
+      const authorityDecision = createAuthorityDecision({
+        ownerGrant, task, candidate: preBillingCandidates[0], providerDecision, creditFreeDecision,
+        billingDecision, context, legacyReason: "billing-not-zero-credit",
+      });
+      return waitingWithRecovery("billing-not-zero-credit", task, ranked, {
+        billingDecision, authorityDecision,
+        ...(providerDecision ? { providerDecision } : {}),
+        ...(creditFreeDecision ? { creditFreeDecision } : {}),
+      });
     }
+
     const reason = ranked.reason ?? (normalizedCandidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
-    if (candidates.length === 0) return waitingWithRecovery(reason, task, ranked, creditFreeDecision ? { creditFreeDecision } : {});
+    if (candidates.length === 0) {
+      const authorityDecision = createAuthorityDecision({
+        ownerGrant, task, providerDecision, creditFreeDecision, context, legacyReason: reason,
+      });
+      return waitingWithRecovery(reason, task, ranked, {
+        authorityDecision,
+        ...(providerDecision ? { providerDecision } : {}),
+        ...(creditFreeDecision ? { creditFreeDecision } : {}),
+      });
+    }
+
     const selected = candidates[0];
     const capabilityAuthorityScopes = selected.authorityScopes ?? [];
-    const authorityDecision = task.authorityScope || capabilityAuthorityScopes.length > 0 ? resolveCapabilityAuthority({
-      grant: manifest.ownerAuthority,
+    const ownerDecision = task.authorityScope || capabilityAuthorityScopes.length > 0 ? resolveCapabilityAuthority({
+      grant: ownerGrant,
       requestedScope: task.authorityScope ?? null,
       requestedTarget: task.authorityTarget ?? null,
       platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? selected.platformAuthorityScopes ?? [],
       capabilityScopes: capabilityAuthorityScopes,
     }) : null;
-    if (authorityDecision && !authorityDecision.authorized) return waitingWithRecovery(authorityDecision.reason, task, ranked, { authorityDecision });
-    if (authorityDecision?.confirmationRequired) return waitingWithRecovery("owner-confirmation-required", task, ranked, { authorityDecision });
     const billingDecision = Object.freeze({
       required: zeroMarginalRequired,
       effectiveClass: selected.billingClass,
       eligible: zeroMarginalEligible(selected, context),
     });
+    const authorityDecision = createAuthorityDecision({
+      ownerGrant, task, candidate: selected, ownerDecision, providerDecision, creditFreeDecision,
+      billingDecision, context,
+    });
+
+    if (authorityDecision.decision !== "allow") {
+      const authorityReason = ownerDecision?.authorized === false
+        ? ownerDecision.reason
+        : ownerDecision?.confirmationRequired === true
+          ? "owner-confirmation-required"
+          : authorityDecision.reasonCodes[0] ?? "authority-hold";
+      return waitingWithRecovery(authorityReason, task, ranked, {
+        authorityDecision, billingDecision,
+        ...(providerDecision ? { providerDecision } : {}),
+        ...(creditFreeDecision ? { creditFreeDecision } : {}),
+      });
+    }
+
     const route = {
       status: "routable",
       reason: null,
@@ -51,7 +101,7 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       decision: selected,
       alternates: candidates.slice(1),
       billingDecision,
-      ...(authorityDecision ? { authorityDecision } : {}),
+      authorityDecision,
     };
     const withProvider = providerDecision ? { ...route, providerDecision } : route;
     return creditFreeDecision ? { ...withProvider, creditFreeDecision } : withProvider;
