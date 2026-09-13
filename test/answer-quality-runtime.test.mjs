@@ -9,7 +9,7 @@ const PRIMARY_TOKEN = "answer-quality-primary-token-000000000001";
 const AUTH = { authorization: `Bearer ${PRIMARY_TOKEN}` };
 const TEST_VAULT_KEY = Buffer.alloc(32, 21);
 
-test("chat answers route only to the dedicated question model instead of acknowledgement-only local core", async (t) => {
+test("chat answers route only to dedicated answer workers and prefer zero-credit before licensed question model", async (t) => {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-answer-quality-"));
   const runtime = await startRuntime({
     port: 0,
@@ -29,7 +29,7 @@ test("chat answers route only to the dedicated question model instead of acknowl
   })).json();
 
   const task = runtime.database.getTask(submitted.task.id);
-  assert.deepEqual(task.allowedWorkerIds, ["question-model"]);
+  assert.deepEqual(task.allowedWorkerIds, ["codespaces-open-weight", "question-model"]);
   assert.equal(task.completionCriteria, "substantive-response");
   assert.equal(runtime.manifest.workers.find((item) => item.id === "local-core").capabilities.includes("assistant.respond"), false);
 });
