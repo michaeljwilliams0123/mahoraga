@@ -66,6 +66,9 @@ export function ConnectionsView({
             <div key={capability.capability}>
               <strong>{capability.capability}</strong>
               <span>{capabilitySummary(capability)}</span>
+              {!capability.routable && capability.routingReason && (
+                <span>Readiness reason · {capability.routingReason}</span>
+              )}
             </div>
           ))}
         </div>
