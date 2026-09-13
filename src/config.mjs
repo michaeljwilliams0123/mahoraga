@@ -10,8 +10,9 @@ export const ROOT = legacy.ROOT;
 export const MANIFEST_PATH = legacy.MANIFEST_PATH;
 export const MANIFEST_BACKUP_PATH = legacy.MANIFEST_BACKUP_PATH;
 
-export const CORE_OWNED_CLOUD_WORKERS = Object.freeze(["native-cloud-model", "cloud-browser"]);
+export const CORE_OWNED_CLOUD_WORKERS = Object.freeze(["codespaces-open-weight", "native-cloud-model", "cloud-browser"]);
 
+const ZERO_CREDIT_ANSWER_WORKER_ID = "codespaces-open-weight";
 const PROTOCOL_KEYS = new Set(["apiProtocol", "taskSchema", "workerContract", "relayProtocol", "capabilityRegistrySchema"]);
 const PROTOCOL_REVISION = /^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/;
 
@@ -41,7 +42,8 @@ export async function loadManifest(file = MANIFEST_PATH) {
   return manifest;
 }
 
-export function validateManifest(value) {
+export function validateManifest(input) {
+  const value = stripZeroCreditAnswerRuntime(input);
   if (!isRecord(value)) throw new TypeError("Manifest identity is invalid.");
   if (value.versions !== undefined) throw new TypeError("Legacy version registry is not allowed; use protocol revisions.");
   validateProtocols(value.protocols);
@@ -74,7 +76,7 @@ export function validateManifest(value) {
     delete worker.implementationRevision;
   }
   const validated = legacy.validateManifest(shadow);
-  return Object.freeze(normalizeManifestCompatibility(validated));
+  return Object.freeze(applyZeroCreditAnswerRuntime(normalizeManifestCompatibility(validated)));
 }
 
 export function normalizeManifestCompatibility(value, identity = null) {
@@ -110,6 +112,48 @@ export function normalizeManifestCompatibility(value, identity = null) {
   return applyGoogleCapabilityManifest(next);
 }
 
+function applyZeroCreditAnswerRuntime(value) {
+  const next = structuredClone(value);
+  next.costModes = { ...next.costModes, "zero-credit": ["deterministic", "local-model", "cloud-open-weight"] };
+  if (!next.workers.some((worker) => worker.id === ZERO_CREDIT_ANSWER_WORKER_ID)) {
+    next.workers.push({
+      id: ZERO_CREDIT_ANSWER_WORKER_ID,
+      label: "Zero-Credit Cloud Answer",
+      implementationRevision: "open-weight-adapter-1",
+      enabled: true,
+      costClass: "cloud-open-weight",
+      dataClasses: ["synthetic", "personal", "local-only"],
+      capabilities: ["assistant.health", "assistant.respond"],
+      acceptedTaskTypes: ["assistant"],
+      timeoutMs: 120000,
+      concurrency: 1,
+      healthProbe: "assistant.health",
+      capabilityCanaries: { "assistant.health": "health", "assistant.respond": "provider-derived" },
+      billingClassByCapability: { "assistant.health": "deterministic-zero", "assistant.respond": "deterministic-zero" },
+      executionPlane: "cloud-open-weight",
+      routing: {
+        interfaceType: "native-api",
+        permissionClass: "bounded-zero-credit-model",
+        reliability: 92,
+        requiresAttendedDesktop: false,
+        executionType: "remote-provider",
+        latencyMs: 750,
+        maximumWorkload: 1,
+        fallbackWorkerIds: [],
+      },
+    });
+  }
+  return next;
+}
+
+function stripZeroCreditAnswerRuntime(value) {
+  if (!isRecord(value)) return value;
+  const next = structuredClone(value);
+  if (isRecord(next.costModes)) delete next.costModes["zero-credit"];
+  if (Array.isArray(next.workers)) next.workers = next.workers.filter((worker) => worker?.id !== ZERO_CREDIT_ANSWER_WORKER_ID);
+  return next;
+}
+
 function validateBillingClassMap(value, capabilities) {
   if (value === undefined) return;
   if (!isRecord(value)) throw new TypeError("Worker billing class map is invalid.");
@@ -117,11 +161,8 @@ function validateBillingClassMap(value, capabilities) {
   const declared = [...capabilities].sort();
   if (keys.length !== declared.length || keys.some((key, index) => key !== declared[index])) throw new TypeError("Worker billing class map must cover every capability exactly.");
   for (const billingClass of Object.values(value)) {
-    try {
-      validateBillingClass(billingClass);
-    } catch {
-      throw new TypeError("Worker billing class is invalid.");
-    }
+    try { validateBillingClass(billingClass); }
+    catch { throw new TypeError("Worker billing class is invalid."); }
   }
 }
 
@@ -136,9 +177,7 @@ function boundedRevision(value, name) {
   if (typeof value !== "string" || !PROTOCOL_REVISION.test(value)) throw new TypeError(`${name} is invalid.`);
 }
 
-function isRecord(value) {
-  return value !== null && typeof value === "object" && !Array.isArray(value);
-}
+function isRecord(value) { return value !== null && typeof value === "object" && !Array.isArray(value); }
 
 async function stageManifestRecoveryCandidate(error) {
   try {
@@ -146,13 +185,8 @@ async function stageManifestRecoveryCandidate(error) {
     await mkdir(directory, { recursive: true });
     const file = path.join(directory, `manifest-recovery-${Date.now()}-${process.pid}.json`);
     const candidate = {
-      kind: "core-source-repair",
-      relative: "mahoraga.manifest.json",
-      baseline: path.relative(ROOT, MANIFEST_BACKUP_PATH),
-      stagedAt: new Date().toISOString(),
-      verificationRequired: true,
-      activationAuthority: "mahoraga-verified-automatic",
-      rollbackRequired: true,
+      kind: "core-source-repair", relative: "mahoraga.manifest.json", baseline: path.relative(ROOT, MANIFEST_BACKUP_PATH),
+      stagedAt: new Date().toISOString(), verificationRequired: true, activationAuthority: "mahoraga-verified-automatic", rollbackRequired: true,
       reason: String(error?.code ?? error?.name ?? "manifest-invalid").slice(0, 80),
     };
     await writeFile(file, `${JSON.stringify(candidate, null, 2)}\n`, "utf8");
