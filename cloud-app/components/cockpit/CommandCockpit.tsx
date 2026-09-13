@@ -126,20 +126,28 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
+            <span className="cockpit-pill ok">CONVERGED_#460</span>
           </div>
         </header>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
           <h3>CONVERGENCE</h3>
-          <p>Windows PowerShell PID collision fixed on main (#460 / #388). Helper param is ProcessId. Cloud UI only — Windows production stays 3.6.0.</p>
+          <p>
+            Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
+            UI lane only — Windows production stays 3.6.0.
+          </p>
           <dl>
             <div>
               <dt>candidate</dt>
               <dd>7.0.0-alpha.2</dd>
             </div>
             <div>
-              <dt>merged</dt>
-              <dd>PR 460</dd>
+              <dt>surface</dt>
+              <dd>PR 461</dd>
+            </div>
+            <div>
+              <dt>runtime fix</dt>
+              <dd>PR 460 ProcessId</dd>
             </div>
             <div>
               <dt>windows runtime</dt>
