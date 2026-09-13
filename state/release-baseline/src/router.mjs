@@ -144,7 +144,18 @@ function creditFreeGate(task, context) {
 }
 
 function zeroCreditDecision(task, context) {
-  return context.providerPolicy === "zero-credit" && isAutonomySelfUpgrade(task) ? selectZeroCreditProvider(context) : null;
+  const zeroCreditRequested = context.providerPolicy === "zero-credit" || task?.requestedMode === "zero-credit";
+  if (!zeroCreditRequested) return null;
+  if (!isAutonomySelfUpgrade(task) && !isZeroCreditAnswer(task)) return null;
+  return selectZeroCreditProvider({
+    providers: context.providers ?? [],
+    cloudModeEnabled: context.cloudModeEnabled === true,
+    requiresGeneration: context.requiresGeneration === true || isZeroCreditAnswer(task),
+  });
+}
+
+function isZeroCreditAnswer(task) {
+  return task?.capability === "assistant.respond" && task?.requestedMode === "zero-credit";
 }
 
 function isAutonomySelfUpgrade(task) {
