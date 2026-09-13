@@ -18,6 +18,7 @@ type CapabilityLike = {
   provider?: string;
   canary?: string;
   routingReason?: string | null;
+  providerReasonCode?: string | null;
   evidenceLevel?: string;
   lastObservedAt?: string | null;
   lastVerifiedAt?: string | null;
@@ -31,7 +32,7 @@ export function projectInteractionReadiness(capabilities: CapabilityLike[] | nul
     workerId: route?.workerId ?? route?.workerIds?.[0] ?? null,
     provider: route?.provider ?? "unknown",
     canary: route?.canary ?? "never",
-    reason: route?.routable === true ? null : route?.routingReason ?? "route-unavailable",
+    reason: route?.routable === true ? null : route?.providerReasonCode ?? route?.routingReason ?? "route-unavailable",
     evidenceLevel: route?.evidenceLevel ?? "unknown",
     lastObservedAt: route?.lastObservedAt ?? null,
     lastVerifiedAt: route?.lastVerifiedAt ?? null,
