@@ -2,6 +2,7 @@
 
 import { Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { projectFreeTierAdmission } from "@/lib/free-tier-admission";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
@@ -10,6 +11,7 @@ import { CockpitView } from "./cockpit/CockpitView";
 import { ConnectionsView } from "./workspace/connections-view";
 import { FilesView } from "./workspace/files-view";
 import { OperationsView } from "./workspace/operations-view";
+import { QuotaAdmissionStatus } from "./workspace/quota-admission-status";
 import { WorkView } from "./workspace/work-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
 import type { BrainState, ChatCreditPolicy, Health, QuickAction, QuickActionId, RelayState, Starter, TaskMode, WorkspaceMessage, WorkspaceView } from "./workspace/workspace-types";
@@ -88,6 +90,7 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
+  const freeTierAdmission = useMemo(() => projectFreeTierAdmission(runtimeCapabilities), [runtimeCapabilities]);
   const brainState: BrainState = new Set<RelayState>(["pairing", "resuming"]).has(relayState)
     ? "Connecting"
     : coreReady
@@ -376,40 +379,43 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={coreReady} onNewConversation={resetConversation}>
-      {view === "chat" && (
-        <ChatView
-          messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
-          busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
-          relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
-          activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
-          bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
-          addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
-          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
-        />
-      )}
+    <>
+      {view === "chat" && <QuotaAdmissionStatus admission={freeTierAdmission} />}
+      <WorkspaceShell view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={coreReady} onNewConversation={resetConversation}>
+        {view === "chat" && (
+          <ChatView
+            messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
+            busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
+            relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
+            activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
+            bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
+            addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
+            stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
+          />
+        )}
 
-      {view === "work" && <WorkView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} onRunQuickAction={runQuickAction} />}
+        {view === "work" && <WorkView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} onRunQuickAction={runQuickAction} />}
 
-      {view === "files" && <FilesView files={files} totalBytes={totalBytes} fileInput={fileInput} addFiles={addFiles} setFiles={setFiles} onBackToChat={() => navigate("chat")} />}
+        {view === "files" && <FilesView files={files} totalBytes={totalBytes} fileInput={fileInput} addFiles={addFiles} setFiles={setFiles} onBackToChat={() => navigate("chat")} />}
 
-      {view === "advanced" && (
-        <>
-          <header className="topbar advanced-topbar">
-            <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
-            <div><span className="one-kicker">Advanced</span><strong>Mahoraga internals</strong></div>
-            <span className={coreReady ? "brain-status ready" : "brain-status"}>{coreReady ? "Brain connected" : "Unpaired"}</span>
-          </header>
-          <div className="advanced-stack">
-            <ConnectionsView coreReady={coreReady} health={health} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onDisconnect={revokeRuntime} />
-            <OperationsView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} />
-            <details className="legacy-detail">
-              <summary>Deep control center</summary>
-              <CockpitView coreReady={coreReady} health={health} healthError={healthError} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onOpenOperations={() => navigate("advanced")} onOpenConnections={() => navigate("advanced")} />
-            </details>
-          </div>
-        </>
-      )}
-    </WorkspaceShell>
+        {view === "advanced" && (
+          <>
+            <header className="topbar advanced-topbar">
+              <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
+              <div><span className="one-kicker">Advanced</span><strong>Mahoraga internals</strong></div>
+              <span className={coreReady ? "brain-status ready" : "brain-status"}>{coreReady ? "Brain connected" : "Unpaired"}</span>
+            </header>
+            <div className="advanced-stack">
+              <ConnectionsView coreReady={coreReady} health={health} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onDisconnect={revokeRuntime} />
+              <OperationsView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} />
+              <details className="legacy-detail">
+                <summary>Deep control center</summary>
+                <CockpitView coreReady={coreReady} health={health} healthError={healthError} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onOpenOperations={() => navigate("advanced")} onOpenConnections={() => navigate("advanced")} />
+              </details>
+            </div>
+          </>
+        )}
+      </WorkspaceShell>
+    </>
   );
 }
