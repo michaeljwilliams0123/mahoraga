@@ -2,7 +2,7 @@ import { classifyTaskIntent } from "./task-intent.mjs";
 
 const RECOVERABLE_ROUTE_REASONS = new Set([
   "canary-stale", "canary-never-run", "provider-unavailable", "provider-degraded", "provider-unknown",
-  "routing-evidence-missing", "process-starting", "process-stale", "process-stopped", "process-crashed",
+  "routing-evidence-missing", "process-starting", "process-stale", "process-stopped", "process-crashed", "process-not-live",
 ]);
 const FOLLOW_UP = /\b(?:above|that|those|previous|prior|earlier|same|continue|now compare|summarize it|summarize the above)\b/i;
 const MICROSOFT = /\b(?:microsoft\s*365|m365|outlook|sharepoint|one\s*drive|onedrive|teams|excel|word|powerpoint|copilot)\b/i;
