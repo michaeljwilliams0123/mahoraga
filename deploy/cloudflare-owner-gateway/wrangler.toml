@@ -4,4 +4,4 @@ compatibility_date = "2026-09-01"
 
 [vars]
 MAHORAGA_CLOUD_OWNER_ID = "owner@example.invalid"
-MAHORAGA_FLY_ORIGIN = "https://mahoraga-owner-runtime.fly.dev/"
+MAHORAGA_RUNTIME_ORIGIN = "https://mahoraga-runtime-main-production.up.railway.app/"
