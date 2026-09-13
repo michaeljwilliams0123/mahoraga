@@ -11,7 +11,11 @@ const baselineOpenWorkspace = readFileSync(join(root, "state/release-baseline/sc
 const runtimeTest = readFileSync(join(root, "test/runtime.test.mjs"), "utf8");
 const cloudRuntimeTest = readFileSync(join(root, "test/canonical-cloud-runtime.test.mjs"), "utf8");
 
-const pagesUrl = "https://michaeljwilliams0123.github.io/mahoraga/";
+const pagesHost = "michaeljwilliams0123.github.io";
+const pagesPath = "/mahoraga";
+const pagesDefaultPattern = new RegExp(
+  String.raw`${pagesHost.replaceAll(".", "\\.")}${pagesPath}/?`
+);
 
 for (const [label, source] of [
   ["runtime server", runtimeServer],
@@ -20,7 +24,7 @@ for (const [label, source] of [
   ["release-baseline workspace opener", baselineOpenWorkspace],
 ]) {
   test(`${label} does not make GitHub Pages the default workspace origin`, () => {
-    assert.equal(source.includes(pagesUrl), false);
+    assert.equal(pagesDefaultPattern.test(source), false);
   });
 }
 
