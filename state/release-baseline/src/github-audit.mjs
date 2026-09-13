@@ -37,7 +37,7 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
   const canonicalWorkspaceFiles = [
     "cloud-app/app/page.tsx",
     "cloud-app/components/workspace.tsx",
-    "cloud-app/vercel.json",
+    "cloud-app/lib/runtime-relay.ts",
     ".github/workflows/pages.yml",
   ];
   const retiredWorkspaceFiles = [

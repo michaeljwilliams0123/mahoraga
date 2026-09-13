@@ -67,7 +67,7 @@ test("successful sovereign verification explicitly dispatches trusted integratio
   assert.match(verify, /needs:\s*\[verify\]/);
   assert.doesNotMatch(verify, /dispatch-sovereign-integration:\s*\n\s+needs:\s*\[verify, workspace\]/);
   assert.doesNotMatch(verify, /workspace:\s*\n\s+name: Verify unified Vercel workspace/);
-  assert.match(verify, /Dedicated Vercel\/workspace verification is intentionally frozen/);
+  assert.match(verify, /Vercel production deployment is retired/);
   assert.match(verify, /Ubuntu \+ Windows only/);
   assert.match(verify, /github\.event_name == 'workflow_dispatch'/);
   assert.match(verify, /startsWith\(github\.ref_name, 'feature\/sovereign-'\)/);

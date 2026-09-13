@@ -55,10 +55,9 @@ jobs:
         shell: bash
         run: node scripts/github-audit.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
 
-  # Dedicated Vercel/workspace verification is intentionally frozen while
-  # Vercel capacity is unavailable. Required repository verification remains
-  # Ubuntu + Windows only. Local static Vercel boundary tests may still run
-  # inside `npm run verify`; they do not call Vercel or consume Vercel credits.
+  # Vercel production deployment is retired. Required repository verification
+  # remains Ubuntu + Windows only; historical Vercel references are documentation
+  # and must not recreate a deployment or provider-credit path.
 
   dispatch-sovereign-integration:
     needs: [verify]
