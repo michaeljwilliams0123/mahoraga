@@ -92,9 +92,9 @@ test("verified worker quota evidence reaches the live capability projection", (t
       verified: true,
       summary: "Free-tier worker ready.",
       providerHealth: {
-        resourceEconomyAttestationByCapability: {
-          "system.health": { status: "available", observedAt: NOW, expiresAt: EXPIRES },
-        },
+        resourceEconomyAttestations: [
+          { capability: "system.health", status: "available", observedAt: NOW, expiresAt: EXPIRES },
+        ],
       },
     }, { observedAt: NOW }),
   });
