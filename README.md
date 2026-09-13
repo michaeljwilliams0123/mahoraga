@@ -11,7 +11,7 @@
 
 ## Current review baseline
 
-This README was reconciled against protected `main` on **2026-09-13** at source commit `f438e57357a5f8183687360364d2644734d54657` (PR #453). The SHA is an audit anchor for this documentation pass, not a permanent claim that `main` will remain at that commit.
+This README was reconciled against protected `main` on **2026-09-13** through PR **#454** at `251ae071b72e196b6d0ee047c3cac85c5ae9bf1b`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there.
 
 At that review point:
 
@@ -108,6 +108,41 @@ The backend contract is now materially stronger than the older README described:
 
 Older architecture milestones remain important, but the README no longer treats a very long historical PR list as current-state documentation. Use Git history, the architecture specs, and the issue tracker for full chronology.
 
+<details>
+<summary><strong>Current reconciliation commit ledger (#405 → #454)</strong></summary>
+
+This collapsed ledger records every main commit in the current identity/architecture reconciliation window before this docs-only follow-up. Git history remains authoritative.
+
+- `251ae07` — docs(readme): reconcile current architecture, Railway state, and live gates (#454)
+- `f438e57` — fix(railway): make mounted state volume writable without running Mahoraga as root (#453)
+- `5750b04` — docs: reconcile Mahoraga current source truth (#450)
+- `aeb8e0f` — feat: cloud zero-credit answer acceptance vertical (#445)
+- `e63017d` — feat(ui): surface precise provider readiness reasons (#441)
+- `6f48d11` — test(relay): add encrypted communication simulator (#435)
+- `3ea9a2b` — fix(runtime): preserve provider readiness reasons (#432)
+- `e8dcdec` — feat(authority): add canonical AuthorityDecision envelope (#430)
+- `696b09c` — fix(runtime): preserve relay token in production startup (#431)
+- `6d7a201` — feat(fabric): require free-tier quota admission (#380)
+- `2d35016` — fix(workspace): stop treating Pages as the default origin (#416)
+- `b152391` — fix(operator): remove stale public-repo wording (#421)
+- `f440658` — feat(ui): expose interaction readiness in 7.0.0-alpha.2 workspace
+- `823a63e` — fix(runtime): expose interaction readiness (#425)
+- `0cb57ed` — docs(architecture): lock personal sovereign evolution model (#426)
+- `0fd4fc4` — fix(cloud): enforce deployment provenance in readiness (#424)
+- `aa58715` — fix(cloud): add startup provenance diagnostics (#423)
+- `448af24` — feat(studio): validate connected-agent routing descriptions (#420)
+- `189b522` — fix(studio): synchronize specialist display names safely (#419)
+- `57ea67d` — fix(cloud): isolate production core port from inherited env (#417)
+- `f83ef45` — fix(operator): align live Protect main ruleset ID (#411)
+- `2f39397` — feat(studio): add bounded production PAC sync adapter (#402)
+- `2961a6b` — fix(cloud): guard supervisor shutdown before idle timer init (#408)
+- `702881e` — fix(runtime): persist quota backoff against active state root (#403)
+- `fa3b43b` — docs(repo): align private-repo governance with live GitHub state (#406)
+- `9ce6835` — Fix convergence with centralized candidate state (#404)
+- `142c342` — fix(identity): keep runtime-facing product name unversioned (#405)
+
+</details>
+
 ## Zero-credit answer admission
 
 Mahoraga's zero-credit path is evidence-driven, not label-driven.
@@ -163,7 +198,7 @@ Mahoraga itself does **not** run as root. The root bootstrap exists only to esta
 
 > **Time-sensitive snapshot — 2026-09-13.** This subsection records what was observed while updating the README. It is not a promise that deployment state remains unchanged after the documentation commit.
 
-- GitHub protected `main`: `f438e57357a5f8183687360364d2644734d54657` (PR #453 merged).
+- GitHub protected `main` at the second-pass source check: `251ae071b72e196b6d0ee047c3cac85c5ae9bf1b` (PR #454 merged).
 - Railway canonical service: `mahoraga-runtime-main`.
 - Railway volume: mounted at `/var/lib/mahoraga`.
 - Latest Railway deployment observed during the review: **DEPLOYING**, but still tied to older source commit `5750b04b4281509b7533f46a571265aaff52411d` rather than the then-current GitHub head.
