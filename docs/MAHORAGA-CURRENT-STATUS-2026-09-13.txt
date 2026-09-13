@@ -1,0 +1,70 @@
+Mahoraga Current Status Update
+Date: 2026-09-13
+Repository: michaeljwilliams0123/mahoraga
+
+PURPOSE
+This document updates the repository snapshot represented in the prior Mahoraga autonomous adapter export and reconciles it to the live GitHub state observed on 2026-09-13.
+
+CURRENT SOURCE TRUTH
+- Canonical repository: michaeljwilliams0123/mahoraga
+- Canonical branch: main
+- Current main SHA: aeb8e0f7a9aed81f45eb2e990b723048c660aee2
+- Repository visibility observed live: PUBLIC
+- Product identity: Mahoraga
+- Semantic versions remain build/provenance metadata rather than product names.
+- Repository state does not prove live Windows/runtime state. Live production claims still require fresh runtime evidence.
+- GitHub remains the immutable evolution ledger/source authority, not the live brain.
+
+IMPORTANT CORRECTION TO THE PRIOR SNAPSHOT
+The prior repository snapshot stated that the repository was private. GitHub currently reports the repository as public. This is a repository-visibility fact only and must not be interpreted as expanded runtime, Microsoft, relay, deployment, credential, or execution authority.
+
+LATEST ACCEPTANCE-VERTICAL CHANGE
+PR #445, "feat: cloud zero-credit answer acceptance vertical", is now MERGED.
+Merge commit: aeb8e0f7a9aed81f45eb2e990b723048c660aee2
+
+The merged work establishes the executable zero-credit answer path around:
+cloud UI/request
+-> authenticated/encrypted relay
+-> canonical AuthorityDecision
+-> verified zero-credit provider admission
+-> real model execution through an admitted zero-credit route
+-> optional bounded tool/capability routing
+-> durable task/event/result persistence
+-> returned answer
+
+The zero-credit policy remains fail-closed. No automatic paid/licensed fallback is authorized.
+
+GOVERNANCE / MERGE AUTHORITY
+For protected Mahoraga main:
+- squash merge only for stewarded merges;
+- exact-head Verify (ubuntu-latest) and Verify (windows-latest) are required before merge;
+- current-base freshness must be satisfied;
+- drafts, stale/conflicted PRs, failing or pending required checks, unresolved blocking reviews, unattributed changes, credential exposure, destructive changes, and unapproved metered/paid model spend are not eligible;
+- repository rules must never be bypassed;
+- no force-push to protected main;
+- transient CI infrastructure failures may be rerun once, but code must not be modified merely to make CI green;
+- an issue is closed only when acceptance criteria are actually satisfied or the issue is demonstrably duplicate/superseded.
+
+ZERO-INCREMENTAL-COST DEFAULT
+Mahoraga continues to prefer deterministic-zero, local-model, verified cloud-open-weight, or other explicitly zero-dollar routes. Metered/paid model execution remains blocked unless the owner separately authorizes spend.
+
+SOVEREIGN AUTHORITY MODEL
+Provider discovery, manifest enablement, or repository visibility does not grant execution authority. A route must still satisfy current authority, identity, health, billing/cost, evidence, canary/readiness, and capability constraints. Public callers must not be able to self-assert provider authority or trusted zero-credit routing state.
+
+RUNTIME / RELEASE TRUTH
+- Source truth, deployment truth, and live-runtime truth remain separate.
+- Windows production should not be inferred from repository state alone.
+- Candidate activation still belongs to the governed release/evolution channel with canary, checkpoint, rollback, and fresh live-host evidence.
+- Rollback/provenance boundaries remain mandatory.
+- The repository continues to preserve durable state, idempotency, crash recovery, typed receipts, repair baselines, and owner stop/override authority.
+
+CURRENT README DISCREPANCY
+The README currently contains stale language describing the repository as private, while the live GitHub repository reports visibility as public. This status update is intended to preserve the observed truth until the README wording is reconciled through normal protected-main governance.
+
+STEWARDING STATUS
+PR #445 is complete and merged. Remaining PRs must be independently classified against the same merge gates; no PR is eligible merely because related work landed elsewhere.
+
+TRACKING RULE
+Scheduled jobs should communicate only meaningful state transitions: auto-merge enabled, PR merged, CI rerun, issue retired/closed, new P0/blocker, or owner authority required. Internal status should be recorded in PRs/issues or other repository tracking surfaces to support continuity between scheduled runs.
+
+END OF UPDATE
