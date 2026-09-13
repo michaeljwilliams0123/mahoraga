@@ -8,6 +8,8 @@ $pidPath = Join-Path $state 'runtime.pid'
 $stdout = Join-Path $state 'runtime.out.log'
 $stderr = Join-Path $state 'runtime.err.log'
 $userProfile = [Environment]::GetFolderPath('UserProfile')
+$runtimeHome = Join-Path $userProfile '.mahoraga-runtime'
+$relaySecretFile = Join-Path $runtimeHome 'secrets\relay-token.dpapi'
 $node = Join-Path $userProfile '.cache\codex-runtimes\codex-primary-runtime\dependencies\node\bin\node.exe'
 $healthUrl = 'http://127.0.0.1:4782/api/status'
 $manifest = Get-Content -Raw -LiteralPath (Join-Path $root 'mahoraga.manifest.json') | ConvertFrom-Json
@@ -25,6 +27,16 @@ if (-not (Test-Path -LiteralPath $node -PathType Leaf)) {
 
 New-Item -ItemType Directory -Path $state -Force | Out-Null
 
+function Read-RelayToken {
+    if (-not (Test-Path -LiteralPath $relaySecretFile -PathType Leaf)) { return $null }
+    $ciphertext = (Get-Content -Raw -LiteralPath $relaySecretFile).Trim()
+    if (-not $ciphertext) { throw 'Stored relay token is empty.' }
+    $secureToken = ConvertTo-SecureString $ciphertext
+    $relayToken = [System.Net.NetworkCredential]::new('', $secureToken).Password
+    if ($relayToken -notmatch '^[A-Za-z0-9_-]{32,256}$') { throw 'Stored relay token is invalid.' }
+    return $relayToken
+}
+
 $existing = $null
 try {
     $existing = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
@@ -40,13 +52,23 @@ if ($existing -and $existing.product -eq 'Mahoraga') {
     Start-Sleep -Milliseconds 500
 }
 
-$process = Start-Process -FilePath $node `
-    -ArgumentList @('src\cli.mjs','start') `
-    -WorkingDirectory $root `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput $stdout `
-    -RedirectStandardError $stderr `
-    -PassThru
+$relayToken = Read-RelayToken
+$previousRelayToken = $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN
+try {
+    if ($relayToken) { $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN = $relayToken }
+    else { Remove-Item Env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN -ErrorAction SilentlyContinue }
+    $process = Start-Process -FilePath $node `
+        -ArgumentList @('src\cli.mjs','start') `
+        -WorkingDirectory $root `
+        -WindowStyle Hidden `
+        -RedirectStandardOutput $stdout `
+        -RedirectStandardError $stderr `
+        -PassThru
+} finally {
+    $relayToken = $null
+    if ($null -ne $previousRelayToken) { $env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN = $previousRelayToken }
+    else { Remove-Item Env:MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN -ErrorAction SilentlyContinue }
+}
 
 Set-Content -LiteralPath $pidPath -Value $process.Id -Encoding ascii
 
