@@ -1,0 +1,1 @@
+Current status pointer: see docs/MAHORAGA-CURRENT-STATUS-2026-09-13.md and docs/MAHORAGA-CURRENT-STATUS-2026-09-13.txt. These reconcile the prior snapshot with the live repository state without bypassing protected-main governance.
