@@ -51,7 +51,12 @@ test("capability index keeps process liveness separate from verified readiness",
 test("routing requires a fresh canary and returns the precise block reason", async () => {
   const manifest = await loadManifest();
   const blocked = routeTask(manifest, policyTask(), { workerStates: [workerState({ canaryStatus: "never" })], now: NOW });
-  assert.deepEqual(blocked, { status: "waiting", reason: "canary-never-run", worker: null });
+  assert.equal(blocked.status, "waiting");
+  assert.equal(blocked.reason, "canary-never-run");
+  assert.equal(blocked.worker, null);
+  assert.equal(blocked.authorityDecision.kind, "authority-decision-v1");
+  assert.equal(blocked.authorityDecision.decision, "hold");
+  assert.deepEqual(blocked.authorityDecision.reasonCodes, ["canary-never-run"]);
   const route = routeTask(manifest, policyTask(), { workerStates: [workerState()], now: NOW });
   assert.equal(route.status, "routable");
   assert.equal(route.worker.id, "local-core");
@@ -61,7 +66,12 @@ test("routing requires a fresh canary and returns the precise block reason", asy
 test("server-derived worker authority is enforced by routing", async () => {
   const manifest = await loadManifest();
   const result = routeTask(manifest, policyTask({ allowedWorkerIds: ["repair-worker"] }), { workerStates: [workerState()], now: NOW });
-  assert.deepEqual(result, { status: "waiting", reason: "worker-not-authorized", worker: null });
+  assert.equal(result.status, "waiting");
+  assert.equal(result.reason, "worker-not-authorized");
+  assert.equal(result.worker, null);
+  assert.equal(result.authorityDecision.kind, "authority-decision-v1");
+  assert.equal(result.authorityDecision.decision, "hold");
+  assert.deepEqual(result.authorityDecision.reasonCodes, ["worker-not-authorized"]);
 });
 
 test("stale route exposes bounded adaptive recovery instead of a naked wait", async () => {
