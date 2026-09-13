@@ -34,7 +34,7 @@ const quickActions: QuickAction[] = [
   { id: "report", label: "Report", description: "Create a polished result from this work.", requiresCore: true, prompt: "Create a polished report from the current conversation and verified evidence. Lead with the answer, keep technical details behind a concise evidence section, and return any available artifact or download reference." },
   { id: "handoff", label: "Handoff", description: "Move the work to the right paired lane.", requiresCore: true, prompt: "Handoff the current objective to the best available paired person or execution lane. Preserve context, do not expose routing mechanics unless I ask, and tell me who has it and what happens next." },
   { id: "create", label: "Create", description: "Start a guided creation session.", requiresCore: true, prompt: "Start a guided creation session using the current context. Choose the appropriate creation capability and ask me only the next decision that materially changes the result." },
-  { id: "ship", label: "Ship", description: "Push the approved code update safely.", requiresCore: true, mode: "act", prompt: "Ship the current approved code update through Mahoraga's authoritative repository path. Inspect repository state, create or reuse a bounded feature branch, apply only the approved change, run focused and required verification, open or update the pull request, and merge only when the repository's normal gates are green. Do not use Codex for code review. Treat Vercel as non-blocking. Return the exact branch, pull request, verification state, commit, and merge evidence." },
+  { id: "ship", label: "Ship", description: "Push the approved code update safely.", requiresCore: true, mode: "act", prompt: "Ship the current approved code update through Mahoraga's authoritative repository path. Inspect repository state, create or reuse a bounded feature branch, apply only the approved change, run focused and required verification, open or update the pull request, and merge only when the repository's normal gates are green. Do not use Codex for code review. Railway is the sole production workspace host; do not deploy to Vercel. Return the exact branch, pull request, verification state, commit, and merge evidence." },
 ];
 
 function readableBytes(bytes: number) {
@@ -72,6 +72,8 @@ export function Workspace() {
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
+  const [runtimeBillingHoldReason, setRuntimeBillingHoldReason] = useState<string | null>(null);
+  const [admissionNow, setAdmissionNow] = useState(() => Date.now());
   const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode } | null>(null);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [activeActionLabel, setActiveActionLabel] = useState<string | null>(null);
@@ -90,7 +92,10 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
-  const freeTierAdmission = useMemo(() => projectFreeTierAdmission(runtimeCapabilities), [runtimeCapabilities]);
+  const freeTierAdmission = useMemo(
+    () => projectFreeTierAdmission(runtimeCapabilities, admissionNow, runtimeBillingHoldReason),
+    [runtimeCapabilities, admissionNow, runtimeBillingHoldReason],
+  );
   const brainState: BrainState = new Set<RelayState>(["pairing", "resuming"]).has(relayState)
     ? "Connecting"
     : coreReady
@@ -116,6 +121,14 @@ export function Workspace() {
   }, []);
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, runtimeBusy]);
+  useEffect(() => { setAdmissionNow(Date.now()); }, [runtimeCapabilities]);
+  useEffect(() => {
+    const expiresAt = freeTierAdmission?.expiresAt ? Date.parse(freeTierAdmission.expiresAt) : NaN;
+    if (!Number.isFinite(expiresAt) || expiresAt <= admissionNow) return;
+    const delay = Math.max(1, Math.min(expiresAt - Date.now() + 25, 2_147_483_647));
+    const timer = window.setTimeout(() => setAdmissionNow(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [freeTierAdmission?.expiresAt, admissionNow]);
   useEffect(() => {
     const transport = new RuntimeRelay();
     let active = true;
@@ -155,6 +168,8 @@ export function Workspace() {
     activeRuntimeTask.current = null;
     setActiveActionLabel(null);
     setRuntimeError(null);
+    setRuntimeBillingHoldReason(null);
+    setAdmissionNow(Date.now());
     setLicensedRetry(null);
     setInput("");
     setFiles([]);
@@ -253,6 +268,7 @@ export function Workspace() {
     if (creditPolicy === "zero-codex") setLicensedRetry(null);
     setInput("");
     setRuntimeError(null);
+    setRuntimeBillingHoldReason(null);
     setRuntimeBusy(true);
     if (actionLabel) setActiveActionLabel(actionLabel);
     if (creditPolicy === "zero-codex") appendMessage("user", text);
@@ -276,7 +292,7 @@ export function Workspace() {
       const conversationId = result.conversation.id;
       setRuntimeConversationId(conversationId);
       activeRuntimeTask.current = result.task;
-      await pollRuntime(transport, conversationId, Boolean(result.task || result.objective), pollGeneration);
+      await pollRuntime(transport, conversationId, Boolean(result.task || result.objective), pollGeneration, result.task?.id ?? null);
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
@@ -301,13 +317,16 @@ export function Workspace() {
     setLicensedRetry(null);
     await submitCore(saved.text, saved.mode, null, "licensed-approved");
   }
-  async function pollRuntime(transport: RuntimeRelay, conversationId: string, expectsWork: boolean, pollGeneration: number) {
+
+  async function pollRuntime(transport: RuntimeRelay, conversationId: string, expectsWork: boolean, pollGeneration: number, submittedTaskId: string | null) {
     let sawTerminal = false;
     let sawResponse = false;
     for (let attempt = 0; attempt < 160; attempt += 1) {
       if (runtimePollGeneration.current !== pollGeneration) return;
       const [runtimeMessages, tasks] = await Promise.all([transport.messages(conversationId), transport.tasks(conversationId)]);
       if (await syncRuntimeMessages(transport, conversationId, runtimeMessages)) sawResponse = true;
+      const submittedTask = submittedTaskId ? tasks.find((task) => task.id === submittedTaskId) ?? null : null;
+      if (submittedTask?.errorCode === "billing-not-zero-credit") setRuntimeBillingHoldReason("billing-not-zero-credit");
       activeRuntimeTask.current = tasks.find((task) => ACTIVE_TASK_STATES.has(task.status)) ?? null;
       sawTerminal ||= tasks.some((task) => TERMINAL_TASK_STATES.has(task.status));
       if (!activeRuntimeTask.current && (sawTerminal || (sawResponse && !expectsWork))) return;
