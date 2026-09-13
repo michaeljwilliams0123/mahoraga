@@ -29,7 +29,11 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     }
 
     const ranked = rankRoutes(manifest, task, context);
-    const zeroMarginalRequired = context.providerPolicy === "zero-credit" || context.providerPolicy === "credit-free" || context.creditFreeRequired === true || task?.creditFreeRequired === true;
+    const zeroMarginalRequired = context.providerPolicy === "zero-credit"
+      || context.providerPolicy === "credit-free"
+      || context.creditFreeRequired === true
+      || task?.creditFreeRequired === true
+      || task?.requestedMode === "zero-credit";
     const normalizedCandidates = ranked.candidates.map(normalizeCandidateBilling);
     const preBillingCandidates = normalizedCandidates
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
