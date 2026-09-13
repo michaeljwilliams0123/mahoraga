@@ -6,7 +6,7 @@ import { test } from "node:test";
 const root = process.cwd();
 const projector = readFileSync(join(root, "lib/free-tier-admission.ts"), "utf8");
 const status = readFileSync(join(root, "components/workspace/quota-admission-status.tsx"), "utf8");
-const page = readFileSync(join(root, "app/page.tsx"), "utf8");
+const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
 
 test("workspace models free-tier quota admission evidence", () => {
   assert.match(projector, /FreeTierAdmission/);
@@ -21,5 +21,6 @@ test("workspace models free-tier quota admission evidence", () => {
 test("workspace shows quota state and zero-cost holds", () => {
   assert.match(status, /Cost route/);
   assert.match(status, /Routing held to protect zero-cost execution/);
-  assert.match(page, /QuotaAdmissionStatus/);
+  assert.match(workspace, /QuotaAdmissionStatus/);
+  assert.match(workspace, /projectFreeTierAdmission/);
 });
