@@ -119,3 +119,27 @@ test("self-healer protects provider-neutral economy dependencies", () => {
   assert.equal(ESSENTIAL_FILES.includes("src/resource-economy.mjs"), true);
   assert.equal(ESSENTIAL_FILES.includes("src/microsoft-usage-cost.mjs"), true);
 });
+
+
+test("free-tier quota admission is reflected in canonical authority decisions", () => {
+  const routeTask = router();
+  const blocked = routeTask(manifest(), task, { providerPolicy: "zero-credit", now: NOW });
+  assert.equal(blocked.authorityDecision.kind, "authority-decision-v1");
+  assert.equal(blocked.authorityDecision.decision, "hold");
+  assert.deepEqual(blocked.authorityDecision.reasonCodes, ["billing-not-zero-credit"]);
+
+  const admitted = routeTask(manifest(), task, {
+    providerPolicy: "zero-credit",
+    now: NOW,
+    resourceEconomyAttestationByWorkerId: {
+      [WORKER_ID]: {
+        [CAPABILITY]: {
+          status: "available",
+          observedAt: "2026-09-12T04:14:30.000Z",
+          expiresAt: "2026-09-12T04:20:00.000Z",
+        },
+      },
+    },
+  });
+  assert.equal(admitted.authorityDecision.decision, "allow");
+});

@@ -36,9 +36,11 @@ test("local deterministic work routes to an enabled isolated worker", async () =
 
 test("enterprise and unavailable capabilities wait without crossing boundaries", async () => {
   const manifest = await loadManifest();
-  assert.deepEqual(routeTask(manifest, { capability: "m365.reason", dataClass: "enterprise", requestedMode: "local" }), {
-    status: "waiting", reason: "no-enabled-worker", worker: null,
-  });
+  const blocked = routeTask(manifest, { capability: "m365.reason", dataClass: "enterprise", requestedMode: "local" });
+  assert.equal(blocked.status, "waiting");
+  assert.equal(blocked.reason, "no-enabled-worker");
+  assert.equal(blocked.worker, null);
+  assert.equal(blocked.authorityDecision.decision, "hold");
   assert.equal(routeTask(manifest, { capability: "system.health", dataClass: "local-only", requestedMode: "maximum" }, { workerStates: [verifiedWorkerState(manifest, "local-core")], now: NOW }).status, "routable");
 });
 
@@ -99,7 +101,8 @@ test("owner-authorized Copilot invocation requires matching platform authority",
   });
   assert.equal(route.status, "routable");
   assert.equal(route.worker.id, "copilot-studio");
-  assert.equal(route.authorityDecision.authorized, true);
+  assert.equal(route.authorityDecision.decision, "allow");
+  assert.equal(route.authorityDecision.evidence.ownerAuthority.authorized, true);
 });
 
 test("owner-authorized capability waits when platform authority is absent", async () => {
@@ -127,7 +130,8 @@ test("existing tasks without authority scope keep their current routing behavior
     workerStates: [verifiedWorkerState(manifest, "local-core")], now: NOW,
   });
   assert.equal(route.status, "routable");
-  assert.equal(Object.hasOwn(route, "authorityDecision"), false);
+  assert.equal(route.authorityDecision.kind, "authority-decision-v1");
+  assert.equal(route.authorityDecision.decision, "allow");
 });
 
 test("missing owner authority stays non-recoverable", async () => {
@@ -160,14 +164,15 @@ test("Copilot Studio deploy requires the complete registered authority scope set
   });
   assert.equal(partial.status, "waiting");
   assert.equal(partial.reason, "platform-authority-missing");
-  assert.equal(partial.authorityDecision.authorized, false);
+  assert.equal(partial.authorityDecision.decision, "hold");
+  assert.equal(partial.authorityDecision.evidence.ownerAuthority.authorized, false);
 
   const complete = routeTask(manifest, task, {
     workerStates: [verifiedWorkerState(manifest, "copilot-studio")], now: NOW,
     platformAuthorityScopesByWorkerId: { "copilot-studio": ["connector.invoke", "deployment.request", "deployment.execute"] },
   });
   assert.equal(complete.status, "routable");
-  assert.deepEqual(complete.authorityDecision.requiredScopes, ["connector.invoke", "deployment.request", "deployment.execute"]);
+  assert.deepEqual(complete.authorityDecision.owner.requiredScopes, ["connector.invoke", "deployment.request", "deployment.execute"]);
 });
 
 test("registered privileged capability scopes cannot be bypassed by omitting task authorityScope", async () => {
@@ -177,4 +182,63 @@ test("registered privileged capability scopes cannot be bypassed by omitting tas
   const result = routeTask(manifest, task, { workerStates: [verifiedWorkerState(manifest, "copilot-studio")], now: NOW, platformAuthorityScopesByWorkerId: { "copilot-studio": [] } });
   assert.equal(result.status, "waiting");
   assert.equal(result.reason, "platform-authority-missing");
+});
+
+
+test("canonical authority decision denies missing owner scope", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  manifest.ownerAuthority.scopes = manifest.ownerAuthority.scopes.filter((scope) => scope !== "copilot.invoke");
+  const task = {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  };
+  const route = routeTask(manifest, task, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["connector.invoke", "copilot.invoke"] },
+  });
+  assert.equal(route.reason, "owner-authority-missing");
+  assert.equal(route.authorityDecision.decision, "deny");
+  assert.deepEqual(route.authorityDecision.reasonCodes, ["owner-authority-missing"]);
+});
+
+
+test("canonical authority decision holds platform authority gaps", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  const route = routeTask(manifest, {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  }, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": [] },
+  });
+  assert.equal(route.reason, "platform-authority-missing");
+  assert.equal(route.authorityDecision.decision, "hold");
+  assert.deepEqual(route.authorityDecision.reasonCodes, ["platform-authority-missing"]);
+});
+
+test("canonical authority decision holds owner confirmation requirements", async () => {
+  const manifest = structuredClone(await loadManifest());
+  manifest.workers.find((worker) => worker.id === "copilot-studio").enabled = true;
+  manifest.ownerAuthority.confirmationRequiredScopes = ["copilot.invoke"];
+  const route = routeTask(manifest, {
+    capability: "studio.delegate",
+    dataClass: "enterprise",
+    requestedMode: "maximum",
+    authorityScope: "copilot.invoke",
+  }, {
+    workerStates: [verifiedWorkerState(manifest, "copilot-studio")],
+    now: NOW,
+    platformAuthorityScopesByWorkerId: { "copilot-studio": ["connector.invoke", "copilot.invoke"] },
+  });
+  assert.equal(route.reason, "owner-confirmation-required");
+  assert.equal(route.authorityDecision.decision, "hold");
+  assert.deepEqual(route.authorityDecision.reasonCodes, ["owner-confirmation-required"]);
 });
