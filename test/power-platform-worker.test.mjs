@@ -5,7 +5,7 @@ import { executePowerPlatformCapability } from "../src/power-platform-worker.mjs
 import { executeCopilotStudioCapability } from "../src/copilot-studio-worker.mjs";
 
 const worker = Object.freeze({ billingClassByCapability: Object.freeze({
-  "studio.health": "deterministic-zero", "studio.delegate": "unknown",
+  "studio.health": "deterministic-zero", "studio.delegate": "unknown", "studio.configure": "unknown",
 }) });
 
 function harnessDescriptor() {
@@ -93,4 +93,48 @@ test("Studio delegate invokes only when runtime billing is license-included", as
   assert.equal(result.verified, true);
   assert.equal(calls.length, 1);
   assert.deepEqual(calls[0], { role: "reasoner", prompt: "Validate this architecture", idempotencyKey: "k2" });
+});
+
+test("Studio configure applies only a sanitized known-agent improvement candidate", async () => {
+  const calls = [];
+  const result = await executeCopilotStudioCapability("studio.configure", {
+    idempotencyKey: "cfg-1",
+    requestedOutcome: JSON.stringify({
+      alias: "enterprise-core",
+      reasonCodes: ["connected-agent-missing", "tool-missing"],
+      surfaces: ["connected-agents", "tools"],
+      publish: false,
+    }),
+  }, worker, {
+    env: { MAHORAGA_COPILOT_STUDIO_CONFIGURE_BILLING_CLASS: "license-included" },
+    configureAgent: async (request) => { calls.push(request); return { verified: true, phases: ["pull", "validate", "push", "verify"] }; },
+  });
+  assert.equal(result.verified, true);
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], {
+    alias: "enterprise-core",
+    reasonCodes: ["connected-agent-missing", "tool-missing"],
+    surfaces: ["connected-agents", "tools"],
+    publish: false,
+    idempotencyKey: "cfg-1",
+  });
+  assert.deepEqual(result.providerReceipt, {
+    alias: "enterprise-core", reasonCodes: ["connected-agent-missing", "tool-missing"], surfaces: ["connected-agents", "tools"],
+    phases: ["pull", "validate", "push", "verify"], published: false,
+  });
+});
+
+test("Studio configure fails closed for unknown billing, agents, or configuration surfaces", async () => {
+  let configured = false;
+  const base = { idempotencyKey: "cfg-2" };
+  await assert.rejects(() => executeCopilotStudioCapability("studio.configure", {
+    ...base, requestedOutcome: JSON.stringify({ alias: "enterprise-core", reasonCodes: ["tool-missing"], surfaces: ["tools"], publish: false }),
+  }, worker, { env: {}, configureAgent: async () => { configured = true; } }), /billing-not-zero-credit/);
+  await assert.rejects(() => executeCopilotStudioCapability("studio.configure", {
+    ...base, requestedOutcome: JSON.stringify({ alias: "arbitrary-agent", reasonCodes: ["tool-missing"], surfaces: ["tools"], publish: false }),
+  }, worker, { env: { MAHORAGA_COPILOT_STUDIO_CONFIGURE_BILLING_CLASS: "license-included" }, configureAgent: async () => { configured = true; } }), /studio-configure-request-invalid/);
+  await assert.rejects(() => executeCopilotStudioCapability("studio.configure", {
+    ...base, requestedOutcome: JSON.stringify({ alias: "enterprise-core", reasonCodes: ["tool-missing"], surfaces: ["credentials"], publish: false }),
+  }, worker, { env: { MAHORAGA_COPILOT_STUDIO_CONFIGURE_BILLING_CLASS: "license-included" }, configureAgent: async () => { configured = true; } }), /studio-configure-request-invalid/);
+  assert.equal(configured, false);
 });

@@ -24,7 +24,8 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
     read("docs/CLOUD-WORKSPACE.md"),
     read("docs/CLOUDFLARE-WORKERS-CUTOVER.md"),
   ]);
-  assert.equal(canonicalWorkspaceUrl(), DEFAULT_WORKSPACE_URL);
+  assert.equal(DEFAULT_WORKSPACE_URL, null);
+  assert.equal(canonicalWorkspaceUrl(null), null);
   assert.match(workspace, /Mahoraga One|Mahoraga handles the lanes/);
   for (const label of ["Chat", "Work", "Files", "Advanced"]) {
     assert.match(workspace, new RegExp(`label: "${label}"`));
@@ -34,7 +35,9 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
   assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.match(docs, /single cloud-hosted workspace/i);
   assert.match(docs, /Cloudflare Workers/);
-  assert.match(docs, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+  assert.match(docs, /MAHORAGA_WORKSPACE_URL/);
+  assert.match(docs, /MAHORAGA_WORKSPACE_ORIGIN/);
+  assert.doesNotMatch(docs, /canonical production address is https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//i);
   assert.match(cutover, /Workers yes, Tunnel no/i);
   assert.match(cutover, /no inbound\s+route to `127\.0\.0\.1:4782`/i);
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
+import { projectInteractionReadiness } from "@/lib/interaction-readiness";
 import type { CockpitViewProps } from "../workspace/workspace-types";
 
 function shortSha(value: string | null | undefined) {
@@ -39,6 +40,7 @@ export function CockpitView({
   const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
   const productName = health?.product ?? "Mahoraga";
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
+  const interaction = projectInteractionReadiness(runtimeCapabilities);
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -86,8 +88,14 @@ export function CockpitView({
         <StatusCard
           label="Execution core"
           value={coreReady ? "Paired" : "Ready to pair"}
-          detail={coreReady ? "Encrypted relay session active" : "No execution authority claimed"}
+          detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"}
           tone={coreReady ? "good" : "neutral"}
+        />
+        <StatusCard
+          label="Answer lane"
+          value={interaction.ready ? "Routable" : "Not routable"}
+          detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`}
+          tone={interaction.ready ? "good" : "warn"}
         />
         <StatusCard
           label="Model fabric"
@@ -122,6 +130,7 @@ export function CockpitView({
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
             <div><dt>Relay plaintext</dt><dd>{health?.boundaries?.relaySeesPlaintext === true ? "unexpected" : "not visible"}</dd></div>
             <div><dt>Runtime DB target</dt><dd>{runtimeDatabase}</dd></div>
+            <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
           </dl>
         </section>
 

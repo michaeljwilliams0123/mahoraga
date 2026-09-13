@@ -1,4 +1,4 @@
-name: Deploy Mahoraga Workspace to Pages
+name: Export Mahoraga Workspace to Pages
 
 on:
   push:
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build and deploy current cloud-app
+    name: Build and publish optional cloud-app static export
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment:
@@ -37,7 +37,7 @@ jobs:
         working-directory: cloud-app
         run: npm ci
 
-      - name: Build the single workspace for Pages
+      - name: Build optional static workspace export
         working-directory: cloud-app
         env:
           MAHORAGA_PAGES_EXPORT: "1"
@@ -86,7 +86,7 @@ jobs:
         with:
           path: cloud-app/out
 
-      - name: Deploy exact main workspace
+      - name: Publish exact-main static export
         if: steps.pages_site.outputs.available == 'true'
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

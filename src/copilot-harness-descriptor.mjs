@@ -80,6 +80,34 @@ export function buildCopilotHarnessTopology(descriptors, { maximumConnectedAgent
   });
 }
 
+export function assessCopilotConnectedAgentRoutingDescriptions(entries, { maximumAgents = 8 } = {}) {
+  if (!Array.isArray(entries) || entries.length < 1 || entries.length > maximumAgents || !Number.isSafeInteger(maximumAgents) || maximumAgents < 1 || maximumAgents > 8) {
+    fail("copilot-connected-agent-routing-invalid");
+  }
+  const aliases = new Set();
+  const agents = entries.map((entry) => {
+    exact(entry, new Set(["alias", "description"]), "copilot-connected-agent-routing-invalid");
+    const alias = slug(entry.alias, 96, "copilot-connected-agent-routing-invalid");
+    if (aliases.has(alias)) fail("copilot-connected-agent-routing-invalid");
+    aliases.add(alias);
+    const description = text(entry.description, 1024, "copilot-connected-agent-routing-invalid");
+    assertSafe([description]);
+    const normalizedDescription = description.replace(/\s+/g, " ").trim().toLowerCase();
+    return { alias, descriptionFingerprint: digest(normalizedDescription) };
+  }).sort((a, b) => a.alias.localeCompare(b.alias));
+  const groups = new Map();
+  for (const agent of agents) {
+    const group = groups.get(agent.descriptionFingerprint) ?? [];
+    group.push(agent.alias);
+    groups.set(agent.descriptionFingerprint, group);
+  }
+  const conflicts = [...groups.values()]
+    .filter((group) => group.length > 1)
+    .map((group) => ({ aliases: group.sort(), reason: "duplicate-description" }))
+    .sort((a, b) => a.aliases[0].localeCompare(b.aliases[0]));
+  return deepFreeze({ schemaVersion: 1, distinct: conflicts.length === 0, agents, conflicts });
+}
+
 function normalizeInput(input) {
   const instructionsSummary = text(input.instructionsSummary, 1024, "copilot-harness-instructions-invalid");
   assertSafe([instructionsSummary]);

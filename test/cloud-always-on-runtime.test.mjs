@@ -18,6 +18,36 @@ test("OCI production profile is durable, always on, and bounded by health checks
   assert.doesNotMatch(service, /openai|anthropic|generateText|chat\.completions/i);
 });
 
+test("cloud supervisor uses the manifest production core port without a candidate-only CLI override", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /start\("core", process\.execPath, \["src\/cli\.mjs", "start"\]\);/);
+  assert.doesNotMatch(service, /\["src\/cli\.mjs", "start", "--port", "4782"\]/);
+});
+
+test("cloud supervisor strips candidate-only runtime port from inherited cloud environment", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /delete shared\.MAHORAGA_RUNTIME_PORT;/);
+  assert.ok(service.indexOf("delete shared.MAHORAGA_RUNTIME_PORT;") < service.indexOf('start("core"'));
+});
+
+test("cloud supervisor emits source provenance and listener-boundary lifecycle evidence", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(service, /MAHORAGA_SOURCE_COMMIT/);
+  assert.match(service, /cloud-supervisor-bootstrap/);
+  assert.match(service, /cloud-child-spawn/);
+  assert.match(service, /cloud-core-ready/);
+  assert.match(service, /cloud-workspace-ready/);
+  assert.match(service, /waitReady\("http:\/\/127\.0\.0\.1:3000\/api\/live"/);
+});
+
+test("cloud supervisor shutdown is safe before idle liveness initialization", async () => {
+  const service = await read("scripts/cloud-service.mjs");
+  assert.match(service, /let idleTimer = null;/);
+  assert.ok(service.indexOf("let idleTimer = null;") < service.indexOf('start("core"'));
+  assert.match(service, /if \(idleTimer\) clearInterval\(idleTimer\);/);
+});
+
 test("cloud runtime keeps core loopback-only and secrets in server environment", async () => {
   const [service, gateway, action, edge] = await Promise.all([read("scripts/cloud-service.mjs"), read("cloud-app/lib/cloud-owner-gateway.ts"), read("cloud-app/app/api/runtime/action/route.ts"), read("deploy/cloudflare-owner-gateway/worker.mjs")]);
   assert.match(service, /127\.0\.0\.1:4782/);

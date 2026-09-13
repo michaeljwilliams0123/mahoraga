@@ -34,7 +34,8 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
   assert.match(docs, /single cloud-hosted workspace and only browser UI/i);
   assert.match(docs, /host-neutral/i);
-  assert.match(docs, /Pages publishes this same source/i);
+  assert.match(docs, /derived static export of this same source/i);
+  assert.match(docs, /MAHORAGA_WORKSPACE_URL[\s\S]*MAHORAGA_WORKSPACE_ORIGIN/i);
 });
 
 test("legacy duplicate UI entry points stay retired and Pages publishes cloud-app", async () => {
@@ -46,7 +47,8 @@ test("legacy duplicate UI entry points stay retired and Pages publishes cloud-ap
     read(".github/workflows/autonomous-integration.yml"),
     read(".github/workflows/pages.yml"),
   ]);
-  assert.match(server, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+  assert.doesNotMatch(server, /https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//);
+  assert.match(server, /interactionSurface: "configured-workspace-origin"/);
   assert.match(server, /localUiRetired: true/);
   assert.match(pages, /cloud-app/);
   assert.match(pages, /deploy-pages/);

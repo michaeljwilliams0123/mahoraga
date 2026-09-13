@@ -1,7 +1,15 @@
 import { loadCopilotStudioRuntimeSettings, createCopilotTokenProvider } from "./copilot-studio-auth.mjs";
 import { invokeCopilotStudioAgent } from "./copilot-studio-client.mjs";
+import { executeCopilotStudioPacSync } from "./copilot-studio-pac-sync.mjs";
 import { probePowerPlatformProvider } from "./power-platform-provider.mjs";
 import { isZeroMarginalCreditEligible, microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from "./microsoft-usage-cost.mjs";
+
+const STUDIO_ALIASES = new Set(["general-mahoraga", "enterprise-core", "tenant-health-reader"]);
+const CONFIGURE_SURFACES = new Set(["instructions", "connected-agents", "evaluate", "knowledge", "memory", "model", "monitor", "skills", "tools"]);
+const CONFIGURE_REASONS = new Set([
+  "capability-missing", "connected-agent-missing", "evaluation-failing", "evaluation-stale", "knowledge-missing",
+  "memory-required", "model-not-production", "monitoring-below-threshold", "monitoring-stale", "skill-missing", "tool-missing",
+]);
 
 export async function executeCopilotStudioCapability(capability, task = {}, worker = {}, dependencies = {}) {
   const env = dependencies.env ?? process.env;
@@ -54,7 +62,74 @@ export async function executeCopilotStudioCapability(capability, task = {}, work
     }, { env, tokenProvider, CopilotStudioClientCtor: dependencies.CopilotStudioClientCtor, now: dependencies.now });
   }
 
+  if (capability === "studio.configure") {
+    if (!isZeroMarginalCreditEligible(billingClass)) throw safeError("billing-not-zero-credit");
+    const request = normalizeConfigureRequest(task);
+    const configureAgent = dependencies.configureAgent ?? executeCopilotStudioPacSync;
+    const configured = await configureAgent(request, { env, ...(dependencies.configureDependencies ?? {}) });
+    if (configured?.verified !== true) throw safeError("studio-configure-verification-failed");
+    const phases = normalizePhases(configured.phases);
+    const published = request.publish && phases.includes("publish");
+    if (request.publish !== published) throw safeError("studio-configure-verification-failed");
+    const evaluation = normalizeEvaluation(configured.evaluation, request.publish);
+    return Object.freeze({
+      verified: true,
+      summary: `Copilot Studio configuration verified for ${request.alias} across ${request.surfaces.length} bounded surface(s).`,
+      providerReceipt: Object.freeze({
+        alias: request.alias,
+        reasonCodes: request.reasonCodes,
+        surfaces: request.surfaces,
+        phases,
+        published,
+        ...(evaluation ? { evaluation } : {}),
+      }),
+    });
+  }
+
   throw safeError("unsupported-capability");
+}
+
+function normalizeConfigureRequest(task) {
+  let value;
+  try { value = JSON.parse(String(task?.requestedOutcome ?? "")); } catch { throw safeError("studio-configure-request-invalid"); }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw safeError("studio-configure-request-invalid");
+  const keys = Object.keys(value).sort();
+  if (keys.join(",") !== "alias,publish,reasonCodes,surfaces") throw safeError("studio-configure-request-invalid");
+  const alias = String(value.alias ?? "");
+  if (!STUDIO_ALIASES.has(alias)) throw safeError("studio-configure-request-invalid");
+  const reasonCodes = normalizeTokenArray(value.reasonCodes, CONFIGURE_REASONS);
+  const surfaces = normalizeTokenArray(value.surfaces, CONFIGURE_SURFACES);
+  if (reasonCodes.length < 1 || surfaces.length < 1 || typeof value.publish !== "boolean") throw safeError("studio-configure-request-invalid");
+  const idempotencyKey = String(task?.idempotencyKey ?? task?.id ?? "");
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(idempotencyKey)) throw safeError("studio-configure-request-invalid");
+  return Object.freeze({ alias, reasonCodes, surfaces, publish: value.publish, idempotencyKey });
+}
+
+function normalizeTokenArray(value, allowed) {
+  if (!Array.isArray(value) || value.length > 16 || new Set(value).size !== value.length) throw safeError("studio-configure-request-invalid");
+  const result = value.map((item) => String(item));
+  if (result.some((item) => !allowed.has(item))) throw safeError("studio-configure-request-invalid");
+  return Object.freeze(result.sort());
+}
+
+function normalizePhases(value) {
+  const allowed = new Set(["pull", "validate", "push", "verify", "evaluate", "publish"]);
+  if (!Array.isArray(value) || value.length < 4 || value.length > 6 || new Set(value).size !== value.length) throw safeError("studio-configure-verification-failed");
+  if (value.some((item) => !allowed.has(item))) throw safeError("studio-configure-verification-failed");
+  const required = ["pull", "validate", "push", "verify"];
+  if (required.some((phase) => !value.includes(phase))) throw safeError("studio-configure-verification-failed");
+  for (let index = 1; index < required.length; index += 1) {
+    if (value.indexOf(required[index - 1]) > value.indexOf(required[index])) throw safeError("studio-configure-verification-failed");
+  }
+  if (value.includes("evaluate") && value.indexOf("evaluate") < value.indexOf("verify")) throw safeError("studio-configure-verification-failed");
+  if (value.includes("publish") && (!value.includes("evaluate") || value.indexOf("evaluate") > value.indexOf("publish"))) throw safeError("studio-configure-verification-failed");
+  return Object.freeze([...value]);
+}
+
+function normalizeEvaluation(value, required) {
+  if (!required && value === undefined) return null;
+  if (!value || value.state !== "passing" || !Number.isInteger(value.scoreBasisPoints) || value.scoreBasisPoints < 0 || value.scoreBasisPoints > 10000) throw safeError("studio-configure-verification-failed");
+  return Object.freeze({ state: "passing", scoreBasisPoints: value.scoreBasisPoints });
 }
 
 function safeError(code) { return Object.assign(new Error(code), { code }); }

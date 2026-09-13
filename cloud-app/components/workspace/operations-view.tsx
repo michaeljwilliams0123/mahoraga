@@ -108,6 +108,8 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
     );
   }
 
+  const lane = snapshot?.interactionReadiness;
+
   return (
     <section className="connection-panel" aria-label="Operations">
       <div className="section-heading">
@@ -157,7 +159,16 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
             <strong>Runtime</strong>
             <span>
               {snapshot.runtime.version} · baseline {snapshot.runtime.productionBaseline} · rollback {snapshot.runtime.rollbackTarget}
-              {snapshot.runtime.healthy === false ? " · degraded" : " · healthy"}
+              {snapshot.runtime.healthy === false ? " · process degraded" : " · process healthy"}
+            </span>
+          </div>
+          <div>
+            <strong>Answer lane</strong>
+            <span>
+              {lane?.ready === true ? "routable" : "not routable"}
+              {lane?.provider ? ` · ${lane.provider}` : ""}
+              {lane?.canary ? ` · canary ${lane.canary}` : ""}
+              {lane?.reason ? ` · ${lane.reason}` : ""}
             </span>
           </div>
           <div>

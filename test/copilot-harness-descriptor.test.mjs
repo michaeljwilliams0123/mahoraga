@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  assessCopilotConnectedAgentRoutingDescriptions,
   buildCopilotHarnessTopology,
   createCopilotHarnessDescriptor,
   validateCopilotHarnessDescriptor,
@@ -87,4 +88,27 @@ test("topology rejects self loops, unknown connected aliases, and excessive fan-
     ...BASE,
     connectedAgentAliases: Array.from({ length: 9 }, (_, index) => `agent-${index + 1}`),
   }), /copilot-harness-connected-agents-invalid/);
+});
+
+test("connected-agent routing descriptions are sanitized into distinct zero-credit routing evidence", () => {
+  const assessment = assessCopilotConnectedAgentRoutingDescriptions([
+    { alias: "enterprise-core", description: "Use for enterprise workflow design, Microsoft 365 knowledge analysis, and cross-system reasoning." },
+    { alias: "tenant-health-reader", description: "Use only for Power Platform tenant health, environment readiness, and service diagnostics." },
+  ]);
+  assert.equal(assessment.distinct, true);
+  assert.deepEqual(assessment.conflicts, []);
+  assert.deepEqual(assessment.agents.map((item) => item.alias), ["enterprise-core", "tenant-health-reader"]);
+  assert.match(assessment.agents[0].descriptionFingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(assessment).includes("enterprise workflow design"), false);
+  assert.equal(Object.isFrozen(assessment), true);
+});
+
+test("connected-agent routing description assessment exposes normalized duplicate descriptions without copying them", () => {
+  const assessment = assessCopilotConnectedAgentRoutingDescriptions([
+    { alias: "enterprise-core", description: "Use for enterprise workflow analysis and design." },
+    { alias: "tenant-health-reader", description: "  USE FOR ENTERPRISE WORKFLOW ANALYSIS AND DESIGN.  " },
+  ]);
+  assert.equal(assessment.distinct, false);
+  assert.deepEqual(assessment.conflicts, [{ aliases: ["enterprise-core", "tenant-health-reader"], reason: "duplicate-description" }]);
+  assert.equal(JSON.stringify(assessment).includes("workflow analysis"), false);
 });

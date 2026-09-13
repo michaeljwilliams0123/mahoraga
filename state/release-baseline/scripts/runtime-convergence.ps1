@@ -76,6 +76,7 @@ function Start-Candidate([string]$Root, [string]$ExpectedCommit) {
     $stdout = Join-Path $convergenceRoot "runtime-$ExpectedCommit.out.log"
     $stderr = Join-Path $convergenceRoot "runtime-$ExpectedCommit.err.log"
     New-Item -ItemType Directory -Path $convergenceRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
     $env:MAHORAGA_DATABASE_FILE = Join-Path $stateRoot 'mahoraga.sqlite'
     $env:MAHORAGA_EXPECTED_SOURCE_COMMIT = $ExpectedCommit
     $relayToken = Read-RelayToken
@@ -116,6 +117,12 @@ function Write-Receipt([hashtable]$Body) {
     $Body | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $file -Encoding utf8
 }
 
+function Invoke-VerificationGate {
+    Push-Location $ControllerRoot
+    try { & npm.cmd run verify; if ($LASTEXITCODE -ne 0) { throw 'Verification gate failed; activation denied.' } }
+    finally { Pop-Location }
+}
+
 & git -C $ControllerRoot fetch $repository main --quiet
 if ($LASTEXITCODE -ne 0) { throw 'Unable to refresh authoritative main.' }
 $remoteLine = (& git -C $ControllerRoot ls-remote $repository refs/heads/main).Trim()
@@ -130,7 +137,32 @@ if ($currentControllerCommit -ne $targetCommit) {
 }
 
 $live = Get-LiveStatus
-if (-not $live) { Write-Output 'No paired candidate runtime is active; convergence is a no-op.'; exit 0 }
+if (-not $live) {
+    $occupiedPid = Get-ListenerPid
+    if ($occupiedPid) {
+        Write-Receipt @{ state = 'listener-conflict'; fromCommit = $null; attemptedCommit = $targetCommit; listenerPid = $occupiedPid }
+        throw "Port $Port is occupied but does not expose a verified Mahoraga status endpoint."
+    }
+
+    Write-Output "No candidate is active on port $Port; verifying protected main before bootstrap."
+    $bootstrapProcess = $null
+    try {
+        Invoke-VerificationGate
+        $bootstrapProcess = Start-Candidate $ControllerRoot $targetCommit
+        $bootstrapped = Wait-ForCommit $targetCommit $true
+        if (-not $bootstrapped) { throw 'Bootstrapped candidate failed exact-head live canary.' }
+        Write-Receipt @{ state = 'bootstrapped'; fromCommit = $null; toCommit = $targetCommit; rollbackCommit = $null }
+        Write-Output "Mahoraga candidate bootstrapped at protected main $targetCommit on port $Port."
+        exit 0
+    } catch {
+        if ($bootstrapProcess) {
+            $failedPid = Get-ListenerPid
+            if ($failedPid -and $failedPid -eq $bootstrapProcess.Id) { Stop-Listener $failedPid }
+        }
+        Write-Receipt @{ state = 'bootstrap-failed'; fromCommit = $null; attemptedCommit = $targetCommit; error = $_.Exception.Message }
+        throw
+    }
+}
 if ($live.product -ne 'Mahoraga') { throw 'Port 4783 is owned by an unexpected service.' }
 $sourceCommit = Resolve-Commit ([string]$live.runtime.provenance.sourceCommit) 'running source'
 if ($sourceCommit -eq $targetCommit) { Write-Output "Mahoraga is current at $targetCommit."; exit 0 }
@@ -139,14 +171,19 @@ $liveAuthority = Resolve-Commit ([string]$live.runtime.provenance.authoritativeS
 if ($liveAuthority -ne $targetCommit) { throw 'Running Mahoraga authority does not match protected main.' }
 
 Write-Output "Verifying protected main $targetCommit before candidate activation."
-Push-Location $ControllerRoot
-try { & npm.cmd run verify; if ($LASTEXITCODE -ne 0) { throw 'Verification gate failed; activation denied.' } }
-finally { Pop-Location }
+Invoke-VerificationGate
 
+$centralStateDatabase = Join-Path $stateRoot 'mahoraga.sqlite'
+$centralStateVaultKey = Join-Path $stateRoot 'content-vault.key.dpapi'
+$centralStateVaultRoot = Join-Path $stateRoot 'content-vault'
+$centralStateReady = (Test-Path -LiteralPath $centralStateDatabase -PathType Leaf) -and (Test-Path -LiteralPath $centralStateVaultKey -PathType Leaf) -and (Test-Path -LiteralPath $centralStateVaultRoot -PathType Container)
 $rollbackWorktree = Ensure-RollbackWorktree $sourceCommit
 $sourceWorktree = $null
 $migrationMarker = Join-Path $convergenceRoot 'durable-state-migrated.json'
-if (-not (Test-Path -LiteralPath $migrationMarker -PathType Leaf)) {
+if ((Test-Path -LiteralPath $migrationMarker -PathType Leaf) -and -not $centralStateReady) {
+    throw 'Centralized candidate state is incomplete after recorded migration.'
+}
+if (-not $centralStateReady -and -not (Test-Path -LiteralPath $migrationMarker -PathType Leaf)) {
     $sourceWorktree = Find-SourceWorktree $sourceCommit
 }
 
