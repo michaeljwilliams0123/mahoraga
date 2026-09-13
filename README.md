@@ -5,9 +5,9 @@
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
-> **Canonical truth model:** GitHub `main` is the source/evolution authority. A merged commit does not prove a deployment is current, and a healthy deployment does not prove every worker/provider is routable. Source truth, deployment truth, live-runtime truth, provider readiness, and execution authority are separate evidence domains and must stay separate.
+> **Canonical truth model:** GitHub `main` is the **private code authority** and source/evolution authority. A merged commit does not prove a deployment is current, and a healthy deployment does not prove every worker/provider is routable. Source truth, deployment truth, live-runtime truth, provider readiness, and execution authority are separate evidence domains and must stay separate.
 >
-> **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; do not infer Microsoft, relay, runtime, provider, or deployment authority from a public/private flag.
+> **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; private source access does not itself grant Microsoft, relay, runtime, provider, or deployment authority.
 
 ## Current review baseline
 
@@ -195,10 +195,13 @@ If the owner identity/gateway is absent, session establishment must fail closed.
 
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
 - **Production server-capable target:** Railway `mahoraga-runtime-main`, once exact-source deployment and owner-session readiness are freshly proven.
-- **GitHub Pages:** optional derived/static export only. It is not runtime authority and cannot expose server-only action/session routes.
+- **GitHub Pages:** GitHub Pages is an optional derived static export. It is not runtime authority and cannot expose server-only action/session routes.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
 - **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.
+- **Netlify:** fallback hosting only; it does not change Mahoraga authority.
+
+GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages remains optional; neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact authoritative source SHA and passes the required pairing/health checks.
 
 The UI should expose evidence without inventing it. Current open UI follow-ups intentionally separate real runtime receipts from simulations:
 
@@ -294,6 +297,10 @@ npm.cmd run review:adaptive -- "<owner direction>"
 ```
 
 Provider discovery is not proof of task readiness. Write-capable or side-effecting routes require current authority and fail closed when the required provider, canary, authentication, attendance, lease, cost, quota, or integration evidence is missing.
+
+### Windows path examples
+
+Windows launchers must derive the current user's profile dynamically rather than committing a machine/user-specific path. The contract uses `[Environment]::GetFolderPath('UserProfile')` and must not hard-code a `C:\Users\<name>` path in tracked documentation or launchers.
 
 ## Repository rules for agents and contributors
 
