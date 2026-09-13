@@ -50,7 +50,8 @@
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
-    "review:adaptive": "node scripts/adaptive-directive-review.mjs"
+    "review:adaptive": "node scripts/adaptive-directive-review.mjs",
+    "simulate:communication": "node scripts/communication-simulator.mjs"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",
