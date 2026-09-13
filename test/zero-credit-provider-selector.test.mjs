@@ -50,5 +50,10 @@ test("zero-credit policy filters autonomous routes and leaves ordinary routing u
 test("waiting zero-credit autonomy routing skips general ranking", () => {
   const router = createTaskRouter({ rankRoutes: () => { throw new Error("general ranking must not run"); } });
   const route = router({}, { capability: "autonomy.self-upgrade", dataClass: "synthetic", requestedMode: "local" }, { providerPolicy: "zero-credit", requiresGeneration: true, providers: [] });
-  assert.deepEqual(route, { status: "waiting", reason: "waiting-zero-credit-provider", worker: null, providerDecision: { status: "waiting", providerId: "waiting-zero-credit-provider", costClass: null } });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "waiting-zero-credit-provider");
+  assert.equal(route.worker, null);
+  assert.deepEqual(route.providerDecision, { status: "waiting", providerId: "waiting-zero-credit-provider", costClass: null });
+  assert.equal(route.authorityDecision.decision, "hold");
+  assert.deepEqual(route.authorityDecision.reasonCodes, ["provider-unavailable"]);
 });
