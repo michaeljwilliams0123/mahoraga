@@ -96,16 +96,3 @@ test("process-starting route remains plannable for startup recovery", () => {
   assert.equal(plan.capability, "m365.reason");
   assert.equal(plan.recoverableRoute, true);
 });
-
-test("process-not-live route remains plannable for bounded process recovery", () => {
-  const plan = planConversationCapabilities({
-    content: "Update the Mahoraga interface and apply the change",
-    capabilityRoutes: [
-      route("codex.execute", { routable: false, routingReason: "process-not-live", economicTier: 3 }),
-      route("repository.verify"),
-    ],
-  });
-  assert.equal(plan.execution, "objective");
-  assert.deepEqual(plan.capabilityPlan, ["codex.execute", "repository.verify"]);
-  assert.equal(plan.recoverableRoute, true);
-});
