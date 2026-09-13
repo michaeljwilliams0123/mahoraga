@@ -6,6 +6,7 @@ import { microsoftBillingAttestationFromEnv, resolveMicrosoftBillingClass } from
 export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.now(), context = {}) {
   const stateByWorker = new Map(workerStates.map((state) => [state.workerId, state]));
   const billingAttestations = context.billingAttestationByWorkerId ?? microsoftBillingAttestationFromEnv(context.env ?? process.env);
+  const resourceEconomyAttestations = context.resourceEconomyAttestationByWorkerId ?? {};
   const microsoftHarnessEvidence = normalizeMicrosoftHarnessEvidence(context.microsoftHarnessDescriptors ?? []);
   const microsoftHarnessQualityEvidence = normalizeMicrosoftHarnessQualityEvidence(context.microsoftHarnessDescriptors ?? []);
   const staticRoutes = manifest.workers.flatMap((worker) => worker.capabilities.map((capability) => {
@@ -52,6 +53,7 @@ export function buildCapabilityRegistry(manifest, workerStates = [], now = Date.
       fallbackWorkerIds: [...worker.routing.fallbackWorkerIds],
       costClass: worker.costClass,
       billingClass: effectiveBillingClass(worker, capability, billingAttestations, runtimeState),
+      quotaAttestation: resourceEconomyAttestationFor(resourceEconomyAttestations, runtimeState, worker.id, capability),
       platformAuthorityScopes: [...(runtimeState?.platformAuthorityScopes ?? [])],
       dataClasses: [...worker.dataClasses],
       authorityScopes: [...(worker.authorityScopesByCapability?.[capability] ?? [])],
@@ -178,6 +180,15 @@ function effectiveBillingClass(worker, capability, attestations, runtimeState = 
     return resolveMicrosoftBillingClass(capability, declared, attestation);
   }
   return declared;
+}
+
+function resourceEconomyAttestationFor(attestations, runtimeState, workerId, capability) {
+  const value = attestations?.[workerId]?.[capability] ?? runtimeState?.resourceEconomyAttestationByCapability?.[capability] ?? null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const status = typeof value.status === "string" ? value.status : null;
+  const observedAt = typeof value.observedAt === "string" ? value.observedAt : null;
+  const expiresAt = typeof value.expiresAt === "string" ? value.expiresAt : null;
+  return status || observedAt || expiresAt ? Object.freeze({ status, observedAt, expiresAt }) : null;
 }
 
 function normalizeMicrosoftHarnessEvidence(value) {
