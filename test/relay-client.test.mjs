@@ -19,6 +19,8 @@ test("pairing expiry and ciphertext tampering fail closed", async () => {
   const sender = await deriveRelaySession(local.privateKey, remote.publicKey, local.context);
   const receiver = await deriveRelaySession(remote.privateKey, local.publicKey, remote.context);
   const frame = await sealFrame(sender, { type: "cancel", runId: "run-00000000-0000-4000-8000-000000000001" });
-  const tampered = { ...frame, ciphertext: `${frame.ciphertext.slice(0, -2)}aa` };
+  const ciphertextBytes = Buffer.from(frame.ciphertext, "base64url");
+  ciphertextBytes[0] ^= 0x01;
+  const tampered = { ...frame, ciphertext: ciphertextBytes.toString("base64url") };
   await assert.rejects(() => openFrame(receiver, tampered), /relay-frame-authentication-failed/);
 });
