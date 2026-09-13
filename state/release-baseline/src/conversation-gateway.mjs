@@ -25,6 +25,14 @@ export function createConversationGateway({ database, manifest, supervisor, subm
         workerIds: Array.isArray(item.workerIds) ? [...item.workerIds] : item.workerId ? [item.workerId] : [],
       };
       if (typeof item.provider === "string") projected.provider = item.provider;
+      if (typeof item.billingClass === "string") projected.billingClass = item.billingClass;
+      if (item.quotaAttestation && typeof item.quotaAttestation === "object" && !Array.isArray(item.quotaAttestation)) {
+        projected.quotaAttestation = {
+          status: typeof item.quotaAttestation.status === "string" ? item.quotaAttestation.status : null,
+          observedAt: typeof item.quotaAttestation.observedAt === "string" ? item.quotaAttestation.observedAt : null,
+          expiresAt: typeof item.quotaAttestation.expiresAt === "string" ? item.quotaAttestation.expiresAt : null,
+        };
+      }
       if (typeof item.canary === "string") projected.canary = item.canary;
       if (item.routingReason === null || typeof item.routingReason === "string") projected.routingReason = item.routingReason;
       if (typeof item.evidenceLevel === "string") projected.evidenceLevel = item.evidenceLevel;
