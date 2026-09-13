@@ -11,6 +11,8 @@ test("Railway volume bootstrap repairs ownership then drops privileges", async (
   assert.match(dockerfile, /apt-get install[^\n]*gosu/);
   assert.match(dockerfile, /ENTRYPOINT \["\.\/scripts\/docker-entrypoint\.sh"\]/);
   assert.doesNotMatch(dockerfile, /^USER node$/m);
-  assert.match(entrypoint, /chown -R node:node "\$\{MAHORAGA_STATE_DIR:\-\/var\/lib\/mahoraga\}"/);
+  assert.match(entrypoint, /state_dir="\$\{MAHORAGA_STATE_DIR:-\/var\/lib\/mahoraga\}"/);
+  assert.match(entrypoint, /mkdir -p "\$state_dir"/);
+  assert.match(entrypoint, /chown -R node:node "\$state_dir"/);
   assert.match(entrypoint, /exec gosu node "\$@"/);
 });
