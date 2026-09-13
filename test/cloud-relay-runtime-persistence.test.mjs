@@ -46,3 +46,12 @@ test("relay crypto continuity state is encrypted in the local-only content vault
   assert.match(runtime, /reattach-local/);
   assert.match(runtime, /action:\s*"keepalive"/);
 });
+
+
+test("production runtime reuses the encrypted relay token instead of entering pairing mode", async () => {
+  const production = await source("scripts/start-production.ps1");
+  assert.match(production, /relay-token\.dpapi/);
+  assert.match(production, /ConvertTo-SecureString/);
+  assert.match(production, /MAHORAGA_RELAY_LOCAL_ACCESS_TOKEN/);
+  assert.doesNotMatch(production, /Write-Output.*RELAY_LOCAL_ACCESS_TOKEN|echo.*RELAY_LOCAL_ACCESS_TOKEN/i);
+});
