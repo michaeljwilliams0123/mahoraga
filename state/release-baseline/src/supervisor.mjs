@@ -66,6 +66,7 @@ export class Supervisor extends EventEmitter {
         timeoutMs: state.definition.timeoutMs, capabilities: state.definition.capabilities, readiness,
         platformAuthorityScopes: [...(state.platformAuthorityScopes ?? [])],
         billingAttestationByCapability: { ...(state.billingAttestationByCapability ?? {}) },
+        resourceEconomyAttestationByCapability: cloneResourceEconomyAttestations(state.resourceEconomyAttestationByCapability),
         lastErrorCode: state.lastErrorCode ?? null, lastErrorDetail: state.lastErrorDetail ?? null,
       };
     });
@@ -127,7 +128,7 @@ export class Supervisor extends EventEmitter {
     }
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
-      platformAuthorityScopes: [], billingAttestationByCapability: {}, readinessRefreshInFlight: false,
+      platformAuthorityScopes: [], billingAttestationByCapability: {}, resourceEconomyAttestationByCapability: {}, readinessRefreshInFlight: false,
       spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
     for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
@@ -170,6 +171,7 @@ export class Supervisor extends EventEmitter {
         canaryStatus = receipt.outcome === "succeeded" ? "verified" : "failed";
         canaryVerifiedAt = receipt.outcome === "succeeded" ? observedAt : null;
         executionCellCanary = receipt.details.providerEvidence.executionCellCanary ?? null;
+        state.resourceEconomyAttestationByCapability = normalizeResourceEconomyAttestations(receipt.details.providerEvidence.resourceEconomyAttestations, state.definition);
         if (state.definition.id === "copilot-studio") {
           state.platformAuthorityScopes = normalizeStudioPlatformScopes(receipt.details.providerEvidence.platformAuthorityScopes);
           state.billingAttestationByCapability = normalizeStudioBillingAttestation(receipt.details.providerEvidence.delegateBillingClass);
@@ -194,6 +196,8 @@ export class Supervisor extends EventEmitter {
       try {
         const receipt = validateCapabilityReceipt(message.capability, message.receipt);
         if (receipt.outcome === "succeeded") { canaryStatus = "verified"; canaryVerifiedAt = observedAt; }
+        const economy = normalizeResourceEconomyAttestations(receipt.details.providerEvidence.resourceEconomyAttestations, state.definition);
+        if (economy[message.capability]) state.resourceEconomyAttestationByCapability = Object.freeze({ ...state.resourceEconomyAttestationByCapability, [message.capability]: economy[message.capability] });
       } catch {}
       this.database.setCapabilityReadiness({
         workerId: state.definition.id, capability: message.capability, processStatus: "live",
@@ -575,4 +579,24 @@ function normalizeStudioPlatformScopes(value) {
 
 function normalizeStudioBillingAttestation(value) {
   return new Set(["license-included", "metered"]).has(value) ? { "studio.delegate": value } : {};
+}
+
+function normalizeResourceEconomyAttestations(value, definition) {
+  if (!Array.isArray(value) || value.length > 64) return Object.freeze({});
+  const allowed = new Set((definition?.capabilities ?? []).filter((capability) => definition?.billingClassByCapability?.[capability] === "free-tier-zero"));
+  const result = {};
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) return Object.freeze({});
+    const capability = typeof item.capability === "string" ? item.capability : "";
+    const status = typeof item.status === "string" ? item.status : "";
+    const observed = Date.parse(item.observedAt);
+    const expires = Date.parse(item.expiresAt);
+    if (!allowed.has(capability) || !new Set(["available", "exhausted"]).has(status) || !Number.isFinite(observed) || !Number.isFinite(expires) || expires <= observed || Object.hasOwn(result, capability)) return Object.freeze({});
+    result[capability] = Object.freeze({ status, observedAt: new Date(observed).toISOString(), expiresAt: new Date(expires).toISOString() });
+  }
+  return Object.freeze(result);
+}
+
+function cloneResourceEconomyAttestations(value) {
+  return Object.fromEntries(Object.entries(value ?? {}).map(([capability, attestation]) => [capability, { ...attestation }]));
 }
