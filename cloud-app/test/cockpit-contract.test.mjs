@@ -41,6 +41,14 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
   });
 
+  it("surfaces #486 owner-login no-store status on the rendered Control Center", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /AUTH_NO_STORE_#486/);
+    assert.match(cockpit, /Owner login/);
+    assert.match(cockpit, /Cache-Control: no-store/);
+    assert.match(cockpit, /failure and success responses are not cached/);
+  });
+
   it("keeps public product identity Mahoraga and treats 7.0.0-alpha.2 as build provenance only", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");

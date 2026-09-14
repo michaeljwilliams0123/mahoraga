@@ -86,6 +86,12 @@ export function CockpitView({
           tone={health?.ok ? "good" : "warn"}
         />
         <StatusCard
+          label="Owner login"
+          value="AUTH_NO_STORE_#486"
+          detail="Cache-Control: no-store · failure and success responses are not cached"
+          tone="good"
+        />
+        <StatusCard
           label="Execution core"
           value={coreReady ? "Paired" : "Ready to pair"}
           detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"}
