@@ -2,6 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { verifyOwnerLoginSecret } from "./owner-login";
 
 const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -46,6 +47,18 @@ export function establishOwnerSession(request: Request): OwnerSession {
   if (!safeEqual(assertedOwner, ownerId) || !Number.isSafeInteger(assertedAt) || Math.abs(Date.now() - assertedAt) > REPLAY_WINDOW_MS || !/^[a-f0-9-]{36}$/i.test(assertionNonce)
     || !safeEqual(assertionSignature, sign(assertionSecret, assertion))) throw gatewayError("cloud-owner-auth-required", 401);
   persistNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
+  return issueOwnerSession(ownerId, secret);
+}
+
+export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
+  const origin = request.headers.get("origin");
+  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw gatewayError("cloud-same-origin-required", 403);
+  const login = verifyOwnerLoginSecret(suppliedSecret);
+  if (!login.ok) throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
+  return issueOwnerSession(required("MAHORAGA_CLOUD_OWNER_ID"), requiredSecret());
+}
+
+function issueOwnerSession(ownerId: string, secret: string): OwnerSession {
   const sessionId = `csg-${randomUUID()}`;
   const expiresAt = Date.now() + SESSION_TTL_MS;
   const token = createToken({ ownerId, sessionId, expiresAt }, secret);
