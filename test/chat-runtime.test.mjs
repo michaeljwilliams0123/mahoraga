@@ -284,3 +284,18 @@ async function waitFor(check, timeoutMs = 8000) {
   }
   throw new Error("Timed out waiting for a routable chat capability.");
 }
+
+
+test("zero-credit answer admission never accepts paid execution classes", async () => {
+  const { zeroCreditChatRouteAvailable } = await import("../src/server.mjs");
+  const route = (costClass) => ({
+    capability: "assistant.respond",
+    enabled: true,
+    routable: true,
+    costClass,
+  });
+
+  assert.equal(zeroCreditChatRouteAvailable([route("licensed-cloud")], "assistant.respond"), false);
+  assert.equal(zeroCreditChatRouteAvailable([route("metered-cloud")], "assistant.respond"), false);
+  assert.equal(zeroCreditChatRouteAvailable([route("cloud-open-weight")], "assistant.respond"), true);
+});
