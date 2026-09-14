@@ -59,6 +59,18 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /verification unavailable/);
   });
 
+  it("renders the persisted canonical authority decision on the Work surface", () => {
+    const work = readFileSync(join(root, "components/workspace/work-view.tsx"), "utf8");
+    const relay = readFileSync(join(root, "lib/runtime-relay.ts"), "utf8");
+    assert.match(work, /Canonical routing receipt/);
+    assert.match(work, /authority\?\.envelope\.kind/);
+    assert.match(work, /authority\?\.envelope\.decision/);
+    assert.match(work, /authority\?\.envelope\.reasonCodes/);
+    assert.match(work, /No routed task has persisted an authority decision yet/);
+    assert.match(relay, /kind: "authority-decision-v1"/);
+    assert.doesNotMatch(work, /evidence\.ownerAuthority|evidence\.providerAdmission/);
+  });
+
   it("keeps public product identity Mahoraga and treats 7.0.0-alpha.2 as build provenance only", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");

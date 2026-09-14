@@ -91,6 +91,7 @@ export function operationsSnapshot({
 
   const exactHeadSha = resolvedHead;
   const verificationState = exactHeadSha ? "exact-head-available" : "head-unavailable";
+  const latestAuthorityDecision = projectLatestAuthorityDecision(tasks);
 
   return Object.freeze({
     generatedAt,
@@ -136,6 +137,38 @@ export function operationsSnapshot({
       rollbackReady: true,
     }),
     interactionReadiness: projectOperationsInteractionReadiness(interactionReadiness),
+    latestAuthorityDecision,
+  });
+}
+
+export function projectLatestAuthorityDecision(tasks) {
+  const task = Array.isArray(tasks) ? tasks.find((item) => item?.authorityDecision) : null;
+  if (!task) return null;
+  const value = task.authorityDecision;
+  return Object.freeze({
+    taskId: String(task.id),
+    correlationId: typeof task.correlationId === "string" ? task.correlationId : null,
+    taskStatus: String(task.status ?? "unknown"),
+    envelope: Object.freeze({
+      schemaVersion: 1,
+      kind: "authority-decision-v1",
+      decision: value.decision,
+      reasonCodes: Object.freeze([...value.reasonCodes]),
+      request: Object.freeze({
+        capability: value.request?.capability ?? null,
+        dataClass: value.request?.dataClass ?? null,
+      }),
+      provider: Object.freeze({
+        id: value.provider?.id ?? null,
+        costClass: value.provider?.costClass ?? null,
+        billingClass: value.provider?.billingClass ?? null,
+      }),
+      timing: Object.freeze({
+        observedAt: value.timing?.observedAt ?? null,
+        expiresAt: value.timing?.expiresAt ?? null,
+        revokedAt: value.timing?.revokedAt ?? null,
+      }),
+    }),
   });
 }
 

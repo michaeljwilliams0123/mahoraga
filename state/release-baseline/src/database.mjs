@@ -331,6 +331,7 @@ export class RuntimeDatabase {
       ["integration_lease_id", "TEXT"], ["content_references_json", "TEXT NOT NULL DEFAULT '[]'"],
       ["base_commit", "TEXT"], ["allowed_paths_json", "TEXT NOT NULL DEFAULT '[]'"],
       ["policy_version", "TEXT NOT NULL DEFAULT 'legacy-internal'"],
+      ["authority_decision_json", "TEXT"],
     ];
     for (const [name, definition] of additions) if (!current.has(name)) this.db.exec(`ALTER TABLE tasks ADD COLUMN ${name} ${definition}`);
   }
@@ -808,6 +809,28 @@ export class RuntimeDatabase {
   listTasks(limit = 100) {
     const size = Math.max(1, Math.min(Number(limit) || 100, 500));
     return this.db.prepare("SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?").all(size).map(normalizeTask);
+  }
+
+  recordTaskAuthorityDecision(taskId, value) {
+    bounded(taskId, 80, "authority decision task id");
+    const decision = normalizeAuthorityDecision(value);
+    const observedAt = decision.timing.observedAt;
+    const changed = this.#transaction(() => {
+      const result = this.db.prepare("UPDATE tasks SET authority_decision_json=?,updated_at=? WHERE id=?")
+        .run(JSON.stringify(decision), observedAt, taskId);
+      if (result.changes === 1) this.#event("task.authority-decided", taskId, {
+        schemaVersion: decision.schemaVersion,
+        kind: decision.kind,
+        decision: decision.decision,
+        reasonCodes: decision.reasonCodes,
+        providerId: decision.provider.id,
+        costClass: decision.provider.costClass,
+        billingClass: decision.provider.billingClass,
+      });
+      return result;
+    });
+    if (changed.changes !== 1) throw new TypeError("Authority decision task is missing.");
+    return this.getTask(taskId);
   }
 
   hasActiveIntegrationLeaseTask(leaseId) {
@@ -1607,8 +1630,26 @@ function normalizeStudioLearningIngestion(row, duplicate = false) {
   authoritySessionId: row.authority_session_id, integrationLeaseId: row.integration_lease_id,
   contentReferences: JSON.parse(row.content_references_json ?? "[]"), policyVersion: row.policy_version ?? "legacy-internal",
   baseCommit: row.base_commit, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"),
+  authorityDecision: row.authority_decision_json ? normalizeAuthorityDecision(JSON.parse(row.authority_decision_json)) : null,
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
+
+function normalizeAuthorityDecision(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Authority decision is invalid.");
+  if (value.schemaVersion !== 1 || value.kind !== "authority-decision-v1" || !new Set(["allow", "hold", "deny"]).has(value.decision)) {
+    throw new TypeError("Authority decision identity is invalid.");
+  }
+  if (!Array.isArray(value.reasonCodes) || value.reasonCodes.length > 16 || value.reasonCodes.some((code) => typeof code !== "string" || !/^[a-z][a-z0-9.-]{0,79}$/.test(code))) {
+    throw new TypeError("Authority decision reasons are invalid.");
+  }
+  if (!value.request || typeof value.request !== "object" || !value.provider || typeof value.provider !== "object" || !value.timing || typeof value.timing !== "object") {
+    throw new TypeError("Authority decision sections are invalid.");
+  }
+  if (typeof value.timing.observedAt !== "string" || !Number.isFinite(Date.parse(value.timing.observedAt))) throw new TypeError("Authority decision timing is invalid.");
+  const serialized = JSON.stringify(value);
+  if (Buffer.byteLength(serialized, "utf8") > 32_768) throw new TypeError("Authority decision is too large.");
+  return Object.freeze(structuredClone(value));
+}
 function assertIdempotentTaskRequest(task, request) {
   const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {

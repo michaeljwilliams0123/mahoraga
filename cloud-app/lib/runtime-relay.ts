@@ -94,6 +94,20 @@ export type RuntimeOperationsSnapshot = {
     lastObservedAt: string | null;
     lastVerifiedAt: string | null;
   };
+  latestAuthorityDecision: {
+    taskId: string;
+    correlationId: string | null;
+    taskStatus: string;
+    envelope: {
+      schemaVersion: 1;
+      kind: "authority-decision-v1";
+      decision: "allow" | "hold" | "deny";
+      reasonCodes: string[];
+      request: { capability: string | null; dataClass: string | null };
+      provider: { id: string | null; costClass: string | null; billingClass: string | null };
+      timing: { observedAt: string | null; expiresAt: string | null; revokedAt: string | null };
+    };
+  } | null;
 };
 
 export type RuntimeOperationsActionInput = {

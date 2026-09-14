@@ -24,6 +24,8 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
     }
   }, [coreReady, relay]);
 
+  const authority = snapshot?.latestAuthorityDecision ?? null;
+
   useEffect(() => { void refresh(); }, [refresh]);
 
   return (
@@ -55,6 +57,24 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
           <article><GitBranch size={20} /><span>Repository</span><strong>{snapshot?.repository.cleanState ?? "checking"}</strong><small>{snapshot?.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>
           <article><WandSparkles size={20} /><span>Repairs</span><strong>{snapshot?.repairs.activeIncidents ?? 0}</strong><small>{snapshot?.repairs.lastRepairState ?? "checking"}</small></article>
         </div>
+      )}
+
+      {coreReady && !error && (
+        <section className="authority-receipt" aria-label="Latest authority decision">
+          <div>
+            <span>Canonical routing receipt</span>
+            <strong>{authority?.envelope.kind ?? "Authority decision unavailable"}</strong>
+            <small>{authority ? `${authority.taskId} · ${authority.taskStatus}` : "No routed task has persisted an authority decision yet."}</small>
+          </div>
+          <dl>
+            <div><dt>Decision</dt><dd>{authority?.envelope.decision ?? "unknown"}</dd></div>
+            <div><dt>Reason codes</dt><dd>{authority?.envelope.reasonCodes.join(", ") || "none"}</dd></div>
+            <div><dt>Capability</dt><dd>{authority?.envelope.request.capability ?? "unknown"}</dd></div>
+            <div><dt>Provider</dt><dd>{authority?.envelope.provider.id ?? "unknown"}</dd></div>
+            <div><dt>Cost evidence</dt><dd>{authority ? `${authority.envelope.provider.costClass ?? "unknown"} · ${authority.envelope.provider.billingClass ?? "unknown"}` : "unknown"}</dd></div>
+            <div><dt>Observed</dt><dd>{authority?.envelope.timing.observedAt ?? "unknown"}</dd></div>
+          </dl>
+        </section>
       )}
 
       <div className="one-action-row" aria-label="Work actions">
