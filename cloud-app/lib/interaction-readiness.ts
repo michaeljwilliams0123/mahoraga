@@ -45,7 +45,7 @@ export function projectZeroCreditAdmission(capabilities: CapabilityLike[] | null
     ?? routes.find((item) => item.enabled !== false && ZERO_CREDIT_COST_CLASSES.has(item.costClass ?? ""))
     ?? routes.find((item) => item.enabled !== false)
     ?? null;
-  const provider = route?.provider ?? "unknown";
+  const provider = route?.workerId ?? route?.workerIds?.[0] ?? route?.provider ?? "unknown";
   const costClass = route?.costClass ?? "unknown";
   const billingClass = route?.billingClass ?? "unknown";
   if (!route) return { state: "hold", provider, costClass, billingClass, reason: "route-unavailable", lastVerifiedAt: null };
