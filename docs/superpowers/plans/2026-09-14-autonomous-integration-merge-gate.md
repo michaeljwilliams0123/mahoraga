@@ -17,6 +17,7 @@
 - An unstable result is ready only when both required contexts are completed and success for the supplied 40-character head SHA.
 - Missing, pending, skipped, cancelled, stale, or failed required checks remain a hold.
 - Do not change workflow permissions, branch-protection settings, merge methods, credentials, Railway variables, or deployment configuration.
+- Because src/autonomous-integration.mjs is an essential release artifact, refresh its matching state/release-baseline copy in the same reviewed change.
 - Run focused tests, git diff --check, and npm run verify before opening the protected bootstrap PR.
 
 ---
@@ -141,10 +142,16 @@ Run: git diff --check && npm run verify
 
 Expected: no whitespace errors and a successful verification suite. Preserve evidence of any pre-existing or environmental failure; do not attribute it to this change without diagnosis.
 
-- [ ] **Step 5: Commit the implementation**
+- [ ] **Step 5: Refresh the required recovery baseline and rerun verification**
+
+Run: npm run baseline:refresh && npm run verify
+
+Expected: state/release-baseline/src/autonomous-integration.mjs becomes byte-identical to its source counterpart, and the full suite passes without baseline drift.
+
+- [ ] **Step 6: Commit the implementation and baseline**
 
 ~~~bash
-git add src/autonomous-integration.mjs test/autonomous-integration.test.mjs
+git add src/autonomous-integration.mjs state/release-baseline/src/autonomous-integration.mjs test/autonomous-integration.test.mjs docs/superpowers/plans/2026-09-14-autonomous-integration-merge-gate.md
 git commit -m "fix: gate unstable merge state by exact required checks"
 ~~~
 
