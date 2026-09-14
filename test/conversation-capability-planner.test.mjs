@@ -76,7 +76,6 @@ test("temporarily stale but enabled capability remains plannable so router recov
   assert.equal(plan.recoverableRoute, true);
 });
 
-
 test("provider-unknown startup route stays plannable for bounded readiness recovery", () => {
   const plan = planConversationCapabilities({
     content: "Summarize my Microsoft 365 work",
@@ -95,4 +94,36 @@ test("process-starting route remains plannable for startup recovery", () => {
   assert.equal(plan.execution, "task");
   assert.equal(plan.capability, "m365.reason");
   assert.equal(plan.recoverableRoute, true);
+});
+
+test("external skill intents select only matching admitted capabilities", () => {
+  const routes = [
+    ...ROUTES,
+    route("compute.query"), route("compute.context"), route("compute.evaluate"),
+    route("training.start"), route("training.turn"),
+    route("learning.search"), route("learning.details"), route("learning.compare"),
+    route("speech.transcript.list"), route("speech.transcript.read"), route("speech.summary"), route("speech.transcript.export"), route("speech.quota"),
+  ];
+  const cases = [
+    ["Use Wolfram to calculate the derivative of x^3 + 2x.", "compute.query"],
+    ["Start a roleplay interview with a challenging hiring manager.", "training.start"],
+    ["Find an edX course about agentic AI.", "learning.search"],
+    ["List my Transkriptor transcripts.", "speech.transcript.list"],
+  ];
+  for (const [content, capability] of cases) {
+    const plan = planConversationCapabilities({ content, capabilityRoutes: routes });
+    assert.equal(plan.execution, "task");
+    assert.equal(plan.capability, capability);
+  }
+});
+
+test("conversation-history questions stay on the answer lane instead of inheriting prior operations", () => {
+  const plan = planConversationCapabilities({
+    content: "What was my previous question?",
+    capabilityRoutes: ROUTES,
+    priorTasks: [{ capability: "system.health", dataClass: "local-only" }],
+  });
+  assert.equal(plan.execution, "task");
+  assert.equal(plan.capability, "assistant.respond");
+  assert.equal(plan.reasonCode, "ucf-history-recall");
 });
