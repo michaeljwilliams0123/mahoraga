@@ -50,9 +50,24 @@ export function establishOwnerSession(request: Request): OwnerSession {
   return issueOwnerSession(ownerId, secret);
 }
 
-export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
+export function hasTrustedRequestOrigin(request: Request, env: NodeJS.ProcessEnv = process.env) {
   const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw gatewayError("cloud-same-origin-required", 403);
+  if (!origin) return false;
+  let receivedOrigin: string;
+  try { receivedOrigin = new URL(origin).origin; } catch { return false; }
+
+  const allowedOrigins = new Set<string>();
+  try { allowedOrigins.add(new URL(request.url).origin); } catch { /* malformed internal URL is not trusted */ }
+  const railwayPublicDomain = env.RAILWAY_PUBLIC_DOMAIN?.trim().toLowerCase();
+  if (railwayPublicDomain && /^[a-z0-9.-]+$/.test(railwayPublicDomain) && railwayPublicDomain.includes(".")
+    && !railwayPublicDomain.includes("..") && !railwayPublicDomain.startsWith(".") && !railwayPublicDomain.endsWith(".")) {
+    allowedOrigins.add(`https://${railwayPublicDomain}`);
+  }
+  return allowedOrigins.has(receivedOrigin);
+}
+
+export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
+  if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
   const login = verifyOwnerLoginSecret(suppliedSecret);
   if (!login.ok) throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
   return issueOwnerSession(required("MAHORAGA_CLOUD_OWNER_ID"), requiredSecret());
@@ -67,8 +82,7 @@ function issueOwnerSession(ownerId: string, secret: string): OwnerSession {
 
 export function authorizeOwnerMutation(request: Request): OwnerSession {
   const session = establishOwnerSession(request);
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw gatewayError("cloud-same-origin-required", 403);
+  if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
   if (!safeEqual(request.headers.get("x-mahoraga-csrf") ?? "", session.csrf)) throw gatewayError("cloud-csrf-required", 403);
   const nonce = request.headers.get("x-mahoraga-request-nonce") ?? "";
   const timestamp = Number(request.headers.get("x-mahoraga-request-timestamp"));
