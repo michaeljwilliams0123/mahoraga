@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { stripTypeScriptTypes } from "node:module";
 
 const root = new URL("../", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
@@ -35,4 +36,32 @@ test("the Railway workspace offers a same-origin owner sign-in without exposing 
   assert.match(types, /onOwnerLogin/);
   assert.match(relay, /cloud-owner-auth-required/);
   assert.doesNotMatch(`${workspace}\n${chat}\n${types}`, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
+});
+
+test("owner login responses prevent caching for successful and failed authentication", async () => {
+  const source = await read("app/api/runtime/login/route.ts");
+  const gateway = `export function establishOwnerLoginSession(request, supplied) {
+    if (supplied === "valid") return { cookie: "owner-session=test; HttpOnly; Secure; SameSite=Strict" };
+    const error = new Error(supplied === "unconfigured" ? "cloud-gateway-not-configured" : "cloud-owner-login-required");
+    error.status = supplied === "unconfigured" ? 503 : 401;
+    throw error;
+  }
+  export function gatewayFailure(error) { return { code: error.message, status: error.status }; }`;
+  const gatewayUrl = `data:text/javascript,${encodeURIComponent(gateway)}`;
+  const importPath = '"@/lib/cloud-owner-gateway"';
+  assert.equal(source.split(importPath).length, 2, "the test must replace the gateway import exactly once");
+  const isolated = stripTypeScriptTypes(source.replace(importPath, JSON.stringify(gatewayUrl)));
+  const { POST } = await import(`data:text/javascript,${encodeURIComponent(isolated)}`);
+
+  for (const [ownerSecret, status] of [["valid", 200], ["invalid", 401], ["unconfigured", 503]]) {
+    const response = await POST(new Request("https://example.test/api/runtime/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ownerSecret }),
+    }));
+    assert.equal(response.status, status);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.equal(response.headers.has("set-cookie"), status === 200);
+    assert.equal((await response.json()).authenticated, status === 200);
+  }
 });

@@ -13,6 +13,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     const failure = gatewayFailure(error);
-    return Response.json({ authenticated: false, error: failure.code }, { status: failure.status });
+    return Response.json({ authenticated: false, error: failure.code }, { status: failure.status, headers: { "cache-control": "no-store" } });
   }
 }
