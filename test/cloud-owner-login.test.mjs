@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { verifyOwnerLoginSecret } from "../cloud-app/lib/owner-login.ts";
-import { hasTrustedRequestOrigin } from "../cloud-app/lib/cloud-owner-gateway.ts";
+import { hasTrustedRequestOrigin, verifyOwnerLoginSecret } from "../cloud-app/lib/owner-login.ts";
 
 const configured = "6f0a97a7af4a4bd69b9af4ed6e5d3a50";
 const shortestAccepted = "1234567890abcdef";
