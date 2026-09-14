@@ -6,6 +6,10 @@ const ACTION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|i
 const MUTATION_WORDS = /\b(?:apply|build|change|create|delete|deploy|execute|fix|implement|install|move|publish|repair|restart|send|start|stop|update|write)\b/i;
 const READ_ONLY_CAPABILITY = /\.(?:health|inspect|observe|respond|scan|status|validate)$/;
 const INFORMATIONAL_QUESTION = /^(?:how (?:do|does|can|should|would)\b|why\b|what\b|when\b|where\b|who\b|which\b|(?:can|could) you (?:explain|tell|describe)\b)/i;
+const HISTORY_RECALL = /\b(?:what|which)\s+(?:was|were)\s+(?:my\s+)?(?:previous|prior|last|earlier)\s+(?:question|request|message|prompt)\b/i;
+const CONTENT_GENERATION = /^(?:write|draft|design|propose|build|create|compose|outline|generate)\b/i;
+const EXPLICIT_STATE_TARGET = /\b(?:file|files|repository|repo|codebase|branch|pull request|runtime|deployment|service|configuration|config|manifest|database)\b/i;
+const NEGATED_MUTATION = /\b(?:do not|don't|without)\s+(?:change|modify|implement|apply|write|create|update|deploy)\b/i;
 
 export function classifyChatTurn({ mode = "auto", content = "", attachmentCount = 0, availableCapabilities = [], capabilityRoutes = null, priorTasks = [] } = {}) {
   if (!MODES.has(mode)) throw new TypeError("chat-mode-invalid");
@@ -19,6 +23,10 @@ export function classifyChatTurn({ mode = "auto", content = "", attachmentCount 
   const registered = classifyTaskIntent({ content: text, attachmentCount, availableCapabilities: available });
   if (ucf.execution === "unavailable" && ucf.reasonCode === "recipient-not-authorized") {
     return freeze({ mode: "act", execution: "unavailable", capability: null, intentKind: "recipient-restricted", reasonCode: ucf.reasonCode });
+  }
+  if (mode === "auto" && HISTORY_RECALL.test(text)) return answerDecision(available, "general-question");
+  if (mode === "auto" && CONTENT_GENERATION.test(text) && (!EXPLICIT_STATE_TARGET.test(text) || NEGATED_MUTATION.test(text))) {
+    return answerDecision(available, "ucf-general-answer");
   }
   if (mode === "ask") {
     if (ucf.execution === "task" && ucf.capability && READ_ONLY_CAPABILITY.test(ucf.capability)) {
