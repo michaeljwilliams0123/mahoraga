@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { verifyOwnerLoginSecret } from "./owner-login";
+import { hasTrustedRequestOrigin, verifyOwnerLoginSecret } from "./owner-login";
 
 const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -48,22 +48,6 @@ export function establishOwnerSession(request: Request): OwnerSession {
     || !safeEqual(assertionSignature, sign(assertionSecret, assertion))) throw gatewayError("cloud-owner-auth-required", 401);
   persistNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
   return issueOwnerSession(ownerId, secret);
-}
-
-export function hasTrustedRequestOrigin(request: Request, env: NodeJS.ProcessEnv = process.env) {
-  const origin = request.headers.get("origin");
-  if (!origin) return false;
-  let receivedOrigin: string;
-  try { receivedOrigin = new URL(origin).origin; } catch { return false; }
-
-  const allowedOrigins = new Set<string>();
-  try { allowedOrigins.add(new URL(request.url).origin); } catch { /* malformed internal URL is not trusted */ }
-  const railwayPublicDomain = env.RAILWAY_PUBLIC_DOMAIN?.trim().toLowerCase();
-  if (railwayPublicDomain && /^[a-z0-9.-]+$/.test(railwayPublicDomain) && railwayPublicDomain.includes(".")
-    && !railwayPublicDomain.includes("..") && !railwayPublicDomain.startsWith(".") && !railwayPublicDomain.endsWith(".")) {
-    allowedOrigins.add(`https://${railwayPublicDomain}`);
-  }
-  return allowedOrigins.has(receivedOrigin);
 }
 
 export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
