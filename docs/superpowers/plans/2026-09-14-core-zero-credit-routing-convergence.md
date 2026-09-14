@@ -66,7 +66,7 @@ node --test --test-isolation=none test/zero-credit-chat-mode.test.mjs test/chat-
 
 Expected: PASS. If either fails, stop and debug the failure before adding coverage.
 
-### Task 2: Add an explicit no-paid-fallback contract regression
+### Task 2: Lock the no-paid-fallback contract
 
 **Files:**
 - Modify: `test/chat-runtime.test.mjs`
@@ -75,9 +75,7 @@ Expected: PASS. If either fails, stop and debug the failure before adding covera
 - Consumes: `zeroCreditChatRouteAvailable(routes, capability)` from `src/server.mjs`.
 - Produces: a regression proving `licensed-cloud` and `metered-cloud` routes cannot satisfy zero-credit chat admission.
 
-- [ ] **Step 1: Add the failing regression**
-
-Append beside the existing zero-credit route admission test:
+- [ ] **Step 1: Add the regression beside the existing zero-credit admission test**
 
 ```js
 test("zero-credit answer admission never accepts paid execution classes", async () => {
@@ -103,7 +101,7 @@ Run:
 node --test --test-isolation=none test/chat-runtime.test.mjs
 ```
 
-Expected: PASS if the merged contract is intact. If a paid class is admitted, the test must fail before any implementation change is attempted.
+Expected: PASS if the merged contract is intact. If a paid class is admitted, the test fails and the implementation must be debugged before proceeding.
 
 - [ ] **Step 3: Commit only the regression**
 
@@ -184,7 +182,7 @@ creditCost = 0
 
 - [ ] **Step 4: Run a negative paid-fallback canary**
 
-Temporarily make only licensed/metered answer routes eligible in the controlled test configuration or use an existing fixture that models that state.
+Use a controlled test fixture that exposes only licensed/metered answer routes; do not alter the live paid-provider policy merely to create the test condition.
 
 Expected: `zero-credit-provider-unavailable`; no licensed or metered invocation occurs.
 
@@ -197,28 +195,11 @@ Expected: `zero-credit-provider-unavailable`; no licensed or metered invocation 
 - Consumes: exact Git SHA, CI run IDs, Railway deployment ID, live canary result.
 - Produces: durable evidence for the primary-controller readiness gate.
 
-- [ ] **Step 1: Write the evidence record**
+- [ ] **Step 1: Write the evidence record from observed values**
 
-Use this exact structure:
+Create `docs/readiness/core-zero-credit-routing-evidence.md` only after the live proof exists. Include the exact 40-character merged main SHA, exact Ubuntu and Windows Verify run IDs and conclusions, canonical Railway service name and deployment ID, deployed source SHA comparison, zero-credit answer canary result, paid-fallback-attempted boolean, observed monetary spend, and final `GREEN` or `AMBER` result. Do not copy example IDs or invent missing evidence.
 
-```markdown
-# Core Zero-Credit Routing Evidence
-
-- Git main SHA: `<40-hex-sha>`
-- Verify Ubuntu: `success`
-- Verify Windows: `success`
-- Canonical Railway service: `mahoraga-runtime-main`
-- Railway deployment ID: `<deployment-id>`
-- Deployed source SHA matches main: `yes`
-- Zero-credit answer canary: `pass`
-- Paid fallback attempted: `no`
-- Unauthorized spend: `$0`
-- Result: `GREEN`
-```
-
-Replace angle-bracket values only with observed evidence; never invent them.
-
-- [ ] **Step 2: Commit the evidence after the live proof exists**
+- [ ] **Step 2: Commit the evidence**
 
 Run:
 
