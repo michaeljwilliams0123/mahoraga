@@ -150,3 +150,39 @@ test("chat intake blocks broad human-recipient messaging before action escalatio
   const result = classifyChatTurn({ mode: "auto", content: "Send a message to everyone in Teams", capabilityRoutes: [{ capability: "assistant.respond", enabled: true, routable: true }] });
   assert.deepEqual(result, { mode: "act", execution: "unavailable", capability: null, intentKind: "recipient-restricted", reasonCode: "recipient-not-authorized" });
 });
+
+test("Auto keeps content-generation requests on the answer lane unless state mutation is explicit", () => {
+  for (const content of [
+    "Write a JavaScript debounce function and explain the edge cases.",
+    "Build a concise three-scenario SaaS cash-flow framework with base, upside, and downside assumptions.",
+    "Design a conversation-export feature for Mahoraga, but do not change files.",
+    "Propose a test-first plan for threaded conversations, but do not implement it.",
+  ]) {
+    assert.deepEqual(classifyChatTurn({ mode: "auto", content, availableCapabilities: CAPABILITIES }), {
+      mode: "ask",
+      execution: "task",
+      capability: "assistant.respond",
+      intentKind: "answer",
+      reasonCode: "ucf-general-answer",
+    });
+  }
+});
+
+test("Auto keeps conversation-history questions on the answer lane after operational turns", () => {
+  const routes = [
+    { capability: "assistant.respond", enabled: true, routable: true },
+    { capability: "system.health", enabled: true, routable: true },
+  ];
+  assert.deepEqual(classifyChatTurn({
+    mode: "auto",
+    content: "What was my previous question?",
+    capabilityRoutes: routes,
+    priorTasks: [{ capability: "system.health", dataClass: "local-only" }],
+  }), {
+    mode: "ask",
+    execution: "task",
+    capability: "assistant.respond",
+    intentKind: "answer",
+    reasonCode: "general-question",
+  });
+});

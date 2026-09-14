@@ -12,6 +12,14 @@ const MUTATION = /\b(?:apply|build|change|create|delete|deploy|execute|fix|imple
 const VERIFY = /\b(?:verify|validate|test|check)\b/i;
 const COMMUNICATION = /\b(?:send|message|ping|email|notify|post|broadcast)\b/i;
 const BROAD_RECIPIENT = /\b(?:everyone|everybody|all users|all people|whole (?:team|department|company)|entire (?:team|department|company)|channel|coworkers|colleagues)\b/i;
+const HISTORY_RECALL = /\b(?:what|which)\s+(?:was|were)\s+(?:my\s+)?(?:previous|prior|last|earlier)\s+(?:question|request|message|prompt)\b/i;
+const CONTENT_GENERATION = /^(?:write|draft|design|propose|build|create|compose|outline|generate)\b/i;
+const EXPLICIT_STATE_TARGET = /\b(?:file|files|repository|repo|codebase|branch|pull request|runtime|deployment|service|configuration|config|manifest|database)\b/i;
+const NEGATED_MUTATION = /\b(?:do not|don't|without)\s+(?:change|modify|implement|apply|write|create|update|deploy)\b/i;
+const WOLFRAM = /\bwolfram(?:\|?alpha)?\b/i;
+const ROLEPLAY = /\b(?:roleplay|role-play|mock interview|practice interview|rehearse)\b/i;
+const EDX = /\bedx\b/i;
+const TRANSKRIPTOR = /\btranskriptor\b/i;
 
 export function planConversationCapabilities({ content = "", attachmentCount = 0, capabilityRoutes = [], priorTasks = [] } = {}) {
   const text = normalizeText(content);
@@ -22,6 +30,33 @@ export function planConversationCapabilities({ content = "", attachmentCount = 0
   const base = classifyTaskIntent({ content: text, attachmentCount, availableCapabilities: capabilities });
   const planned = [];
   const add = (capability) => { if (capability && canPlan(routes, capability) && !planned.includes(capability)) planned.push(capability); };
+
+  if (HISTORY_RECALL.test(text)) {
+    add("assistant.respond");
+    if (planned.length > 0) return finalizePlan(planned, routes, "ucf-history-recall");
+    return decision("unavailable", null, [], "answer", "answer-provider-unavailable", false);
+  }
+  if (WOLFRAM.test(text)) {
+    add(/\b(?:documentation|docs|reference|symbol)\b/i.test(text) ? "compute.context" : /\b(?:evaluate|execute)\b.*\bwolfram language\b/i.test(text) ? "compute.evaluate" : "compute.query");
+    if (planned.length > 0) return finalizePlan(planned, routes, "external-wolfram");
+  }
+  if (ROLEPLAY.test(text)) {
+    add(/\b(?:continue|reply|respond|next turn)\b/i.test(text) ? "training.turn" : "training.start");
+    if (planned.length > 0) return finalizePlan(planned, routes, "external-roleplay");
+  }
+  if (EDX.test(text)) {
+    add(/\bcompare\b/i.test(text) ? "learning.compare" : /\b(?:details?|about this course)\b/i.test(text) ? "learning.details" : "learning.search");
+    if (planned.length > 0) return finalizePlan(planned, routes, "external-edx");
+  }
+  if (TRANSKRIPTOR.test(text)) {
+    add(/\b(?:quota|usage|limit)\b/i.test(text) ? "speech.quota" : /\b(?:export|pdf)\b/i.test(text) ? "speech.transcript.export" : /\bsummary\b/i.test(text) ? "speech.summary" : /\b(?:list|show|find)\b/i.test(text) ? "speech.transcript.list" : "speech.transcript.read");
+    if (planned.length > 0) return finalizePlan(planned, routes, "external-transkriptor");
+  }
+  if (CONTENT_GENERATION.test(text) && (!EXPLICIT_STATE_TARGET.test(text) || NEGATED_MUTATION.test(text))) {
+    add("assistant.respond");
+    if (planned.length > 0) return finalizePlan(planned, routes, "ucf-general-answer");
+    return decision("unavailable", null, [], "answer", "answer-provider-unavailable", false);
+  }
 
   if (attachmentCount > 0 && base.capability) add(base.capability);
   if (REPOSITORY.test(text)) add("repository.inspect");
