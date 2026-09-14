@@ -126,3 +126,66 @@ test("authenticated content endpoint validates owner and classification before r
   assert.ok(accessEvent);
   assert.doesNotMatch(JSON.stringify(accessEvent), new RegExp(secret));
 });
+
+
+test("content access audit accepts the exact trusted owner paired relay mechanism", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-relay-evidence-"));
+  const vault = await createContentVault({ root: path.join(root, "vault"), masterKey: Buffer.alloc(32, 15) });
+  const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { contentVault: vault });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+  const task = database.submitTask({ capability: "system.health", dataClass: "local-only", requestedOutcome: "relay content boundary proof", idempotencyKey: "content-owner-relay-evidence" });
+
+  assert.doesNotThrow(() => database.recordContentAccess({
+    reference: task.requestedOutcomeReference,
+    ownerType: "task",
+    ownerId: task.id,
+    classification: "local-only",
+    mechanism: "owner-paired-relay",
+    sessionId: "rls-00000000000000000000000000000000",
+  }));
+  const event = database.listEvents().find((item) => item.eventType === "content.accessed");
+  assert.equal(event.metadata.mechanism, "owner-paired-relay");
+  assert.equal(event.metadata.sessionBound, true);
+});
+
+
+test("content access audit rejects untrusted mechanisms", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-mechanism-deny-"));
+  const vault = await createContentVault({ root: path.join(root, "vault"), masterKey: Buffer.alloc(32, 16) });
+  const database = new RuntimeDatabase(path.join(root, "runtime.sqlite"), { contentVault: vault });
+  t.after(() => { database.close(); rmSync(root, { recursive: true, force: true }); });
+  const task = database.submitTask({ capability: "system.health", dataClass: "local-only", requestedOutcome: "x", idempotencyKey: "deny-content-mechanism" });
+
+  assert.throws(() => database.recordContentAccess({
+    reference: task.requestedOutcomeReference,
+    ownerType: "task",
+    ownerId: task.id,
+    classification: "local-only",
+    mechanism: "arbitrary-browser-string",
+    sessionId: "rls-00000000000000000000000000000000",
+  }), /Content access mechanism is invalid/);
+});
+
+
+test("owner paired relay gateway reads vault-backed message content with bounded audit evidence", { concurrency: false }, async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-relay-runtime-"));
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: Buffer.alloc(32, 17), syncCoordinationMailbox: false });
+  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  const secret = "relay vault-backed assistant message";
+  const conversation = runtime.database.createConversation({ title: "Relay content proof", initialMessage: secret, classification: "local-only" });
+  const message = runtime.database.listConversationMessages(conversation.id)[0];
+  const sessionId = "rls-00000000000000000000000000000000";
+
+  const result = runtime.server.conversationGateway.messageContent({
+    conversationId: conversation.id,
+    messageId: message.id,
+    contentReference: message.contentReference,
+    classification: message.classification,
+  }, { mechanism: "owner-paired-relay", attendedSession: { active: true, sessionId } });
+
+  assert.equal(result.content, secret);
+  const event = runtime.database.listEvents().findLast((item) => item.eventType === "content.accessed");
+  assert.equal(event.metadata.mechanism, "owner-paired-relay");
+  assert.equal(event.metadata.sessionBound, true);
+  assert.doesNotMatch(JSON.stringify(event), new RegExp(`${secret}|${sessionId}`));
+});
