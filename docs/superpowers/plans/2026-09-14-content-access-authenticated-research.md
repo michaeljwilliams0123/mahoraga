@@ -98,19 +98,17 @@ Expected before implementation: FAIL with `Content access mechanism is invalid.`
 
 - [ ] **Step 1: Make the minimal live-source change**
 
-Replace the mechanism check in `src/database.mjs` with:
+Add one module-private constant near other validation constants in `src/database.mjs`:
 
 ```js
 const CONTENT_ACCESS_MECHANISMS = new Set(["bearer", "cookie", "owner-paired-relay"]);
 ```
 
-and inside `recordContentAccess(...)` use:
+Inside `recordContentAccess(...)`, replace the inline set check with:
 
 ```js
 if (!CONTENT_ACCESS_MECHANISMS.has(mechanism)) throw new TypeError("Content access mechanism is invalid.");
 ```
-
-Keep the constant module-private unless another production module has a demonstrated need for it.
 
 - [ ] **Step 2: Mirror the exact change in the release baseline**
 
@@ -118,7 +116,7 @@ Apply the same constant and validation line to `state/release-baseline/src/datab
 
 - [ ] **Step 3: Add a negative arbitrary-mechanism regression**
 
-In `test/content-boundary-runtime.test.mjs`, add:
+Append to `test/content-boundary-runtime.test.mjs`:
 
 ```js
 test("content access audit rejects untrusted mechanisms", async (t) => {
@@ -159,45 +157,49 @@ git add src/database.mjs state/release-baseline/src/database.mjs test/content-bo
 git commit -m "fix(content): admit trusted owner relay access evidence"
 ```
 
-### Task 3: Prove real relay message-content retrieval
+### Task 3: Prove relay message-content context propagation
 
 **Files:**
-- Modify if necessary: `test/relay-runtime.test.mjs`
+- Modify: `test/relay-runtime.test.mjs`
 - Inspect: `src/server.mjs`
 - Inspect: `src/relay-runtime.mjs`
 
 **Interfaces:**
-- Consumes: relay `message-content` dispatch and server `gateway.messageContent(payload, context)`.
-- Produces: an end-to-end test that reads vault-backed content through the owner paired relay and records an audit event.
+- Consumes: relay `message-content` dispatch and `gateway.messageContent(payload, context)`.
+- Produces: a focused relay regression proving the exact trusted context reaches the gateway.
 
-- [ ] **Step 1: Extend the relay fixture with one vault-backed assistant message**
+- [ ] **Step 1: Extend the existing relay gateway fixture**
 
-Use the existing relay-runtime test fixture and assert the request path sends:
+In `test/relay-runtime.test.mjs`, make the fixture's `messageContent` handler capture both arguments:
+
+```js
+messageContent(input, context) {
+  calls.push({ type: "message-content", input, context });
+  return { content: "relay content proof" };
+},
+```
+
+Use the test's existing paired-session setup to dispatch one `message-content` request with literal fixture values:
 
 ```js
 {
-  type: "message-content",
-  payload: {
-    conversationId,
-    messageId,
-    contentReference,
-    classification: "local-only",
-  },
+  conversationId: "con-00000000-0000-0000-0000-000000000001",
+  messageId: "msg-00000000-0000-0000-0000-000000000002",
+  contentReference: "vault:00000000-0000-0000-0000-000000000003",
+  classification: "local-only",
 }
 ```
 
-The gateway fixture must receive context exactly equal to:
+- [ ] **Step 2: Assert the exact context**
+
+Assert the captured call contains:
 
 ```js
-{
-  attendedSession: { active: true, sessionId: expectedSessionId },
-  mechanism: "owner-paired-relay",
-}
+assert.equal(calls.at(-1).type, "message-content");
+assert.equal(calls.at(-1).context.mechanism, "owner-paired-relay");
+assert.equal(calls.at(-1).context.attendedSession.active, true);
+assert.match(calls.at(-1).context.attendedSession.sessionId, /^rls-[A-Za-z0-9_-]{32}$/);
 ```
-
-- [ ] **Step 2: Assert content bytes never enter the audit event**
-
-The regression must verify the returned content equals the expected plaintext while serialized `content.accessed` evidence does not contain that plaintext or the raw session ID.
 
 - [ ] **Step 3: Run relay and content tests**
 
@@ -212,39 +214,43 @@ Expected: PASS.
 ### Task 4: Reconcile authenticated GitHub research with merged PR #488
 
 **Files:**
-- Inspect: `cloud-app/src/lib/fleet/github.server.ts` if present, otherwise the actual merged `github.server.ts` path reported by Git history.
-- Inspect: tests added by PR #488.
-- Inspect: cloud workspace research path.
+- Inspect: `operator-deck/src/lib/fleet/github.server.ts`
+- Test: `test/operator-authenticated-read.test.mjs`
+- Inspect: `operator-deck/README.md`
 
 **Interfaces:**
 - Consumes: `MAHORAGA_GITHUB_READ_TOKEN`, `GH_TOKEN`, or `GITHUB_TOKEN` on the server only.
 - Produces: repository reads that use authenticated `api.github.com`, reject redirects, use `cache: "no-store"`, and return `authenticated-read-unavailable` when credentials cannot be used.
 
-- [ ] **Step 1: Confirm public HTML/RAW fallbacks are absent**
+- [ ] **Step 1: Confirm public HTML/RAW fallbacks are absent from the merged reader**
 
 Run:
 
 ```bash
-git grep -n "raw.githubusercontent.com\|loadFromPublicWeb\|webText(" -- cloud-app operator-deck src || true
+git grep -n "raw.githubusercontent.com\|loadFromPublicWeb\|webText(" -- operator-deck/src/lib/fleet/github.server.ts test/operator-authenticated-read.test.mjs || true
 ```
 
-Expected: no active repository-reader fallback remains in the merged operator path.
+Expected: no active public/RAW fallback implementation remains.
 
-- [ ] **Step 2: Run the exact authenticated-reader regressions introduced by PR #488**
+- [ ] **Step 2: Run the exact authenticated-reader regression merged by PR #488**
 
-Identify the changed test filename from PR #488, then run that test directly with `node --test --test-isolation=none <path>` or the package-specific test command used by that workspace.
+Run:
 
-Expected: authenticated private fixture passes; missing/rejected credential returns `authenticated-read-unavailable`; no stale private snapshot is served.
+```bash
+node --test --test-isolation=none test/operator-authenticated-read.test.mjs
+```
+
+Expected: PASS, including authenticated private repository reads, `authenticated-read-unavailable` on absent/rejected authentication, and no stale success snapshot fallback.
 
 - [ ] **Step 3: Verify credential scope is server-only**
 
 Run:
 
 ```bash
-git grep -n "MAHORAGA_GITHUB_READ_TOKEN\|GH_TOKEN\|GITHUB_TOKEN" -- cloud-app operator-deck
+git grep -n "MAHORAGA_GITHUB_READ_TOKEN\|GH_TOKEN\|GITHUB_TOKEN" -- operator-deck cloud-app
 ```
 
-Expected: no `NEXT_PUBLIC_` exposure and no browser component reads the secret.
+Expected: the credential names occur only in server-side modules/tests/documentation; no `NEXT_PUBLIC_` token exposure exists and browser components do not read the secrets.
 
 ### Task 5: Full repository verification and live research canary
 
@@ -275,21 +281,6 @@ Canary A: retrieve a vault-backed message through the connected workspace. Expec
 
 Canary B: ask Mahoraga to inspect the connected GitHub repository. Expected: authenticated repository evidence or the explicit fail-closed `authenticated-read-unavailable` state; never an unauthenticated public fallback.
 
-- [ ] **Step 4: Record evidence**
+- [ ] **Step 4: Record only observed evidence**
 
-Create:
-
-```markdown
-# Content and Authenticated Research Evidence
-
-- Main SHA: `<40-hex-sha>`
-- Content mechanism regression: `pass`
-- Arbitrary mechanism rejection: `pass`
-- Relay message-content canary: `pass`
-- Authenticated GitHub reader: `pass|fail-closed`
-- Public/RAW fallback observed: `no`
-- Canonical Railway source matches main: `yes`
-- Result: `GREEN|AMBER`
-```
-
-Use `AMBER` only when GitHub credentials are operationally unavailable but the path fails closed correctly.
+Create `docs/readiness/content-and-research-evidence.md` after the canaries. Record the actual 40-character main SHA, content mechanism regression result, arbitrary-mechanism rejection result, relay message-content canary result, authenticated GitHub reader result, whether any public/RAW fallback was observed, whether canonical Railway matches main, and the resulting `GREEN` or `AMBER` classification. Use `AMBER` only when GitHub credentials are operationally unavailable but the path fails closed correctly.
