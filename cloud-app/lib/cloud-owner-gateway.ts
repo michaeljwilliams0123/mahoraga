@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { verifyOwnerLoginSecret } from "./owner-login";
+import { hasTrustedRequestOrigin, verifyOwnerLoginSecret } from "./owner-login";
 
 const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -51,8 +51,7 @@ export function establishOwnerSession(request: Request): OwnerSession {
 }
 
 export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw gatewayError("cloud-same-origin-required", 403);
+  if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
   const login = verifyOwnerLoginSecret(suppliedSecret);
   if (!login.ok) throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
   return issueOwnerSession(required("MAHORAGA_CLOUD_OWNER_ID"), requiredSecret());
@@ -67,8 +66,7 @@ function issueOwnerSession(ownerId: string, secret: string): OwnerSession {
 
 export function authorizeOwnerMutation(request: Request): OwnerSession {
   const session = establishOwnerSession(request);
-  const origin = request.headers.get("origin");
-  if (!origin || new URL(origin).origin !== new URL(request.url).origin) throw gatewayError("cloud-same-origin-required", 403);
+  if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
   if (!safeEqual(request.headers.get("x-mahoraga-csrf") ?? "", session.csrf)) throw gatewayError("cloud-csrf-required", 403);
   const nonce = request.headers.get("x-mahoraga-request-nonce") ?? "";
   const timestamp = Number(request.headers.get("x-mahoraga-request-timestamp"));
