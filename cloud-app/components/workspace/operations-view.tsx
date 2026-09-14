@@ -194,7 +194,7 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
           <div>
             <strong>Tasks</strong>
             <span>
-              active {snapshot.tasks.active} · waiting {snapshot.tasks.waiting} · failed {snapshot.tasks.failed}
+              active {snapshot.tasks.active} (includes queued retries) · waiting {snapshot.tasks.waiting} · failed terminal {snapshot.tasks.failed} (lease-expired exhausted is not claimable)
             </span>
           </div>
           <div>
