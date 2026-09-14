@@ -1,7 +1,7 @@
 export const LANGUAGE_LOCK = "TypeScript";
-export const APP_HOST = "Vercel";
+export const APP_HOST = "Railway";
 export const WORKSPACE_NOTE =
-  "Google Workspace is identity, mail, and docs. It is not the app host. Browser UIs ship on Vercel.";
+  "Google Workspace is identity, mail, and docs. It is not the app host. Production browser UIs ship Railway-only; active Vercel deploy config is retired.";
 export const CLOUD_APP_URL = "https://mahoraga-cloud-workspace.vercel.app/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const PRODUCTION_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
@@ -45,8 +45,8 @@ export const VERSION_SURFACES: VersionSurface[] = [
     id: "conversation",
     label: "Conversation workspace",
     version: CANDIDATE_VERSION,
-    role: "GitHub candidate plus ChatGPT-style Cloud Pro workspace with self.evolve control plane.",
-    host: `${APP_HOST} · mahoraga-cloud-workspace`,
+    role: "GitHub candidate plus ChatGPT-style workspace with self.evolve control plane.",
+    host: `${APP_HOST}-only production · cloud-app/ (no active vercel.json)`,
     language: "TypeScript (Next.js cloud-app)",
     status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected. Owner directives may target self.evolve.",
     href: CLOUD_APP_URL,
@@ -56,7 +56,7 @@ export const VERSION_SURFACES: VersionSurface[] = [
     label: "Operator console",
     version: DECK_VERSION,
     role: "Singular operator UI: inspect, merge, comment, close, dispatch, delete.",
-    host: `This ${APP_HOST}-hosted deck`,
+    host: `This ${APP_HOST}-hosted deck. Vercel hooks retired (#458).`,
     language: "TypeScript (TanStack Start). Locked — never Java unless you start a Java service.",
     status: "Owner GitHub writes through the connected gh session. Fail-closed without it.",
   },
