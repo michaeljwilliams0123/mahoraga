@@ -31,11 +31,15 @@ type PairingOffer = {
 export type RuntimeCapability = {
   capability: string;
   routable: boolean;
+  enabled?: boolean;
   workerId?: string | null;
   workerIds: string[];
   provider?: string;
   canary?: string;
+  costClass?: string;
+  billingClass?: string;
   routingReason?: string | null;
+  providerReasonCode?: string | null;
   evidenceLevel?: string;
   lastObservedAt?: string | null;
   lastVerifiedAt?: string | null;

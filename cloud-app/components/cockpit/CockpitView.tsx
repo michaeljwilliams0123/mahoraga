@@ -1,7 +1,7 @@
 "use client";
 
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
-import { projectInteractionReadiness } from "@/lib/interaction-readiness";
+import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import type { CockpitViewProps } from "../workspace/workspace-types";
 
 function shortSha(value: string | null | undefined) {
@@ -41,6 +41,7 @@ export function CockpitView({
   const productName = health?.product ?? "Mahoraga";
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
+  const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -104,6 +105,12 @@ export function CockpitView({
           tone={interaction.ready ? "good" : "warn"}
         />
         <StatusCard
+          label="Zero-credit answers"
+          value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"}
+          detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`}
+          tone={zeroCredit.state === "allow" ? "good" : "warn"}
+        />
+        <StatusCard
           label="Model fabric"
           value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`}
           detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`}
@@ -137,6 +144,8 @@ export function CockpitView({
             <div><dt>Relay plaintext</dt><dd>{health?.boundaries?.relaySeesPlaintext === true ? "unexpected" : "not visible"}</dd></div>
             <div><dt>Runtime DB target</dt><dd>{runtimeDatabase}</dd></div>
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
+            <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
+            <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
           </dl>
         </section>
 

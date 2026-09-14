@@ -49,6 +49,16 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /failure and success responses are not cached/);
   });
 
+  it("surfaces canonical zero-credit admission without implying paid fallback", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /projectZeroCreditAdmission/);
+    assert.match(cockpit, /Zero-credit answers/);
+    assert.match(cockpit, /zeroCredit\.state === "allow" \? "Admitted"/);
+    assert.match(cockpit, /zeroCredit\.state === "deny" \? "Denied" : "On hold"/);
+    assert.match(cockpit, /no paid fallback/);
+    assert.match(cockpit, /verification unavailable/);
+  });
+
   it("keeps public product identity Mahoraga and treats 7.0.0-alpha.2 as build provenance only", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
