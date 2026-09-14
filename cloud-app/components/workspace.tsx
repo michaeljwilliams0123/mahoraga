@@ -51,6 +51,9 @@ function runtimeErrorMessage(code: string) {
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
     "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
     "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
+    "cloud-owner-login-required": "The owner sign-in secret was not accepted.",
+    "cloud-owner-login-not-configured": "Direct owner sign-in has not been configured yet.",
+    "cloud-owner-login-secret-invalid": "The direct owner sign-in configuration is invalid.",
   };
   return messages[code] ?? code.replaceAll("-", " ");
 }
@@ -64,6 +67,9 @@ export function Workspace() {
   const [view, setView] = useState<WorkspaceView>("chat");
   const [taskMode] = useState<TaskMode>("auto");
   const [pairingOffer, setPairingOffer] = useState("");
+  const [ownerLoginRequired, setOwnerLoginRequired] = useState(false);
+  const [ownerLoginSecret, setOwnerLoginSecret] = useState("");
+  const [ownerLoginBusy, setOwnerLoginBusy] = useState(false);
   const [relayState, setRelayState] = useState<RelayState>("resuming");
   const [pairedRelay, setPairedRelay] = useState<RuntimeRelay | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
@@ -120,7 +126,9 @@ export function Workspace() {
     void transport.attach().then((attached) => attached ?? transport.resume()).then(async (resumed) => {
       if (!active) { transport.disconnect(); return; }
       if (!resumed) {
-        setRuntimeError(runtimeErrorMessage(transport.sessionDiagnostic?.code ?? "cloud-session-unavailable"));
+        const code = transport.sessionDiagnostic?.code ?? "cloud-session-unavailable";
+        setOwnerLoginRequired(code === "cloud-owner-auth-required");
+        setRuntimeError(runtimeErrorMessage(code));
         setRelayState("unpaired");
         return;
       }
@@ -140,6 +148,29 @@ export function Workspace() {
       transport.disconnect();
     };
   }, []);
+
+  async function loginDirectOwner() {
+    if (!ownerLoginSecret.trim() || ownerLoginBusy) return;
+    setOwnerLoginBusy(true);
+    setRuntimeError(null);
+    try {
+      const response = await fetch("/api/runtime/login", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ownerSecret: ownerLoginSecret }),
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string };
+      if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "cloud-owner-login-required");
+      setOwnerLoginSecret("");
+      window.location.reload();
+    } catch (caught) {
+      setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "cloud-owner-login-required"));
+    } finally {
+      setOwnerLoginBusy(false);
+    }
+  }
 
   function resetConversation() {
     runtimePollGeneration.current += 1;
@@ -382,10 +413,12 @@ export function Workspace() {
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
           busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
+          ownerLoginRequired={ownerLoginRequired} ownerLoginSecret={ownerLoginSecret} ownerLoginBusy={ownerLoginBusy}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
+          setOwnerLoginSecret={setOwnerLoginSecret}
           addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
-          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
+          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
         />
       )}
 

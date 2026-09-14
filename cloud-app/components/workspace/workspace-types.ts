@@ -56,6 +56,9 @@ export type ChatViewProps = {
   healthError: boolean;
   relayState: RelayState;
   pairingOffer: string;
+  ownerLoginRequired: boolean;
+  ownerLoginSecret: string;
+  ownerLoginBusy: boolean;
   routableCapabilities: RuntimeCapability[];
   starters: Starter[];
   quickActions: QuickAction[];
@@ -67,6 +70,7 @@ export type ChatViewProps = {
   bottom: RefObject<HTMLDivElement | null>;
   setInput: (value: string) => void;
   setPairingOffer: (value: string) => void;
+  setOwnerLoginSecret: (value: string) => void;
   setSidebarOpen: (open: boolean) => void;
   chooseStarter: (prompt: string) => void;
   addFiles: (files: File[]) => void;
@@ -77,6 +81,7 @@ export type ChatViewProps = {
   speakLatest: () => void;
   stopActiveResponse: () => void | Promise<void>;
   pairRuntime: () => void | Promise<void>;
+  onOwnerLogin: () => void | Promise<void>;
   revokeRuntime: () => void | Promise<void>;
   retryLicensed: () => void | Promise<void>;
 };
