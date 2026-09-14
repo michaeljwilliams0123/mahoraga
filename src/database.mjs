@@ -1350,12 +1350,14 @@ export class RuntimeDatabase {
   }
 
   recoverExpired(now = new Date()) {
-    const expired = this.db.prepare("SELECT id, assigned_worker FROM tasks WHERE status IN ('running','verifying') AND lease_expires_at < ?").all(now.toISOString());
+    const expired = this.db.prepare("SELECT id, assigned_worker, attempt_count, maximum_attempts FROM tasks WHERE status IN ('running','verifying') AND lease_expires_at < ?").all(now.toISOString());
     const transaction = () => this.#transaction(() => {
       for (const row of expired) {
-        this.db.prepare(`UPDATE tasks SET status='queued', assigned_worker=NULL, lease_expires_at=NULL,
-          error_code='lease-expired', updated_at=? WHERE id=? AND status IN ('running','verifying')`).run(now.toISOString(), row.id);
-        this.#event("task.recovered", row.id, { previousWorker: row.assigned_worker });
+        const exhausted = row.attempt_count >= row.maximum_attempts;
+        this.db.prepare(`UPDATE tasks SET status=?, assigned_worker=NULL, lease_expires_at=NULL,
+          error_code='lease-expired', updated_at=? WHERE id=? AND status IN ('running','verifying')`)
+          .run(exhausted ? "failed" : "queued", now.toISOString(), row.id);
+        this.#event(exhausted ? "task.failed" : "task.recovered", row.id, { previousWorker: row.assigned_worker });
       }
     });
     transaction();
