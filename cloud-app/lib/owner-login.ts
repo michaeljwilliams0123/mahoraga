@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 
 type LoginResult = { ok: true } | { ok: false; code: "cloud-owner-login-not-configured" | "cloud-owner-login-secret-invalid" | "cloud-owner-login-required" };
 
-const MINIMUM_SECRET_LENGTH = 32;
+const MINIMUM_SECRET_LENGTH = 16;
 const MAXIMUM_SECRET_LENGTH = 256;
 
 export function verifyOwnerLoginSecret(supplied: unknown, env: NodeJS.ProcessEnv = process.env): LoginResult {
