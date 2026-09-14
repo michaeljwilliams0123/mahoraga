@@ -5,8 +5,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const ROOT = path.resolve(new URL("..", import.meta.url).pathname.replace(/^\/(?:[A-Za-z]:)/, (value) => value.slice(1)));
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const TEST_VAULT_KEY = Buffer.alloc(32, 91).toString("base64");
 
 test("CLI status honors explicit runtime database and vault targets cross-platform", async () => {
