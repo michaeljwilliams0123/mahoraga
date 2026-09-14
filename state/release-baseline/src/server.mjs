@@ -629,6 +629,16 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
   });
 }
 
+const ZERO_CREDIT_CHAT_COST_CLASSES = new Set(["deterministic", "local-model", "cloud-open-weight"]);
+
+export function zeroCreditChatRouteAvailable(routes, capability) {
+  return Array.isArray(routes) && routes.some((route) =>
+    route?.capability === capability
+      && route.enabled === true
+      && route.routable === true
+      && ZERO_CREDIT_CHAT_COST_CLASSES.has(route.costClass));
+}
+
 async function executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
   const creditPolicy = chatCreditPolicy(body.creditPolicy);
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
@@ -651,8 +661,7 @@ async function executeChatTurn({ database, manifest, supervisor, artifactStore, 
       const conversation = body.conversationId ? database.getConversation(body.conversationId) : result.conversation;
       return { status: 202, value: { decision, conversation, task: null, objective: result.objective, creditFreeRequired: true, creditCost: 0, paidFallback: false } };
     }
-    const eligible = manifest.workers.filter((worker) => worker.enabled && worker.capabilities.includes(decision.capability));
-    if (!eligible.some((worker) => new Set(["deterministic", "local-model"]).has(worker.costClass))) {
+    if (!zeroCreditChatRouteAvailable(capabilityRoutes, decision.capability)) {
       return { status: 409, value: { error: "zero-credit-provider-unavailable", decision } };
     }
   }
