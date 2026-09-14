@@ -49,9 +49,9 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
         <div className="one-alert"><CircleAlert size={17} /> {error}</div>
       ) : (
         <div className="work-grid">
-          <article><Activity size={20} /><span>Active</span><strong>{snapshot?.tasks.active ?? 0}</strong><small>tasks in motion</small></article>
-          <article><Sparkles size={20} /><span>Waiting</span><strong>{snapshot?.tasks.waiting ?? 0}</strong><small>queued retry remaining, not exhausted</small></article>
-          <article><CircleAlert size={20} /><span>Failed</span><strong>{snapshot?.tasks.failed ?? 0}</strong><small>terminal including lease-expired exhausted</small></article>
+          <article><Activity size={20} /><span>Active</span><strong>{snapshot?.tasks.active ?? 0}</strong><small>tasks in motion; includes queued retries</small></article>
+          <article><Sparkles size={20} /><span>Waiting</span><strong>{snapshot?.tasks.waiting ?? 0}</strong><small>waiting or waiting for user input</small></article>
+          <article><CircleAlert size={20} /><span>Failed</span><strong>{snapshot?.tasks.failed ?? 0}</strong><small>terminal; lease-expired exhausted is not claimable</small></article>
           <article><GitBranch size={20} /><span>Repository</span><strong>{snapshot?.repository.cleanState ?? "checking"}</strong><small>{snapshot?.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>
           <article><WandSparkles size={20} /><span>Repairs</span><strong>{snapshot?.repairs.activeIncidents ?? 0}</strong><small>{snapshot?.repairs.lastRepairState ?? "checking"}</small></article>
         </div>

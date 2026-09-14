@@ -132,28 +132,6 @@ export function CommandCockpit({
           </div>
         </header>
 
-        <aside className="cockpit-panel tone-ok" aria-label="Task lease states">
-          <h3>TASK LEASES</h3>
-          <p>
-            Queued + lease-expired still has retry remaining. Failed + lease-expired is terminal and not claimable.
-            Health string stays 7.0.0-alpha.2. Product name Mahoraga.
-          </p>
-          <dl>
-            <div>
-              <dt>queued</dt>
-              <dd>retry remaining</dd>
-            </div>
-            <div>
-              <dt>failed</dt>
-              <dd>exhausted · not claimable</dd>
-            </div>
-            <div>
-              <dt>error_code</dt>
-              <dd>lease-expired</dd>
-            </div>
-          </dl>
-        </aside>
-
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
           <h3>CONVERGENCE</h3>
           <p>
