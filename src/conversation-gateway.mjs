@@ -26,7 +26,11 @@ export function createConversationGateway({ database, manifest, supervisor, subm
       };
       if (typeof item.provider === "string") projected.provider = item.provider;
       if (typeof item.canary === "string") projected.canary = item.canary;
+      if (typeof item.enabled === "boolean") projected.enabled = item.enabled;
+      if (typeof item.costClass === "string") projected.costClass = item.costClass;
+      if (typeof item.billingClass === "string") projected.billingClass = item.billingClass;
       if (item.routingReason === null || typeof item.routingReason === "string") projected.routingReason = item.routingReason;
+      if (item.providerReasonCode === null || typeof item.providerReasonCode === "string") projected.providerReasonCode = item.providerReasonCode;
       if (typeof item.evidenceLevel === "string") projected.evidenceLevel = item.evidenceLevel;
       if (item.lastObservedAt != null) projected.lastObservedAt = item.lastObservedAt;
       if (item.lastVerifiedAt != null) projected.lastVerifiedAt = item.lastVerifiedAt;
