@@ -55,6 +55,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "authority", value: health?.authority ?? "unknown" },
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
+        { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
       ],
       actionable: false,
     };
@@ -127,6 +128,7 @@ export function CommandCockpit({
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
+            <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
           </div>
         </header>
 
@@ -134,7 +136,7 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            UI lane only — Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
             <div>
@@ -148,6 +150,10 @@ export function CommandCockpit({
             <div>
               <dt>runtime fix</dt>
               <dd>PR 460 ProcessId</dd>
+            </div>
+            <div>
+              <dt>owner login</dt>
+              <dd>PR 486 no-store</dd>
             </div>
             <div>
               <dt>windows runtime</dt>
@@ -204,6 +210,13 @@ export function CommandCockpit({
               </header>
               <p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p>
               <p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p>
+            </article>
+            <article>
+              <header>
+                <strong>Owner login</strong>
+                <span className="cockpit-pill ok">NO_STORE_#486</span>
+              </header>
+              <p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p>
             </article>
           </section>
         </div>

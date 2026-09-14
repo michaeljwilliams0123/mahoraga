@@ -229,8 +229,44 @@ test("merge gate holds when required checks are still expected instead of throwi
     checkRuns: [],
     headSha,
   });
-  assert.equal(failing.status, "blocked");
-  assert.equal(failing.reason, "required-checks-failing");
+  assert.equal(failing.status, "hold");
+  assert.equal(failing.reason, "required-checks-pending");
+});
+
+test("merge gate accepts an unstable aggregate state with exact green canonical checks", () => {
+  const headSha = "c".repeat(40);
+  const policyDecision = { eligible: true, reason: "eligible", pullRequestNumber: 488, headSha };
+  const result = evaluateExactHeadMergeGate({
+    policyDecision,
+    mergeableState: "unstable",
+    headSha,
+    checkRuns: [
+      { name: "Verify (ubuntu-latest)", head_sha: headSha, status: "completed", conclusion: "success", completed_at: "2026-09-14T18:54:00Z" },
+      { name: "Verify (windows-latest)", head_sha: headSha, status: "completed", conclusion: "success", completed_at: "2026-09-14T18:55:00Z" },
+      { name: "non-required diagnostic", head_sha: headSha, status: "completed", conclusion: "failure", completed_at: "2026-09-14T18:56:00Z" },
+    ],
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.status, "ready");
+  assert.equal(result.reason, "required-checks-ready");
+});
+
+test("merge gate holds an unstable aggregate state when a canonical check fails", () => {
+  const headSha = "d".repeat(40);
+  const policyDecision = { eligible: true, reason: "eligible", pullRequestNumber: 488, headSha };
+  const result = evaluateExactHeadMergeGate({
+    policyDecision,
+    mergeableState: "unstable",
+    headSha,
+    checkRuns: [
+      { name: "Verify (ubuntu-latest)", head_sha: headSha, status: "completed", conclusion: "success", completed_at: "2026-09-14T18:54:00Z" },
+      { name: "Verify (windows-latest)", head_sha: headSha, status: "completed", conclusion: "failure", completed_at: "2026-09-14T18:55:00Z" },
+    ],
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "hold");
+  assert.equal(result.reason, "required-checks-pending");
+  assert.deepEqual(result.missing, ["Verify (windows-latest)"]);
 });
 
 test("required exact-head checks ignore stale names and require both Ubuntu and Windows success", () => {

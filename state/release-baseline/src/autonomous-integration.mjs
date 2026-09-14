@@ -84,7 +84,7 @@ export function classifyPullMergeState(mergeableState) {
   if (state === "behind") return Object.freeze({ ok: false, status: "blocked", reason: "head-behind-main" });
   if (state === "dirty") return Object.freeze({ ok: false, status: "blocked", reason: "merge-conflict" });
   if (state === "draft") return Object.freeze({ ok: false, status: "blocked", reason: "draft-not-eligible" });
-  if (state === "unstable") return Object.freeze({ ok: false, status: "blocked", reason: "required-checks-failing" });
+  if (state === "unstable") return Object.freeze({ ok: false, status: "hold", reason: "merge-state-unstable" });
   if (state === "blocked" || state === "unknown" || state === "") {
     return Object.freeze({ ok: false, status: "hold", reason: "required-checks-pending" });
   }
@@ -151,6 +151,16 @@ export function evaluateExactHeadMergeGate({
     });
   }
   const checks = requiredExactHeadChecksReady(checkRuns, { headSha, requiredContexts });
+  if (state.reason === "merge-state-unstable" && checks.ok) {
+    return Object.freeze({
+      ok: true,
+      status: "ready",
+      reason: "required-checks-ready",
+      missing: Object.freeze([]),
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
   return Object.freeze({
     ok: false,
     status: "hold",
