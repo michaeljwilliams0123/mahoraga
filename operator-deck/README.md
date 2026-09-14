@@ -32,3 +32,9 @@ Use the verified production origin configured by `MAHORAGA_WORKSPACE_URL` / `MAH
 - [../docs/CLOUD-WORKSPACE.md](../docs/CLOUD-WORKSPACE.md)
 - [../.github/copilot-instructions.md](../.github/copilot-instructions.md)
 - [VERSIONS.md](./VERSIONS.md)
+
+## Authenticated repository reads
+
+Server-side consumers of `src/lib/fleet/github.server.ts` require `MAHORAGA_GITHUB_READ_TOKEN`, or an existing `GH_TOKEN` / `GITHUB_TOKEN`, scoped to this repository with the read permissions needed for Contents, Issues, Pull requests, and Actions. Supply it through the host's protected environment; never use a `NEXT_PUBLIC_` variable or send it to a browser.
+
+Repository data is fetched only from the authenticated GitHub API. Missing, rejected, redirected, or unavailable reads return `authenticated-read-unavailable`; unavailable visibility is `unknown`. Public HTML/RAW fallbacks and stale-success caching are not used. This read configuration does not grant or change write/merge authority.

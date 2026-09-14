@@ -19,6 +19,7 @@ test("unified chat intake separates questions from explicit actions", { concurre
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
+  await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).capabilities.some((item) => item.capability === "system.health" && item.routable === true));
 
   const zeroCredit = await fetch(`${base}/api/chat`, {
     method: "POST",
@@ -273,3 +274,13 @@ test("public chat keeps natural M365 follow-up on enterprise reasoning lane", { 
   const followBody = await follow.json();
   assert.equal(followBody.task.capability, "m365.reason");
 });
+
+async function waitFor(check, timeoutMs = 8000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = await check();
+    if (value) return value;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("Timed out waiting for a routable chat capability.");
+}
