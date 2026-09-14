@@ -4,7 +4,7 @@
 
 **Goal:** Move cloud-workspace files through the authenticated same-origin owner gateway into Mahoraga's existing encrypted core artifact store, then pass only artifact IDs through chat so workers can inspect the files without exposing server credentials or pretending local-only staging succeeded.
 
-**Architecture:** Reuse the core `POST /api/artifacts` endpoint and `LocalArtifactStore`; do not create a second artifact system. Add a same-origin binary upload route in the cloud app, protect it with the existing owner-session/CSRF/replay envelope, proxy bytes server-to-server with the existing primary token, and return core artifact metadata. The browser uploads files before chat, passes returned `art-*` IDs in `attachmentIds`, and retains staged files when any upload or chat step fails. Legacy encrypted-relay sessions remain fail-closed for file creation until a separately designed chunked binary protocol exists; the current 65,536-byte encrypted frame is not used for whole-file base64 transport.
+**Architecture:** Reuse the core `POST /api/artifacts` endpoint and `LocalArtifactStore`; do not create a second artifact system. Add a same-origin binary upload route in the cloud app, protect it with the existing owner-session/CSRF/replay envelope, proxy bytes server-to-server with the existing primary token, and return core artifact metadata. The browser uploads files before chat and passes returned `art-*` IDs in `attachmentIds`. Legacy encrypted-relay sessions remain fail-closed for file creation until a separately designed chunked binary protocol exists; the current 65,536-byte encrypted frame is not used for whole-file base64 transport.
 
 **Tech Stack:** Next.js 16, TypeScript 7, React 19, Node.js >=24, node:test, existing cloud owner gateway, existing `LocalArtifactStore` and content vault.
 
@@ -19,7 +19,7 @@
 - Cloud UI limits remain `MAX_FILES = 3`, `MAX_FILE_BYTES = 2 * 1024 * 1024`, and `MAX_TOTAL_FILE_BYTES = 4 * 1024 * 1024`.
 - Core artifact IDs remain authoritative; chat transports references rather than file bytes.
 - Do not base64 whole files into the existing encrypted relay frame.
-- Do not delete successfully uploaded artifacts as an automatic compensation step unless reference safety is proven; orphan cleanup is a separate retention concern.
+- Do not automatically delete successfully uploaded artifacts as compensation for a later chat failure; artifact retention/cleanup remains governed separately.
 
 ---
 
@@ -27,13 +27,13 @@
 
 **Files:**
 - Modify: `cloud-app/lib/cloud-owner-gateway.ts`
-- Test: `cloud-app/test/cloud-artifact-bridge-contract.test.mjs`
+- Create: `cloud-app/test/cloud-artifact-bridge-contract.test.mjs`
 
 **Interfaces:**
-- Consumes: `MAHORAGA_PRIMARY_CODEX_TOKEN`, fixed core origin `http://127.0.0.1:4782`, file name, MIME type, byte body.
 - Produces: `coreArtifactRequest({ name, mimeType, bytes }): Promise<Response>`.
+- Core target: fixed `http://127.0.0.1:4782/api/artifacts`.
 
-- [ ] **Step 1: Write the source-contract test before implementation**
+- [ ] **Step 1: Write the failing source-contract test**
 
 Create `cloud-app/test/cloud-artifact-bridge-contract.test.mjs`:
 
@@ -47,7 +47,7 @@ const routePath = new URL("../app/api/runtime/artifacts/route.ts", import.meta.u
 const relayPath = new URL("../lib/runtime-relay.ts", import.meta.url);
 const workspacePath = new URL("../components/workspace.tsx", import.meta.url);
 
-test("cloud artifact bridge keeps the primary token server-side and proxies raw bytes", async () => {
+test("artifact bytes cross a server-only authenticated gateway", async () => {
   const gateway = await readFile(gatewayPath, "utf8");
   const route = await readFile(routePath, "utf8").catch(() => "");
   assert.match(gateway, /export async function coreArtifactRequest/);
@@ -57,27 +57,27 @@ test("cloud artifact bridge keeps the primary token server-side and proxies raw 
   assert.doesNotMatch(route, /NEXT_PUBLIC_.*TOKEN|MAHORAGA_PRIMARY_CODEX_TOKEN/);
 });
 
-test("workspace uploads files before chat and forwards artifact ids", async () => {
+test("workspace uploads files then forwards artifact ids", async () => {
   const relay = await readFile(relayPath, "utf8");
   const workspace = await readFile(workspacePath, "utf8");
   assert.match(relay, /async uploadArtifact\(/);
   assert.doesNotMatch(relay, /attachmentIds\.length > 0\) throw relayError\("relay-attachments-local-only"\)/);
-  assert.match(workspace, /uploadArtifact/);
+  assert.match(workspace, /uploadStagedFiles/);
   assert.match(workspace, /attachmentIds/);
   assert.doesNotMatch(workspace, /bounded core artifact bridge is not connected yet/);
 });
 ```
 
-- [ ] **Step 2: Run the new test and verify it fails**
+- [ ] **Step 2: Verify the new contract fails**
 
 Run:
 
 ```bash
 cd cloud-app
-npm test -- --test-name-pattern="cloud artifact bridge|workspace uploads files"
+node --test test/cloud-artifact-bridge-contract.test.mjs
 ```
 
-Expected: FAIL because the route and helper do not exist and the workspace still contains the local-only blocker.
+Expected: FAIL because the helper/route/upload flow do not yet exist.
 
 - [ ] **Step 3: Add the binary proxy helper**
 
@@ -86,7 +86,7 @@ In `cloud-app/lib/cloud-owner-gateway.ts`, add:
 ```ts
 export async function coreArtifactRequest(input: { name: string; mimeType: string; bytes: ArrayBuffer }) {
   const token = required("MAHORAGA_PRIMARY_CODEX_TOKEN");
-  const response = await fetch("http://127.0.0.1:4782/api/artifacts", {
+  return fetch("http://127.0.0.1:4782/api/artifacts", {
     method: "POST",
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
@@ -98,22 +98,19 @@ export async function coreArtifactRequest(input: { name: string; mimeType: strin
     },
     body: input.bytes,
   });
-  return response;
 }
 ```
 
-Do not export `required()` and do not return the token or request headers to the browser.
+Do not export `required()` and do not return the primary token or internal request headers to the browser.
 
-- [ ] **Step 4: Run the first source-contract test**
+- [ ] **Step 4: Commit the helper with the still-red contract**
 
 Run:
 
 ```bash
-cd cloud-app
-node --test test/cloud-artifact-bridge-contract.test.mjs
+git add cloud-app/lib/cloud-owner-gateway.ts cloud-app/test/cloud-artifact-bridge-contract.test.mjs
+git commit -m "test(cloud): define bounded artifact gateway contract"
 ```
-
-Expected: the helper assertions pass; route/workspace assertions still fail until later tasks.
 
 ### Task 2: Add the authenticated same-origin artifact upload route
 
@@ -122,24 +119,24 @@ Expected: the helper assertions pass; route/workspace assertions still fail unti
 - Modify: `cloud-app/test/cloud-artifact-bridge-contract.test.mjs`
 
 **Interfaces:**
-- Consumes: authenticated owner request, `x-mahoraga-file-name`, `content-type`, raw body.
-- Produces: `{ artifact: { id, name, mimeType, sizeBytes, sha256, source, createdAt, storageClass, vaultReference } }` from core, or bounded public error.
+- Consumes: authenticated owner request, encoded file-name header, MIME type, raw body.
+- Produces: the core artifact response or a bounded public error.
 
-- [ ] **Step 1: Extend the failing route contract**
+- [ ] **Step 1: Add a route-boundary assertion**
 
-Add to the contract test:
+Append:
 
 ```js
-test("artifact route enforces cloud file bounds", async () => {
+test("artifact route enforces actual byte bounds", async () => {
   const route = await readFile(routePath, "utf8");
   assert.match(route, /MAX_FILE_BYTES/);
-  assert.match(route, /content-length/);
+  assert.match(route, /arrayBuffer\(\)/);
   assert.match(route, /file-too-large/);
   assert.match(route, /file-name-required/);
 });
 ```
 
-- [ ] **Step 2: Create the route**
+- [ ] **Step 2: Create the route with actual-body validation**
 
 Create `cloud-app/app/api/runtime/artifacts/route.ts`:
 
@@ -159,11 +156,11 @@ export async function POST(request: Request) {
     try { name = decodeURIComponent(encodedName); }
     catch { return Response.json({ error: "file-name-invalid" }, { status: 400 }); }
     if (!name.trim() || name.length > 200) return Response.json({ error: "file-name-invalid" }, { status: 400 });
-    const declared = Number(request.headers.get("content-length") ?? "0");
-    if (Number.isFinite(declared) && declared > MAX_FILE_BYTES) return Response.json({ error: "file-too-large" }, { status: 413 });
+
     const bytes = await request.arrayBuffer();
     if (bytes.byteLength < 1) return Response.json({ error: "file-empty" }, { status: 400 });
     if (bytes.byteLength > MAX_FILE_BYTES) return Response.json({ error: "file-too-large" }, { status: 413 });
+
     const mimeType = (request.headers.get("content-type") ?? "application/octet-stream").split(";", 1)[0].trim() || "application/octet-stream";
     const result = await coreArtifactRequest({ name, mimeType, bytes });
     const body = await result.json().catch(() => ({ error: "cloud-core-response-invalid" }));
@@ -175,7 +172,9 @@ export async function POST(request: Request) {
 }
 ```
 
-- [ ] **Step 3: Run the cloud contract test and typecheck**
+Do not rely on a browser-supplied `Content-Length` header; the route enforces the actual received byte length.
+
+- [ ] **Step 3: Run contract and typecheck**
 
 Run:
 
@@ -185,15 +184,15 @@ node --test test/cloud-artifact-bridge-contract.test.mjs
 npm run typecheck
 ```
 
-Expected: route contract passes; typecheck passes.
+Expected: route assertions pass; workspace-flow assertion remains red until Tasks 3–4.
 
-- [ ] **Step 4: Commit the server bridge boundary**
+- [ ] **Step 4: Commit the server boundary**
 
 Run:
 
 ```bash
-git add cloud-app/lib/cloud-owner-gateway.ts cloud-app/app/api/runtime/artifacts/route.ts cloud-app/test/cloud-artifact-bridge-contract.test.mjs
-git commit -m "feat(cloud): bridge owner file uploads to core artifacts"
+git add cloud-app/app/api/runtime/artifacts/route.ts cloud-app/test/cloud-artifact-bridge-contract.test.mjs
+git commit -m "feat(cloud): proxy owner artifact uploads to core"
 ```
 
 ### Task 3: Teach RuntimeRelay to upload artifacts and preserve attachment IDs
@@ -203,12 +202,11 @@ git commit -m "feat(cloud): bridge owner file uploads to core artifacts"
 - Test: `cloud-app/test/cloud-artifact-bridge-contract.test.mjs`
 
 **Interfaces:**
-- Produces: `RuntimeArtifact` and `RuntimeRelay.uploadArtifact(file: File): Promise<RuntimeArtifact>`.
-- Changes: `RuntimeRelay.chat(input)` forwards supplied `attachmentIds` unchanged instead of forcing `[]`.
+- Produces: `RuntimeArtifact`.
+- Produces: `RuntimeRelay.uploadArtifact(file: File): Promise<RuntimeArtifact>`.
+- Changes: `RuntimeRelay.chat(input)` forwards supplied `attachmentIds` instead of replacing them with `[]`.
 
 - [ ] **Step 1: Add the artifact type**
-
-Add near other runtime types:
 
 ```ts
 export type RuntimeArtifact = {
@@ -220,9 +218,7 @@ export type RuntimeArtifact = {
 };
 ```
 
-- [ ] **Step 2: Add `uploadArtifact` using the same owner envelope style as `call()`**
-
-Add to `RuntimeRelay`:
+- [ ] **Step 2: Add `uploadArtifact` only for same-origin cloud sessions**
 
 ```ts
 async uploadArtifact(file: File) {
@@ -233,7 +229,6 @@ async uploadArtifact(file: File) {
     cache: "no-store",
     headers: {
       "content-type": file.type || "application/octet-stream",
-      "content-length": String(file.size),
       "x-mahoraga-file-name": encodeURIComponent(file.name),
       "x-mahoraga-csrf": this.cloudSession.csrf,
       "x-mahoraga-request-nonce": crypto.randomUUID(),
@@ -247,7 +242,7 @@ async uploadArtifact(file: File) {
 }
 ```
 
-- [ ] **Step 3: Stop discarding valid artifact references**
+- [ ] **Step 3: Preserve artifact references in chat**
 
 Replace `chat()` with:
 
@@ -258,9 +253,7 @@ async chat(input: JsonObject) {
 }
 ```
 
-No file bytes travel through `chat()`.
-
-- [ ] **Step 4: Run cloud tests and typecheck**
+- [ ] **Step 4: Run the cloud contract and typecheck**
 
 Run:
 
@@ -270,9 +263,9 @@ node --test test/cloud-artifact-bridge-contract.test.mjs
 npm run typecheck
 ```
 
-Expected: PASS.
+Expected: relay assertions pass; the workspace integration assertion remains red.
 
-### Task 4: Replace the UI staging dead end with upload-then-chat
+### Task 4: Replace the workspace staging dead end with upload-then-chat
 
 **Files:**
 - Modify: `cloud-app/components/workspace.tsx`
@@ -280,11 +273,18 @@ Expected: PASS.
 
 **Interfaces:**
 - Consumes: `RuntimeRelay.uploadArtifact(file)`.
-- Produces: `submitCore(text, mode, actionLabel, creditPolicy, attachmentIds)` and successful chat with core artifact references.
+- Produces: `submitCore(..., attachmentIds): Promise<boolean>`.
+- Extends licensed retry state to keep already-uploaded artifact IDs when the user explicitly approves licensed retry.
 
-- [ ] **Step 1: Add an upload helper inside `Workspace`**
+- [ ] **Step 1: Extend licensed retry state**
 
-Add:
+Change the state type to:
+
+```ts
+const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode; attachmentIds: string[] } | null>(null);
+```
+
+- [ ] **Step 2: Add an upload helper**
 
 ```ts
 async function uploadStagedFiles(transport: RuntimeRelay) {
@@ -294,11 +294,25 @@ async function uploadStagedFiles(transport: RuntimeRelay) {
 }
 ```
 
-Sequential upload is intentional because the UI currently allows at most three files and bounded sequencing simplifies failure evidence.
+Sequential upload is intentional because the UI permits at most three files.
 
-- [ ] **Step 2: Replace the early local-only return in `submit()`**
+- [ ] **Step 3: Make `submitCore` return success/failure and accept artifact IDs**
 
-Implement:
+Change its signature to:
+
+```ts
+async function submitCore(
+  text: string,
+  modeOverride: TaskMode = taskMode,
+  actionLabel: string | null = null,
+  creditPolicy: ChatCreditPolicy = "zero-codex",
+  attachmentIds: string[] = [],
+): Promise<boolean> {
+```
+
+Change every early `return;` to `return false;`. In `transport.chat(...)`, replace `attachmentIds: []` with `attachmentIds`. After `pollRuntime(...)` completes normally, `return true;`. In the catch block, when the error is `zero-credit-provider-unavailable`, store `{ text, mode: modeOverride, attachmentIds }`, then return false. The `finally` block remains responsible for clearing busy/action state.
+
+- [ ] **Step 4: Replace `submit()` with upload-then-submit semantics**
 
 ```ts
 async function submit() {
@@ -315,39 +329,41 @@ async function submit() {
   }
   try {
     const attachmentIds = files.length > 0 ? await uploadStagedFiles(transport) : [];
-    await submitCore(text || "Inspect the attached file.", taskMode, null, "zero-codex", attachmentIds);
-    setFiles([]);
+    const accepted = await submitCore(text || "Inspect the attached file.", taskMode, null, "zero-codex", attachmentIds);
+    if (accepted) setFiles([]);
   } catch (caught) {
     setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "artifact-upload-failed"));
   }
 }
 ```
 
-- [ ] **Step 3: Extend `submitCore` with artifact IDs**
+This keeps browser-staged files visible when upload or chat submission fails.
 
-Change the signature to:
+- [ ] **Step 5: Preserve artifact IDs through explicit licensed retry**
+
+Change `retryLicensed()` to:
 
 ```ts
-async function submitCore(
-  text: string,
-  modeOverride: TaskMode = taskMode,
-  actionLabel: string | null = null,
-  creditPolicy: ChatCreditPolicy = "zero-codex",
-  attachmentIds: string[] = [],
-) {
+async function retryLicensed() {
+  const saved = licensedRetry;
+  if (!saved || runtimeBusy) return;
+  setLicensedRetry(null);
+  const accepted = await submitCore(saved.text, saved.mode, null, "licensed-approved", saved.attachmentIds);
+  if (accepted) setFiles([]);
+}
 ```
 
-Then include `attachmentIds` in the existing `transport.chat(...)` payload. Do not serialize `File` objects into chat.
+The existing user action that triggers `retryLicensed()` remains the explicit paid-provider approval boundary; no automatic paid retry is introduced.
 
-- [ ] **Step 4: Add a public error message for upload failure**
+- [ ] **Step 6: Add the bounded upload error copy**
 
-In `runtimeErrorMessage`, add:
+Add to `runtimeErrorMessage`:
 
 ```ts
 "artifact-upload-failed": "Mahoraga could not store the file in the bounded core artifact vault. The file remains staged in this browser and was not submitted with the request.",
 ```
 
-- [ ] **Step 5: Run the cloud app gate**
+- [ ] **Step 7: Run the complete cloud app gate**
 
 Run:
 
@@ -356,9 +372,9 @@ cd cloud-app
 npm run verify
 ```
 
-Expected: typecheck, cloud tests, and Next build all pass.
+Expected: typecheck, node tests, and Next build pass.
 
-- [ ] **Step 6: Commit the browser integration**
+- [ ] **Step 8: Commit browser integration**
 
 Run:
 
@@ -367,20 +383,20 @@ git add cloud-app/lib/runtime-relay.ts cloud-app/components/workspace.tsx cloud-
 git commit -m "feat(workspace): send files through bounded artifact bridge"
 ```
 
-### Task 5: Prove core upload-to-chat attachment integrity
+### Task 5: Prove core upload-to-chat integrity
 
 **Files:**
-- Test: `test/chat-runtime.test.mjs`
+- Modify: `test/chat-runtime.test.mjs`
 - Inspect: `src/server.mjs`
 - Inspect: `src/local-artifact-store.mjs`
 
 **Interfaces:**
 - Consumes: existing `POST /api/artifacts`, artifact metadata integrity, `/api/chat` `attachmentIds` resolution.
-- Produces: regression proving a stored artifact is the same metadata object attached to the chat/task path.
+- Produces: a runtime regression proving the uploaded artifact is resolved by ID before chat execution.
 
-- [ ] **Step 1: Add a runtime integration test**
+- [ ] **Step 1: Add the upload half of the runtime regression**
 
-Use the existing runtime fixture in `test/chat-runtime.test.mjs` to:
+Use the existing authenticated runtime fixture in `test/chat-runtime.test.mjs`:
 
 ```js
 const bytes = Buffer.from("bounded artifact bridge proof", "utf8");
@@ -400,9 +416,17 @@ assert.match(artifact.id, /^art-[a-f0-9-]+$/);
 assert.equal(artifact.sizeBytes, bytes.length);
 ```
 
-Then submit chat with `attachmentIds: [artifact.id]` and assert the accepted conversation/task evidence references the same artifact ID. Use the fixture's existing authenticated chat helper rather than inventing a second authentication path.
+- [ ] **Step 2: Submit chat with the returned artifact ID**
 
-- [ ] **Step 2: Run the focused integration tests**
+Use the same test's existing `/api/chat` authentication and a request body containing:
+
+```js
+attachmentIds: [artifact.id]
+```
+
+Assert the accepted conversation/task evidence references `artifact.id`; also assert no second artifact ID is synthesized during chat.
+
+- [ ] **Step 3: Run focused core tests**
 
 Run:
 
@@ -412,42 +436,38 @@ node --test --test-isolation=none test/chat-runtime.test.mjs test/local-artifact
 
 Expected: PASS.
 
-### Task 6: Full verification and live file canary
+### Task 6: Verify, deploy, and run live file canaries
 
 **Files:**
 - Create after observed proof: `docs/readiness/file-artifact-bridge-evidence.md`
 
 **Interfaces:**
 - Consumes: cloud verify, root verify, exact-head CI, canonical Railway.
-- Produces: durable evidence for file/artifact readiness.
+- Produces: durable file/artifact readiness evidence.
 
 - [ ] **Step 1: Run both verification gates**
 
-Run:
+Run from repository root:
 
 ```bash
 npm run verify
-cd cloud-app && npm run verify
+npm --prefix cloud-app run verify
 ```
 
 Expected: both exit 0.
 
-- [ ] **Step 2: Merge only exact-head green work and deploy canonical production**
+- [ ] **Step 2: Merge exact-head green work and converge canonical production**
 
-Confirm GitHub required verification is green for the exact head, merge through the normal gate, and converge only `mahoraga-runtime-main` to merged `main`.
+Merge through the repository's normal gate only after exact-head Verify is green. Deploy/promote only `mahoraga-runtime-main`; verify its deployed source SHA equals merged `main`.
 
 - [ ] **Step 3: Run a real browser file canary**
 
-Upload a small text file through the cloud workspace and ask Mahoraga to inspect it.
-
-Expected: upload returns an `art-*` reference; the request is accepted with that attachment; Mahoraga produces a verified file-derived result; the prior “staged locally” blocker is absent.
+Upload a small text file through the cloud workspace and ask Mahoraga to inspect it. Expected: upload returns an `art-*` reference, chat accepts that reference, Mahoraga produces file-derived evidence, and the prior local-staging blocker is absent.
 
 - [ ] **Step 4: Run bounded negative canaries**
 
-Try one empty file and one file larger than 2 MiB through controlled test inputs.
+Use controlled test inputs for an empty file and a file larger than 2 MiB. Expected: fail before task submission with `file-empty` or `file-too-large`; no false success is displayed.
 
-Expected: fail before task submission with `file-empty` or `file-too-large`; no false success is shown.
+- [ ] **Step 5: Record observed evidence**
 
-- [ ] **Step 5: Write observed evidence**
-
-Record the actual Git SHA, CI runs, canonical Railway deployment ID, uploaded artifact ID, SHA-256, positive canary status, negative canary status, and final `GREEN` or `AMBER` result in `docs/readiness/file-artifact-bridge-evidence.md`.
+Create `docs/readiness/file-artifact-bridge-evidence.md` containing the observed main SHA, exact CI conclusions, canonical deployment ID/SHA, live artifact ID and SHA-256, positive canary result, negative boundary results, whether any paid invocation occurred, and the final `GREEN` or `AMBER` classification. Never invent a missing value.
