@@ -639,6 +639,10 @@ export function zeroCreditChatRouteAvailable(routes, capability) {
       && ZERO_CREDIT_CHAT_COST_CLASSES.has(route.costClass));
 }
 
+export function zeroCreditChatTaskRequestedMode(creditPolicy, fallback) {
+  return creditPolicy === "zero-codex" ? "zero-credit" : fallback;
+}
+
 async function executeChatTurn({ database, manifest, supervisor, artifactStore, autonomyPolicy, body, repositoryHeadReader, context }) {
   const creditPolicy = chatCreditPolicy(body.creditPolicy);
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
@@ -694,7 +698,7 @@ async function executeChatTurn({ database, manifest, supervisor, artifactStore, 
     const task = submitTask(database, manifest, {
       intent: decision.capability, requestedOutcome: body.content, priority: "high",
       taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
-    }, { source: "owner-chat", internal: true, attendedSession: context.attendedSession ?? null });
+    }, { source: "owner-chat", internal: true, attendedSession: context.attendedSession ?? null, requestedMode: zeroCreditChatTaskRequestedMode(creditPolicy, manifest.defaultAutonomyMode) });
     return { status: 202, value: { decision, conversation, task, objective: null } };
   }
   let conversation;
@@ -709,7 +713,7 @@ async function executeChatTurn({ database, manifest, supervisor, artifactStore, 
     intent: decision.capability, requestedOutcome: body.content, priority: "high",
     maximumAttempts: decision.capability === "assistant.respond" ? 1 : undefined,
     taskArea: decision.intentKind, conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
-  }, { source: context.source, internal: false, attendedSession: context.attendedSession ?? null });
+  }, { source: context.source, internal: false, attendedSession: context.attendedSession ?? null, requestedMode: zeroCreditChatTaskRequestedMode(creditPolicy, manifest.defaultAutonomyMode) });
   return { status: 202, value: { decision, conversation, task, objective: null } };
 }
 
@@ -736,11 +740,12 @@ function relayError(code, response = null) {
 }
 
 function submitTask(database, manifest, body, options = {}) {
-  const request = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);
-  const policy = deriveTaskPolicy(request, {
+  const intake = options.internal ? Object.freeze({ ...body, intent: body.intent ?? body.capability }) : sanitizeTaskIntake(body);
+  const policy = deriveTaskPolicy(intake, {
     manifest, source: options.source ?? "control-center", internal: options.internal === true,
     attendedSession: options.attendedSession ?? null, integrationLease: database.getIntegrationLease(),
   });
+  const request = options.requestedMode === undefined ? intake : Object.freeze({ ...intake, requestedMode: options.requestedMode });
   const existing = request.idempotencyKey ? database.getTaskByIdempotencyKey(request.idempotencyKey) : null;
   let conversationId;
   if (request.conversationId === false) conversationId = null;
