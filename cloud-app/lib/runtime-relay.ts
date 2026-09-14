@@ -60,7 +60,7 @@ export type RuntimeChatResult = {
   decision: { mode?: string; execution?: string };
 };
 export type CloudSessionDiagnostic = {
-  code: "cloud-session-unavailable" | "cloud-session-unreachable" | "cloud-runtime-degraded" | "cloud-runtime-contract-incompatible";
+  code: "cloud-session-unavailable" | "cloud-session-unreachable" | "cloud-runtime-degraded" | "cloud-runtime-contract-incompatible" | "cloud-owner-auth-required";
 };
 
 export type RuntimeOperationsSnapshot = {
@@ -426,6 +426,7 @@ function frameAad(sessionId: string, direction: string, counter: number) { retur
 function toBase64Url(bytes: Uint8Array) { let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte); return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
 function fromBase64Url(value: string) { const base64 = value.replaceAll("-", "+").replaceAll("_", "/").padEnd(Math.ceil(value.length / 4) * 4, "="); const binary = atob(base64); return Uint8Array.from(binary, (character) => character.charCodeAt(0)); }
 function sessionDiagnostic(value: JsonObject): CloudSessionDiagnostic {
+  if (value.error === "cloud-owner-auth-required") return { code: "cloud-owner-auth-required" };
   const connection = isObject(value.connection) ? value.connection : null;
   const code = connection?.code;
   if (code === "cloud-runtime-degraded" || code === "cloud-runtime-contract-incompatible") return { code };

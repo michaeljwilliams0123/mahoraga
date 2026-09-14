@@ -54,6 +54,9 @@ export function ChatView(props: ChatViewProps) {
     healthError,
     relayState,
     pairingOffer,
+    ownerLoginRequired,
+    ownerLoginSecret,
+    ownerLoginBusy,
     starters,
     quickActions,
     activeActionLabel,
@@ -64,6 +67,7 @@ export function ChatView(props: ChatViewProps) {
     bottom,
     setInput,
     setPairingOffer,
+    setOwnerLoginSecret,
     setSidebarOpen,
     chooseStarter,
     addFiles,
@@ -74,6 +78,7 @@ export function ChatView(props: ChatViewProps) {
     speakLatest,
     stopActiveResponse,
     pairRuntime,
+    onOwnerLogin,
     revokeRuntime,
     retryLicensed,
   } = props;
@@ -152,7 +157,17 @@ export function ChatView(props: ChatViewProps) {
           </div>
         )}
 
-        {!coreReady && relayState !== "resuming" && (
+        {ownerLoginRequired && !coreReady && (
+          <div className="connect-card">
+            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter the direct-owner secret configured for this Railway workspace. It is exchanged only for a secure session cookie.</p></div></div>
+            <div className="connect-controls">
+              <input type="password" value={ownerLoginSecret} onChange={(event) => setOwnerLoginSecret(event.target.value)} placeholder="Owner sign-in secret" aria-label="Owner sign-in secret" autoComplete="current-password" />
+              <button type="button" onClick={() => void onOwnerLogin()} disabled={!ownerLoginSecret.trim() || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
+            </div>
+          </div>
+        )}
+
+        {!coreReady && relayState !== "resuming" && !ownerLoginRequired && (
           <div className="connect-card">
             <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
             <details>

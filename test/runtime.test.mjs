@@ -42,6 +42,15 @@ test("interaction readiness follows assistant.respond routing rather than proces
   assert.equal(ready.ready, true);
   assert.equal(ready.reason, null);
 });
+test("zero-credit cloud chat admission accepts only routable zero-dollar execution classes", async () => {
+  const { zeroCreditChatRouteAvailable } = await import("../src/server.mjs");
+  const route = (overrides = {}) => ({ capability: "assistant.respond", enabled: true, routable: true, costClass: "cloud-open-weight", ...overrides });
+  assert.equal(zeroCreditChatRouteAvailable([route()], "assistant.respond"), true);
+  assert.equal(zeroCreditChatRouteAvailable([route({ routable: false })], "assistant.respond"), false);
+  assert.equal(zeroCreditChatRouteAvailable([route({ costClass: "licensed-cloud" })], "assistant.respond"), false);
+  assert.equal(zeroCreditChatRouteAvailable([route({ capability: "repository.inspect" })], "assistant.respond"), false);
+});
+
 test("cloud runtime dispatch is fixed-path, bearer-only, and bounded", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
