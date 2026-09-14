@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { RuntimeDatabase } from "../src/database.mjs";
+import { createAuthorityDecision } from "../src/authority-decision.mjs";
 import {
   OPERATIONS_ACTION_IDS,
   classifyOperationalTone,
@@ -165,6 +166,44 @@ test("operationsSnapshot returns required bounded metadata fields with determini
   assert.deepEqual(first.interactionReadiness, context.interactionReadiness);
   assert.deepEqual(first, second);
   assertNoSensitiveKeys(first);
+});
+
+test("operationsSnapshot projects the latest persisted canonical authority decision", (t) => {
+  const { context, database, createdTasks } = fixture(t, {
+    tasks: [{ idempotencyKey: "authority-receipt" }],
+  });
+  const task = createdTasks[0];
+  const decision = createAuthorityDecision({
+    task,
+    candidate: { workerId: "question-model", costClass: "cloud-open-weight", billingClass: "free-tier-attested" },
+    billingDecision: { required: true, effectiveClass: "free-tier-attested", eligible: true },
+    context: { now: Date.parse("2026-09-07T02:00:00.000Z") },
+  });
+
+  const persisted = database.recordTaskAuthorityDecision(task.id, decision);
+  const snapshot = operationsSnapshot(context);
+
+  assert.equal(persisted.authorityDecision.kind, "authority-decision-v1");
+  assert.equal(snapshot.latestAuthorityDecision.taskId, task.id);
+  assert.deepEqual(snapshot.latestAuthorityDecision.envelope, {
+    schemaVersion: 1,
+    kind: "authority-decision-v1",
+    decision: "allow",
+    reasonCodes: [],
+    request: { capability: "system.health", dataClass: "synthetic" },
+    provider: { id: "question-model", costClass: "cloud-open-weight", billingClass: "free-tier-attested" },
+    timing: { observedAt: "2026-09-07T02:00:00.000Z", expiresAt: null, revokedAt: null },
+  });
+  assert.equal(database.listEvents().find((event) => event.eventType === "task.authority-decided")?.metadata.decision, "allow");
+  assertNoSensitiveKeys(snapshot.latestAuthorityDecision);
+});
+
+test("authority decision persistence rejects non-canonical input", (t) => {
+  const { database, createdTasks } = fixture(t, { tasks: [{ idempotencyKey: "bad-authority" }] });
+  assert.throws(
+    () => database.recordTaskAuthorityDecision(createdTasks[0].id, { kind: "chat-classification", decision: "allow" }),
+    /Authority decision identity is invalid/,
+  );
 });
 
 test("operationsSnapshot bounds list and count sizes", (t) => {

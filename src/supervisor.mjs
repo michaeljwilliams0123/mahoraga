@@ -380,6 +380,7 @@ export class Supervisor extends EventEmitter {
       const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
       if (!task) continue;
       const route = routeTask(this.manifest, task, { workerStates: this.status() });
+      this.database.recordTaskAuthorityDecision(task.id, route.authorityDecision);
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
           if (route.recoveryPlan.actions.some((action) => action.kind === "refresh-readiness")) this.#requestReadinessRefresh(state);
