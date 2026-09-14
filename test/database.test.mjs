@@ -41,6 +41,22 @@ test("expired running tasks recover to queued", (t) => {
   assert.equal(database.getTask(task.id).status, "queued");
 });
 
+test("expired tasks at their attempt limit become terminal instead of remaining unclaimable", (t) => {
+  const database = databaseFixture(t);
+  const task = database.submitTask({
+    capability: "system.health", dataClass: "synthetic", requestedMode: "local",
+    idempotencyKey: "recover-exhausted", maximumAttempts: 1,
+  });
+  database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000 });
+
+  assert.equal(database.recoverExpired(new Date(Date.now() + 6000)), 1);
+  const recovered = database.getTask(task.id);
+  assert.equal(recovered.status, "failed");
+  assert.equal(recovered.errorCode, "lease-expired");
+  assert.equal(database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000 }), null);
+  assert.ok(database.listEvents().some((event) => event.subjectId === task.id && event.eventType === "task.failed"));
+});
+
 test("priority ordering, correlation metadata, and worker crash recovery are durable", (t) => {
   const database = databaseFixture(t);
   database.submitTask({ capability: "system.health", dataClass: "synthetic", idempotencyKey: "normal", priority: "normal", correlationId: "roundtrip-1" });
