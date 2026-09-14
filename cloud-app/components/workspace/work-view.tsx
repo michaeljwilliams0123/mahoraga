@@ -1,4 +1,4 @@
-﻿import { Activity, CircleAlert, GitBranch, LoaderCircle, RefreshCw, ShieldCheck, Sparkles, WandSparkles } from "lucide-react";
+import { Activity, CircleAlert, GitBranch, LoaderCircle, RefreshCw, ShieldCheck, Sparkles, WandSparkles } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import type { RuntimeOperationsSnapshot } from "@/lib/runtime-relay";
 import type { WorkViewProps } from "./workspace-types";
@@ -50,7 +50,8 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
       ) : (
         <div className="work-grid">
           <article><Activity size={20} /><span>Active</span><strong>{snapshot?.tasks.active ?? 0}</strong><small>tasks in motion</small></article>
-          <article><Sparkles size={20} /><span>Waiting</span><strong>{snapshot?.tasks.waiting ?? 0}</strong><small>needs time or input</small></article>
+          <article><Sparkles size={20} /><span>Waiting</span><strong>{snapshot?.tasks.waiting ?? 0}</strong><small>queued retry remaining, not exhausted</small></article>
+          <article><CircleAlert size={20} /><span>Failed</span><strong>{snapshot?.tasks.failed ?? 0}</strong><small>terminal including lease-expired exhausted</small></article>
           <article><GitBranch size={20} /><span>Repository</span><strong>{snapshot?.repository.cleanState ?? "checking"}</strong><small>{snapshot?.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>
           <article><WandSparkles size={20} /><span>Repairs</span><strong>{snapshot?.repairs.activeIncidents ?? 0}</strong><small>{snapshot?.repairs.lastRepairState ?? "checking"}</small></article>
         </div>
