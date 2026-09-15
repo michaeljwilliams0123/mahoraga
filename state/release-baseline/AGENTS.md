@@ -1,5 +1,7 @@
 # Mahoraga operating contract
 
+**Mandatory operating doctrine:** read `docs/MAHORAGA-OPERATING-DOCTRINE.md` before substantive inspection, editing, verification, convergence, or completion claims.
+
 ## Ecosystem lock (read before any edit)
 
 This repository is a living product. It is not a greenfield JavaScript prompt.

@@ -4,6 +4,7 @@ You are working in the existing Mahoraga repository. This is not a blank
 JavaScript project.
 
 Read `docs/ECOSYSTEM-LOCK.md` and `AGENTS.md` before the first edit.
+Read `docs/MAHORAGA-OPERATING-DOCTRINE.md` before substantive inspection, editing, verification, convergence, or completion claims.
 
 ## Fail closed
 
