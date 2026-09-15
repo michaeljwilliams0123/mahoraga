@@ -6,6 +6,7 @@ import test from "node:test";
 import { RuntimeDatabase } from "../src/database.mjs";
 import { createContentVault } from "../src/content-vault.mjs";
 import { deriveTaskPolicy, policyTaskInput } from "../src/task-policy.mjs";
+import { AUTONOMY_OBJECTIVE_AUTHORITY, createObjectiveReleaseAuthority } from "../src/objective-release-authority.mjs";
 
 const positions = [
   { individualId: "majority-a", conclusion: "deploy", confidence: 0.7, evidenceRefs: ["majority-a-evidence"], assumptions: [], unknowns: [], dissentTags: [] },
@@ -53,4 +54,36 @@ test("capability input rejects unbounded or unsupported values", async (t) => {
     requestedOutcome: "reject functions", capabilityInput: { positions, bad: () => true },
     idempotencyKey: "cognitive-envelope-invalid",
   }), /capability input/i);
+});
+
+test("capability input participates in idempotency conflict detection", async (t) => {
+  const { database, cleanup } = await fixture();
+  t.after(cleanup);
+  const common = {
+    capability: "cognitive.deliberate", dataClass: "synthetic", requestedMode: "local",
+    requestedOutcome: "Challenge wrong-majority reasoning.", idempotencyKey: "cognitive-envelope-idempotency",
+  };
+  database.submitTask({ ...common, capabilityInput: { positions } });
+  assert.throws(() => database.submitTask({
+    ...common,
+    capabilityInput: { positions: positions.map((position, index) => index === 2 ? { ...position, conclusion: "deploy" } : position) },
+  }), /idempotency.*capabilityInputSha256/i);
+});
+
+test("objective release preserves capability input through encrypted task execution", async (t) => {
+  const { database, cleanup } = await fixture();
+  t.after(cleanup);
+  database.configureObjectiveReleaseAuthority(createObjectiveReleaseAuthority({ manifest }));
+  const objective = database.createObjective({
+    title: "Run an objective-bound cognitive challenge.",
+    tasks: [{
+      id: "deliberate", authoritySource: AUTONOMY_OBJECTIVE_AUTHORITY,
+      capability: "cognitive.deliberate", dataClass: "synthetic", taskArea: "cognitive", dependsOn: [],
+      requestedOutcome: "Challenge wrong-majority reasoning.", capabilityInput: { positions },
+    }],
+  });
+  database.reconcileObjectives();
+  const child = database.getObjective(objective.id).tasks[0].task;
+  assert.ok(child.capabilityInputSha256);
+  assert.deepEqual(database.getTaskForExecution(child.id).capabilityInput, { positions });
 });

@@ -15,7 +15,8 @@ export function createObjectiveReleaseAuthority({ manifest }) {
         intent: input.capability, requestedOutcome: input.requestedOutcome, idempotencyKey: input.idempotencyKey,
         correlationId: input.correlationId, priority: input.priority, taskArea: input.taskArea,
         completionCriteria: input.completionCriteria, maximumAttempts: input.maximumAttempts,
-        contentReferences: input.contentReferences ?? [], authoritySessionId: input.authoritySessionId ?? null,
+        contentReferences: input.contentReferences ?? [], capabilityInput: input.capabilityInput ?? null,
+        authoritySessionId: input.authoritySessionId ?? null,
         ...(CONTAINED_CAPABILITIES.has(input.capability) ? {
           baseCommit: input.baseCommit, allowedPaths: input.allowedPaths, integrationLeaseId: lease.leaseId,
         } : {}),

@@ -30,7 +30,8 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const artifactStore = new LocalArtifactStore(paths.artifactRoot, { contentVault });
   const supervisor = new Supervisor({
     manifest, database, artifactRoot: paths.artifactRoot, contentVaultRoot: paths.contentVaultRoot,
-    contentVaultKeyFile: paths.contentVaultKeyFile, syncCoordinationMailbox,
+    contentVaultKeyFile: paths.contentVaultKeyFile, expectedSourceCommit: runtimeProvenance.expectedSourceCommit,
+    syncCoordinationMailbox,
   });
   const baseSupervisorHealth = supervisor.health.bind(supervisor);
   let boundPort = resolvedPort;

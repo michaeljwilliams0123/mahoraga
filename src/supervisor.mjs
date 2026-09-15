@@ -14,8 +14,11 @@ const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 const READINESS_RENEWAL_LEAD_MS = 60 * 1000;
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
-    super(); this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
+  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
+    super();
+    if (expectedSourceCommit !== null && !/^[a-f0-9]{40}$/i.test(expectedSourceCommit)) throw new TypeError("Supervisor expected source commit is invalid.");
+    this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
+    this.expectedSourceCommit = expectedSourceCommit?.toLowerCase() ?? null;
     this.syncCoordinationMailbox = syncCoordinationMailbox; this.forkWorker = forkWorker; this.tickIntervalMs = tickIntervalMs;
     this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
     this.lastRepairScanAt = null; this.lastRepairScanHealthy = null; this.lastRepairChecked = 0; this.nextRepairScanAt = 0; this.repairScanInFlight = false;
@@ -406,7 +409,10 @@ export class Supervisor extends EventEmitter {
       }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
       const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessagesForExecution(task.conversationId) } : executionTask;
-      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: envelope });
+      const workerTask = task.capability.startsWith("cognitive.")
+        ? { ...envelope, expectedSourceCommit: this.expectedSourceCommit }
+        : envelope;
+      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask });
     }
   }
 

@@ -44,7 +44,9 @@ function required(value, key) {
 }
 
 function empirical(task, input, result) {
-  const sourceCommit = process.env.MAHORAGA_EXPECTED_SOURCE_COMMIT ?? null;
+  const sourceCommit = typeof task.expectedSourceCommit === "string" && /^[a-f0-9]{40}$/i.test(task.expectedSourceCommit)
+    ? task.expectedSourceCommit.toLowerCase()
+    : null;
   const challengeId = typeof task.correlationId === "string" ? task.correlationId.slice(0, 120) : null;
   return { ...result, receiptMetadata: { evaluatorVersion: "cognitive-empirical-v1", sourceCommit, challengeId, inputsSha256: createHash("sha256").update(JSON.stringify(input)).digest("hex"), routeWorker: "cognitive-core" } };
 }

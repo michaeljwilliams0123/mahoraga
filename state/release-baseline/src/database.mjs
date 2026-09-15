@@ -501,7 +501,7 @@ export class RuntimeDatabase {
       if (existing) {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
-          correlationId, taskType, requestedOutcomeSha256, intent, capability, dataClass, requestedMode,
+          correlationId, taskType, requestedOutcomeSha256, capabilityInputSha256, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
           attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, baseCommit, allowedPaths: normalizedAllowedPaths, policyVersion,
         });
@@ -1675,7 +1675,7 @@ function normalizeAuthorityDecision(value) {
   return Object.freeze(structuredClone(value));
 }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
+  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "capabilityInputSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }
