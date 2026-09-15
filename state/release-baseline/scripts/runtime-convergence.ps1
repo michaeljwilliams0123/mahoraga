@@ -11,6 +11,7 @@ $convergenceRoot = Join-Path $runtimeHome 'convergence'
 $rollbackRoot = Join-Path $runtimeHome 'rollback'
 $relaySecretFile = Join-Path $runtimeHome 'secrets\relay-token.dpapi'
 $healthUrl = "http://127.0.0.1:$Port/api/status"
+$productionHealthUrl = 'http://127.0.0.1:4782/api/status'
 $repository = 'origin'
 
 function Resolve-Commit([string]$Value, [string]$Label) {
@@ -117,6 +118,45 @@ function Write-Receipt([hashtable]$Body) {
     $Body | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $file -Encoding utf8
 }
 
+function Get-ProductionStatus {
+    try { return Invoke-RestMethod -Uri $productionHealthUrl -TimeoutSec 3 }
+    catch { return $null }
+}
+
+function Wait-ForProductionCommit([string]$Commit) {
+    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+        Start-Sleep -Milliseconds 500
+        $production = Get-ProductionStatus
+        if (-not $production -or $production.product -ne 'Mahoraga') { continue }
+        $source = [string]$production.runtime.provenance.sourceCommit
+        $authority = [string]$production.runtime.provenance.authoritativeSourceCommit
+        $state = [string]$production.runtime.provenance.state
+        if ($source -eq $Commit -and $authority -eq $Commit -and $state -eq 'current' -and $production.runtime.healthy -eq $true) { return $production }
+    }
+    return $null
+}
+
+function Ensure-ProductionCurrent([string]$ExpectedCommit) {
+    $production = Get-ProductionStatus
+    $previousSource = if ($production -and $production.product -eq 'Mahoraga') { [string]$production.runtime.provenance.sourceCommit } else { $null }
+    if ($production -and $production.product -eq 'Mahoraga' -and
+        [string]$production.runtime.provenance.sourceCommit -eq $ExpectedCommit -and
+        [string]$production.runtime.provenance.authoritativeSourceCommit -eq $ExpectedCommit -and
+        [string]$production.runtime.provenance.state -eq 'current' -and
+        $production.runtime.healthy -eq $true) {
+        return $production
+    }
+
+    $launcher = Join-Path $ControllerRoot 'scripts\start-production.ps1'
+    if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { throw 'Production launcher is missing from verified main.' }
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher
+    if ($LASTEXITCODE -ne 0) { throw "Production promotion failed with exit code $LASTEXITCODE." }
+    $production = Wait-ForProductionCommit $ExpectedCommit
+    if (-not $production) { throw 'Production 4782 failed exact-main healthy canary after promotion.' }
+    Write-Receipt @{ state = 'production-promoted'; fromCommit = $previousSource; toCommit = $ExpectedCommit; candidatePort = $Port; productionPort = 4782 }
+    return $production
+}
+
 function Invoke-VerificationGate {
     Push-Location $ControllerRoot
     try { & npm.cmd run verify; if ($LASTEXITCODE -ne 0) { throw 'Verification gate failed; activation denied.' } }
@@ -165,7 +205,17 @@ if (-not $live) {
 }
 if ($live.product -ne 'Mahoraga') { throw 'Port 4783 is owned by an unexpected service.' }
 $sourceCommit = Resolve-Commit ([string]$live.runtime.provenance.sourceCommit) 'running source'
-if ($sourceCommit -eq $targetCommit) { Write-Output "Mahoraga is current at $targetCommit."; exit 0 }
+if ($sourceCommit -eq $targetCommit) {
+    $liveAuthority = Resolve-Commit ([string]$live.runtime.provenance.authoritativeSourceCommit) 'live authority'
+    if ($liveAuthority -ne $targetCommit -or [string]$live.runtime.provenance.state -ne 'current') { throw 'Current candidate source lacks exact-main provenance.' }
+    if ($live.runtime.healthy -ne $true) {
+        Write-Receipt @{ state = 'candidate-not-healthy'; attemptedCommit = $targetCommit; candidatePort = $Port }
+        throw 'Current candidate is not healthy; production promotion denied.'
+    }
+    Ensure-ProductionCurrent $targetCommit | Out-Null
+    Write-Output "Mahoraga candidate on port $Port and production on port 4782 are current at $targetCommit."
+    exit 0
+}
 if ([string]$live.runtime.provenance.state -ne 'runtime-drift') { throw 'Running Mahoraga is behind main without verified runtime-drift evidence.' }
 $liveAuthority = Resolve-Commit ([string]$live.runtime.provenance.authoritativeSourceCommit) 'live authority'
 if ($liveAuthority -ne $targetCommit) { throw 'Running Mahoraga authority does not match protected main.' }
