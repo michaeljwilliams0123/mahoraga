@@ -119,6 +119,22 @@ test("Railway mutations are fixed to expected SHA guard and exact commit deploy"
   });
 });
 
+test("Railway promotion preflight reads canonical autodeploy posture", async () => {
+  const { resolveAutoDeployStatus, PROMOTION } = await controller();
+  let observed;
+  const fetchImpl = async (_url, options) => {
+    observed = JSON.parse(options.body);
+    return response({ data: { serviceInstanceAutoDeployStatus: { enabled: false, canEnable: true, reason: null } } });
+  };
+  const status = await resolveAutoDeployStatus({ token: "project-token", fetchImpl });
+  assert.deepEqual(status, { enabled: false, canEnable: true, reason: null });
+  assert.match(observed.query, /serviceInstanceAutoDeployStatus/);
+  assert.deepEqual(observed.variables, {
+    projectId: PROMOTION.projectId,
+    environmentId: PROMOTION.environmentId,
+    serviceId: PROMOTION.serviceId,
+  });
+});
 test("previous successful deployment uses an unfiltered bounded list and selects SUCCESS locally", async () => {
   const { resolvePreviousSuccessfulDeployment } = await controller();
   const fetchImpl = async (_url, options) => {
@@ -170,6 +186,7 @@ function orchestrationDeps(overrides = {}) {
   const deps = {
     now: () => "2026-09-14T22:00:00.000Z",
     resolveGitHubEvidence: async () => ({ currentMainSha: SHA_A, checkRuns: successfulChecks() }),
+    resolveAutoDeployStatus: async () => ({ enabled: false, canEnable: true, reason: null }),
     resolvePreviousSuccessfulDeployment: async () => ({ deploymentId: "dep-old", commitSha: SHA_B }),
     probeProduction: async ({ expectedSha }) => ({ ok: expectedSha === SHA_B, reason: expectedSha === SHA_B ? null : "ready-sha-mismatch", live: { status: 200, modelInvocationsZero: true }, ready: { status: 200, gitShaMatch: expectedSha === SHA_B, modelInvocationsZero: true } }),
     upsertExpectedSha: async ({ sha }) => { calls.push(["upsert", sha]); return { updated: true, sha }; },
@@ -191,6 +208,19 @@ function orchestrationInput() {
   };
 }
 
+test("promotion fails closed before deployment reads when Railway autodeploy is enabled", async () => {
+  const { promoteExactMain } = await controller();
+  let deploymentRead = false;
+  const { deps } = orchestrationDeps({
+    resolveAutoDeployStatus: async () => ({ enabled: true, canEnable: true, reason: null }),
+    resolvePreviousSuccessfulDeployment: async () => { deploymentRead = true; return { deploymentId: "dep-old", commitSha: SHA_B }; },
+  });
+  const receipt = await promoteExactMain(orchestrationInput(), deps);
+  assert.equal(receipt.state, "failed");
+  assert.equal(receipt.errorCode, "railway-autodeploy-enabled");
+  assert.equal(receipt.errorStage, "autodeploy-preflight");
+  assert.equal(deploymentRead, false);
+});
 test("promotion receipt identifies an early Railway deployment-read failure stage", async () => {
   const { promoteExactMain } = await controller();
   const error = Object.assign(new Error("BAD_USER_INPUT"), { code: "BAD_USER_INPUT", status: 400 });
