@@ -47,7 +47,12 @@
   "antiDuplication": {
     "requireCurrentMainComparison": true,
     "blindStaleCherryPickAllowed": false,
-    "comparisonEvidence": ["ancestry", "path-history", "focused-diff", "current-tests"]
+    "comparisonEvidence": [
+      "ancestry",
+      "path-history",
+      "focused-diff",
+      "current-tests"
+    ]
   },
   "hardStops": [
     "credential-or-auth-boundary-change",
@@ -56,5 +61,10 @@
     "unapproved-spend",
     "protected-check-bypass",
     "owner-sovereignty-change"
-  ]
+  ],
+  "networkApertures": {
+    "ownerAuthenticatedTunnelsAllowed": true,
+    "requireBoundedLease": true,
+    "rawLoopbackPublicExposureAllowed": false
+  }
 }

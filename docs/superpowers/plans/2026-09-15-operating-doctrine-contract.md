@@ -115,3 +115,7 @@ Expected: HEAD contains current `origin/main`; if not, rebase and repeat focused
 - [ ] **Step 5: Push and open a protected-main PR**
 
 Push `docs/operating-doctrine-20260915`, require exact-head Ubuntu/Windows Verify, and merge only after both pass. Confirm canonical Railway deploys the exact merge SHA before treating cloud convergence as current.
+
+## Main-drift reconciliation
+
+Protected `main` advanced through PR #529 during implementation. The executed contract therefore also requires `networkApertures.ownerAuthenticatedTunnelsAllowed: true`, `networkApertures.requireBoundedLease: true`, and `networkApertures.rawLoopbackPublicExposureAllowed: false`, with matching human-doctrine language. This keeps bounded authenticated tunnels permitted without weakening the raw-loopback prohibition.

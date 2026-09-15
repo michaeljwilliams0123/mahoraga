@@ -77,3 +77,13 @@ test('human doctrine preserves reference-plane, readiness, and real-execution bo
   assert.match(doctrine, /simulator.*not.*execution proof/i);
   assert.match(doctrine, /UI.*not.*execution proof/i);
 });
+
+test('owner-authenticated tunnels remain bounded apertures rather than raw loopback exposure', () => {
+  const contract = loadContract();
+  assert.equal(contract.networkApertures.ownerAuthenticatedTunnelsAllowed, true);
+  assert.equal(contract.networkApertures.requireBoundedLease, true);
+  assert.equal(contract.networkApertures.rawLoopbackPublicExposureAllowed, false);
+  const doctrine = readRepoFile('docs/MAHORAGA-OPERATING-DOCTRINE.md');
+  assert.match(doctrine, /owner-authenticated tunnels.*bounded Mahoraga apertures/i);
+  assert.match(doctrine, /raw `4782\/4783`.*prohibited/i);
+});

@@ -58,3 +58,6 @@ Routine implementation, verification, PR creation, merge after required gates, a
 ## Success criteria
 
 The doctrine is complete when agents are directed to it, the machine-readable contract captures its critical invariants, repository tests enforce those invariants, full Verify stays green, and the change lands through the same exact-head cross-platform process it prescribes.
+## Current-main aperture reconciliation
+
+After the initial design was written, protected `main` advanced through PR #529. The doctrine therefore also preserves the live aperture policy: owner-authenticated tunnels are permitted only as bounded Mahoraga apertures, with lease/scope/closure controls intact, while direct public exposure of raw `4782/4783` listeners remains prohibited. This is an allowed transport capability, not an exception to authority, readiness, or verification boundaries.

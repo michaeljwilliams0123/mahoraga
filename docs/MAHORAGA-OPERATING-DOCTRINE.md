@@ -63,3 +63,8 @@ Stop rather than infer authority for: credential/authentication-boundary changes
 Claims must match evidence. Say **merged** only after merge evidence, **deployed** only after host metadata, **ready** only after the readiness boundary, and **executed** only after actual execution evidence. If a layer is unknown, call it unknown.
 
 Before saying a tranche is complete, run fresh verification appropriate to the claim and read its final exit/result. Evidence before assertion is mandatory.
+## Network apertures
+
+Owner-authenticated tunnels are permitted only as **bounded Mahoraga apertures** for a declared objective/capability under the current aperture policy. They must remain authenticated, peer/target scoped, time-limited, auditable, independently validated where required, and deterministically closed.
+
+Direct public exposure of raw `4782/4783` listeners is prohibited. A worker may not turn an owner-authenticated tunnel into a permanent generic forward, extend its own lease, or treat tunnel reachability as proof of runtime authority.
