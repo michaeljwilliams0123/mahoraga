@@ -19,7 +19,7 @@ const HELPERS = [
   { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
   { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
-  { label: "Artifact bridge", command: "Inspect the bounded artifact bridge from PR #505: same-origin owner upload, authenticated artifact IDs, loopback /api/artifacts, and fail-closed legacy relay." },
+  { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
 ] as const;
 
 type CommandCockpitProps = {
@@ -138,7 +138,7 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). The bounded artifact bridge is live from PR #505. UI lane only — Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
             <div>
@@ -159,7 +159,7 @@ export function CommandCockpit({
             </div>
             <div>
               <dt>artifact bridge</dt>
-              <dd>PR 505 · same-origin owner upload · loopback /api/artifacts · legacy relay fail-closed</dd>
+              <dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd>
             </div>
             <div>
               <dt>windows runtime</dt>
@@ -227,10 +227,14 @@ export function CommandCockpit({
             <article>
               <header>
                 <strong>Bounded Artifact Bridge</strong>
-                <span className="cockpit-pill ok">PR_505</span>
+                <span className="cockpit-pill ok">LIVE_#505</span>
               </header>
-              <p>Same-origin owner session with CSRF/replay protection; received bytes are bounded by MAX_FILE_BYTES, artifact IDs are issued only through the authenticated cloud session, and validated artifacts relay to loopback <code>/api/artifacts</code>.</p>
-              <p className="cockpit-muted">Primary Codex token stays server-only. No caller-selected destination, provider, executable, or paid fallback; legacy relay remains fail-closed.</p>
+              <p>
+                Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length.
+                Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only.
+                No caller-selected destination, provider, executable, or paid fallback.
+              </p>
+              <p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p>
             </article>
           </section>
         </div>
