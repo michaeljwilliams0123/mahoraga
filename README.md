@@ -11,7 +11,7 @@
 
 ## Current review baseline
 
-This README was reconciled against protected `main` on **2026-09-13** through PR **#454** at `251ae071b72e196b6d0ee047c3cac85c5ae9bf1b`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there.
+This README was reconciled against protected `main` on **2026-09-15** through PR **#533** at `a3cdb03c1d285eb21146affb3412946ece95f073`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there. The owner-reference local base on `SD009WC7` was freshly cloned from that exact authoritative `main` SHA.
 
 At that review point:
 
@@ -22,6 +22,7 @@ At that review point:
 - GitLab remained a secondary assurance plane;
 - Railway `mahoraga-runtime-main` remained the intended canonical cloud runtime/workspace service;
 - merged source capability was ahead of fully observed live Railway capability, so deployment claims remained fail-closed.
+- canonical Railway promotion is now guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
 
 ## Capability-first architecture
 
