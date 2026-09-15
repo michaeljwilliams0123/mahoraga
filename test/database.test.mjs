@@ -238,3 +238,17 @@ test("Studio learning persistence is metadata-only, auditable, and idempotent by
   assert.equal(database.listStudioLearningIngestions().length, 1);
   assert.ok(database.listReceipts(task.id).some((receipt) => receipt.phase === "learning-admitted"));
 });
+
+
+test("communication send idempotency key cannot create a duplicate side-effect task", (t) => {
+  const database = databaseFixture(t);
+  const input = {
+    capability: "communication.send", dataClass: "personal", requestedMode: "local",
+    idempotencyKey: "teams-send-once", maximumAttempts: 1,
+    requestedOutcome: JSON.stringify({ recipient: "Alex Smith", message: "Deployment is ready." }),
+  };
+  const first = database.submitTask(input);
+  const second = database.submitTask(input);
+  assert.equal(first.id, second.id);
+  assert.equal(database.listTasks().filter((task) => task.capability === "communication.send").length, 1);
+});

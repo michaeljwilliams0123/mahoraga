@@ -100,7 +100,7 @@ async function probeProviderReadiness() {
 async function probeCapabilityCanaries() {
   for (const capability of worker.capabilities) {
     const canaryMode = worker.capabilityCanaries[capability];
-    if (canaryMode === "health" || capability === worker.healthProbe) continue;
+    if (canaryMode === "health" || canaryMode === "manual" || capability === worker.healthProbe) continue;
     const observedAt = new Date().toISOString();
     const startedAt = Date.now();
     try {
@@ -165,6 +165,7 @@ async function execute(capability, task, admission = null) {
   if (capability === "self.evolve") return executeSelfEvolutionCapability(capability, task, worker);
   if (capability.startsWith("workspace-agent.")) return executeWorkspaceAgentCapability(capability, task, worker);
   if (capability.startsWith("desktop.")) return executeDesktopCapability(capability, task);
+  if (capability.startsWith("communication.")) return executeDesktopCapability(capability, task);
   if (capability.startsWith("m365.")) return executeMicrosoft365Capability(capability, task, worker);
   if (capability.startsWith("powerplatform.")) return executePowerPlatformCapability(capability, task, worker);
   if (capability.startsWith("studio.")) return executeCopilotStudioCapability(capability, task, worker);

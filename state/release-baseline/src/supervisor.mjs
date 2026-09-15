@@ -252,6 +252,18 @@ export class Supervisor extends EventEmitter {
       }
       try {
         const receipt = validateCapabilityReceipt(task.capability, message.result?.receipt);
+        if (task.capability === "communication.send" && receipt.outcome === "succeeded") {
+          const previous = this.database.listCapabilityReadiness(state.definition.id).find((item) => item.capability === task.capability);
+          if (previous?.providerStatus === "ready") {
+            const verifiedAt = new Date().toISOString();
+            this.database.setCapabilityReadiness({
+              workerId: state.definition.id, capability: task.capability,
+              processStatus: previous.processStatus, providerStatus: previous.providerStatus, canaryStatus: "verified",
+              processObservedAt: previous.processObservedAt, providerObservedAt: previous.providerObservedAt,
+              canaryVerifiedAt: verifiedAt, lastErrorCode: null,
+            });
+          }
+        }
         if (task.capability === "codex.execute") {
           this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
         }

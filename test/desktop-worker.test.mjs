@@ -154,6 +154,7 @@ test("desktop worker manifest advertises the bounded v1 execution capabilities",
     "desktop.powershell",
     "desktop.filesystem",
     "desktop.processes",
+    "communication.send",
   ]);
   assert.equal(worker.healthProbe, "desktop.inspect");
   assert.equal(worker.capabilityCanaries["desktop.powershell"], "provider-derived");
@@ -170,4 +171,77 @@ test("desktop filesystem live Windows canary hashes a repo file", { skip: proces
   assert.equal(result.receiptMetadata.entries.length, 1);
   assert.match(result.receiptMetadata.entries[0].sha256, /^[a-f0-9]{64}$/);
   assert.equal(JSON.stringify(result).includes("package.json"), false);
+});
+
+test("Teams send passes recipient and message only through process environment and returns content-free proof", async () => {
+  const recipient = "Alex Smith";
+  const message = "Deployment is ready.";
+  const run = async (executable, args, options) => {
+    assert.equal(executable, "powershell.exe");
+    assert.equal(options.env.MAHORAGA_TEAMS_RECIPIENT, recipient);
+    assert.equal(options.env.MAHORAGA_TEAMS_MESSAGE, message);
+    assert.equal(JSON.stringify(args).includes(recipient), false);
+    assert.equal(JSON.stringify(args).includes(message), false);
+    assert.match(args.join(" "), /InvokePattern/);
+    assert.doesNotMatch(args.join(" "), /SendKeys/i);
+    return { stdout: JSON.stringify({ verified: true, reason: "sent", windowCount: 1, recipientVerified: true, draftVerified: true, sendInvoked: true, postSendVerified: true }), stderr: "" };
+  };
+  const result = await executeDesktopCapability("communication.send", {
+    requestedOutcome: JSON.stringify({ recipient, message }), idempotencyKey: "teams-send-1",
+  }, { platform: "win32", run });
+  assert.equal(result.verified, true);
+  assert.equal(result.receiptMetadata.application, "teams");
+  assert.equal(result.receiptMetadata.action, "recipient-bound-send");
+  assert.match(result.receiptMetadata.recipientSha256, /^[a-f0-9]{64}$/);
+  assert.match(result.receiptMetadata.messageSha256, /^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(result).includes(recipient), false);
+  assert.equal(JSON.stringify(result).includes(message), false);
+});
+
+test("Teams send rejects malformed or broad recipient envelopes before UI automation", async () => {
+  let calls = 0;
+  const run = async () => { calls += 1; throw new Error("should-not-run"); };
+  await assert.rejects(
+    executeDesktopCapability("communication.send", { requestedOutcome: "hello", idempotencyKey: "send-bad-1" }, { platform: "win32", run }),
+    /communication-send-envelope-invalid/,
+  );
+  await assert.rejects(
+    executeDesktopCapability("communication.send", { requestedOutcome: JSON.stringify({ recipient: "everyone", message: "Hello" }), idempotencyKey: "send-bad-2" }, { platform: "win32", run }),
+    /recipient-not-authorized/,
+  );
+  await assert.rejects(
+    executeDesktopCapability("communication.send", { requestedOutcome: JSON.stringify({ recipient: "Alex Smith", message: "Hello", selector: "x" }), idempotencyKey: "send-bad-3" }, { platform: "win32", run }),
+    /communication-send-envelope-invalid/,
+  );
+  assert.equal(calls, 0);
+});
+
+test("Teams send fails closed off Windows without invoking UI automation", async () => {
+  let called = false;
+  await assert.rejects(executeDesktopCapability("communication.send", {
+    requestedOutcome: JSON.stringify({ recipient: "Alex Smith", message: "Hello" }), idempotencyKey: "send-linux",
+  }, { platform: "linux", run: async () => { called = true; } }), /desktop-windows-required/);
+  assert.equal(called, false);
+});
+
+test("Teams send preserves bounded failure evidence for UI verification failures", async () => {
+  const cases = [
+    ["recipient-mismatch", { recipientVerified: false, draftVerified: false, sendInvoked: false, postSendVerified: false }],
+    ["draft-mismatch", { recipientVerified: true, draftVerified: false, sendInvoked: false, postSendVerified: false }],
+    ["send-control-unavailable", { recipientVerified: true, draftVerified: true, sendInvoked: false, postSendVerified: false }],
+    ["post-send-verification-failed", { recipientVerified: true, draftVerified: true, sendInvoked: true, postSendVerified: false }],
+  ];
+  for (const [reason, flags] of cases) {
+    const result = await executeDesktopCapability("communication.send", {
+      requestedOutcome: JSON.stringify({ recipient: "Alex Smith", message: "Hello" }),
+      idempotencyKey: `send-${reason}`,
+    }, {
+      platform: "win32",
+      run: async () => ({ stdout: JSON.stringify({ verified: false, reason, windowCount: 1, ...flags }), stderr: "" }),
+    });
+    assert.equal(result.verified, false);
+    assert.equal(result.receiptMetadata.reason, reason);
+    assert.equal(JSON.stringify(result).includes("Alex Smith"), false);
+    assert.equal(JSON.stringify(result).includes("Hello"), false);
+  }
 });

@@ -10,7 +10,7 @@ const FORBIDDEN_CALLER_FIELDS = new Set([
 const GENERIC_INTENTS = new Set([
   "assistant.respond", "artifact.inspect", "system.health", "manifest.validate", "provider.gap",
   "repository.status", "repository.inspect", "repository.history", "repository.remote-inspect",
-  "browser.status", "browser.smoke", "browser.observe", "desktop.inspect", "desktop.interact",
+  "browser.status", "browser.smoke", "browser.observe", "desktop.inspect", "desktop.interact", "communication.send",
   "m365.health", "m365.open", "m365.reason", "powerplatform.health", "powerplatform.discover", "studio.health", "studio.delegate", "codex.health",
 ]);
 
@@ -20,7 +20,7 @@ export function sanitizeTaskIntake(body) {
   const allowed = new Set([
     "intent", "requestedOutcome", "idempotencyKey", "correlationId", "priority", "conversationId",
     "initialMessage", "attachmentIds", "contentReferences", "taskArea", "completionCriteria",
-    "maximumAttempts", "baseCommit", "allowedPaths", "integrationLeaseId",
+    "maximumAttempts", "baseCommit", "allowedPaths", "integrationLeaseId", "recipient",
   ]);
   for (const field of Object.keys(body)) if (!allowed.has(field)) throw policyError("task-intake-field-unknown");
   return Object.freeze({ ...body });
@@ -37,6 +37,8 @@ export function deriveTaskPolicy(input, {
   const request = internal ? Object.freeze({ ...input }) : sanitizeTaskIntake(input);
   const intent = bounded(request.intent, 80, "task-intent-invalid");
   if (!internal && !GENERIC_INTENTS.has(intent)) throw policyError("task-intent-not-allowed");
+  if (intent === "communication.send") normalizeRecipient(request.recipient);
+  else if (request.recipient !== undefined) throw policyError("recipient-field-not-allowed");
   const candidates = manifest.workers.filter((worker) => worker.enabled && worker.capabilities.includes(intent));
   if (candidates.length === 0) throw policyError("task-capability-unavailable");
   const dataClass = deriveDataClass(intent, request);
@@ -95,10 +97,12 @@ export function policyTaskInput(request, policy, manifest) {
     idempotencyKey: request.idempotencyKey,
     correlationId: request.correlationId,
     taskType: policy.intent.split(".")[0],
-    requestedOutcome: boundedMultiline(request.requestedOutcome ?? policy.intent, 1000, "requested-outcome-invalid"),
+    requestedOutcome: policy.intent === "communication.send"
+      ? JSON.stringify({ recipient: normalizeRecipient(request.recipient), message: boundedMultiline(request.requestedOutcome, 1000, "requested-outcome-invalid") })
+      : boundedMultiline(request.requestedOutcome ?? policy.intent, 1000, "requested-outcome-invalid"),
     executionPlane: policy.executionPlane,
     priority: normalizePriority(request.priority),
-    maximumAttempts: normalizeAttempts(request.maximumAttempts, manifest.queue.maximumAttempts),
+    maximumAttempts: policy.intent === "communication.send" ? 1 : normalizeAttempts(request.maximumAttempts, manifest.queue.maximumAttempts),
     taskArea: request.taskArea ?? policy.intent.split(".")[0],
     completionCriteria: request.completionCriteria ?? (policy.intent === "assistant.respond" ? "substantive-response" : "worker-verified"),
     attendedRequired: policy.attendedRequired,
@@ -125,9 +129,16 @@ export function taskPolicyVersion() {
 function deriveDataClass(intent, request) {
   if (intent.startsWith("m365.") || intent.startsWith("studio.") || intent.startsWith("powerplatform.") || intent === "provider.gap") return "enterprise";
   if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.") || intent.startsWith("self.")) return "local-only";
-  if (intent === "assistant.respond") return "personal";
+  if (intent === "assistant.respond" || intent === "communication.send") return "personal";
   if (intent === "artifact.inspect") return request.contentReferences?.length ? "local-only" : "synthetic";
   return "synthetic";
+}
+
+function normalizeRecipient(value) {
+  if (typeof value !== "string" || value.trim().length < 1 || value.length > 160 || /[\r\n\u0000]/.test(value)) throw policyError("recipient-required");
+  const recipient = value.trim();
+  if (/\b(?:everyone|everybody|all users|all people|whole (?:team|department|company)|entire (?:team|department|company)|channel|coworkers|colleagues)\b/i.test(recipient)) throw policyError("recipient-not-authorized");
+  return recipient;
 }
 
 function normalizeReferences(value) {
