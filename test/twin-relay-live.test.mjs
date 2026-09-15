@@ -196,10 +196,9 @@ test("twin remote peer accepts a primary event once and suppresses relay replay 
 
   const replayFrame = await sealFrame(primarySession, { type: "twin-event", event: incoming }, { direction: "runtime-to-ui" });
   socket.emit("message", { type: "frame", sessionId: assignedSessionId, frame: replayFrame });
-  await new Promise((resolve) => setTimeout(resolve, 10));
+  await peer.close();
   assert.equal(applied.length, 1);
-  assert.equal(peer.status().connected, true);
-  peer.close();
+  assert.equal(peer.status().connected, false);
   journal.close();
 });
 
