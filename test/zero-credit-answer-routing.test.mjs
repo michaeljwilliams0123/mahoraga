@@ -98,3 +98,17 @@ test("missing zero-credit evidence stops before ranking and cannot fall back to 
   assert.deepEqual(route.providerDecision, { status: "waiting", providerId: "waiting-zero-credit-provider", costClass: null });
   assert.equal(route.authorityDecision.decision, "hold");
 });
+
+
+test("canonical manifest exposes a local zero-credit answer worker", async () => {
+  const { loadManifest } = await import("../src/config.mjs");
+  const loaded = await loadManifest();
+  const local = loaded.workers.find((item) => item.id === "local-open-weight");
+  assert.ok(local);
+  assert.equal(local.enabled, true);
+  assert.equal(local.costClass, "local-model");
+  assert.equal(local.executionPlane, "local");
+  assert.deepEqual(local.capabilities, ["assistant.health", "assistant.respond"]);
+  assert.equal(local.routing.interfaceType, "native-api");
+  assert.equal(local.routing.requiresAttendedDesktop, false);
+});

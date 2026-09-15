@@ -131,7 +131,7 @@ async function artifactInspectionCanary() {
 }
 
 async function execute(capability, task, admission = null) {
-  if (workerId === "codespaces-open-weight") {
+  if (workerId === "codespaces-open-weight" || workerId === "local-open-weight") {
     if (capability === "assistant.health") return probeZeroCreditAnswerModel({ providerId: workerId });
     if (capability === "assistant.respond") {
       const evidence = zeroCreditProviderEvidenceFromEnv({ providerId: workerId });

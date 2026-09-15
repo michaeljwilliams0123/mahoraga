@@ -12,7 +12,11 @@ export const MANIFEST_BACKUP_PATH = legacy.MANIFEST_BACKUP_PATH;
 
 export const CORE_OWNED_CLOUD_WORKERS = Object.freeze(["codespaces-open-weight", "native-cloud-model", "cloud-browser"]);
 
-const ZERO_CREDIT_ANSWER_WORKER_ID = "codespaces-open-weight";
+const ZERO_CREDIT_ANSWER_WORKERS = Object.freeze([
+  Object.freeze({ id: "codespaces-open-weight", label: "Zero-Credit Cloud Answer", costClass: "cloud-open-weight", executionPlane: "cloud-open-weight", executionType: "remote-provider", reliability: 92, latencyMs: 750 }),
+  Object.freeze({ id: "local-open-weight", label: "Zero-Credit Local Answer", costClass: "local-model", executionPlane: "local", executionType: "local-provider", reliability: 96, latencyMs: 250 }),
+]);
+const ZERO_CREDIT_ANSWER_WORKER_IDS = new Set(ZERO_CREDIT_ANSWER_WORKERS.map((worker) => worker.id));
 const PROTOCOL_KEYS = new Set(["apiProtocol", "taskSchema", "workerContract", "relayProtocol", "capabilityRegistrySchema"]);
 const PROTOCOL_REVISION = /^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/;
 
@@ -115,13 +119,14 @@ export function normalizeManifestCompatibility(value, identity = null) {
 function applyZeroCreditAnswerRuntime(value) {
   const next = structuredClone(value);
   next.costModes = { ...next.costModes, "zero-credit": ["deterministic", "local-model", "cloud-open-weight"] };
-  if (!next.workers.some((worker) => worker.id === ZERO_CREDIT_ANSWER_WORKER_ID)) {
+  for (const descriptor of ZERO_CREDIT_ANSWER_WORKERS) {
+    if (next.workers.some((worker) => worker.id === descriptor.id)) continue;
     next.workers.push({
-      id: ZERO_CREDIT_ANSWER_WORKER_ID,
-      label: "Zero-Credit Cloud Answer",
+      id: descriptor.id,
+      label: descriptor.label,
       implementationRevision: "open-weight-adapter-1",
       enabled: true,
-      costClass: "cloud-open-weight",
+      costClass: descriptor.costClass,
       dataClasses: ["synthetic", "personal", "local-only"],
       capabilities: ["assistant.health", "assistant.respond"],
       acceptedTaskTypes: ["assistant"],
@@ -130,14 +135,14 @@ function applyZeroCreditAnswerRuntime(value) {
       healthProbe: "assistant.health",
       capabilityCanaries: { "assistant.health": "health", "assistant.respond": "provider-derived" },
       billingClassByCapability: { "assistant.health": "deterministic-zero", "assistant.respond": "deterministic-zero" },
-      executionPlane: "cloud-open-weight",
+      executionPlane: descriptor.executionPlane,
       routing: {
         interfaceType: "native-api",
         permissionClass: "bounded-zero-credit-model",
-        reliability: 92,
+        reliability: descriptor.reliability,
         requiresAttendedDesktop: false,
-        executionType: "remote-provider",
-        latencyMs: 750,
+        executionType: descriptor.executionType,
+        latencyMs: descriptor.latencyMs,
         maximumWorkload: 1,
         fallbackWorkerIds: [],
       },
@@ -150,7 +155,7 @@ function stripZeroCreditAnswerRuntime(value) {
   if (!isRecord(value)) return value;
   const next = structuredClone(value);
   if (isRecord(next.costModes)) delete next.costModes["zero-credit"];
-  if (Array.isArray(next.workers)) next.workers = next.workers.filter((worker) => worker?.id !== ZERO_CREDIT_ANSWER_WORKER_ID);
+  if (Array.isArray(next.workers)) next.workers = next.workers.filter((worker) => !ZERO_CREDIT_ANSWER_WORKER_IDS.has(worker?.id));
   return next;
 }
 
