@@ -132,7 +132,7 @@ const FILE_HASH_SCRIPT = String.raw`
 `;
 
 
-const TEAMS_SEND_SCRIPT = String.raw\`
+const TEAMS_SEND_SCRIPT = String.raw`
 & {
   $ErrorActionPreference = 'Stop'
   Add-Type -AssemblyName UIAutomationClient
@@ -284,7 +284,7 @@ const TEAMS_SEND_SCRIPT = String.raw\`
     Write-TeamsReceipt $false 'post-send-verification-failed' 1 $false $false $false $false
   }
 }
-\`;
+`;
 
 const COMMUNICATION_SEND_REASONS = new Set([
   "sent",
@@ -442,7 +442,7 @@ export async function executeDesktopCapability(capability, task = {}, {
       verified,
       summary: verified
         ? "Desktop Worker verified one recipient-bound Teams send."
-        : \`Desktop Worker did not verify the recipient-bound Teams send: \${normalizedReason}.\`,
+        : `Desktop Worker did not verify the recipient-bound Teams send: ${normalizedReason}.`,
       receiptMetadata: {
         application: "teams",
         action: "recipient-bound-send",
