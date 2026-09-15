@@ -52,7 +52,7 @@ test("connections surface reports relay capabilities without gaining direct auth
   assert.doesNotMatch(source, /api\.github\.com|@ai-sdk\/|confirmationToken/);
 });
 
-test("health route publishes host-neutral deployment identity with Vercel fallback", async () => {
+test("health route publishes active deployment identity without retired Vercel fallback", async () => {
   const health = await read("app/api/health/route.ts");
   assert.match(health, /version:\s*"7\.0\.0-alpha\.2"/);
   assert.match(health, /deployment:/);
@@ -66,10 +66,8 @@ test("health route publishes host-neutral deployment identity with Vercel fallba
     assert.match(health, new RegExp(portable));
   }
   assert.match(health, /provider:/);
-  assert.match(health, /VERCEL_GIT_COMMIT_SHA/);
-  assert.match(health, /VERCEL_GIT_COMMIT_REF/);
-  assert.match(health, /VERCEL_ENV/);
-  assert.match(health, /VERCEL_URL/);
+  assert.doesNotMatch(health, /VERCEL_/);
+  assert.doesNotMatch(health, /process\.env\.VERCEL/);
 });
 
 test("Vercel deployment entrypoints stay retired", async () => {

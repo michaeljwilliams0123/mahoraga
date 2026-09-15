@@ -66,7 +66,11 @@
       "governance.manage",
       "accessibility.manage"
     ],
-    "deploymentTargets": ["dev", "test", "prod"],
+    "deploymentTargets": [
+      "dev",
+      "test",
+      "prod"
+    ],
     "confirmationRequiredScopes": [],
     "revokedScopes": []
   },
@@ -232,6 +236,52 @@
     ]
   },
   "workers": [
+    {
+      "id": "cognitive-core",
+      "label": "Collective Cognitive Core",
+      "version": "1.0.0",
+      "enabled": true,
+      "costClass": "deterministic",
+      "dataClasses": [
+        "synthetic",
+        "personal",
+        "enterprise",
+        "local-only"
+      ],
+      "capabilities": [
+        "cognitive.health",
+        "cognitive.assess",
+        "cognitive.deliberate",
+        "cognitive.predict",
+        "cognitive.transfer",
+        "cognitive.cycle"
+      ],
+      "acceptedTaskTypes": [
+        "cognitive"
+      ],
+      "timeoutMs": 15000,
+      "concurrency": 1,
+      "healthProbe": "cognitive.health",
+      "capabilityCanaries": {
+        "cognitive.health": "health",
+        "cognitive.assess": "provider-derived",
+        "cognitive.deliberate": "provider-derived",
+        "cognitive.predict": "provider-derived",
+        "cognitive.transfer": "provider-derived",
+        "cognitive.cycle": "provider-derived"
+      },
+      "executionPlane": "local",
+      "routing": {
+        "interfaceType": "deterministic-worker",
+        "permissionClass": "bounded-cognitive",
+        "reliability": 99,
+        "requiresAttendedDesktop": false,
+        "executionType": "isolated-process",
+        "latencyMs": 10,
+        "maximumWorkload": 1,
+        "fallbackWorkerIds": []
+      }
+    },
     {
       "id": "local-core",
       "label": "Local Core",
@@ -494,8 +544,17 @@
         "self.evolve": "provider-derived"
       },
       "authorityScopesByCapability": {
-        "codex.execute": ["build.execute", "repo.write"],
-        "self.evolve": ["build.execute", "self.update", "repo.write", "deployment.execute", "governance.manage"]
+        "codex.execute": [
+          "build.execute",
+          "repo.write"
+        ],
+        "self.evolve": [
+          "build.execute",
+          "self.update",
+          "repo.write",
+          "deployment.execute",
+          "governance.manage"
+        ]
       },
       "executionPlane": "candidate-worktree",
       "routing": {
@@ -590,9 +649,17 @@
       "version": "api-trigger-1",
       "enabled": false,
       "costClass": "licensed-cloud",
-      "dataClasses": ["synthetic"],
-      "capabilities": ["workspace-agent.health", "workspace-agent.trigger", "workspace-agent.status"],
-      "acceptedTaskTypes": ["secondary-codex"],
+      "dataClasses": [
+        "synthetic"
+      ],
+      "capabilities": [
+        "workspace-agent.health",
+        "workspace-agent.trigger",
+        "workspace-agent.status"
+      ],
+      "acceptedTaskTypes": [
+        "secondary-codex"
+      ],
       "timeoutMs": 120000,
       "concurrency": 2,
       "healthProbe": "workspace-agent.health",
@@ -762,9 +829,17 @@
       "version": "provider-1.0",
       "enabled": true,
       "costClass": "deterministic",
-      "dataClasses": ["synthetic", "enterprise"],
-      "capabilities": ["powerplatform.health", "powerplatform.discover"],
-      "acceptedTaskTypes": ["microsoft-agent"],
+      "dataClasses": [
+        "synthetic",
+        "enterprise"
+      ],
+      "capabilities": [
+        "powerplatform.health",
+        "powerplatform.discover"
+      ],
+      "acceptedTaskTypes": [
+        "microsoft-agent"
+      ],
       "timeoutMs": 30000,
       "concurrency": 1,
       "healthProbe": "powerplatform.health",
@@ -818,10 +893,25 @@
         "studio.deploy": "provider-derived"
       },
       "authorityScopesByCapability": {
-        "studio.delegate": ["connector.invoke", "copilot.invoke"],
-        "studio.configure": ["connector.invoke", "copilot.configure", "governance.manage"],
-        "studio.provision": ["connector.invoke", "copilot.provision", "deployment.request"],
-        "studio.deploy": ["connector.invoke", "deployment.request", "deployment.execute"]
+        "studio.delegate": [
+          "connector.invoke",
+          "copilot.invoke"
+        ],
+        "studio.configure": [
+          "connector.invoke",
+          "copilot.configure",
+          "governance.manage"
+        ],
+        "studio.provision": [
+          "connector.invoke",
+          "copilot.provision",
+          "deployment.request"
+        ],
+        "studio.deploy": [
+          "connector.invoke",
+          "deployment.request",
+          "deployment.execute"
+        ]
       },
       "billingClassByCapability": {
         "studio.health": "deterministic-zero",

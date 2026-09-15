@@ -14,6 +14,7 @@ import { executePowerPlatformCapability } from "./power-platform-worker.mjs";
 import { executeCopilotStudioCapability } from "./copilot-studio-worker.mjs";
 import { executeGoogleWorkspaceCapability } from "./google-workspace-worker.mjs";
 import { executeSignedChromeCapability } from "./signed-chrome-worker.mjs";
+import { executeCognitiveCapability } from "./cognitive-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
 import { createContentVault } from "./content-vault.mjs";
@@ -155,6 +156,7 @@ async function execute(capability, task, admission = null) {
     if (capability === "browser.navigate") return executeCloudBrowserNavigation({ task });
     throw new Error("unsupported-capability");
   }
+  if (capability.startsWith("cognitive.")) return executeCognitiveCapability(capability, task);
   if (capability.startsWith("browser.")) return executeBrowserCapability(capability, task);
   if (capability.startsWith("repository.")) return executeRepositoryCapability(capability, task);
   if (capability.startsWith("queue.")) return executeMicrosoftQueueCapability(capability);

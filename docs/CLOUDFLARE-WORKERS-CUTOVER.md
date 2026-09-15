@@ -4,13 +4,9 @@
 
 Cloudflare Workers is the designated Vercel-independent hosting candidate for the
 single `cloud-app/` browser workspace. This is a hosting migration, not a tunnel.
-The last verified `https://mahoraga-workspace.vercel.app/` deployment remains the
-production fallback until a Workers deployment is built, fetched, paired, and
-verified against an exact Git commit.
+The historical `https://mahoraga-workspace.vercel.app/` deployment is retired and is not a production fallback. Railway remains the canonical server-capable runtime while any replacement browser host must pass the exact-commit activation gate below.
 
-Vercel Git auto-deployment is intentionally frozen while its account quota is
-exhausted. Repository evolution continues in GitHub and does not depend on a
-successful Vercel build.
+Vercel Git deployment is outside the active production path. Repository evolution continues in GitHub and does not depend on Vercel build or deployment status.
 
 ## Target path
 
@@ -88,7 +84,7 @@ MAHORAGA_GIT_COMMIT_SHA=<exact-deployed-commit>
 MAHORAGA_GIT_COMMIT_REF=main
 ```
 
-Vercel variables remain fallback-only for the last verified Vercel deployment.
+Retired Vercel variables are ignored by the active health route and cannot become a fallback signal.
 
 ## Activation gate
 
