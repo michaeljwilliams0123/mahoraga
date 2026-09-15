@@ -224,11 +224,7 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
-    if (files.length > 0) {
-      setRuntimeError("Files are staged locally. The bounded core artifact bridge is not connected yet, so nothing was uploaded or sent.");
-      return;
-    }
-    await submitCore(text);
+    await submitCore(text, taskMode, null, "zero-codex", files);
   }
 
   async function runQuickAction(actionId: QuickActionId) {
@@ -270,9 +266,9 @@ export function Workspace() {
     if (!latest || !speakText(latest.text)) setRuntimeError("Read-aloud is not available in this browser yet.");
   }
 
-  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null, creditPolicy: ChatCreditPolicy = "zero-codex") {
+  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null, creditPolicy: ChatCreditPolicy = "zero-codex", attachments: File[] = []) {
     const transport = relay.current;
-    if (!transport?.connected || !text) {
+    if (!transport?.connected || (!text && attachments.length === 0)) {
       setRelayState("error");
       setRuntimeError("The paired Mahoraga brain is not connected.");
       setActiveActionLabel(null);
@@ -283,17 +279,20 @@ export function Workspace() {
     setRuntimeError(null);
     setRuntimeBusy(true);
     if (actionLabel) setActiveActionLabel(actionLabel);
-    if (creditPolicy === "zero-codex") appendMessage("user", text);
+    if (creditPolicy === "zero-codex" && text) appendMessage("user", text);
     const pollGeneration = ++runtimePollGeneration.current;
     try {
+      const uploadedArtifacts = await Promise.all(attachments.map((file) => transport.uploadArtifact(file)));
+      const attachmentIds = uploadedArtifacts.map((artifact) => artifact.id);
       const result = await transport.chat({
         conversationId: runtimeConversationId,
         content: text,
         mode: modeOverride,
         creditPolicy,
-        attachmentIds: [],
+        attachmentIds,
         idempotencyKey: `workspace-${crypto.randomUUID()}`,
       });
+      if (attachments.length > 0) setFiles([]);
       if (runtimePollGeneration.current !== pollGeneration) {
         if (result.task) {
           try { await transport.taskAction(result.task.id, result.task.conversationId, "cancel"); }

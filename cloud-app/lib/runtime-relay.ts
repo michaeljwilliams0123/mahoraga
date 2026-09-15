@@ -233,9 +233,29 @@ export class RuntimeRelay {
     }
   }
 
+  async uploadArtifact(file: File) {
+    if (!this.cloudSession) throw relayError("relay-attachments-local-only");
+    const response = await fetch("/api/runtime/artifacts", {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: {
+        "content-type": file.type || "application/octet-stream",
+        "x-mahoraga-file-name": encodeURIComponent(file.name),
+        "x-mahoraga-file-source": "picker",
+        "x-mahoraga-csrf": this.cloudSession.csrf,
+        "x-mahoraga-request-nonce": crypto.randomUUID(),
+        "x-mahoraga-request-timestamp": String(Date.now()),
+      },
+      body: file,
+    });
+    const value = await response.json().catch(() => ({})) as JsonObject;
+    if (!response.ok) throw relayError(publicCode(value.error));
+    if (typeof value.artifactId !== "string" || !/^art-[a-f0-9-]+$/.test(value.artifactId)) throw relayError("cloud-artifact-receipt-invalid");
+    return { id: value.artifactId };
+  }
+
   async chat(input: JsonObject) {
-    if (Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
-    return this.call<RuntimeChatResult>("chat", { ...input, attachmentIds: [] });
+    if (!this.cloudSession && Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
+    return this.call<RuntimeChatResult>("chat", this.cloudSession ? input : { ...input, attachmentIds: [] });
   }
   async tasks(conversationId: string) {
     const value = await this.call<{ tasks?: RuntimeTask[] }>("tasks", { conversationId });
