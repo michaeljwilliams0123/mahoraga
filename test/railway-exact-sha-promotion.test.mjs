@@ -187,6 +187,25 @@ function orchestrationInput() {
   };
 }
 
+test("promotion receipt identifies an early Railway deployment-read failure stage", async () => {
+  const { promoteExactMain } = await controller();
+  const error = Object.assign(new Error("BAD_USER_INPUT"), { code: "BAD_USER_INPUT", status: 400 });
+  const { deps } = orchestrationDeps({ resolvePreviousSuccessfulDeployment: async () => { throw error; } });
+  const receipt = await promoteExactMain(orchestrationInput(), deps);
+  assert.equal(receipt.state, "failed");
+  assert.equal(receipt.errorCode, "BAD_USER_INPUT");
+  assert.equal(receipt.errorStage, "previous-deployment-read");
+});
+
+test("promotion receipt identifies expected-SHA guard upsert failures", async () => {
+  const { promoteExactMain } = await controller();
+  const error = Object.assign(new Error("BAD_USER_INPUT"), { code: "BAD_USER_INPUT", status: 400 });
+  const { deps } = orchestrationDeps({ upsertExpectedSha: async () => { throw error; } });
+  const receipt = await promoteExactMain(orchestrationInput(), deps);
+  assert.equal(receipt.state, "failed");
+  assert.equal(receipt.errorCode, "BAD_USER_INPUT");
+  assert.equal(receipt.errorStage, "expected-sha-upsert");
+});
 test("promotion is a no-op when production already serves exact verified main", async () => {
   const { promoteExactMain } = await controller();
   const { deps, calls } = orchestrationDeps({

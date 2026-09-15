@@ -336,7 +336,13 @@ export async function promoteExactMain(input, overrides = {}) {
   });
   if (!gate.ok) return baseReceipt({ state: "blocked", ok: false, targetSha: input.checkoutSha, observedAt: deps.now(), errorCode: gate.reason });
 
-  const previous = await deps.resolvePreviousSuccessfulDeployment({ token: input.railwayToken });
+  let previous;
+  try {
+    previous = await deps.resolvePreviousSuccessfulDeployment({ token: input.railwayToken });
+  } catch (error) {
+    const failure = normalizeRailwayError(error);
+    return baseReceipt({ state: "failed", ok: false, targetSha: gate.targetSha, observedAt: deps.now(), errorCode: failure.code, errorStage: "previous-deployment-read" });
+  }
   const initialProbe = await deps.probeProduction({ expectedSha: gate.targetSha });
   if (initialProbe.ok) {
     return baseReceipt({ state: "already-current", ok: true, targetSha: gate.targetSha, previousSha: previous.commitSha, observedAt: deps.now(), probe: initialProbe });
@@ -344,11 +350,15 @@ export async function promoteExactMain(input, overrides = {}) {
 
   let deploymentId = null;
   let guardChanged = false;
+  let errorStage = "expected-sha-upsert";
   try {
     await deps.upsertExpectedSha({ sha: gate.targetSha, token: input.railwayToken });
     guardChanged = true;
+    errorStage = "exact-sha-deploy";
     deploymentId = await deps.deployExactShaResilient({ sha: gate.targetSha, token: input.railwayToken });
+    errorStage = "deployment-wait";
     await deps.waitForDeployment({ deploymentId, token: input.railwayToken });
+    errorStage = "production-probe";
     const finalProbe = await deps.probeProduction({ expectedSha: gate.targetSha });
     if (!finalProbe.ok) throw coded(finalProbe.reason ?? "production-probe-failed");
     return baseReceipt({
@@ -363,7 +373,7 @@ export async function promoteExactMain(input, overrides = {}) {
   } catch (error) {
     const failure = normalizeRailwayError(error);
     if (!guardChanged) {
-      return baseReceipt({ state: "failed", ok: false, targetSha: gate.targetSha, previousSha: previous.commitSha, deploymentId, observedAt: deps.now(), errorCode: failure.code });
+      return baseReceipt({ state: "failed", ok: false, targetSha: gate.targetSha, previousSha: previous.commitSha, deploymentId, observedAt: deps.now(), errorCode: failure.code, errorStage });
     }
     const rollback = await rollbackToPrevious({ previousSha: previous.commitSha, railwayToken: input.railwayToken, deps });
     return baseReceipt({
@@ -374,6 +384,7 @@ export async function promoteExactMain(input, overrides = {}) {
       deploymentId,
       observedAt: deps.now(),
       errorCode: failure.code,
+      errorStage,
       rollback,
     });
   }
@@ -399,7 +410,7 @@ async function rollbackToPrevious({ previousSha, railwayToken, deps }) {
   }
 }
 
-function baseReceipt({ state, ok, targetSha, previousSha = null, deploymentId = null, observedAt, errorCode = null, probe = null, rollback = null }) {
+function baseReceipt({ state, ok, targetSha, previousSha = null, deploymentId = null, observedAt, errorCode = null, errorStage = null, probe = null, rollback = null }) {
   return {
     schemaVersion: 1,
     state,
@@ -409,6 +420,7 @@ function baseReceipt({ state, ok, targetSha, previousSha = null, deploymentId = 
     deploymentId: typeof deploymentId === "string" ? deploymentId : null,
     observedAt,
     errorCode: typeof errorCode === "string" ? safeCode(errorCode, "promotion-failed") : null,
+    errorStage: typeof errorStage === "string" ? safeCode(errorStage, "promotion-stage") : null,
     probe: boundedProbe(probe),
     rollback: rollback ? {
       attempted: rollback.attempted === true,
