@@ -87,3 +87,9 @@ test('owner-authenticated tunnels remain bounded apertures rather than raw loopb
   assert.match(doctrine, /owner-authenticated tunnels.*bounded Mahoraga apertures/i);
   assert.match(doctrine, /raw `4782\/4783`.*prohibited/i);
 });
+
+test('human doctrine requires governed release-baseline mirrors to move with source files', () => {
+  const doctrine = readRepoFile('docs/MAHORAGA-OPERATING-DOCTRINE.md');
+  assert.match(doctrine, /state\/release-baseline/);
+  assert.match(doctrine, /mirror.*exact/i);
+});

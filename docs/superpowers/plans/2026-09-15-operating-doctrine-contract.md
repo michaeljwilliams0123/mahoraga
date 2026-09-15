@@ -119,3 +119,6 @@ Push `docs/operating-doctrine-20260915`, require exact-head Ubuntu/Windows Verif
 ## Main-drift reconciliation
 
 Protected `main` advanced through PR #529 during implementation. The executed contract therefore also requires `networkApertures.ownerAuthenticatedTunnelsAllowed: true`, `networkApertures.requireBoundedLease: true`, and `networkApertures.rawLoopbackPublicExposureAllowed: false`, with matching human-doctrine language. This keeps bounded authenticated tunnels permitted without weakening the raw-loopback prohibition.
+## Release-baseline reconciliation
+
+Full Verify exposed drift because `AGENTS.md` and `.github/copilot-instructions.md` are mirrored into `state/release-baseline/`. The executed plan therefore updates those mirrors byte-for-byte and requires `node scripts/create-release-baseline.mjs --verify` before the full gate whenever governed mirrored files change.

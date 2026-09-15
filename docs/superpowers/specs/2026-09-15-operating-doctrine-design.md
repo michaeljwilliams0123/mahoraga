@@ -61,3 +61,6 @@ The doctrine is complete when agents are directed to it, the machine-readable co
 ## Current-main aperture reconciliation
 
 After the initial design was written, protected `main` advanced through PR #529. The doctrine therefore also preserves the live aperture policy: owner-authenticated tunnels are permitted only as bounded Mahoraga apertures, with lease/scope/closure controls intact, while direct public exposure of raw `4782/4783` listeners remains prohibited. This is an allowed transport capability, not an exception to authority, readiness, or verification boundaries.
+## Release-baseline mirror reconciliation
+
+Full Verify proved that governed instruction files mirrored under `state/release-baseline/` must move with their source counterparts. The doctrine therefore requires exact mirror updates and a baseline verification step whenever a mirrored governed file changes.

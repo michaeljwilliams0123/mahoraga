@@ -68,3 +68,8 @@ Before saying a tranche is complete, run fresh verification appropriate to the c
 Owner-authenticated tunnels are permitted only as **bounded Mahoraga apertures** for a declared objective/capability under the current aperture policy. They must remain authenticated, peer/target scoped, time-limited, auditable, independently validated where required, and deterministically closed.
 
 Direct public exposure of raw `4782/4783` listeners is prohibited. A worker may not turn an owner-authenticated tunnel into a permanent generic forward, extend its own lease, or treat tunnel reachability as proof of runtime authority.
+## Release-baseline mirror rule
+
+When a governed source file is mirrored under `state/release-baseline/`, the source file and its mirror must move together in the same change. Keep the mirror **exact** to the governed source bytes; do not hand-edit the baseline into a divergent variant.
+
+After changing a mirrored file, run `node scripts/create-release-baseline.mjs --verify` before the full repository gate. A baseline drift failure is a real integration blocker, not a warning to bypass.
