@@ -119,17 +119,21 @@ test("Railway mutations are fixed to expected SHA guard and exact commit deploy"
   });
 });
 
-test("previous successful deployment must carry a full Git commit SHA", async () => {
+test("previous successful deployment uses an unfiltered bounded list and selects SUCCESS locally", async () => {
   const { resolvePreviousSuccessfulDeployment } = await controller();
   const fetchImpl = async (_url, options) => {
     const request = JSON.parse(options.body);
-    assert.equal(request.variables.input.status.successfulOnly, true);
-    return response({ data: { deployments: { edges: [{ node: { id: "dep-old", status: "SUCCESS", meta: { commitHash: SHA_B } } }] } } });
+    assert.equal(request.variables.input.status, undefined);
+    assert.match(request.query, /first:\s*10/);
+    return response({ data: { deployments: { edges: [
+      { node: { id: "dep-failed", status: "FAILED", meta: { commitHash: SHA_A } } },
+      { node: { id: "dep-old", status: "SUCCESS", meta: { commitHash: SHA_B } } },
+    ] } } });
   };
   assert.deepEqual(await resolvePreviousSuccessfulDeployment({ token: "project-token", fetchImpl }), { deploymentId: "dep-old", commitSha: SHA_B });
 
   await assert.rejects(
-    resolvePreviousSuccessfulDeployment({ token: "project-token", fetchImpl: async () => response({ data: { deployments: { edges: [{ node: { id: "dep-old", meta: { commitHash: "main" } } }] } } }) }),
+    resolvePreviousSuccessfulDeployment({ token: "project-token", fetchImpl: async () => response({ data: { deployments: { edges: [{ node: { id: "dep-old", status: "SUCCESS", meta: { commitHash: "main" } } }] } } }) }),
     /previous-deployment-invalid/,
   );
 });

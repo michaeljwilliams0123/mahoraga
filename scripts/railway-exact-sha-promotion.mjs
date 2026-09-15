@@ -148,8 +148,8 @@ export async function resolveGitHubEvidence({ token, checkoutSha, fetchImpl = fe
 }
 
 export async function resolvePreviousSuccessfulDeployment({ token, fetchImpl = fetch }) {
-  const query = `query LatestDeployment($input: DeploymentListInput!) {
-    deployments(input: $input, first: 1) { edges { node { id status createdAt meta } } }
+  const query = `query RecentDeployments($input: DeploymentListInput!) {
+    deployments(input: $input, first: 10) { edges { node { id status createdAt meta } } }
   }`;
   const data = await railwayRequest({
     query,
@@ -158,16 +158,15 @@ export async function resolvePreviousSuccessfulDeployment({ token, fetchImpl = f
         projectId: PROMOTION.projectId,
         environmentId: PROMOTION.environmentId,
         serviceId: PROMOTION.serviceId,
-        status: { successfulOnly: true },
       },
     },
     token,
     fetchImpl,
   });
-  const node = data?.deployments?.edges?.[0]?.node;
-  const commitSha = node?.meta?.commitHash;
-  if (typeof node?.id !== "string" || !isSha(commitSha)) throw coded("previous-deployment-invalid");
-  return { deploymentId: node.id, commitSha };
+  const nodes = (data?.deployments?.edges ?? []).map((edge) => edge?.node).filter(Boolean);
+  const node = nodes.find((candidate) => candidate?.status === TERMINAL_SUCCESS && typeof candidate?.id === "string" && isSha(candidate?.meta?.commitHash));
+  if (!node) throw coded("previous-deployment-invalid");
+  return { deploymentId: node.id, commitSha: node.meta.commitHash };
 }
 
 export async function upsertExpectedSha({ sha, token, fetchImpl = fetch }) {
