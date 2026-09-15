@@ -16,7 +16,9 @@ export function runCognitiveLoop(input) {
   const deliberation = synthesizeCollectiveDeliberation({ positions });
   const plan = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
   const prediction = simulateCounterfactual({ observedState: input.observedState, stateUncertainty: input.stateUncertainty, action: input.proposedAction });
-  const decision = metacognitive.proceed && deliberation.decision !== 'hold' ? deliberation.decision : 'hold';
+  const predictionAdmissible = prediction.predictedUncertainty <= 0.7;
+  const decision = metacognitive.proceed && deliberation.decision !== 'hold' && predictionAdmissible ? deliberation.decision : 'hold';
+  const decisionGate = !metacognitive.proceed ? 'metacognition-hold' : deliberation.decision === 'hold' ? 'material-dissent' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
   const evidenceRefs = [...new Set(positions.flatMap((item) => item.evidenceRefs))].sort();
   const core = {
     schemaVersion: 1,
@@ -29,6 +31,7 @@ export function runCognitiveLoop(input) {
     plan,
     prediction,
     decision,
+    decisionGate,
     authoritySource: 'existing-router-and-owner-authority',
     storedLesson: { decision, evidenceRefs, promotable: decision !== 'hold' },
   };
@@ -43,3 +46,5 @@ function publicDeliberation(value) {
 function digest(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function deepFreeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value)) deepFreeze(child); } return value; }
 function fail(code) { const error = new TypeError(code); error.code = code; throw error; }
+
+
