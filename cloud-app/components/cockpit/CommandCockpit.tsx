@@ -17,7 +17,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
   { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
-  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2 Railway workspace, and this operator deck." },
+  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
 ] as const;
 
@@ -49,15 +49,13 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Railway 7.0.0-alpha.2 health is observational only — exact-SHA promotion, no fake rollback API.",
+      summary: "Vercel cloud-app health is observational only — no fake rollback API.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
-        { label: "host", value: "railway-runtime-main" },
         { label: "authority", value: health?.authority ?? "unknown" },
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
-        { label: "promotion", value: "exact-sha #507" },
       ],
       actionable: false,
     };
@@ -121,7 +119,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 Railway workspace</span>
+            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 workspace</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
@@ -129,7 +127,7 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
-            <span className="cockpit-pill ok">RAILWAY_EXACT_SHA_#507</span>
+            <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
           </div>
         </header>
@@ -137,8 +135,8 @@ export function CommandCockpit({
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
           <h3>CONVERGENCE</h3>
           <p>
-            Cloud cockpit on 7.0.0-alpha.2. Production host is Railway exact-SHA promotion (#507). Owner login uses{" "}
-            <code>Cache-Control: no-store</code> (#486). UI lane only — Windows production stays 3.6.0.
+            Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
             <div>
@@ -146,12 +144,12 @@ export function CommandCockpit({
               <dd>7.0.0-alpha.2</dd>
             </div>
             <div>
-              <dt>cloud host</dt>
-              <dd>Railway production</dd>
+              <dt>surface</dt>
+              <dd>PR 461</dd>
             </div>
             <div>
-              <dt>promotion</dt>
-              <dd>PR 507 exact-sha</dd>
+              <dt>runtime fix</dt>
+              <dd>PR 460 ProcessId</dd>
             </div>
             <div>
               <dt>owner login</dt>
@@ -199,10 +197,10 @@ export function CommandCockpit({
           <section className="cockpit-gateways" aria-label="Integration gateways">
             <article>
               <header>
-                <strong>Railway Production</strong>
+                <strong>Vercel Edge</strong>
                 <span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span>
               </header>
-              <p>Exact-SHA promotion lane (#507). Observational health only. Fake rollback APIs are hard-denied.</p>
+              <p>Observational health only. Fake rollback APIs are hard-denied.</p>
               <p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p>
             </article>
             <article>

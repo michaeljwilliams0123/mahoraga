@@ -31,6 +31,10 @@ export function CockpitView({
   const workers = new Set(runtimeCapabilities.flatMap((capability) => capability.workerIds));
   const deploymentProvider = health?.deployment?.provider ?? "unknown";
   const deploymentCommit = health?.deployment?.commitSha;
+  const expectedDeploymentCommit = health?.deployment?.expectedCommitSha;
+  const deploymentConvergence = deploymentCommit && expectedDeploymentCommit
+    ? deploymentCommit === expectedDeploymentCommit ? "Current" : "Drift"
+    : "Unverified";
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
@@ -85,6 +89,12 @@ export function CockpitView({
           value={health?.ok ? "Published" : "Awaiting health"}
           detail={`${deploymentProvider} · ${deploymentEnvironment}`}
           tone={health?.ok ? "good" : "warn"}
+        />
+        <StatusCard
+          label="Source convergence"
+          value={deploymentConvergence}
+          detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`}
+          tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"}
         />
         <StatusCard
           label="Owner login"

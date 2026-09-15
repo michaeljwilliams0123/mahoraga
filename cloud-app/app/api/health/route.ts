@@ -37,9 +37,10 @@ export async function GET() {
         provider: deploymentProvider(),
         environment: process.env.MAHORAGA_DEPLOYMENT_ENV ?? process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.CONTEXT ?? process.env.VERCEL_ENV ?? "local",
         url: deploymentUrl(),
-        commitSha: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        expectedCommitSha: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? null,
         gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.RAILWAY_GIT_BRANCH ?? process.env.BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? null,
-        promotion: "exact-sha-railway",
+        promotion: process.env.MAHORAGA_EXPECTED_GIT_SHA ? "exact-sha-railway" : null,
       },
       runtime: {
         databaseTarget: {
@@ -48,8 +49,8 @@ export async function GET() {
         },
         provenance: {
           state: "unknown",
-          expectedSourceCommit: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? null,
-          source: process.env.MAHORAGA_EXPECTED_GIT_SHA ? "railway-expected-sha" : "paired-core-required",
+          expectedSourceCommit: null,
+          source: "paired-core-required",
         },
       },
       capabilities: {
