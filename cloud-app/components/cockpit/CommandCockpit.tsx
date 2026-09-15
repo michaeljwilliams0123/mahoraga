@@ -96,6 +96,9 @@ export function CommandCockpit({
     return mapped.ok ? mapped.value : null;
   }, [healthJson]);
 
+  const liveOk = Boolean(healthCard?.ok) && !healthError;
+  const readyOk = coreReady && liveOk;
+
   const panels = useMemo(() => {
     const next = {} as Record<CockpitPanelId, CockpitPanelModel>;
     for (const id of COCKPIT_PANEL_IDS) {
@@ -124,11 +127,18 @@ export function CommandCockpit({
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
+            <span className={`cockpit-pill ${liveOk ? "ok" : healthError ? "danger" : "steel"}`}>
+              {healthError ? "LIVE_ERROR" : liveOk ? "LIVE_OK" : "LIVE_PENDING"}
+            </span>
+            <span className={`cockpit-pill ${readyOk ? "ok" : "warn"}`}>
+              {readyOk ? "READY_ONLINE" : "READY_OFFLINE"}
+            </span>
             <span className={`cockpit-pill ${coreReady ? "ok" : "warn"}`}>{coreReady ? "CORE_PAIRED" : "CORE_UNPAIRED"}</span>
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
+            <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
           </div>
@@ -140,13 +150,30 @@ export function CommandCockpit({
             Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
           </p>
+          <p>
+            Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
+          </p>
           <dl>
             <div><dt>candidate</dt><dd>7.0.0-alpha.2</dd></div>
-            <div><dt>surface</dt><dd>PR 461</dd></div>
+            <div><dt>surface</dt><dd>PR 461 / PR 543</dd></div>
             <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
+            <div><dt>shared bearer</dt><dd>parent supervisor injects only when configured token is blank (#542)</dd></div>
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
+          </dl>
+        </aside>
+
+        <aside className="cockpit-panel tone-neutral" aria-label="Attended Teams send status">
+          <h3>ATTENDED TEAMS SEND</h3>
+          <p>
+            Observational status only (#539 / #376 / #541). communication.send is recipient-bound, one visible ms-teams window, ValuePattern draft plus InvokePattern send, success-only canary. No Graph, SendKeys, or discovery. No browser send action on this surface.
+          </p>
+          <dl>
+            <div><dt>lane</dt><dd>status / convergence copy</dd></div>
+            <div><dt>binding</dt><dd>owner-designated recipient</dd></div>
+            <div><dt>canary</dt><dd>attended Windows, independent chat confirmation</dd></div>
+            <div><dt>cloud UI</dt><dd>no send button, no Graph, no SendKeys</dd></div>
           </dl>
         </aside>
 
@@ -171,6 +198,8 @@ export function CommandCockpit({
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
+            <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
+            <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
         </div>
 
