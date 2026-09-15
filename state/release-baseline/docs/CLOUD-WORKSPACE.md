@@ -99,9 +99,9 @@ until exact-head deployment and pairing/health evidence match the configured
 production origin. Historical Vercel projects remain non-canonical while paused.
 
 Cloudflare Workers is the designated Vercel-independent hosting candidate. It
-hosts only the browser application; it must not expose the local runtime or
-create a Cloudflare Tunnel. The runtime continues to initiate outbound encrypted
-relay connectivity. See [`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
+hosts the browser application. Owner-authorized authenticated tunnels are also
+permitted as bounded transport to an authenticated gateway/relay, while raw
+4782/4783 listeners remain private. See [`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
 
 The workspace health route accepts portable non-secret `MAHORAGA_*` deployment
 metadata and is prerendered during a Pages export. Control Center renders the

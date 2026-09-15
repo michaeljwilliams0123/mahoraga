@@ -18,7 +18,7 @@ const CYCLE: Starter = {
 
 const POSTURE: Starter = {
   label: "Audit connection posture",
-  command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces.",
+  command: "Audit connection posture. Allow owner-authorized authenticated tunnels; deny raw unauthenticated exposure. Report relay and GitHub surfaces.",
 };
 
 const ARSENAL: Starter = {

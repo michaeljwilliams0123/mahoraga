@@ -106,22 +106,22 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
   if (classification.intent === "inbound-tunnel-denied") {
     const cell = await makeCell({
       seed: `deny:${normalized.toLowerCase()}`,
-      title: "Inbound tunnel denied",
+      title: "Unsafe tunnel exposure denied",
       intent: classification.intent,
       owner: classification.owner,
       supporting,
       state: "denied",
       summary:
-        "Assurance refused the request. Mahoraga will not punch a hole into your Chromebook or Windows host. Use outbound HTTPS, a scoped GitHub App, or the existing Destiny event lane. The control plane stays on loopback.",
+        "Assurance refused only the unsafe exposure shape. Owner-authorized authenticated tunnels are permitted, but raw 4782/4783 listeners, generic public proxies, and unauthenticated loopback exposure remain denied.",
       evidence: [
-        { label: "Verdict", value: "denied-inbound" },
-        { label: "Safer path", value: "GitHub App + outbound poll, or Destiny event envelope" },
+        { label: "Verdict", value: "denied-unsafe-exposure" },
+        { label: "Allowed path", value: "owner-authorized authenticated tunnel to a scoped gateway/relay" },
         { label: "Credit class", value: classification.credit },
       ],
       events: [
         ...routeEvents,
-        event("assurance", "deny", "Inbound tunnel language detected. Device exposure is refused."),
-        event("relay", "deny", "No public listener, ngrok, cloudflared, or reverse SSH will be opened."),
+        event("assurance", "deny", "Unsafe public exposure detected; authenticated tunnel transport remains allowed."),
+        event("relay", "deny", "Raw loopback ports and generic proxies remain private."),
       ],
     });
     return { cells: [cell] };
@@ -139,7 +139,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
         "This deck will not fire Destiny, spend Cloud Pro, or activate 7.0 on Windows. Merge, comment, close, dispatch, and eligible Wave A deletes are on the write plane when the owner gh session is present.",
       evidence: [
         { label: "Verdict", value: "denied-authority" },
-        { label: "Safer path", value: "Write plane for GitHub; loopback CLI for the Windows host" },
+        { label: "Allowed path", value: "owner-authorized authenticated tunnel to a scoped gateway/relay" },
         { label: "Still denied", value: "Destiny spend · Cloud Pro fire · Windows 7.0 activate" },
       ],
       events: [
@@ -164,7 +164,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
       evidence: [
         { label: "CLI", value: cli },
         { label: "Control API", value: "127.0.0.1:4782 (unreachable from here)" },
-        { label: "Why", value: "Outbound-only plane. No device tunnel." },
+        { label: "Why", value: "This deck lacks the host transport; an owner-authorized authenticated tunnel may provide that transport." },
       ],
       events: [
         ...routeEvents,
@@ -641,18 +641,18 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
       supporting,
       state: "succeeded",
       summary:
-        "Posture is fail-closed. Mahoraga’s control API belongs on 127.0.0.1. This fleet may GET allowlisted public hosts and read public GitHub. It cannot open ngrok, cloudflared, reverse SSH, or any inbound path into your devices. Flexible connections = outbound GitHub App, Destiny events, encrypted relay pairing.",
+        "Posture is fail-closed. Raw 4782/4783 listeners remain private. Owner-authorized authenticated tunnels such as ngrok, cloudflared, or reverse SSH are permitted only as scoped transports to an authenticated gateway/relay. Flexible connections = GitHub App, encrypted relay pairing, or an approved tunnel.",
       evidence: [
         { label: "Device reachability", value: "none — this console cannot see your LAN" },
-        { label: "Inbound tunnels", value: "denied" },
+        { label: "Authenticated tunnels", value: "owner-authorized" },
         { label: "GitHub", value: "public outbound read" },
         { label: "Model spend", value: "none" },
       ],
       events: [
         ...routeEvents,
         event("assurance", "observe", "Loopback control plane · outbound HTTPS allowlist · GitHub events."),
-        event("relay", "observe", "No public local listener. Pairing is outbound-only."),
-        event("assurance", "complete", "Inbound tunnels remain a hard deny."),
+        event("relay", "observe", "No raw public local listener. Authenticated owner tunnel transport is permitted."),
+        event("assurance", "complete", "Unsafe unauthenticated exposure remains denied; authenticated owner tunnels are allowed."),
       ],
     });
     return { cells: [cell] };

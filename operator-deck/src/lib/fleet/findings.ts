@@ -54,9 +54,9 @@ export const REVIEW_FINDINGS: ReviewFinding[] = [
   {
     id: "tunnel-posture",
     severity: "ok",
-    title: "No inbound tunnels — keep it that way",
+    title: "Authenticated tunnels are allowed; raw listeners stay private",
     detail:
-      "Control API is loopback-only. Destiny and Secondary runners are outbound. Cloudflare relay is ciphertext, not a hole into the Chromebook. This console continues that rule: outbound HTTPS to an allowlist, never ngrok, cloudflared, or reverse SSH.",
+      "Control API remains loopback-only. Owner-authorized authenticated tunnels may bridge to a scoped gateway/relay, including ngrok, cloudflared, or reverse SSH. Raw 4782/4783 exposure, generic public proxies, and unauthenticated device access remain denied.",
     owner: "relay",
   },
   {
