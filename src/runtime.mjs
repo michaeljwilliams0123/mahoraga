@@ -25,7 +25,6 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     root: ROOT, manifest, port: resolvedPort, databaseFile, artifactRoot, contentVaultRoot, contentVaultKeyFile,
   });
   const contentVault = await createContentVault({ root: paths.contentVaultRoot, keyFile: paths.contentVaultKeyFile, masterKey: contentVaultMasterKey });
-  contentVault.deleteExpired();
   const objectiveReleaseAuthority = createObjectiveReleaseAuthority({ manifest });
   const database = new RuntimeDatabase(paths.databaseFile, { contentVault, objectiveReleaseAuthority });
   const artifactStore = new LocalArtifactStore(paths.artifactRoot, { contentVault });
@@ -67,6 +66,22 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const address = server.address();
   if (address && typeof address === "object") boundPort = address.port;
 
+  let vaultCleanupCursor = null;
+  let vaultCleanupInFlight = false;
+  const cleanExpiredVaultRecords = () => {
+    if (vaultCleanupInFlight) return;
+    vaultCleanupInFlight = true;
+    try {
+      const result = contentVault.deleteExpiredBatch({ cursor: vaultCleanupCursor, maximumPrefixes: 8, maximumRecords: 256 });
+      vaultCleanupCursor = result.complete ? null : result.cursor;
+    } catch {
+      // Cleanup is best effort and must never prevent an already-bound runtime from serving.
+    } finally { vaultCleanupInFlight = false; }
+  };
+  const vaultCleanupTimer = setInterval(cleanExpiredVaultRecords, 30_000);
+  vaultCleanupTimer.unref?.();
+  setImmediate(cleanExpiredVaultRecords);
+
   let relayRuntime = null;
   if (relay) {
     relayRuntime = typeof relay.connect === "function" ? relay : createRelayRuntimePeer({ ...relay, gateway: server.conversationGateway });
@@ -107,6 +122,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     uccp?.watchdog.stop();
     uccp?.plane.stop();
     clearInterval(provenanceRefreshTimer);
+    clearInterval(vaultCleanupTimer);
     supervisor.stop();
     await new Promise((resolve) => server.close(resolve));
     database.close();

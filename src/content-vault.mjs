@@ -142,6 +142,59 @@ class ContentVault {
     return deleted;
   }
 
+  deleteExpiredBatch({
+    at = this.now(),
+    cursor = null,
+    maximumPrefixes = 8,
+    maximumRecords = 256,
+  } = {}) {
+    const timestamp = Date.parse(normalizeNow(at));
+    const normalizedCursor = normalizeCleanupCursor(cursor);
+    if (!Number.isSafeInteger(maximumPrefixes) || maximumPrefixes < 1 || maximumPrefixes > 256) throw vaultError("vault-cleanup-prefix-limit-invalid");
+    if (!Number.isSafeInteger(maximumRecords) || maximumRecords < 1 || maximumRecords > 4096) throw vaultError("vault-cleanup-record-limit-invalid");
+
+    const prefixes = safeDirectoryEntries(this.root)
+      .filter((entry) => entry.isDirectory() && /^[a-f0-9]{2}$/.test(entry.name))
+      .map((entry) => entry.name)
+      .sort();
+    let scannedPrefixes = 0;
+    let scannedRecords = 0;
+    let deleted = 0;
+
+    for (const prefix of prefixes) {
+      if (normalizedCursor && prefix < normalizedCursor.prefix) continue;
+      if (scannedPrefixes >= maximumPrefixes) return cleanupResult({ deleted, complete: false, cursor: { prefix, entry: null } });
+      const directory = path.join(this.root, prefix);
+      if (lstatSync(directory).isSymbolicLink()) continue;
+      scannedPrefixes += 1;
+      const entries = safeDirectoryEntries(directory)
+        .filter((entry) => entry.isFile() && /^[a-f0-9-]{36}\.vault$/.test(entry.name))
+        .map((entry) => entry.name)
+        .sort();
+      for (const entry of entries) {
+        if (normalizedCursor && prefix === normalizedCursor.prefix && normalizedCursor.entry !== null && entry <= normalizedCursor.entry) continue;
+        if (scannedRecords >= maximumRecords) return cleanupResult({ deleted, complete: false, cursor: { prefix, entry } });
+        scannedRecords += 1;
+        const reference = `vault:${entry.slice(0, -6)}`;
+        try {
+          const record = this.#record(reference);
+          if (Date.parse(record.metadata.expiresAt) <= timestamp) {
+            rmSync(this.#target(reference), { force: true });
+            deleted += 1;
+          }
+        } catch {
+          // Invalid or tampered records remain for explicit quarantine and investigation.
+        }
+        if (scannedRecords >= maximumRecords) {
+          const moreEntries = entries.some((name) => name > entry);
+          const morePrefixes = prefixes.some((name) => name > prefix);
+          if (moreEntries || morePrefixes) return cleanupResult({ deleted, complete: false, cursor: { prefix, entry } });
+        }
+      }
+    }
+    return cleanupResult({ deleted, complete: true, cursor: null });
+  }
+
   #read(reference, expected = {}) {
     const record = this.#record(reference);
     assertExpectedOwner(record.metadata, expected);
@@ -210,6 +263,17 @@ function assertSafeDirectory(root, directory) {
 
 function safeDirectoryEntries(directory) {
   try { return readdirSync(directory, { withFileTypes: true }); } catch { return []; }
+}
+
+function normalizeCleanupCursor(value) {
+  if (value === null || value === undefined) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join(",") !== "entry,prefix") throw vaultError("vault-cleanup-cursor-invalid");
+  if (!/^[a-f0-9]{2}$/.test(value.prefix) || (value.entry !== null && !/^[a-f0-9-]{36}\.vault$/.test(value.entry))) throw vaultError("vault-cleanup-cursor-invalid");
+  return { prefix: value.prefix, entry: value.entry };
+}
+
+function cleanupResult({ deleted, complete, cursor }) {
+  return Object.freeze({ deleted, complete, cursor: cursor === null ? null : Object.freeze({ ...cursor }) });
 }
 
 function normalizeMasterKey(value) {
