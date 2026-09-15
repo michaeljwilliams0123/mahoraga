@@ -477,3 +477,79 @@ test("provider readiness preserves bounded provider reason codes", (t) => {
   assert.equal(readiness.providerStatus, "unavailable");
   assert.equal(readiness.lastErrorCode, "question-model-cli-unavailable");
 });
+
+
+test("verified communication send completion promotes the manual canary", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild(7331);
+  const desktop = workerDefinition({
+    id: "desktop", label: "Desktop Worker", healthProbe: "desktop.inspect",
+    capabilities: ["desktop.inspect", "communication.send"], dataClasses: ["personal", "local-only"],
+    capabilityCanaries: { "desktop.inspect": "health", "communication.send": "manual" },
+    routing: { interfaceType: "deterministic-worker", permissionClass: "interactive-desktop", reliability: 90, requiresAttendedDesktop: true, executionType: "interactive-session", latencyMs: 1, maximumWorkload: 1, fallbackWorkerIds: [] },
+  });
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ workers: [desktop] }), database, artifactRoot: os.tmpdir(),
+    syncCoordinationMailbox: false, forkWorker: () => child, tickIntervalMs: 5,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", {
+    type: "provider.readiness", observedAt: new Date().toISOString(),
+    receipt: createCapabilityReceipt("desktop.inspect", { verified: true, summary: "Desktop ready." }),
+  });
+  child.emit("message", { type: "readiness.complete" });  const task = database.submitTask({
+    capability: "communication.send", dataClass: "personal", requestedMode: "local", executionPlane: "local",
+    idempotencyKey: "supervisor-teams-send", requestedOutcome: JSON.stringify({ recipient: "Alex", message: "Hello" }),
+    maximumAttempts: 1, attendedRequired: true, authoritySessionId: "attended-1", allowedWorkerIds: ["desktop"],
+  });
+  for (let index = 0; index < 100 && !child.sent.some((item) => item?.type === "task" && item.taskId === task.id); index += 1) await delay(5);
+  assert.equal(child.sent.some((item) => item?.type === "task" && item.taskId === task.id), true);
+  child.emit("message", {
+    type: "task.completed", taskId: task.id,
+    result: {
+      verified: true, summary: "Verified recipient-bound Teams send.",
+      receipt: createCapabilityReceipt("communication.send", {
+        verified: true, summary: "Verified recipient-bound Teams send.",
+        receiptMetadata: { application: "teams", action: "recipient-bound-send", recipientSha256: "a".repeat(64), messageSha256: "b".repeat(64) },
+      }),
+    },
+  });
+  await delay(20);
+  const readiness = database.listCapabilityReadiness("desktop").find((item) => item.capability === "communication.send");
+  assert.equal(readiness.canaryStatus, "verified");
+  assert.ok(readiness.canaryVerifiedAt);
+});
+
+test("failed communication send receipt never promotes the manual canary", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild(7332);
+  const desktop = workerDefinition({
+    id: "desktop", label: "Desktop Worker", healthProbe: "desktop.inspect",
+    capabilities: ["desktop.inspect", "communication.send"], dataClasses: ["personal", "local-only"],
+    capabilityCanaries: { "desktop.inspect": "health", "communication.send": "manual" },
+    routing: { interfaceType: "deterministic-worker", permissionClass: "interactive-desktop", reliability: 90, requiresAttendedDesktop: true, executionType: "interactive-session", latencyMs: 1, maximumWorkload: 1, fallbackWorkerIds: [] },
+  });
+  const supervisor = new Supervisor({ manifest: manifestFixture({ workers: [desktop] }), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false, forkWorker: () => child, tickIntervalMs: 5 });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "provider.readiness", observedAt: new Date().toISOString(), receipt: createCapabilityReceipt("desktop.inspect", { verified: true, summary: "Desktop ready." }) });
+  child.emit("message", { type: "readiness.complete" });
+  const task = database.submitTask({ capability: "communication.send", dataClass: "personal", requestedMode: "local", executionPlane: "local", idempotencyKey: "supervisor-teams-failed", requestedOutcome: JSON.stringify({ recipient: "Alex", message: "Hello" }), maximumAttempts: 1, attendedRequired: true, authoritySessionId: "attended-1", allowedWorkerIds: ["desktop"] });
+  for (let index = 0; index < 100 && !child.sent.some((item) => item?.type === "task" && item.taskId === task.id); index += 1) await delay(5);  child.emit("message", {
+    type: "task.completed", taskId: task.id,
+    result: {
+      verified: false, summary: "Teams send verification failed.",
+      receipt: createCapabilityReceipt("communication.send", {
+        verified: false, summary: "Teams send verification failed.",
+        receiptMetadata: { application: "teams", action: "recipient-bound-send", reason: "recipient-mismatch" },
+      }),
+    },
+  });
+  await delay(20);
+  const readiness = database.listCapabilityReadiness("desktop").find((item) => item.capability === "communication.send");
+  assert.equal(readiness.canaryStatus, "never");
+  assert.equal(readiness.canaryVerifiedAt, null);
+});

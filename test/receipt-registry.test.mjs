@@ -67,3 +67,17 @@ test("receipt failures produce stable bounded error contracts", () => {
     boundedSummary: "Worker completion rejected: receipt-summary-invalid.",
   });
 });
+
+
+test("communication send receipts use a separate family and reject content-bearing evidence", () => {
+  const receipt = createCapabilityReceipt("communication.send", {
+    verified: true,
+    summary: "Verified recipient-bound Teams send.",
+    receiptMetadata: { application: "teams", action: "recipient-bound-send", recipientSha256: "a".repeat(64), messageSha256: "b".repeat(64) },
+  }, { observedAt: NOW });
+  assert.equal(receipt.details.family, "communication");
+  assert.equal(receipt.outcome, "succeeded");
+  assert.throws(() => createCapabilityReceipt("communication.send", {
+    verified: true, summary: "Unsafe.", receiptMetadata: { content: "private message" },
+  }, { observedAt: NOW }), /receipt-evidence-key-forbidden/);
+});
