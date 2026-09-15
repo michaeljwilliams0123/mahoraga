@@ -1,4 +1,4 @@
-﻿import { BrainCircuit, ExternalLink, Plus, ShieldCheck, X } from "lucide-react";
+import { BrainCircuit, ExternalLink, Plus, ShieldCheck, X } from "lucide-react";
 import { WorkspaceNav } from "./workspace-nav";
 import type { WorkspaceShellProps } from "./workspace-types";
 
@@ -39,7 +39,7 @@ export function WorkspaceShell({
 
         <div className={coreReady ? "brain-card ready" : "brain-card"}>
           <span className="brain-orb"><span /></span>
-          <div><strong>{coreReady ? "Brain connected" : "Brain offline"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : "Connect in Chat to execute work."}</span></div>
+          <div><strong>{coreReady ? "Brain connected" : "Brain offline"}</strong><span>{coreReady ? "Brain-routed. No lane or port selection." : "Connect in Chat to execute work."}</span></div>
         </div>
 
         <div className="privacy-card">
