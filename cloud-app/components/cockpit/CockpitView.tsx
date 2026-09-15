@@ -36,6 +36,12 @@ export function CockpitView({
     ? deploymentCommit === expectedDeploymentCommit ? "Current" : "Drift"
     : "Unverified";
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
+  const promotionMode = health?.deployment?.promotion ?? "unverified";
+  const deploymentUrl = health?.deployment?.url ?? "unavailable";
+  const railwayExactSha = deploymentProvider === "railway" || promotionMode === "exact-sha-railway";
+  const deploymentDetail = deploymentProvider === "vercel"
+    ? `non-authoritative preview · ${deploymentEnvironment}`
+    : `${deploymentProvider} · ${deploymentEnvironment}`;
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
   const runtimeDatabase = health?.runtime?.databaseTarget?.basename ?? "paired core required";
@@ -86,8 +92,8 @@ export function CockpitView({
         />
         <StatusCard
           label="Deployment"
-          value={health?.ok ? "Published" : "Awaiting health"}
-          detail={`${deploymentProvider} · ${deploymentEnvironment}`}
+          value={railwayExactSha ? "Railway exact-SHA production" : health?.ok ? "Published" : "Awaiting health"}
+          detail={deploymentDetail}
           tone={health?.ok ? "good" : "warn"}
         />
         <StatusCard
@@ -147,7 +153,11 @@ export function CockpitView({
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Host provider</dt><dd>{deploymentProvider}</dd></div>
+            <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
+            <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
+            <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
+            <div><dt>Source convergence</dt><dd>{deploymentConvergence}</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
