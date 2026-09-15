@@ -157,7 +157,7 @@ export function CommandCockpit({
             <div><dt>candidate</dt><dd>7.0.0-alpha.2</dd></div>
             <div><dt>surface</dt><dd>PR 461 / PR 543</dd></div>
             <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
-            <div><dt>shared bearer</dt><dd>parent supervisor injects only when configured token is blank (#542)</dd></div>
+            <div><dt>shared bearer</dt><dd>parent supervisor injects a shared core bearer only when the configured token is blank (#542)</dd></div>
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
