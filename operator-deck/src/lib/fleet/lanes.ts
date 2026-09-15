@@ -66,7 +66,7 @@ export function laneFor(number: number, title: string): IssueLane {
   return (
     ISSUE_LANES[number] ?? {
       fence: `issue/${number}`,
-      next: `Owner cell for “${title.slice(0, 72)}”. No model. No device tunnel.`,
+      next: `Owner cell for “${title.slice(0, 72)}”. No model. Authenticated owner tunnel permitted; raw device exposure denied.`,
     }
   );
 }

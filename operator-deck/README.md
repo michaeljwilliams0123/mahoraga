@@ -22,7 +22,7 @@ Use the verified production origin configured by `MAHORAGA_WORKSPACE_URL` / `MAH
 - Browser UI remains **TypeScript**.
 - Control plane remains Node ESM `.mjs`.
 - This library must never become a parallel direct-GitHub or direct-provider browser authority.
-- No inbound tunnels (`ngrok`, cloudflared, reverse SSH).
+- Owner-authorized authenticated tunnels are permitted; raw 4782/4783 exposure and unauthenticated generic proxies are denied.
 - No paid fallback or automatic owner confirmation.
 
 ## Related docs

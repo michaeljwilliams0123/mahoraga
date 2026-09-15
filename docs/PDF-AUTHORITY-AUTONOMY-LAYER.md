@@ -14,7 +14,7 @@ It keeps the Node ESM control plane, SQLite WAL durability, loopback/private exe
 
 Mahoraga may autonomously intake, plan, propose, sandbox-test, benchmark, sign, quorum-check, stage, and rollback-checkpoint candidate mutations.
 
-Mahoraga must not silently activate protected-root changes, publish production releases, commit secrets, use metered cloud fallback, open public tunnels, or accept unauthenticated mutation feeds.
+Mahoraga must not silently activate protected-root changes, publish production releases, commit secrets, use metered cloud fallback, open unauthenticated public tunnels, or accept unauthenticated mutation feeds. Owner-authorized authenticated tunnels remain permitted as bounded transport.
 
 ## Local-first execution order
 

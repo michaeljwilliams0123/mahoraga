@@ -17,8 +17,9 @@ metadata needed to route the report. Never commit a credential as test data.
 
 ## Security boundary
 
-Mahoraga's control service must remain on `127.0.0.1`; no inbound tunnel or
-public desktop listener is supported. GitHub may contain source code, bounded
-task metadata, and deterministic repository evidence only. Runtime tokens,
+Mahoraga's control service remains bound to 127.0.0.1. Owner-authorized authenticated
+tunnels may terminate at a scoped gateway/relay, but raw 4782/4783 listeners and
+unauthenticated public desktop/runtime exposure are not supported. GitHub may contain
+source code, bounded task metadata, and deterministic repository evidence only. Runtime tokens,
 prompts, model responses, personal files, browser history, document content,
 and unrelated chat context are prohibited.
