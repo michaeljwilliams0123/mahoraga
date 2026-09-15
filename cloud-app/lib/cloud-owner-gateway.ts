@@ -8,6 +8,7 @@ const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const REPLAY_WINDOW_MS = 2 * 60 * 1000;
 const CORE_GATEWAY_URL = "http://127.0.0.1:4782/api/cloud/runtime";
+const CORE_ARTIFACT_URL = "http://127.0.0.1:4782/api/artifacts";
 const REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
 export const CLOUD_OWNER_HEADER = "x-mahoraga-owner" as const;
 
@@ -114,3 +115,19 @@ function cookieValue(source: string | null, name: string) { return source?.split
 function safeEqual(left: string, right: string) { const a = Buffer.from(left); const b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); }
 function gatewayError(code: string, status: number) { const error = new Error(code) as Error & { status: number }; error.status = status; return error; }
 function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
+
+export async function coreArtifactRequest(input: { name: string; mimeType: string; source: string; bytes: Uint8Array }) {
+  const token = required("MAHORAGA_PRIMARY_CODEX_TOKEN");
+  const signal = AbortSignal.timeout(15_000);
+  const body = Uint8Array.from(input.bytes).buffer;
+  return fetch(CORE_ARTIFACT_URL, {
+    method: "POST", cache: "no-store", signal,
+    headers: {
+      "content-type": input.mimeType,
+      authorization: `Bearer ${token}`,
+      "x-mahoraga-file-name": encodeURIComponent(input.name),
+      "x-mahoraga-file-source": input.source,
+    },
+    body,
+  });
+}
