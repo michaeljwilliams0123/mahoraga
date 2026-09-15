@@ -29,7 +29,7 @@ test("chat answers route only to dedicated answer workers and prefer zero-credit
   })).json();
 
   const task = runtime.database.getTask(submitted.task.id);
-  assert.deepEqual(task.allowedWorkerIds, ["codespaces-open-weight", "question-model"]);
+  assert.deepEqual(task.allowedWorkerIds, ["local-open-weight", "codespaces-open-weight", "question-model"]);
   assert.equal(task.completionCriteria, "substantive-response");
   assert.equal(runtime.manifest.workers.find((item) => item.id === "local-core").capabilities.includes("assistant.respond"), false);
 });
