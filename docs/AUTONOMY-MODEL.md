@@ -61,7 +61,7 @@ Owner delegation does not enable:
 - enterprise/local content copied into GitHub as a general transport channel;
 - bypassing tenant, identity, authentication, or platform controls.
 
-Remote operation remains capability-based. No generic public tunnel, reverse proxy, arbitrary port forwarding, or unrestricted supervisor shell is introduced by this authority model.
+Remote operation remains capability-based. Owner-authorized authenticated tunnels and reverse proxies may be used as bounded transports to scoped gateways. Unauthenticated generic public proxies, direct 4782/4783 exposure, arbitrary router port forwarding, and unrestricted supervisor shells remain outside this authority model.
 
 ## Runtime semantics
 

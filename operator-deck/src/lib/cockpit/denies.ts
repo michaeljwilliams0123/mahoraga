@@ -2,7 +2,7 @@
 
 export const HARD_DENIES = Object.freeze({
   googleOAuthOnConsole: "Google OAuth on the operator console is a hard deny.",
-  inboundTunnels: "Inbound tunnels (ngrok, cloudflared, reverse SSH) are a hard deny.",
+  unsafeTunnelExposure: "Unauthenticated or generic public exposure of Mahoraga loopback services is a hard deny.",
   destinySpend: "Destiny fire / Cloud Pro spend from this console is a hard deny.",
   windowsAlphaActivate: "Activating 7.0 alpha on Windows from this console is a hard deny.",
   browserFleetAuthority: "Browser GitHub write authority via fleet *.server.ts is a hard deny — use paired-core Operations.",
@@ -19,8 +19,8 @@ export function isHardDenyIntent(intentKind: string): HardDenyKey | null {
       return "browserFleetAuthority";
     case "google-oauth":
       return "googleOAuthOnConsole";
-    case "inbound-tunnel":
-      return "inboundTunnels";
+    case "unsafe-tunnel-exposure":
+      return "unsafeTunnelExposure";
     case "destiny-spend":
     case "cloud-pro-spend":
       return "destinySpend";

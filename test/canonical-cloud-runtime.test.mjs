@@ -38,8 +38,8 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
   assert.match(docs, /MAHORAGA_WORKSPACE_URL/);
   assert.match(docs, /MAHORAGA_WORKSPACE_ORIGIN/);
   assert.doesNotMatch(docs, /canonical production address is https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\//i);
-  assert.match(cutover, /Workers yes, Tunnel no/i);
-  assert.match(cutover, /no inbound\s+route to `127\.0\.0\.1:4782`/i);
+  assert.match(cutover, /authenticated tunnels allowed/i);
+  assert.match(cutover, /must not expose .*127\.0\.0\.1:4782.*127\.0\.0\.1:4783.*directly/i);
 });
 
 test("legacy static and loopback UI entry points are absent while Pages derives the single cloud-app", async () => {

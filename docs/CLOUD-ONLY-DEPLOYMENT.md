@@ -24,10 +24,11 @@ a derived static export of `cloud-app/` when enabled, but a Pages URL is not
 inferred to be canonical merely because the private repository has Pages enabled.
 Vercel is paused and non-canonical.
 
-Cloudflare Workers is the designated replacement-host candidate. This means
-Workers hosting, not Cloudflare Tunnel: no `cloudflared` tunnel, ngrok, reverse
-SSH, port forwarding, public CDP endpoint, or generic proxy to the Mahoraga core
-is permitted. See [`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
+Cloudflare Workers is the designated replacement-host candidate. Owner-authorized
+authenticated tunnels such as `cloudflared`, ngrok, or reverse SSH are permitted
+as bounded transports to a scoped authenticated gateway/relay. Direct router port
+forwarding to 4782/4783, public CDP/debugging, and unauthenticated generic proxies
+remain denied. See [`CLOUDFLARE-WORKERS-CUTOVER.md`](CLOUDFLARE-WORKERS-CUTOVER.md).
 
 ## Owner inputs still required
 
@@ -44,7 +45,8 @@ Provide choices and connector authorization, not secret values in chat or Git:
    production origin after cutover.
 4. **Remote runtime host:** choose a persistent Linux container/VM provider and
    region. It needs outbound HTTPS/WebSocket and GitHub access plus a persistent
-   encrypted volume; it needs no inbound desktop tunnel.
+   encrypted volume. An owner-authorized authenticated tunnel is optional, but
+   raw desktop/runtime listeners remain private.
 5. **Zero-credit generation provider:** supply the endpoint/model choice for an
    open-weight provider and evidence that its model billing is unmetered with a
    hard zero-dollar ceiling. Without this, deterministic tasks work but ordinary

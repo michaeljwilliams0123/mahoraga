@@ -51,8 +51,8 @@ provider itself as authority.
 No historical Pages, Vercel, Railway, Cloudflare, Netlify, or other provider URL
 is canonical merely because it once deployed successfully or appears in repo
 metadata. A server-capable host may replace a static host where server routes are
-required, but it must not create a tunnel or generic proxy to the local/core
-runtime.
+required. An owner-authorized authenticated tunnel may provide bounded transport to
+a scoped gateway/relay; raw 4782/4783 listeners and unauthenticated generic proxies remain private.
 
 A provider becomes canonical only after the configured production origin's root
 page, health route, exact Git SHA, encrypted relay pairing, and zero-paid-fallback
@@ -76,4 +76,4 @@ TypeScript for `cloud-app/`. Existing Node.js `.mjs` control plane stays. Do
 
 Browser surfaces remain clients of the paired core. They must not become direct
 GitHub mutation authority, direct provider selectors, automatic
-owner-confirmation paths, paid-fallback routes, or inbound tunnels.
+owner-confirmation paths or paid-fallback routes. Owner-authorized authenticated tunnels are transport only and cannot grant browser authority.

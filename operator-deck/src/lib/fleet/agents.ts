@@ -31,7 +31,7 @@ export const AGENTS: Record<AgentId, AgentDefinition> = {
   assurance: {
     id: "assurance",
     label: "Assurance",
-    mandate: "Fail-closed security. Deny inbound tunnels, private-network probes, credential-shaped input, and authority expansion.",
+    mandate: "Fail-closed security. Permit owner-authorized authenticated tunnels, but deny unauthenticated public exposure, private-network probes, credential-shaped input, and authority expansion.",
     owns: "Posture verdicts, deny receipts, isolation proofs.",
     cannot: "Weaken the trust plane or print secrets.",
     plane: "loopback",
@@ -40,9 +40,9 @@ export const AGENTS: Record<AgentId, AgentDefinition> = {
   relay: {
     id: "relay",
     label: "Relay",
-    mandate: "Outbound-only pairing. Models GitHub events and encrypted cloud↔runtime hops. Never publishes a local listener.",
-    owns: "Connection topology, lease fencing, idempotency.",
-    cannot: "ngrok, cloudflared, reverse SSH, or any inbound hole into a device.",
+    mandate: "Authenticated pairing and owner-authorized tunnel transport. Models GitHub events and encrypted cloud↔runtime hops while keeping raw runtime listeners private.",
+    owns: "Connection topology, tunnel posture, lease fencing, idempotency.",
+    cannot: "Publish unauthenticated loopback services, generic public proxies, or public Chrome/CDP debugging endpoints.",
     plane: "outbound-https",
     credit: "deterministic",
   },

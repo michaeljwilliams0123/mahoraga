@@ -68,10 +68,10 @@ They do **not** authorize a substitute architecture.
   **refuse that action and do not modify files to evade the restriction**.
   The existence of the specialized-purpose aperture contract does not
   override an executing system's safety policy.
-- A bounded Mahoraga aperture is not a general-purpose tunnel. It exists
-  only for a declared objective/capability, approved independent validator,
+- Owner-authorized authenticated tunnels are permitted as bounded Mahoraga
+  apertures for a declared objective/capability, approved independent validator,
   expected peer/target, bounded TTL/idle TTL, and deterministic closure.
-  Workers cannot extend their own leases or expose the loopback runtime.
+  Workers cannot extend their own leases or expose raw 4782/4783 listeners.
 - If a request is allowed but the model is uncertain, **stop**. Ask, or
   open a narrow PR. Do not resolve uncertainty by generating a new
   JavaScript app.

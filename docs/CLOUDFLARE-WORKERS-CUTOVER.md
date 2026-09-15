@@ -22,23 +22,24 @@ GitHub main
   -> outbound-connected authoritative Mahoraga core
 ```
 
-The local/core runtime is never exposed as a public origin. There is no inbound
-route to `127.0.0.1:4782` and no generic proxy into the runtime.
+The local/core runtime remains private. An owner-authorized authenticated tunnel
+may be used as a transport, but it must terminate at a scoped authenticated
+gateway/relay and must not expose `127.0.0.1:4782` or `127.0.0.1:4783` directly.
 
-## Hard boundary: Workers yes, Tunnel no
+## Boundary: authenticated tunnels allowed, raw loopback exposure denied
 
-This migration must not introduce any of the following:
+Allowed transport options include Cloudflare Tunnel / `cloudflared`, ngrok,
+reverse SSH, or an equivalent tunnel when owner-authorized and configured with
+authentication, a fixed target, bounded scope, and auditable lifecycle.
 
-- Cloudflare Tunnel / `cloudflared` tunnel to the Mahoraga runtime
-- ngrok
-- reverse SSH
-- router port forwarding
-- a public Chrome/CDP/debugging endpoint
-- a generic HTTP/WebSocket proxy to loopback
+The tunnel must not become a generic HTTP/WebSocket proxy, publish a raw runtime
+listener, expose Chrome/CDP/debugging, bypass Mahoraga authentication/authority,
+or embed credentials in the repository. Router port forwarding to 4782/4783 is
+not a substitute for an authenticated tunnel.
 
-Cloudflare Workers hosts the browser application. Runtime pairing continues over
-the existing authenticated, encrypted relay with the runtime initiating outbound
-connectivity.
+Cloudflare Workers may still host the browser application. Runtime pairing can
+continue over the existing authenticated encrypted relay, or use an approved
+authenticated tunnel as the bounded transport to that gateway.
 
 ## Next.js 16 compatibility gate
 
@@ -100,8 +101,8 @@ following are true for the same exact commit:
 3. `/api/health` returns HTTP 200 with `deployment.provider` equal to
    `cloudflare-workers` and the expected exact Git SHA.
 4. The browser establishes the existing encrypted pairing flow to the relay.
-5. No local port, local browser debugger, or generic tunnel is externally
-   reachable.
+5. No raw 4782/4783 listener, local browser debugger, or unauthenticated generic
+   proxy is externally reachable; any tunnel is owner-authorized and authenticated.
 6. Zero-Codex / no-paid-fallback policy is unchanged.
 
 After those checks pass, use a separate cutover PR to replace the canonical
