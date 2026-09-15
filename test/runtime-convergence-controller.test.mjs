@@ -96,3 +96,19 @@ test("Windows convergence promotes a verified current 4783 candidate into canoni
     /if\s*\(\$sourceCommit\s+-eq\s+\$targetCommit\)\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?exit\s+0/i,
   );
 });
+
+test("convergence leaves 4783 stopped when canonical 4782 is already current", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.match(controller, /production-already-current/i);
+  assert.match(
+    controller,
+    /if\s*\(-not\s+\$live\)\s*\{[\s\S]*?Get-ProductionStatus[\s\S]*?production-already-current[\s\S]*?exit\s+0/i,
+  );
+});
+
+test("successful convergence promotes 4782 and tears down 4783 before exit", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.match(controller, /function\s+Stop-VerifiedCandidate/i);
+  assert.match(controller, /Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?Stop-VerifiedCandidate\s+\$targetCommit/i);
+  assert.match(controller, /state\s*=\s*["']candidate-stopped["']/i);
+});
