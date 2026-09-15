@@ -154,6 +154,7 @@ test("desktop worker manifest advertises the bounded v1 execution capabilities",
     "desktop.powershell",
     "desktop.filesystem",
     "desktop.processes",
+    "communication.send",
   ]);
   assert.equal(worker.healthProbe, "desktop.inspect");
   assert.equal(worker.capabilityCanaries["desktop.powershell"], "provider-derived");
