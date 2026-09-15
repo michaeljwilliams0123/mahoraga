@@ -26,3 +26,42 @@ test("expired write canaries and missing attended authority fail closed", () => 
   const fresh = deriveCapabilityReadiness({ process: { status: "live" }, provider: { status: "ready" }, canary: { status: "verified", verifiedAt: VERIFIED }, capabilityClass: "write" }, NOW);
   assert.equal(isCapabilityRoutable({ attendedRequired: true, authoritySessionId: null, executionPlane: "attended-desktop" }, fresh).reason, "attended-session-required");
 });
+
+
+test("communication send may bootstrap only as an attended single-attempt task", () => {
+  const never = deriveCapabilityReadiness({
+    process: { status: "live", observedAt: OBSERVED },
+    provider: { status: "ready" },
+    canary: { status: "never" },
+    capabilityClass: "write",
+  }, NOW);
+  const allowed = isCapabilityRoutable({
+    capability: "communication.send", attendedRequired: true,
+    authoritySessionId: "session-1", maximumAttempts: 1, executionPlane: "local",
+  }, never);
+  assert.deepEqual(allowed, { eligible: true, reason: "manual-canary-bootstrap" });
+  assert.equal(isCapabilityRoutable({
+    capability: "communication.send", attendedRequired: true,
+    authoritySessionId: null, maximumAttempts: 1, executionPlane: "local",
+  }, never).eligible, false);
+});
+
+test("manual send bootstrap never widens ordinary write readiness", () => {
+  const stale = deriveCapabilityReadiness({
+    process: { status: "live" }, provider: { status: "ready" },
+    canary: { status: "verified", verifiedAt: "2026-08-25T11:40:00.000Z" },
+    capabilityClass: "write",
+  }, NOW);
+  assert.equal(isCapabilityRoutable({
+    capability: "communication.send", attendedRequired: true,
+    authoritySessionId: "session-1", maximumAttempts: 1, executionPlane: "local",
+  }, stale).reason, "manual-canary-bootstrap");
+  assert.equal(isCapabilityRoutable({
+    capability: "desktop.interact", attendedRequired: true,
+    authoritySessionId: "session-1", maximumAttempts: 1, executionPlane: "local",
+  }, stale).reason, "canary-stale");
+  assert.equal(isCapabilityRoutable({
+    capability: "communication.send", attendedRequired: true,
+    authoritySessionId: "session-1", maximumAttempts: 2, executionPlane: "local",
+  }, stale).reason, "canary-stale");
+});
