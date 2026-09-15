@@ -647,7 +647,8 @@
         "communication.send"
       ],
       "acceptedTaskTypes": [
-        "desktop"
+        "desktop",
+        "communication"
       ],
       "timeoutMs": 60000,
       "concurrency": 1,
