@@ -19,6 +19,7 @@ const HELPERS = [
   { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
   { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
+  { label: "Artifact bridge", command: "Inspect the bounded artifact bridge from PR #505: same-origin owner upload, authenticated artifact IDs, loopback /api/artifacts, and fail-closed legacy relay." },
 ] as const;
 
 type CommandCockpitProps = {
@@ -49,7 +50,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Vercel cloud-app health is observational only — no fake rollback API.",
+      summary: "Railway exact-SHA cloud health is observational only — no fake rollback API.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -129,6 +130,7 @@ export function CommandCockpit({
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
+            <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
           </div>
         </header>
 
@@ -136,7 +138,7 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). UI lane only — Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). The bounded artifact bridge is live from PR #505. UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
             <div>
@@ -154,6 +156,10 @@ export function CommandCockpit({
             <div>
               <dt>owner login</dt>
               <dd>PR 486 no-store</dd>
+            </div>
+            <div>
+              <dt>artifact bridge</dt>
+              <dd>PR 505 · same-origin owner upload · loopback /api/artifacts · legacy relay fail-closed</dd>
             </div>
             <div>
               <dt>windows runtime</dt>
@@ -197,10 +203,10 @@ export function CommandCockpit({
           <section className="cockpit-gateways" aria-label="Integration gateways">
             <article>
               <header>
-                <strong>Vercel Edge</strong>
+                <strong>Railway exact-SHA</strong>
                 <span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span>
               </header>
-              <p>Observational health only. Fake rollback APIs are hard-denied.</p>
+              <p>Canonical deployment health is observational only. Fake rollback APIs are hard-denied.</p>
               <p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p>
             </article>
             <article>
@@ -217,6 +223,14 @@ export function CommandCockpit({
                 <span className="cockpit-pill ok">NO_STORE_#486</span>
               </header>
               <p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p>
+            </article>
+            <article>
+              <header>
+                <strong>Bounded Artifact Bridge</strong>
+                <span className="cockpit-pill ok">PR_505</span>
+              </header>
+              <p>Same-origin owner session with CSRF/replay protection; received bytes are bounded by MAX_FILE_BYTES, artifact IDs are issued only through the authenticated cloud session, and validated artifacts relay to loopback <code>/api/artifacts</code>.</p>
+              <p className="cockpit-muted">Primary Codex token stays server-only. No caller-selected destination, provider, executable, or paid fallback; legacy relay remains fail-closed.</p>
             </article>
           </section>
         </div>
