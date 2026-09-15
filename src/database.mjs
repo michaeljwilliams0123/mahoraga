@@ -320,6 +320,7 @@ export class RuntimeDatabase {
     const additions = [
       ["correlation_id", "TEXT"], ["task_type", "TEXT"], ["requested_outcome", "TEXT"],
       ["requested_outcome_ref", "TEXT"], ["requested_outcome_sha256", "TEXT"], ["requested_outcome_size_bytes", "INTEGER"], ["requested_outcome_expires_at", "TEXT"],
+      ["capability_input_ref", "TEXT"], ["capability_input_sha256", "TEXT"], ["capability_input_size_bytes", "INTEGER"], ["capability_input_expires_at", "TEXT"],
       ["result_summary_ref", "TEXT"], ["result_summary_sha256", "TEXT"], ["result_summary_size_bytes", "INTEGER"], ["result_summary_expires_at", "TEXT"],
       ["execution_plane", "TEXT NOT NULL DEFAULT 'local'"], ["priority", "TEXT NOT NULL DEFAULT 'normal'"],
       ["maximum_attempts", "INTEGER NOT NULL DEFAULT 3"], ["checkpoint", "TEXT"], ["verifier", "TEXT"],
@@ -457,7 +458,7 @@ export class RuntimeDatabase {
     conversationId = null, taskArea = "general", excludedWorkerIds = [],
     completionCriteria = capability === "assistant.respond" ? "substantive-response" : "worker-verified",
     attendedRequired = false, allowedWorkerIds = [], authoritySessionId = null, integrationLeaseId = null,
-    contentReferences = [], baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" } = input;
+    contentReferences = [], capabilityInput = null, baseCommit = null, allowedPaths = [], policyVersion = "legacy-internal" } = input;
     bounded(intent, 80, "task intent");
     validateCapability(capability);
     validateDataClass(dataClass);
@@ -479,6 +480,9 @@ export class RuntimeDatabase {
     if (integrationLeaseId !== null) bounded(integrationLeaseId, 128, "integration lease id");
     if (!Array.isArray(contentReferences) || contentReferences.length > 20) throw new TypeError("Content references are invalid.");
     contentReferences.forEach((item) => bounded(item, 180, "content reference"));
+    const normalizedCapabilityInput = normalizeTaskCapabilityInput(capabilityInput);
+    const capabilityInputJson = normalizedCapabilityInput === null ? null : JSON.stringify(normalizedCapabilityInput);
+    const capabilityInputSha256 = capabilityInputJson === null ? null : digestText(capabilityInputJson);
     let normalizedAllowedPaths = [];
     if (capability === "codex.execute" || capability === "self.evolve") {
       if (!/^[a-f0-9]{40,64}$/i.test(baseCommit ?? "")) throw new TypeError("Codex Builder base commit is invalid.");
@@ -497,20 +501,21 @@ export class RuntimeDatabase {
       if (existing) {
         const task = normalizeTask(existing);
         assertIdempotentTaskRequest(task, {
-          correlationId, taskType, requestedOutcomeSha256, intent, capability, dataClass, requestedMode,
+          correlationId, taskType, requestedOutcomeSha256, capabilityInputSha256, intent, capability, dataClass, requestedMode,
           executionPlane, priority, maximumAttempts, conversationId, taskArea, excludedWorkerIds, completionCriteria,
           attendedRequired, allowedWorkerIds, authoritySessionId, integrationLeaseId, contentReferences, baseCommit, allowedPaths: normalizedAllowedPaths, policyVersion,
         });
         return task;
       }
       const requestedContent = this.#storeContent(requestedOutcome, { classification: dataClass, ownerType: "task", ownerId: id });
+      const capabilityContent = capabilityInputJson === null ? null : this.#storeContent(capabilityInputJson, { classification: dataClass, ownerType: "task-capability-input", ownerId: id });
       this.db.prepare(`INSERT INTO tasks
-        (id, idempotency_key, correlation_id, task_type, requested_outcome, requested_outcome_ref, requested_outcome_sha256, requested_outcome_size_bytes, requested_outcome_expires_at, intent, capability, data_class, requested_mode,
+        (id, idempotency_key, correlation_id, task_type, requested_outcome, requested_outcome_ref, requested_outcome_sha256, requested_outcome_size_bytes, requested_outcome_expires_at, capability_input_ref, capability_input_sha256, capability_input_size_bytes, capability_input_expires_at, intent, capability, data_class, requested_mode,
          execution_plane, attended_required, allowed_worker_ids_json, authority_session_id, integration_lease_id,
          content_references_json, base_commit, allowed_paths_json, policy_version, priority, maximum_attempts, conversation_id, task_area,
          excluded_worker_ids, completion_criteria, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
-        .run(id, idempotencyKey, correlationId, taskType, requestedContent ? "[vault-content]" : requestedOutcome, requestedContent?.reference ?? null, requestedContent?.sha256 ?? requestedOutcomeSha256, requestedContent?.sizeBytes ?? Buffer.byteLength(requestedOutcome, "utf8"), requestedContent?.expiresAt ?? null, intent, capability, dataClass, requestedMode,
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?, ?)`)
+        .run(id, idempotencyKey, correlationId, taskType, requestedContent ? "[vault-content]" : requestedOutcome, requestedContent?.reference ?? null, requestedContent?.sha256 ?? requestedOutcomeSha256, requestedContent?.sizeBytes ?? Buffer.byteLength(requestedOutcome, "utf8"), requestedContent?.expiresAt ?? null, capabilityContent?.reference ?? null, capabilityContent?.sha256 ?? capabilityInputSha256, capabilityContent?.sizeBytes ?? (capabilityInputJson === null ? null : Buffer.byteLength(capabilityInputJson, "utf8")), capabilityContent?.expiresAt ?? null, intent, capability, dataClass, requestedMode,
           executionPlane, attendedRequired ? 1 : 0, JSON.stringify(allowedWorkerIds), authoritySessionId, integrationLeaseId,
           JSON.stringify(contentReferences), baseCommit, JSON.stringify(normalizedAllowedPaths), policyVersion, priority, maximumAttempts, conversationId, taskArea,
           JSON.stringify(excludedWorkerIds), completionCriteria, now, now);
@@ -801,9 +806,10 @@ export class RuntimeDatabase {
 
   getTaskForExecution(id) {
     const task = this.getTask(id);
-    if (!task || !task.requestedOutcomeReference) return task;
-    const requestedOutcome = this.#resolveContent(task.requestedOutcomeReference, { ownerType: "task", ownerId: task.id, classification: task.dataClass }).toString("utf8");
-    return Object.freeze({ ...task, requestedOutcome });
+    if (!task) return task;
+    const requestedOutcome = task.requestedOutcomeReference ? this.#resolveContent(task.requestedOutcomeReference, { ownerType: "task", ownerId: task.id, classification: task.dataClass }).toString("utf8") : task.requestedOutcome;
+    const capabilityInput = task.capabilityInputReference ? JSON.parse(this.#resolveContent(task.capabilityInputReference, { ownerType: "task-capability-input", ownerId: task.id, classification: task.dataClass }).toString("utf8")) : null;
+    return Object.freeze({ ...task, requestedOutcome, capabilityInput });
   }
 
   listTasks(limit = 100) {
@@ -1628,11 +1634,29 @@ function normalizeStudioLearningIngestion(row, duplicate = false) {
   completionCriteria: row.completion_criteria ?? "worker-verified",
   attendedRequired: Boolean(row.attended_required), allowedWorkerIds: JSON.parse(row.allowed_worker_ids_json ?? "[]"),
   authoritySessionId: row.authority_session_id, integrationLeaseId: row.integration_lease_id,
-  contentReferences: JSON.parse(row.content_references_json ?? "[]"), policyVersion: row.policy_version ?? "legacy-internal",
+  contentReferences: JSON.parse(row.content_references_json ?? "[]"), capabilityInput: null, capabilityInputReference: row.capability_input_ref ?? null, capabilityInputSha256: row.capability_input_sha256 ?? null, capabilityInputSizeBytes: row.capability_input_size_bytes ?? null, capabilityInputExpiresAt: row.capability_input_expires_at ?? null, policyVersion: row.policy_version ?? "legacy-internal",
   baseCommit: row.base_commit, allowedPaths: JSON.parse(row.allowed_paths_json ?? "[]"),
   authorityDecision: row.authority_decision_json ? normalizeAuthorityDecision(JSON.parse(row.authority_decision_json)) : null,
   createdAt: row.created_at, updatedAt: row.updated_at,
 }; }
+
+function normalizeTaskCapabilityInput(value) {
+  if (value === undefined || value === null) return null;
+  let json; try { json = JSON.stringify(value); } catch { throw new TypeError("Capability input is invalid."); }
+  if (!json || Buffer.byteLength(json, "utf8") > 65536) throw new TypeError("Capability input is invalid.");
+  const parsed = JSON.parse(json);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) || containsUnsupportedCapabilityValue(value)) throw new TypeError("Capability input is invalid.");
+  return structuredClone(parsed);
+}
+function containsUnsupportedCapabilityValue(value, depth = 0) {
+  if (depth > 12) return true;
+  if (value === null || ["string", "boolean"].includes(typeof value)) return false;
+  if (typeof value === "number") return !Number.isFinite(value);
+  if (typeof value !== "object") return true;
+  if (Array.isArray(value)) return value.length > 256 || value.some((item) => containsUnsupportedCapabilityValue(item, depth + 1));
+  const keys = Object.keys(value);
+  return keys.length > 128 || Object.getPrototypeOf(value) !== Object.prototype || keys.some((key) => key.length > 120 || containsUnsupportedCapabilityValue(value[key], depth + 1));
+}
 
 function normalizeAuthorityDecision(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Authority decision is invalid.");
@@ -1651,7 +1675,7 @@ function normalizeAuthorityDecision(value) {
   return Object.freeze(structuredClone(value));
 }
 function assertIdempotentTaskRequest(task, request) {
-  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
+  const fields = ["correlationId", "taskType", "requestedOutcomeSha256", "capabilityInputSha256", "intent", "capability", "dataClass", "requestedMode", "executionPlane", "priority", "maximumAttempts", "conversationId", "taskArea", "completionCriteria", "attendedRequired", "authoritySessionId", "integrationLeaseId", "baseCommit", "policyVersion"];
   for (const field of fields) if (task[field] !== request[field]) {
     throw idempotencyConflict(field);
   }

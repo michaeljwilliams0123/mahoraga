@@ -106,6 +106,7 @@ export function policyTaskInput(request, policy, manifest) {
     authoritySessionId: policy.authoritySessionId,
     integrationLeaseId: policy.integrationLeaseId,
     contentReferences: policy.contentReferences,
+    capabilityInput: normalizeCapabilityInput(request.capabilityInput),
     baseCommit: policy.baseCommit,
     allowedPaths: policy.allowedPaths,
     policyVersion: policy.policyVersion,
@@ -177,4 +178,13 @@ function policyError(code) {
   const error = new TypeError(code);
   error.code = code;
   return error;
+}
+
+function normalizeCapabilityInput(value) {
+  if (value === undefined || value === null) return null;
+  let json; try { json = JSON.stringify(value); } catch { throw policyError("capability-input-invalid"); }
+  if (!json || json.length > 65536) throw policyError("capability-input-invalid");
+  const parsed = JSON.parse(json);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw policyError("capability-input-invalid");
+  return Object.freeze(parsed);
 }
