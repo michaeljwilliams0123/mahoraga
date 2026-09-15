@@ -17,7 +17,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
   { label: "Audit connection posture", command: "Audit bounded owner-authenticated tunnel posture. Deny unauthenticated or generic public loopback exposure. Report relay and GitHub surfaces." },
-  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
+  { label: "Version ledger", command: "Show the version ledger as build metadata only: product is Mahoraga. Live Windows production stays 3.6.0. Workspace build is 7.0.0-alpha.2. Do not treat versions as separate products or ask the user to pick a port." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
   { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
 ] as const;
@@ -52,7 +52,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
       summary: "Railway exact-SHA cloud health is observational only — no fake rollback API.",
       lines: [
-        { label: "product", value: health?.product ?? "unknown" },
+        { label: "product", value: health?.product ?? "Mahoraga" },
         { label: "authority", value: health?.authority ?? "unknown" },
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
@@ -66,10 +66,11 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
     title: "WORKSPACE",
     tone: coreReady ? "ok" : "warn",
     summary: coreReady
-      ? "Paired core expected. Mutating Operations stay relay-mediated."
+      ? "Paired core expected. Mutating Operations stay relay-mediated. Brain-routed; no lane or port selection."
       : "Core not paired — Cockpit stays fail-closed for mutations.",
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
+      { label: "authoritativeRuntime", value: "4782" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
       { label: "browserMaySelectProvider", value: String(health?.browserMaySelectProvider ?? false) },
     ],
@@ -120,7 +121,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 workspace</span>
+            <span className="cockpit-eyebrow">Mahoraga</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
@@ -128,25 +129,28 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
+            <span className="cockpit-pill ok" title="Authoritative runtime. Not user-selectable.">RUNTIME_4782</span>
+            <span className="cockpit-pill steel" title="Operator-only transient candidate/shadow. Never a normal chat target.">4783_SHADOW_OPERATOR</span>
+            <span className="cockpit-pill steel" title="Build metadata only">BUILD_7.0.0-alpha.2</span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
           </div>
         </header>
 
-        <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
-          <h3>CONVERGENCE</h3>
+        <aside className="cockpit-panel tone-ok" aria-label="Single-brain runtime status">
+          <h3>RUNTIME</h3>
           <p>
-            Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
+            One product: Mahoraga. Build 7.0.0-alpha.2 is metadata only. Communication is brain-routed; talk, build, handoff, create, report, and ship do not require lane or port selection.
+            Authoritative runtime is 4782. Port 4783 is an operator-only transient candidate/shadow slot, never a normal chat target. Windows production stays 3.6.0; this UI does not activate 7.0.0-alpha.2 on Windows.
           </p>
           <dl>
-            <div><dt>candidate</dt><dd>7.0.0-alpha.2</dd></div>
-            <div><dt>surface</dt><dd>PR 461</dd></div>
-            <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
-            <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
-            <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
-            <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
+            <div><dt>product</dt><dd>Mahoraga</dd></div>
+            <div><dt>build</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>authoritative runtime</dt><dd>4782</dd></div>
+            <div><dt>candidate/shadow</dt><dd>4783 operator-only · not a chat target</dd></div>
+            <div><dt>windows production</dt><dd>3.6.0 locked</dd></div>
+            <div><dt>routing</dt><dd>brain-routed · no port picker</dd></div>
           </dl>
         </aside>
 
