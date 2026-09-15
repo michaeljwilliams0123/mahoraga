@@ -43,6 +43,26 @@ test("content vault rejects ciphertext tampering and expires records", async (t)
   assert.equal(vault.deleteExpired(), 1);
 });
 
+test("content vault cleanup batches expired records with a resumable cursor", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-content-vault-batch-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  let clock = new Date("2030-01-01T00:00:00.000Z");
+  const vault = await createContentVault({ root, masterKey: Buffer.alloc(32, 4), now: () => clock });
+  vault.put(Buffer.from("first expired record"), { ...OWNER, ttlMs: 1_000 });
+  vault.put(Buffer.from("second expired record"), { ...OWNER, ttlMs: 1_000 });
+  clock = new Date("2030-01-01T00:00:02.000Z");
+
+  const first = vault.deleteExpiredBatch({ maximumPrefixes: 256, maximumRecords: 1 });
+  assert.equal(first.deleted, 1);
+  assert.equal(first.complete, false);
+  assert.deepEqual(Object.keys(first.cursor).sort(), ["entry", "prefix"]);
+
+  const second = vault.deleteExpiredBatch({ maximumPrefixes: 256, maximumRecords: 1, cursor: first.cursor });
+  assert.equal(second.deleted, 1);
+  assert.equal(second.complete, true);
+  assert.equal(second.cursor, null);
+});
+
 test("DPAPI helper failures are typed on Windows", { skip: process.platform !== "win32" }, async () => {
   await assert.rejects(() => loadProtectedMasterKey({
     keyFile: path.join(os.tmpdir(), "mahoraga-missing-key.dpapi"),
