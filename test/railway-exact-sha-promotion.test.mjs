@@ -84,6 +84,18 @@ test("Railway client uses only project-token auth and normalizes GraphQL errors"
   );
 });
 
+test("Railway HTTP 400 preserves sanitized GraphQL code and trace id", async () => {
+  const { railwayRequest, normalizeRailwayError } = await controller();
+  await assert.rejects(
+    railwayRequest({
+      query: "mutation M($input: VariableUpsertInput!) { variableUpsert(input: $input) }",
+      variables: { input: {} },
+      token: "project-token",
+      fetchImpl: async () => response({ errors: [{ message: "Variable validation failed", extensions: { code: "BAD_USER_INPUT", traceId: "trace-400" } }] }, 400),
+    }),
+    (error) => { assert.deepEqual(normalizeRailwayError(error), { code: "BAD_USER_INPUT", traceId: "trace-400", status: 400 }); return true; },
+  );
+});
 test("Railway mutations are fixed to expected SHA guard and exact commit deploy", async () => {
   const { upsertExpectedSha, deployExactSha, PROMOTION } = await controller();
   const calls = [];
