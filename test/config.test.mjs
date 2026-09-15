@@ -44,7 +44,7 @@ test("canonical manifest exposes one product version plus compatibility revision
   for (const worker of manifest.workers.filter((item) => item.enabled)) {
     assert.deepEqual(Object.keys(worker.capabilityCanaries).sort(), [...worker.capabilities].sort());
     assert.equal(worker.capabilityCanaries[worker.healthProbe], "health");
-    assert.ok(Object.values(worker.capabilityCanaries).every((mode) => ["health", "direct", "provider-derived"].includes(mode)));
+    assert.ok(Object.values(worker.capabilityCanaries).every((mode) => ["health", "direct", "provider-derived", "manual"].includes(mode)));
   }
 });
 
@@ -85,4 +85,11 @@ test("manifest rejects caller-addressable MCP transports", async () => {
   const manifest = structuredClone(await loadManifest());
   manifest.mcpProviders[0].endpoint = "https://caller.example";
   assert.throws(() => validateManifest(manifest), /MCP provider fields/);
+});
+
+test("desktop communication send is separately registered with a manual canary", async () => {
+  const manifest = await loadManifest();
+  const worker = manifest.workers.find((item) => item.id === "desktop");
+  assert.ok(worker.capabilities.includes("communication.send"));
+  assert.equal(worker.capabilityCanaries["communication.send"], "manual");
 });

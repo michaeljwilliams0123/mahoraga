@@ -166,7 +166,7 @@ export function validateManifest(value) {
       if (canaryCapabilities.length !== declaredCapabilities.length || canaryCapabilities.some((item, index) => item !== declaredCapabilities[index])) throw new TypeError(`Worker ${worker.id} capability canaries must cover every capability exactly.`);
       if (worker.capabilityCanaries[worker.healthProbe] !== "health") throw new TypeError(`Worker ${worker.id} health probe canary is invalid.`);
       for (const [canaryCapability, mode] of Object.entries(worker.capabilityCanaries)) {
-        if (!new Set(["health", "direct", "provider-derived"]).has(mode) || (mode === "health") !== (canaryCapability === worker.healthProbe)) throw new TypeError(`Worker ${worker.id} capability canary mode is invalid.`);
+        if (!new Set(["health", "direct", "provider-derived", "manual"]).has(mode) || (mode === "health") !== (canaryCapability === worker.healthProbe)) throw new TypeError(`Worker ${worker.id} capability canary mode is invalid.`);
       }
     }
     bounded(worker.executionPlane, 40, "worker execution plane");

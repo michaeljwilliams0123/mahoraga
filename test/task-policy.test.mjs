@@ -10,7 +10,7 @@ const manifest = {
   queue: { maximumAttempts: 3 },
   workers: [
     { id: "repository", enabled: true, capabilities: ["repository.inspect"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
-    { id: "desktop", enabled: true, capabilities: ["desktop.interact"], dataClasses: ["local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: true } },
+    { id: "desktop", enabled: true, capabilities: ["desktop.interact", "communication.send"], dataClasses: ["personal", "local-only"], executionPlane: "local", routing: { requiresAttendedDesktop: true } },
     { id: "codex", enabled: true, capabilities: ["codex.execute"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
     { id: "self-evolution", enabled: true, capabilities: ["self.evolve"], dataClasses: ["local-only"], executionPlane: "candidate-worktree", routing: { requiresAttendedDesktop: false } },
     { id: "provider-gap", enabled: true, capabilities: ["provider.gap"], dataClasses: ["enterprise"], executionPlane: "local", routing: { requiresAttendedDesktop: false } },
@@ -145,4 +145,22 @@ test("top-level worker costClass controls zero-credit routing priority", () => {
   const policy = deriveTaskPolicy({ intent: "system.health" }, { manifest: rankedManifest, internal: true });
   assert.equal(policy.executionPlane, "local");
   assert.deepEqual(policy.allowedWorkerIds, ["local-health", "cloud-health"]);
+});
+
+test("communication send binds explicit recipient and forces one attended attempt", () => {
+  const request = { intent: "communication.send", recipient: "Alex Smith", requestedOutcome: "Deployment is ready.", idempotencyKey: "teams-send-1" };
+  const policy = deriveTaskPolicy(request, { manifest, attendedSession: { active: true, sessionId: "attended-1" } });
+  assert.equal(policy.dataClass, "personal");
+  assert.equal(policy.attendedRequired, true);
+  assert.equal(policy.authoritySessionId, "attended-1");
+  const task = policyTaskInput(request, policy, manifest);
+  assert.equal(task.maximumAttempts, 1);
+  assert.deepEqual(JSON.parse(task.requestedOutcome), { recipient: "Alex Smith", message: "Deployment is ready." });
+});
+
+test("communication send rejects missing, broad, or unrelated recipient fields", () => {
+  const attendedSession = { active: true, sessionId: "attended-1" };
+  assert.throws(() => deriveTaskPolicy({ intent: "communication.send", requestedOutcome: "Hello" }, { manifest, attendedSession }), /recipient-required/);
+  assert.throws(() => deriveTaskPolicy({ intent: "communication.send", recipient: "everyone", requestedOutcome: "Hello" }, { manifest, attendedSession }), /recipient-not-authorized/);
+  assert.throws(() => deriveTaskPolicy({ intent: "repository.inspect", recipient: "Alex", requestedOutcome: "Inspect" }, { manifest }), /recipient-field-not-allowed/);
 });

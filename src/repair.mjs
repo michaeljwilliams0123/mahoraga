@@ -93,6 +93,7 @@ export const ESSENTIAL_FILES = [
   "src/autonomy-memory-bank.mjs",
   "src/unattended-action-ladder.mjs",
   "src/browser-worker.mjs",
+  "src/desktop-worker.mjs",
   "src/database.mjs",
   "src/expert-skill-registry.mjs",
   "src/github-audit.mjs",

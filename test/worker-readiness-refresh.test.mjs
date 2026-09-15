@@ -25,3 +25,23 @@ test("worker refreshes provider and canary evidence on readiness.refresh", async
   await refreshed;
   assert.equal(readinessCount >= 2, true);
 });
+
+
+test("desktop readiness never executes manual communication send canaries", async (t) => {
+  const child = fork(new URL("../src/worker-process.mjs", import.meta.url), ["desktop"], {
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  t.after(() => { if (child.connected) child.send({ type: "shutdown" }); else child.kill(); });
+  const seen = [];
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("desktop-readiness-timeout")), 30000);
+    child.on("message", (message) => {
+      seen.push(message);
+      if (message?.type === "readiness.complete") {
+        clearTimeout(timer);
+        resolve();
+      }
+    });
+  });
+  assert.equal(seen.some((message) => message?.type === "capability.canary" && message.capability === "communication.send"), false);
+});
