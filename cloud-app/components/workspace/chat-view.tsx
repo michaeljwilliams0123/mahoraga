@@ -104,7 +104,7 @@ export function ChatView(props: ChatViewProps) {
             <div className="aura-mark" aria-hidden="true"><span /><span /><span /><Sparkles size={24} /></div>
             <span className="one-kicker">Mahoraga</span>
             <h1>Say what you want.<br /><em>Mahoraga handles the lanes.</em></h1>
-            <p>Talk, build, hand off, create, report, or ship from one conversation. The brain chooses the route and keeps the machinery out of your way.</p>
+            <p>Talk, build, hand off, create, report, or ship from one conversation. Brain-routed; no lane or port selection required.</p>
 
             <div className="quick-action-grid" aria-label="Quick actions">
               {quickActions.map((action) => {
@@ -203,7 +203,7 @@ export function ChatView(props: ChatViewProps) {
             <input ref={fileInput} type="file" multiple hidden onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} />
             <button className="composer-tool" type="button" onClick={() => void runQuickAction("upload")} aria-label="Upload files" title="Upload"><Paperclip size={18} /></button>
             <button className={voiceListening ? "composer-tool listening" : "composer-tool"} type="button" onClick={toggleVoice} disabled={!voiceSupported} aria-label={voiceListening ? "Stop microphone" : "Voice chat"} title={voiceSupported ? "Voice chat" : "Voice unavailable"}>{voiceListening ? <MicOff size={18} /> : <Mic size={18} />}</button>
-            <span className="composer-hint">{files.length > 0 ? `${files.length} staged · ${readableBytes(totalBytes)}` : health?.routing?.automaticPaidFallback === false ? "Brain-routed · no paid fallback" : "Brain-routed"}</span>
+            <span className="composer-hint">{files.length > 0 ? `${files.length} staged · ${readableBytes(totalBytes)}` : health?.routing?.automaticPaidFallback === false ? "Brain-routed · no lane or port selection · no paid fallback" : "Brain-routed · no lane or port selection"}</span>
             {busy ? (
               <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={15} /></button>
             ) : (
