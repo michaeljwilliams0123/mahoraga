@@ -141,3 +141,30 @@ function fail(code) {
   error.code = code;
   throw error;
 }
+export function evaluateCognitiveRegressionGate({ baseline, candidate, authorityPreserved, privateMemoryBoundaryPreserved } = {}) {
+  const dimensions = ['diversity', 'dissentRetention', 'calibration', 'transfer'];
+  const regressions = [];
+  if (authorityPreserved !== true) regressions.push('authority-preservation');
+  if (privateMemoryBoundaryPreserved !== true) regressions.push('private-memory-boundary');
+  for (const dimension of dimensions) {
+    const before = cognitiveMetric(baseline?.[dimension], dimension);
+    const after = cognitiveMetric(candidate?.[dimension], dimension);
+    if (after + 0.000001 < before) regressions.push(dimension);
+  }
+  const improvements = dimensions.filter((dimension) => candidate[dimension] > baseline[dimension]);
+  const decision = regressions.length > 0 ? 'reject' : improvements.length >= 2 ? 'graduation-ready' : 'hold';
+  return deepFreeze({
+    schemaVersion: 1,
+    kind: 'cognitive-regression-gate',
+    decision,
+    regressions: regressions.sort(),
+    improvements: improvements.sort(),
+    authorityPreserved: authorityPreserved === true,
+    privateMemoryBoundaryPreserved: privateMemoryBoundaryPreserved === true,
+  });
+}
+
+function cognitiveMetric(value, dimension) {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) fail(`cognitive-${dimension}-metric-invalid`);
+  return value;
+}

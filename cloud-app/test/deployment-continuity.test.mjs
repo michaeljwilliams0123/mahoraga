@@ -18,12 +18,11 @@ test("Netlify fallback builds the existing Next workspace without changing autho
   assert.match(pkg, /"next"\s*:\s*"16\.3\.3"/);
 });
 
-test("health route reports deployment identity from either supported host", async () => {
+test("health route reports deployment identity from active supported hosts only", async () => {
   const health = await readApp("app/api/health/route.ts");
 
-  assert.match(health, /VERCEL_GIT_COMMIT_SHA/);
+  assert.doesNotMatch(health, /VERCEL_/);
   assert.match(health, /COMMIT_REF/);
-  assert.match(health, /VERCEL_URL/);
   assert.match(health, /DEPLOY_PRIME_URL/);
   assert.match(health, /provider/);
 });

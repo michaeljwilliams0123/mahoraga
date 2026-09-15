@@ -5,7 +5,7 @@
 GitHub `main` is the private code authority. `cloud-app/` is host-neutral, and the
 canonical production origin is the runtime-configured verified workspace host rather
 than a repository-visibility or hosting-provider default. GitHub Pages may publish a
-derived static export when enabled; Vercel is paused/historical, and Cloudflare
+derived static export when enabled; Vercel is retired and non-routable, and Cloudflare
 Workers remains a server-capable replacement-host candidate where server routes are required.
 Every host deploys this same Next.js workspace and none gains execution authority
 over the paired core. See
@@ -68,8 +68,7 @@ including:
 - deployed Git ref
 - paired-core authority boundary and paid-fallback state
 
-Portable `MAHORAGA_*` deployment variables are preferred; Vercel variables are
-compatibility fallback for the existing deployment. See `hosting.env.example`.
+Portable `MAHORAGA_*` deployment variables are authoritative for host-neutral deployment metadata. Retired Vercel environment variables are intentionally ignored by the active health route. See `hosting.env.example`.
 Control Center renders the provider and deployed commit SHA so stale browser
 deployments can be identified directly from the UI.
 

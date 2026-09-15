@@ -204,7 +204,7 @@ Mahoraga itself does **not** run as root. The root bootstrap exists only to esta
 - Railway volume: mounted at `/var/lib/mahoraga`.
 - Latest Railway deployment observed during the review: **DEPLOYING**, but still tied to older source commit `5750b04b4281509b7533f46a571265aaff52411d` rather than the then-current GitHub head.
 - Therefore the #453 volume-permission repair was merged in source but **not yet proven live on the canonical Railway service** during this snapshot.
-- Legacy/non-canonical Railway services still existed (`mahoraga-runtime-direct`, an older failed `mahoraga-runtime`, plus empty candidate/fresh service records). They must not silently become production authority or fallback routes.
+- Legacy/non-canonical Railway production services were removed from the production environment on 2026-09-15. Their immutable provider IDs remain in `config/platform-lifecycle.json` as retired, non-routable evidence so renamed or recreated labels cannot silently regain production authority.
 - The canonical Railway variable-name set did not yet expose `MAHORAGA_CLOUD_OWNER_ID` or the zero-credit model URL/model variables during this review. Fresh owner-session admission and live zero-credit model execution therefore remained unproven.
 
 This is why issue [#377](https://github.com/michaeljwilliams0123/mahoraga/issues/377) remains the deployment-convergence authority: source readiness and a running container are not enough; the canonical service must serve the intended exact `main` provenance and pass the separate live/readiness acceptance checks.

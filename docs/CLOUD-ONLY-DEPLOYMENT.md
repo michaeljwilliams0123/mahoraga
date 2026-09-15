@@ -22,7 +22,7 @@ The production browser address is the exact verified origin configured through
 `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN`. GitHub Pages may publish
 a derived static export of `cloud-app/` when enabled, but a Pages URL is not
 inferred to be canonical merely because the private repository has Pages enabled.
-Vercel is paused and non-canonical.
+Vercel is retired and non-routable. Account-side historical project records may remain, but they are not a deployment, health, routing, or authority fallback.
 
 Cloudflare Workers is the designated replacement-host candidate. Owner-authorized
 authenticated tunnels such as `cloudflared`, ngrok, or reverse SSH are permitted
@@ -75,8 +75,7 @@ MAHORAGA_GIT_COMMIT_SHA=<exact-deployed-commit>
 MAHORAGA_GIT_COMMIT_REF=<git-ref>
 ```
 
-Vercel-specific variables remain fallback-only for the last verified Vercel
-site. An example for the Workers candidate is in
+Retired Vercel-specific variables are ignored by the active health route. An example for the Workers candidate is in
 [`../cloud-app/hosting.env.example`](../cloud-app/hosting.env.example).
 
 The relay uses `MAHORAGA_OWNER_IDENTITY`, `MAHORAGA_WORKSPACE_ORIGIN`,

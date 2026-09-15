@@ -5,7 +5,7 @@ const DETAIL_KEYS = new Set(["family", "verified", "providerEvidence", "outputEv
 const OUTCOMES = new Set(["succeeded", "failed", "waiting"]);
 const BANNED_KEYS = /^(?:prompt|response|content|preview|token|secret|documentText|finalText|stdout|stderr)$/i;
 const FAMILY_PREFIXES = new Map([
-  ["system", "system"], ["manifest", "system"], ["assistant", "system"], ["provider", "system"], ["artifact", "system"],
+  ["system", "system"], ["manifest", "system"], ["cognitive", "cognitive"], ["assistant", "system"], ["provider", "system"], ["artifact", "system"],
   ["repository", "repository"], ["browser", "browser"], ["desktop", "desktop"], ["m365", "m365"],
   ["codex", "codex"], ["self", "codex"], ["repair", "repair"], ["queue", "queue"], ["copilot", "copilot"], ["studio", "studio"], ["powerplatform", "powerplatform"], ["workspace-agent", "workspace-agent"],
 ]);
