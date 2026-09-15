@@ -26,6 +26,17 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.doesNotMatch(cockpit, /onClick=\{.*sendTeams/);
   });
 
+  it("presents one Mahoraga brain without user-facing runtime slot selection", () => {
+    assert.match(cockpit, /Mahoraga workspace/);
+    assert.match(cockpit, /build provenance/i);
+    assert.match(cockpit, /authoritative runtime<\/dt><dd>Mahoraga core \(4782\)/i);
+    assert.match(cockpit, /brain-routed; no lane or port selection required/i);
+    assert.doesNotMatch(cockpit, /Mahoraga 7\.0\.0-alpha\.2 workspace/);
+    assert.doesNotMatch(cockpit, /<dt>candidate<\/dt><dd>7\.0\.0-alpha\.2/);
+    assert.doesNotMatch(cockpit, /live 3\.6\.0, candidate 7\.0\.0-alpha\.2/);
+    assert.doesNotMatch(cockpit, /4783/);
+  });
+
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);
     assert.match(cockpit, /7\.0\.0-alpha\.2/);

@@ -17,7 +17,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
   { label: "Audit connection posture", command: "Audit bounded owner-authenticated tunnel posture. Deny unauthenticated or generic public loopback exposure. Report relay and GitHub surfaces." },
-  { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
+  { label: "Build ledger", command: "Show Mahoraga build provenance, Windows compatibility runtime 3.6.0, and this operator deck. No lane or port selection is required." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
   { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
 ] as const;
@@ -123,7 +123,7 @@ export function CommandCockpit({
       <div className="cockpit-main">
         <header className="cockpit-header">
           <div>
-            <span className="cockpit-eyebrow">Mahoraga 7.0.0-alpha.2 workspace</span>
+            <span className="cockpit-eyebrow">Mahoraga workspace</span>
             <h2>INTEGRATED_COCKPIT</h2>
           </div>
           <div className="cockpit-header-meta">
@@ -147,14 +147,15 @@ export function CommandCockpit({
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
           <h3>CONVERGENCE</h3>
           <p>
-            Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
+            Mahoraga cloud cockpit. Build provenance is 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. Windows production stays 3.6.0.
           </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
           </p>
           <dl>
-            <div><dt>candidate</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>authoritative runtime</dt><dd>Mahoraga core (4782)</dd></div>
             <div><dt>surface</dt><dd>PR 461 / PR 543</dd></div>
             <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
             <div><dt>shared bearer</dt><dd>parent supervisor injects a shared core bearer only when the configured token is blank (#542)</dd></div>
@@ -170,7 +171,7 @@ export function CommandCockpit({
             Observational status only (#539 / #376 / #541). communication.send is recipient-bound, one visible ms-teams window, ValuePattern draft plus InvokePattern send, success-only canary. No Graph, SendKeys, or discovery. No browser send action on this surface.
           </p>
           <dl>
-            <div><dt>lane</dt><dd>status / convergence copy</dd></div>
+            <div><dt>surface</dt><dd>status / convergence copy</dd></div>
             <div><dt>binding</dt><dd>owner-designated recipient</dd></div>
             <div><dt>canary</dt><dd>attended Windows, independent chat confirmation</dd></div>
             <div><dt>cloud UI</dt><dd>no send button, no Graph, no SendKeys</dd></div>
