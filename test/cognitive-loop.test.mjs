@@ -31,3 +31,22 @@ test('unified cognitive loop emits bounded phase receipts without private reason
   assert.equal(JSON.stringify(result).includes('privateEpisodicRefs'), false);
   assert.equal(result.authoritySource, 'existing-router-and-owner-authority');
 });
+
+test('cognitive loop holds when predicted uncertainty is materially high', () => {
+  const result = runCognitiveLoop({
+    members, requiredPerspectiveTags: ['engineering', 'risk', 'evidence'],
+    positions: [
+      { individualId: 'builder-agent', conclusion: 'repair', confidence: 0.9, evidenceRefs: ['ev:a'], assumptions: [], unknowns: [], dissentTags: [] },
+      { individualId: 'research-agent', conclusion: 'repair', confidence: 0.88, evidenceRefs: ['ev:b'], assumptions: [], unknowns: [], dissentTags: [] },
+      { individualId: 'skeptic-agent', conclusion: 'repair', confidence: 0.85, evidenceRefs: ['ev:c'], assumptions: [], unknowns: [], dissentTags: [] },
+    ],
+    metacognition: { evidenceCoverage: 0.95, calibratedConfidence: 0.9, knownUnknowns: [], materialConflictCount: 0, reversible: true },
+    observedState: { queueDepth: 3 }, stateUncertainty: 0.55,
+    proposedAction: { actionId: 'repair-capacity', effects: { queueDepth: -1 }, uncertainty: 0.3 },
+    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
+  });
+  assert.equal(result.prediction.predictedUncertainty, 0.85);
+  assert.equal(result.decision, 'hold');
+  assert.equal(result.decisionGate, 'prediction-uncertain');
+  assert.equal(result.storedLesson.promotable, false);
+});
