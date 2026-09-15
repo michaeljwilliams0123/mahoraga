@@ -58,3 +58,22 @@ test('old work is mined for missing capability instead of blindly resurrected', 
     'ancestry', 'path-history', 'focused-diff', 'current-tests',
   ]);
 });
+function readRepoFile(relativePath) {
+  return readFileSync(join(root, relativePath), 'utf8');
+}
+
+test('agent entry points require the operating doctrine', () => {
+  const doctrinePath = 'docs/MAHORAGA-OPERATING-DOCTRINE.md';
+  assert.match(readRepoFile('AGENTS.md'), new RegExp(doctrinePath.replaceAll('/', '\\/')));
+  assert.match(readRepoFile('.github/copilot-instructions.md'), new RegExp(doctrinePath.replaceAll('/', '\\/')));
+});
+
+test('human doctrine preserves reference-plane, readiness, and real-execution boundaries', () => {
+  const doctrine = readRepoFile('docs/MAHORAGA-OPERATING-DOCTRINE.md');
+  assert.match(doctrine, /SD009WC7/);
+  assert.match(doctrine, /gold-standard reference/i);
+  assert.match(doctrine, /\/api\/live/);
+  assert.match(doctrine, /\/api\/ready/);
+  assert.match(doctrine, /simulator.*not.*execution proof/i);
+  assert.match(doctrine, /UI.*not.*execution proof/i);
+});
