@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -12,7 +13,9 @@ let stopping = false;
 let idleTimer = null;
 mkdirSync(stateRoot, { recursive: true });
 
+const primaryCodexToken = process.env.MAHORAGA_PRIMARY_CODEX_TOKEN?.trim() || randomBytes(32).toString("base64url");
 const shared = { ...process.env,
+  MAHORAGA_PRIMARY_CODEX_TOKEN: primaryCodexToken,
   MAHORAGA_STATE_DIR: stateRoot,
   MAHORAGA_DATABASE_FILE: path.join(stateRoot, "mahoraga.sqlite"),
   MAHORAGA_ARTIFACT_ROOT: path.join(stateRoot, "artifacts"),
