@@ -98,7 +98,11 @@ export async function railwayRequest({ query, variables, token, fetchImpl = fetc
         await sleepImpl(readRetryDelay(response, attempt));
         continue;
       }
-      throw Object.assign(coded("railway-http-error"), { status: response.status });
+      const first = Array.isArray(payload?.errors) ? (payload.errors[0] ?? {}) : {};
+      throw Object.assign(coded(safeCode(first?.extensions?.code, "railway-http-error")), {
+        traceId: safeTraceId(first?.extensions?.traceId),
+        status: response.status,
+      });
     }
     if (Array.isArray(payload?.errors) && payload.errors.length > 0) {
       const first = payload.errors[0] ?? {};
