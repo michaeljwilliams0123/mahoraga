@@ -131,6 +131,171 @@ const FILE_HASH_SCRIPT = String.raw`
 }
 `;
 
+
+const TEAMS_SEND_SCRIPT = String.raw\`
+& {
+  $ErrorActionPreference = 'Stop'
+  Add-Type -AssemblyName UIAutomationClient
+  Add-Type -AssemblyName UIAutomationTypes
+
+  function Write-TeamsReceipt {
+    param(
+      [bool]$verified,
+      [string]$reason,
+      [int]$windowCount,
+      [bool]$recipientVerified,
+      [bool]$draftVerified,
+      [bool]$sendInvoked,
+      [bool]$postSendVerified
+    )
+    [PSCustomObject]@{
+      verified = $verified
+      reason = $reason
+      windowCount = $windowCount
+      recipientVerified = $recipientVerified
+      draftVerified = $draftVerified
+      sendInvoked = $sendInvoked
+      postSendVerified = $postSendVerified
+    } | ConvertTo-Json -Compress
+    exit 0
+  }
+
+  $recipient = [Environment]::GetEnvironmentVariable('MAHORAGA_TEAMS_RECIPIENT', 'Process')
+  $message = [Environment]::GetEnvironmentVariable('MAHORAGA_TEAMS_MESSAGE', 'Process')
+  if ([string]::IsNullOrWhiteSpace($recipient) -or [string]::IsNullOrWhiteSpace($message)) {
+    Write-TeamsReceipt $false 'communication-send-envelope-invalid' 0 $false $false $false $false
+  }
+
+  $windows = @(Get-Process -Name 'ms-teams' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 })
+  if ($windows.Count -ne 1) {
+    Write-TeamsReceipt $false 'teams-window-required' $windows.Count $false $false $false $false
+  }
+
+  try {
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($windows[0].MainWindowHandle)
+    if ($null -eq $root) {
+      Write-TeamsReceipt $false 'teams-window-required' 1 $false $false $false $false
+    }
+
+    $recipientCondition = [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::NameProperty,
+      $recipient
+    )
+    $recipientMatches = $root.FindAll(
+      [System.Windows.Automation.TreeScope]::Descendants,
+      $recipientCondition
+    )
+    if ($recipientMatches.Count -ne 1) {
+      Write-TeamsReceipt $false 'recipient-mismatch' 1 $false $false $false $false
+    }
+
+    $composerCondition = [System.Windows.Automation.AndCondition]::new(
+      [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Edit
+      ),
+      [System.Windows.Automation.PropertyCondition]::new(
+        [System.Windows.Automation.AutomationElement]::NameProperty,
+        'Type a message'
+      )
+    )
+    $composers = $root.FindAll(
+      [System.Windows.Automation.TreeScope]::Descendants,
+      $composerCondition
+    )
+    if ($composers.Count -ne 1) {
+      Write-TeamsReceipt $false 'draft-mismatch' 1 $true $false $false $false
+    }
+
+    $composer = $composers.Item(0)
+    $valuePatternObject = $null
+    if (-not $composer.TryGetCurrentPattern(
+      [System.Windows.Automation.ValuePattern]::Pattern,
+      [ref]$valuePatternObject
+    )) {
+      Write-TeamsReceipt $false 'draft-mismatch' 1 $true $false $false $false
+    }
+    $valuePattern = [System.Windows.Automation.ValuePattern]$valuePatternObject
+    $valuePattern.SetValue($message)
+    if ($valuePattern.Current.Value -cne $message) {
+      Write-TeamsReceipt $false 'draft-mismatch' 1 $true $false $false $false
+    }
+
+    $buttonCondition = [System.Windows.Automation.PropertyCondition]::new(
+      [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+      [System.Windows.Automation.ControlType]::Button
+    )
+    $buttons = $root.FindAll(
+      [System.Windows.Automation.TreeScope]::Descendants,
+      $buttonCondition
+    )
+    $sendButtons = @($buttons | Where-Object {
+      $_.Current.Name -cin @('Send', 'Send (Ctrl+Enter)') -and $_.Current.IsEnabled
+    })
+    if ($sendButtons.Count -ne 1) {
+      Write-TeamsReceipt $false 'send-control-unavailable' 1 $true $true $false $false
+    }
+
+    $invokePatternObject = $null
+    if (-not $sendButtons[0].TryGetCurrentPattern(
+      [System.Windows.Automation.InvokePattern]::Pattern,
+      [ref]$invokePatternObject
+    )) {
+      Write-TeamsReceipt $false 'send-control-unavailable' 1 $true $true $false $false
+    }
+    $invokePattern = [System.Windows.Automation.InvokePattern]$invokePatternObject
+    $invokePattern.Invoke()
+
+    $postSendVerified = $false
+    for ($attempt = 0; $attempt -lt 10; $attempt += 1) {
+      Start-Sleep -Milliseconds 250
+      try {
+        $postRecipients = $root.FindAll(
+          [System.Windows.Automation.TreeScope]::Descendants,
+          $recipientCondition
+        )
+        $postComposers = $root.FindAll(
+          [System.Windows.Automation.TreeScope]::Descendants,
+          $composerCondition
+        )
+        if ($postRecipients.Count -eq 1 -and $postComposers.Count -eq 1) {
+          $postValueObject = $null
+          if ($postComposers.Item(0).TryGetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern,
+            [ref]$postValueObject
+          )) {
+            $postValue = [System.Windows.Automation.ValuePattern]$postValueObject
+            if ([string]::IsNullOrEmpty($postValue.Current.Value)) {
+              $postSendVerified = $true
+              break
+            }
+          }
+        }
+      } catch {
+        continue
+      }
+    }
+
+    if (-not $postSendVerified) {
+      Write-TeamsReceipt $false 'post-send-verification-failed' 1 $true $true $true $false
+    }
+    Write-TeamsReceipt $true 'sent' 1 $true $true $true $true
+  } catch {
+    Write-TeamsReceipt $false 'post-send-verification-failed' 1 $false $false $false $false
+  }
+}
+\`;
+
+const COMMUNICATION_SEND_REASONS = new Set([
+  "sent",
+  "teams-window-required",
+  "recipient-mismatch",
+  "draft-mismatch",
+  "send-control-unavailable",
+  "post-send-verification-failed",
+  "communication-send-envelope-invalid",
+]);
+
 const POWERSHELL_SCRIPTS = Object.freeze({
   "system-info": SYSTEM_INFO_SCRIPT,
   "disk-free": DISK_FREE_SCRIPT,
@@ -247,9 +412,90 @@ export async function executeDesktopCapability(capability, task = {}, {
     };
   }
 
+
+  if (capability === "communication.send") {
+    if (platform !== "win32") throw new Error("desktop-windows-required");
+    const envelope = communicationSendEnvelope(task);
+    const result = await runPowerShell(run, TEAMS_SEND_SCRIPT, [], {
+      MAHORAGA_TEAMS_RECIPIENT: envelope.recipient,
+      MAHORAGA_TEAMS_MESSAGE: envelope.message,
+    });
+    const receipt = parseJsonLine(result.stdout, "communication-send-receipt-invalid");
+    const reason = COMMUNICATION_SEND_REASONS.has(receipt.reason)
+      ? receipt.reason
+      : "verification-failed";
+    const recipientVerified = receipt.recipientVerified === true;
+    const draftVerified = receipt.draftVerified === true;
+    const sendInvoked = receipt.sendInvoked === true;
+    const postSendVerified = receipt.postSendVerified === true;
+    const verified = receipt.verified === true
+      && reason === "sent"
+      && boundedCount(receipt.windowCount) === 1
+      && recipientVerified
+      && draftVerified
+      && sendInvoked
+      && postSendVerified;
+    const normalizedReason = verified
+      ? "sent"
+      : reason === "sent" ? "verification-failed" : reason;
+    return {
+      verified,
+      summary: verified
+        ? "Desktop Worker verified one recipient-bound Teams send."
+        : \`Desktop Worker did not verify the recipient-bound Teams send: \${normalizedReason}.\`,
+      receiptMetadata: {
+        application: "teams",
+        action: "recipient-bound-send",
+        recipientSha256: sha256Text(envelope.recipient),
+        messageSha256: sha256Text(envelope.message),
+        idempotencyKeySha256: sha256Text(String(task?.idempotencyKey ?? "")),
+        windowCount: boundedCount(receipt.windowCount),
+        recipientVerified,
+        draftVerified,
+        sendInvoked,
+        postSendVerified,
+        reason: normalizedReason,
+      },
+    };
+  }
+
   throw new Error("unsupported-capability");
 }
 
+
+
+function communicationSendEnvelope(task) {
+  let value;
+  try {
+    value = JSON.parse(String(task?.requestedOutcome ?? ""));
+  } catch {
+    throw new Error("communication-send-envelope-invalid");
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("communication-send-envelope-invalid");
+  }
+  const keys = Object.keys(value).sort();
+  if (keys.length !== 2 || keys[0] !== "message" || keys[1] !== "recipient") {
+    throw new Error("communication-send-envelope-invalid");
+  }
+  if (
+    typeof value.recipient !== "string"
+    || value.recipient.trim().length < 1
+    || value.recipient.length > 160
+    || /[\r\n\u0000]/.test(value.recipient)
+    || typeof value.message !== "string"
+    || value.message.trim().length < 1
+    || value.message.length > 1000
+    || /\u0000/.test(value.message)
+  ) {
+    throw new Error("communication-send-envelope-invalid");
+  }
+  const recipient = value.recipient.trim();
+  if (/\b(?:everyone|everybody|all users|all people|whole (?:team|department|company)|entire (?:team|department|company)|channel|coworkers|colleagues)\b/i.test(recipient)) {
+    throw new Error("recipient-not-authorized");
+  }
+  return Object.freeze({ recipient, message: value.message });
+}
 
 function normalizePowerShellReceipt(scriptId, receipt) {
   if (scriptId === "system-info") {
