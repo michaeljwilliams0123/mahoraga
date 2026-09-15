@@ -16,7 +16,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 
 const HELPERS = [
   { label: "Inspect live repository", command: "Inspect the live Mahoraga repository: health, open issues, and current head." },
-  { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
+  { label: "Audit connection posture", command: "Audit bounded owner-authenticated tunnel posture. Deny unauthenticated or generic public loopback exposure. Report relay and GitHub surfaces." },
   { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
   { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
@@ -141,101 +141,36 @@ export function CommandCockpit({
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
-            <div>
-              <dt>candidate</dt>
-              <dd>7.0.0-alpha.2</dd>
-            </div>
-            <div>
-              <dt>surface</dt>
-              <dd>PR 461</dd>
-            </div>
-            <div>
-              <dt>runtime fix</dt>
-              <dd>PR 460 ProcessId</dd>
-            </div>
-            <div>
-              <dt>owner login</dt>
-              <dd>PR 486 no-store</dd>
-            </div>
-            <div>
-              <dt>artifact bridge</dt>
-              <dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd>
-            </div>
-            <div>
-              <dt>windows runtime</dt>
-              <dd>3.6.0 locked</dd>
-            </div>
+            <div><dt>candidate</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>surface</dt><dd>PR 461</dd></div>
+            <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
+            <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
+            <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
+            <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
           </dl>
         </aside>
 
         <nav className="cockpit-tabs" aria-label="Cockpit panels">
           {COCKPIT_PANEL_IDS.map((id) => (
-            <button key={id} type="button" className={tab === id ? "active" : undefined} onClick={() => setTab(id)}>
-              {panels[id].title}
-            </button>
+            <button key={id} type="button" className={tab === id ? "active" : undefined} onClick={() => setTab(id)}>{panels[id].title}</button>
           ))}
         </nav>
 
         <div className="cockpit-grid">
           <section className={`cockpit-panel tone-${active.tone}`} aria-label={`${active.title} panel`}>
-            <h3>{active.title}</h3>
-            <p>{active.summary}</p>
-            <dl>
-              {active.lines.map((line) => (
-                <div key={line.label}>
-                  <dt>{line.label}</dt>
-                  <dd>{line.value}</dd>
-                </div>
-              ))}
-            </dl>
+            <h3>{active.title}</h3><p>{active.summary}</p>
+            <dl>{active.lines.map((line) => (<div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>))}</dl>
             <div className="cockpit-actions">
-              {!coreReady && (
-                <button type="button" onClick={onRequestPairing}>
-                  Pair runtime
-                </button>
-              )}
-              <button type="button" className="secondary" onClick={onOpenOperations}>
-                Core mutations → Operations
-              </button>
+              {!coreReady && (<button type="button" onClick={onRequestPairing}>Pair runtime</button>)}
+              <button type="button" className="secondary" onClick={onOpenOperations}>Core mutations → Operations</button>
             </div>
           </section>
 
           <section className="cockpit-gateways" aria-label="Integration gateways">
-            <article>
-              <header>
-                <strong>Railway exact-SHA</strong>
-                <span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span>
-              </header>
-              <p>Canonical deployment health is observational only. Fake rollback APIs are hard-denied.</p>
-              <p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p>
-            </article>
-            <article>
-              <header>
-                <strong>Workspace Gateway</strong>
-                <span className="cockpit-pill warn">FAIL_CLOSED</span>
-              </header>
-              <p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p>
-              <p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p>
-            </article>
-            <article>
-              <header>
-                <strong>Owner login</strong>
-                <span className="cockpit-pill ok">NO_STORE_#486</span>
-              </header>
-              <p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p>
-            </article>
-            <article>
-              <header>
-                <strong>Bounded Artifact Bridge</strong>
-                <span className="cockpit-pill ok">LIVE_#505</span>
-              </header>
-              <p>
-                Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length.
-                Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only.
-                No caller-selected destination, provider, executable, or paid fallback.
-              </p>
-              <p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p>
-            </article>
+            <article><header><strong>Railway exact-SHA</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Canonical deployment health is observational only. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
+            <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
+            <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
+            <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
           </section>
         </div>
 
@@ -244,18 +179,11 @@ export function CommandCockpit({
         <section className="cockpit-helpers" aria-label="Automation helpers">
           <h3>Automation helpers</h3>
           <p className="cockpit-muted">Copy-only starters. Browser GitHub write authority is hard-denied — use paired-core Operations.</p>
-          <div className="cockpit-helper-grid">
-            {HELPERS.map((helper) => (
-              <button key={helper.label} type="button" onClick={() => void copyHelper(helper.command)}>
-                <strong>{helper.label}</strong>
-                <span>{helper.command}</span>
-              </button>
-            ))}
-          </div>
+          <div className="cockpit-helper-grid">{HELPERS.map((helper) => (<button key={helper.label} type="button" onClick={() => void copyHelper(helper.command)}><strong>{helper.label}</strong><span>{helper.command}</span></button>))}</div>
           {copied && <p className="cockpit-muted">Clipboard: {copied === "copy-failed" ? "copy failed" : "helper command copied"}</p>}
           <ul className="cockpit-denies">
             <li>{HARD_DENIES.browserFleetAuthority}</li>
-            <li>{HARD_DENIES.inboundTunnels}</li>
+            <li>{HARD_DENIES.unsafeTunnelExposure}</li>
             <li>{HARD_DENIES.nextPublicLoopback}</li>
           </ul>
         </section>
