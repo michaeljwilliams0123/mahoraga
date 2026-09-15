@@ -111,11 +111,16 @@ export async function executeCodexBuilderCapability(capability, task, worker, de
   };
 }
 
-export async function findInstalledCodexCli({ canAccess = access, resolveRealpath = realpath, listPnpmPackages = readdir, localAppData = process.env.LOCALAPPDATA } = {}) {
+export async function findInstalledCodexCli({ canAccess = access, resolveRealpath = realpath, listPnpmPackages = readdir, listDesktopVersions = readdir, localAppData = process.env.LOCALAPPDATA } = {}) {
   const repositoryRoot = path.join(ROOT, "node_modules", "@openai", "codex", "vendor");
   const candidates = [{ executable: BUNDLED_CODEX_EXECUTABLE, trustedRoots: [repositoryRoot] }];
   const normalizedLocalAppData = typeof localAppData === "string" && path.isAbsolute(localAppData) && /[\\/]AppData[\\/]Local$/i.test(path.resolve(localAppData)) ? path.resolve(localAppData) : null;
   if (normalizedLocalAppData) {
+    const desktopBinRoot = path.join(normalizedLocalAppData, "OpenAI", "Codex", "bin");
+    try {
+      const versions = (await listDesktopVersions(desktopBinRoot)).filter((name) => /^[A-Za-z0-9._-]{1,80}$/.test(name)).sort().reverse();
+      for (const name of versions) candidates.push({ executable: path.join(desktopBinRoot, name, "codex.exe"), trustedRoots: [desktopBinRoot] });
+    } catch { /* Codex Desktop is optional */ }
     const pnpmRoot = path.join(normalizedLocalAppData, "Programs", "CodexCLI", "node_modules", ".pnpm");
     try {
       const packages = (await listPnpmPackages(pnpmRoot)).filter((name) => /^@openai\+codex@[0-9][^\\/]*-win32-x64$/.test(name)).sort().reverse();

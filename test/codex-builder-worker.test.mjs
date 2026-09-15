@@ -75,3 +75,18 @@ test("manifest rejects disabling direct task-scoped Codex execution or widening 
   adapter.sandbox = "danger-full-access";
   assert.throws(() => validateManifest(manifest), /Codex Builder adapter boundary/);
 });
+
+
+test("Codex CLI discovery finds the installed Codex Desktop executable", async () => {
+  const localAppData = path.join(path.parse(process.cwd()).root, "Users", "Owner", "AppData", "Local");
+  const desktopBin = path.join(localAppData, "OpenAI", "Codex", "bin");
+  const expected = path.join(desktopBin, "bffc5354119c8421", "codex.exe");
+  const resolved = await findInstalledCodexCli({
+    localAppData,
+    listDesktopVersions: async (candidate) => candidate === desktopBin ? ["bffc5354119c8421"] : [],
+    listPnpmPackages: async () => [],
+    canAccess: async (candidate) => { if (candidate !== expected) throw Object.assign(new Error("missing"), { code: "ENOENT" }); },
+    resolveRealpath: async (candidate) => candidate,
+  });
+  assert.equal(resolved, expected);
+});
