@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { runCreditFreeHeartbeat } from "../src/autonomy-heartbeat.mjs";
 import { asHeartbeatCliReceipt, runUnattendedCreditFreeCycle } from "../src/unattended-credit-free-cycle.mjs";
 import { CREDIT_FREE_PROTOCOL_STEPS } from "../src/credit-free-autonomy.mjs";
+import { createEvolutionExperiment } from "../src/evolution-laboratory.mjs";
 
 const NOW = new Date("2026-09-05T14:00:00.000Z");
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -135,3 +136,50 @@ test("foundry admission is identifier-only and still zero-credit", () => {
   assert.equal(JSON.stringify(cycle.fleet).includes("prompt"), false);
 });
 
+
+
+test("unattended cycle emits one bounded Entity Heartbeat from existing cycle outputs", () => {
+  const cycle = runUnattendedCreditFreeCycle({ now: NOW, world: { openIssues: 2, openPulls: 1 } });
+  assert.equal(cycle.entityHeartbeat.kind, "entity-heartbeat-receipt");
+  assert.equal(cycle.entityHeartbeat.worldDigest, cycle.heartbeat.worldDigest);
+  assert.equal(cycle.entityHeartbeat.objectiveCount, cycle.growth.objectives.length);
+  assert.equal(cycle.entityHeartbeat.activeMemoryCount, cycle.growth.memory.activeMemoryIds.length);
+  assert.equal(cycle.entityHeartbeat.dispatchCount, cycle.fleet.admittedCount);
+  assert.equal(cycle.entityHeartbeat.researchCount, 0);
+  assert.equal(cycle.entityHeartbeat.creditCost, 0);
+  assert.equal(cycle.entityHeartbeat.paidFallback, false);
+  const receipt = asHeartbeatCliReceipt(cycle);
+  assert.equal(receipt.unattended.entityHeartbeat.fingerprint, cycle.entityHeartbeat.fingerprint);
+});
+
+test("unattended Entity Heartbeat carries stable-world evidence across cycles", () => {
+  const first = runUnattendedCreditFreeCycle({ now: NOW, world: { openIssues: 2 } });
+  const second = runUnattendedCreditFreeCycle({
+    now: NOW,
+    world: { openIssues: 2 },
+    priorEntityHeartbeat: first.entityHeartbeat,
+  });
+  assert.equal(second.entityHeartbeat.previousWorldDigest, first.entityHeartbeat.worldDigest);
+  assert.equal(second.entityHeartbeat.materialDelta, false);
+});
+
+test("unattended cycle evaluates isolated experiments without activating them", () => {
+  const experiment = createEvolutionExperiment({
+    experimentId: "exp-unattended-closure",
+    objectiveId: "obj-unattended-closure",
+    hypothesis: "The entity receipt can observe the current unattended loop without creating a second scheduler.",
+    baselineMetric: 0.5,
+    candidateMetric: 0.8,
+    verification: "contract-suite",
+    isolated: true,
+  }, { observedAt: NOW.toISOString() });
+  const cycle = runUnattendedCreditFreeCycle({
+    now: NOW,
+    world: { openIssues: 1 },
+    evolutionExperiments: [{ experiment, verificationSatisfied: true }],
+  });
+  assert.equal(cycle.entityHeartbeat.evolutionExperimentCount, 1);
+  assert.equal(cycle.entityHeartbeat.evolutionGraduationReadyCount, 1);
+  assert.equal(cycle.entityHeartbeat.providerRequired, false);
+  assert.equal(cycle.entityHeartbeat.creditCost, 0);
+});

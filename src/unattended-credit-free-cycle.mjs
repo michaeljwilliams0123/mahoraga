@@ -6,6 +6,8 @@ import { putTransientResult } from "./local-reasoner-channel.mjs";
 import { admitUnattendedFoundry } from "./unattended-foundry-admit.mjs";
 import { runGrowthCompoundingLoop } from "./growth-compounding-loop.mjs";
 import { runResearchAssimilation } from "./research-assimilation-loop.mjs";
+import { createEntityHeartbeatReceipt } from "./entity-heartbeat.mjs";
+import { evaluateEvolutionExperiment } from "./evolution-laboratory.mjs";
 
 export const UNATTENDED_CYCLE_KIND = "unattended-credit-free-cycle";
 export const UNATTENDED_CYCLE_SCHEMA_VERSION = 1;
@@ -25,6 +27,10 @@ export function runUnattendedCreditFreeCycle({
   existingUnits = [],
   feats = [],
   research = null,
+  entityConstitution = null,
+  workforceTwin = null,
+  priorEntityHeartbeat = null,
+  evolutionExperiments = [],
   ...heartbeatOptions
 } = {}) {
   const heartbeat = runCreditFreeHeartbeat(heartbeatOptions);
@@ -56,6 +62,10 @@ export function runUnattendedCreditFreeCycle({
         existingUnits,
         feats,
         research: null,
+        entityConstitution,
+        workforceTwin,
+        priorEntityHeartbeat,
+        evolutionExperiments,
       });
     }
     if (!research || typeof research !== "object" || Array.isArray(research)) fail("unattended-research-invalid");
@@ -76,6 +86,10 @@ export function runUnattendedCreditFreeCycle({
       existingUnits,
       feats,
       research: resolvedResearch,
+      entityConstitution,
+      workforceTwin,
+      priorEntityHeartbeat,
+      evolutionExperiments,
     }));
   });
 }
@@ -95,6 +109,7 @@ export function asHeartbeatCliReceipt(cycle) {
       ledger: cycle.ledger,
       research: summarizeResearch(cycle.research),
       growth: summarizeGrowth(cycle.growth),
+      entityHeartbeat: cycle.entityHeartbeat,
       creditCost: 0,
       paidFallback: false,
     }),
@@ -113,6 +128,10 @@ function assembleCycle({
   existingUnits,
   feats,
   research,
+  entityConstitution,
+  workforceTwin,
+  priorEntityHeartbeat,
+  evolutionExperiments,
 }) {
   if (heartbeat.creditCost !== 0 || heartbeat.paidFallback !== false) fail("unattended-paid-contamination");
   if (generation && (generation.creditCost !== 0 || generation.paidFallback !== false)) fail("unattended-paid-contamination");
@@ -129,12 +148,13 @@ function assembleCycle({
     parentAgentId: resolvedParent,
     existingAgents: resolvedAgents,
   });
+  const growthGaps = growthGapsFromLearning(ledger.learning);
   const growth = runGrowthCompoundingLoop({
     entityId: "mahoraga",
     parentAgentId: resolvedParent,
     agents: resolvedAgents,
     feats,
-    gaps: growthGapsFromLearning(ledger.learning),
+    gaps: growthGaps,
     memoryRecords,
     existingObjectives,
     existingUnits,
@@ -147,6 +167,23 @@ function assembleCycle({
   });
   if (admission.fleet.creditCost !== 0 || admission.fleet.paidFallback !== false) fail("unattended-paid-contamination");
   if (growth.creditCost !== 0 || growth.paidFallback !== false) fail("unattended-paid-contamination");
+
+  const evolutionEvaluations = evaluateEvolutionExperiments(evolutionExperiments);
+  const entityHeartbeat = createEntityHeartbeatReceipt({
+    observedAt: heartbeat.observedAt,
+    worldDigest: heartbeat.worldDigest,
+    previousReceipt: priorEntityHeartbeat,
+    constitution: entityConstitution,
+    workforceTwin,
+    objectives: growth.objectives,
+    dispatchIds: [...admission.fleet.admittedAgentIds],
+    research,
+    capabilityGaps: growthGaps,
+    learning: ledger.learning,
+    memory: growth.memory,
+    evolutionEvaluations,
+  });
+  if (entityHeartbeat.creditCost !== 0 || entityHeartbeat.paidFallback !== false || entityHeartbeat.providerRequired !== false) fail("unattended-paid-contamination");
 
   return Object.freeze({
     schemaVersion: UNATTENDED_CYCLE_SCHEMA_VERSION,
@@ -163,9 +200,22 @@ function assembleCycle({
     fleet: admission.fleet,
     registry: admission.registry,
     ledger: summarizeLedger(ledger),
+    entityHeartbeat,
     creditCost: 0,
     paidFallback: false,
   });
+}
+
+function evaluateEvolutionExperiments(entries) {
+  if (!Array.isArray(entries) || entries.length > 256) fail("unattended-evolution-invalid");
+  return entries.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) fail("unattended-evolution-invalid");
+    const keys = Object.keys(entry).sort().join(",");
+    if (keys !== "experiment,verificationSatisfied" || typeof entry.verificationSatisfied !== "boolean") {
+      fail("unattended-evolution-invalid");
+    }
+    return evaluateEvolutionExperiment(entry.experiment, { verificationSatisfied: entry.verificationSatisfied });
+  }).sort((left, right) => left.experimentId.localeCompare(right.experimentId));
 }
 
 function growthGapsFromLearning(learning) {
