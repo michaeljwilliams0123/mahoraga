@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "sourceAuthority": "github-main",
+  "authorityOrder": [
+    "source",
+    "deployment",
+    "live-runtime",
+    "provider-readiness",
+    "execution-authority",
+    "verification"
+  ],
+  "referencePlane": {
+    "device": "SD009WC7",
+    "role": "gold-standard-reference",
+    "mayOverrideSourceAuthority": false,
+    "trackedMachineSpecificPathsAllowed": false
+  },
+  "convergence": {
+    "requiredVerifyContexts": [
+      "Verify (ubuntu-latest)",
+      "Verify (windows-latest)"
+    ],
+    "cloud": {
+      "canonicalProvider": "railway",
+      "requireExactMergedSha": true,
+      "livenessEndpoint": "/api/live",
+      "readinessEndpoint": "/api/ready"
+    },
+    "zeroCredit": {
+      "allowPaidFallback": false
+    }
+  },
+  "acceptanceVertical": {
+    "steps": [
+      "owner-authenticated-request",
+      "encrypted-relay",
+      "authority-decision",
+      "verified-zero-credit-provider-admission",
+      "real-model-execution",
+      "optional-bounded-tool-broker",
+      "persisted-task-event-result",
+      "verified-returned-answer"
+    ],
+    "simulatorEvidenceIsExecutionProof": false,
+    "uiEvidenceIsExecutionProof": false
+  },
+  "antiDuplication": {
+    "requireCurrentMainComparison": true,
+    "blindStaleCherryPickAllowed": false,
+    "comparisonEvidence": ["ancestry", "path-history", "focused-diff", "current-tests"]
+  },
+  "hardStops": [
+    "credential-or-auth-boundary-change",
+    "destructive-operation",
+    "security-boundary-weakening",
+    "unapproved-spend",
+    "protected-check-bypass",
+    "owner-sovereignty-change"
+  ]
+}
