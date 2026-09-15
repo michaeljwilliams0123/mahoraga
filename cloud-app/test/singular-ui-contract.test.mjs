@@ -31,6 +31,11 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /deployment\?\.commitSha/);
   assert.match(cockpit, /deployment\?\.expectedCommitSha/);
   assert.match(cockpit, /Source convergence/);
+  assert.match(cockpit, /Railway exact-SHA production/);
+  assert.match(cockpit, /Expected SHA/);
+  assert.match(cockpit, /Promotion mode/);
+  assert.match(cockpit, /Deployment URL/);
+  assert.match(cockpit, /non-authoritative preview/);
   assert.match(cockpit, /deployment\?\.environment/);
   assert.match(cockpit, /runtimeCapabilities/);
   assert.match(cockpit, /automaticPaidFallback/);
