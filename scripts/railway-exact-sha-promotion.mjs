@@ -189,3 +189,238 @@ function coded(code) {
   error.code = code;
   return error;
 }
+
+export async function getDeploymentStatus({ deploymentId, token, fetchImpl = fetch }) {
+  const query = `query Deployment($id: String!) { deployment(id: $id) { id status createdAt meta } }`;
+  const data = await railwayRequest({ query, variables: { id: deploymentId }, token, fetchImpl });
+  const node = data?.deployment;
+  if (typeof node?.id !== "string" || typeof node?.status !== "string") throw coded("deployment-status-invalid");
+  return { deploymentId: node.id, status: node.status, commitSha: isSha(node?.meta?.commitHash) ? node.meta.commitHash : null };
+}
+
+export async function waitForDeployment({ deploymentId, token, fetchImpl = fetch, sleepImpl = sleep, attempts = 36, delayMs = 5000 }) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const observed = await getDeploymentStatus({ deploymentId, token, fetchImpl });
+    if (observed.status === TERMINAL_SUCCESS) return observed;
+    if (TERMINAL_FAILURES.has(observed.status)) throw coded(`deployment-${observed.status.toLowerCase()}`);
+    if (attempt < attempts - 1) await sleepImpl(delayMs);
+  }
+  throw coded("deployment-timeout");
+}
+
+export async function reconcileDeploymentForCommit({ sha, token, fetchImpl = fetch }) {
+  if (!isSha(sha)) throw coded("reconcile-sha-invalid");
+  const query = `query RecentDeployments($input: DeploymentListInput!) {
+    deployments(input: $input, first: 10) { edges { node { id status createdAt meta } } }
+  }`;
+  const data = await railwayRequest({
+    query,
+    variables: { input: { projectId: PROMOTION.projectId, environmentId: PROMOTION.environmentId, serviceId: PROMOTION.serviceId } },
+    token,
+    fetchImpl,
+  });
+  const nodes = (data?.deployments?.edges ?? []).map((edge) => edge?.node).filter(Boolean);
+  const match = nodes.find((node) => node?.meta?.commitHash === sha && typeof node?.id === "string" && !TERMINAL_FAILURES.has(node?.status));
+  return match ? { deploymentId: match.id, status: match.status } : null;
+}
+
+export async function deployExactShaResilient({ sha, token, fetchImpl = fetch }) {
+  try {
+    return await deployExactSha({ sha, token, fetchImpl });
+  } catch (error) {
+    if (normalizeRailwayError(error).code !== "railway-network-uncertain") throw error;
+    const reconciled = await reconcileDeploymentForCommit({ sha, token, fetchImpl });
+    if (!reconciled) throw error;
+    return reconciled.deploymentId;
+  }
+}
+
+export async function probeProduction({ expectedSha, fetchImpl = fetch }) {
+  if (!isSha(expectedSha)) throw coded("probe-sha-invalid");
+  const live = await publicProbe(`${PROMOTION.origin}/api/live`, fetchImpl);
+  const ready = await publicProbe(`${PROMOTION.origin}/api/ready`, fetchImpl);
+  const result = {
+    ok: false,
+    reason: null,
+    live: { status: live.status, modelInvocationsZero: live.body?.modelInvocations === 0 },
+    ready: {
+      status: ready.status,
+      gitShaMatch: ready.body?.gitSha === expectedSha,
+      modelInvocationsZero: ready.body?.modelInvocations === 0,
+    },
+  };
+  if (live.status !== 200) result.reason = "live-http-not-ready";
+  else if (ready.status !== 200) result.reason = "ready-http-not-ready";
+  else if (!result.live.modelInvocationsZero) result.reason = "live-model-invocations-nonzero";
+  else if (!result.ready.modelInvocationsZero) result.reason = "ready-model-invocations-nonzero";
+  else if (!result.ready.gitShaMatch) result.reason = "ready-sha-mismatch";
+  else result.ok = true;
+  return result;
+}
+
+async function publicProbe(url, fetchImpl) {
+  let response;
+  try {
+    response = await fetchImpl(url, { method: "GET", redirect: "error", headers: { Accept: "application/json", "Cache-Control": "no-store" } });
+  } catch {
+    return { status: 0, body: null };
+  }
+  const body = await response.json().catch(() => null);
+  return { status: response.status, body };
+}
+
+function boundedProbe(probe) {
+  if (!probe) return null;
+  return {
+    ok: probe.ok === true,
+    reason: typeof probe.reason === "string" ? safeCode(probe.reason, "probe-failed") : null,
+    live: probe.live ? { status: probe.live.status ?? null, modelInvocationsZero: probe.live.modelInvocationsZero === true } : null,
+    ready: probe.ready ? {
+      status: probe.ready.status ?? null,
+      gitShaMatch: probe.ready.gitShaMatch === true,
+      modelInvocationsZero: probe.ready.modelInvocationsZero === true,
+    } : null,
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function promotionDeps(overrides = {}) {
+  return {
+    now: () => new Date().toISOString(),
+    resolveGitHubEvidence,
+    resolvePreviousSuccessfulDeployment,
+    probeProduction,
+    upsertExpectedSha,
+    deployExactShaResilient,
+    waitForDeployment,
+    ...overrides,
+  };
+}
+
+export async function promoteExactMain(input, overrides = {}) {
+  const deps = promotionDeps(overrides);
+  const evidence = await deps.resolveGitHubEvidence({ token: input.githubToken, checkoutSha: input.checkoutSha });
+  const gate = evaluatePromotionGate({
+    actor: input.actor,
+    repository: input.repository,
+    ref: input.ref,
+    checkoutSha: input.checkoutSha,
+    currentMainSha: evidence.currentMainSha,
+    checkRuns: evidence.checkRuns,
+  });
+  if (!gate.ok) return baseReceipt({ state: "blocked", ok: false, targetSha: input.checkoutSha, observedAt: deps.now(), errorCode: gate.reason });
+
+  const previous = await deps.resolvePreviousSuccessfulDeployment({ token: input.railwayToken });
+  const initialProbe = await deps.probeProduction({ expectedSha: gate.targetSha });
+  if (initialProbe.ok) {
+    return baseReceipt({ state: "already-current", ok: true, targetSha: gate.targetSha, previousSha: previous.commitSha, observedAt: deps.now(), probe: initialProbe });
+  }
+
+  let deploymentId = null;
+  let guardChanged = false;
+  try {
+    await deps.upsertExpectedSha({ sha: gate.targetSha, token: input.railwayToken });
+    guardChanged = true;
+    deploymentId = await deps.deployExactShaResilient({ sha: gate.targetSha, token: input.railwayToken });
+    await deps.waitForDeployment({ deploymentId, token: input.railwayToken });
+    const finalProbe = await deps.probeProduction({ expectedSha: gate.targetSha });
+    if (!finalProbe.ok) throw coded(finalProbe.reason ?? "production-probe-failed");
+    return baseReceipt({
+      state: "promoted",
+      ok: true,
+      targetSha: gate.targetSha,
+      previousSha: previous.commitSha,
+      deploymentId,
+      observedAt: deps.now(),
+      probe: finalProbe,
+    });
+  } catch (error) {
+    const failure = normalizeRailwayError(error);
+    if (!guardChanged) {
+      return baseReceipt({ state: "failed", ok: false, targetSha: gate.targetSha, previousSha: previous.commitSha, deploymentId, observedAt: deps.now(), errorCode: failure.code });
+    }
+    const rollback = await rollbackToPrevious({ previousSha: previous.commitSha, railwayToken: input.railwayToken, deps });
+    return baseReceipt({
+      state: rollback.ok ? "rolled-back" : "rollback-failed",
+      ok: false,
+      targetSha: gate.targetSha,
+      previousSha: previous.commitSha,
+      deploymentId,
+      observedAt: deps.now(),
+      errorCode: failure.code,
+      rollback,
+    });
+  }
+}
+
+async function rollbackToPrevious({ previousSha, railwayToken, deps }) {
+  let deploymentId = null;
+  try {
+    await deps.upsertExpectedSha({ sha: previousSha, token: railwayToken });
+    deploymentId = await deps.deployExactShaResilient({ sha: previousSha, token: railwayToken });
+    await deps.waitForDeployment({ deploymentId, token: railwayToken });
+    const probe = await deps.probeProduction({ expectedSha: previousSha });
+    if (!probe.ok) throw coded("rollback-probe-failed");
+    return { attempted: true, ok: true, deploymentId, errorCode: null, probe: boundedProbe(probe) };
+  } catch (error) {
+    return {
+      attempted: true,
+      ok: false,
+      deploymentId,
+      errorCode: normalizeRailwayError(error).code,
+      probe: null,
+    };
+  }
+}
+
+function baseReceipt({ state, ok, targetSha, previousSha = null, deploymentId = null, observedAt, errorCode = null, probe = null, rollback = null }) {
+  return {
+    schemaVersion: 1,
+    state,
+    ok,
+    targetSha: isSha(targetSha) ? targetSha : null,
+    previousSha: isSha(previousSha) ? previousSha : null,
+    deploymentId: typeof deploymentId === "string" ? deploymentId : null,
+    observedAt,
+    errorCode: typeof errorCode === "string" ? safeCode(errorCode, "promotion-failed") : null,
+    probe: boundedProbe(probe),
+    rollback: rollback ? {
+      attempted: rollback.attempted === true,
+      ok: rollback.ok === true,
+      deploymentId: typeof rollback.deploymentId === "string" ? rollback.deploymentId : null,
+      errorCode: typeof rollback.errorCode === "string" ? safeCode(rollback.errorCode, "rollback-failed") : null,
+      probe: boundedProbe(rollback.probe),
+    } : null,
+  };
+}
+
+export async function runPromotionCli({ env = process.env, argv = process.argv.slice(2) } = {}) {
+  if (argv.length !== 1 || argv[0] !== "promote") throw coded("promotion-command-invalid");
+  for (const name of ["GITHUB_TOKEN", "RAILWAY_PROJECT_TOKEN", "GITHUB_ACTOR", "GITHUB_REPOSITORY", "GITHUB_REF", "GITHUB_SHA"]) {
+    if (typeof env[name] !== "string" || env[name].length === 0) throw coded(`promotion-env-${name.toLowerCase()}-required`);
+  }
+  return promoteExactMain({
+    actor: env.GITHUB_ACTOR,
+    repository: env.GITHUB_REPOSITORY,
+    ref: env.GITHUB_REF,
+    checkoutSha: env.GITHUB_SHA,
+    githubToken: env.GITHUB_TOKEN,
+    railwayToken: env.RAILWAY_PROJECT_TOKEN,
+  });
+}
+
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : null;
+if (invokedPath && invokedPath === path.resolve(fileURLToPath(import.meta.url))) {
+  try {
+    const receipt = await runPromotionCli();
+    process.stdout.write(`${JSON.stringify(receipt)}\n`);
+    if (!receipt.ok) process.exitCode = 1;
+  } catch (error) {
+    const failure = normalizeRailwayError(error);
+    process.stdout.write(`${JSON.stringify({ schemaVersion: 1, state: "failed", ok: false, errorCode: failure.code, status: failure.status, traceId: failure.traceId })}\n`);
+    process.exitCode = 1;
+  }
+}
