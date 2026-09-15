@@ -127,6 +127,8 @@ export const ESSENTIAL_FILES = [
   "src/observational-memory.mjs",
   "src/generated-code-safety.mjs",
   "src/evolution-controller.mjs",
+  "src/evolution-laboratory.mjs",
+  "src/entity-heartbeat.mjs",
   "src/world-state-observer.mjs",
   "src/objective-planner.mjs",
   "src/worker-process.mjs",
