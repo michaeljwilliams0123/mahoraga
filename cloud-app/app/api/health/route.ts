@@ -5,6 +5,8 @@ export const dynamic = "force-static";
 function deploymentUrl() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_URL?.trim();
   if (explicit) return explicit;
+  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
+  if (railway) return `https://${railway}`;
   const netlify = process.env.DEPLOY_PRIME_URL?.trim() || process.env.URL?.trim();
   if (netlify) return netlify;
   const vercelHost = process.env.VERCEL_URL?.trim();
@@ -19,6 +21,7 @@ function runtimeDatabaseTarget() {
 function deploymentProvider() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim();
   if (explicit) return explicit;
+  if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) return "railway";
   if (process.env.NETLIFY === "true") return "netlify";
   if (process.env.VERCEL === "1" || process.env.VERCEL_URL) return "vercel";
   return "local";
@@ -32,10 +35,12 @@ export async function GET() {
       build: { version: "7.0.0-alpha.2" },
       deployment: {
         provider: deploymentProvider(),
-        environment: process.env.MAHORAGA_DEPLOYMENT_ENV ?? process.env.CONTEXT ?? process.env.VERCEL_ENV ?? "local",
+        environment: process.env.MAHORAGA_DEPLOYMENT_ENV ?? process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.CONTEXT ?? process.env.VERCEL_ENV ?? "local",
         url: deploymentUrl(),
-        commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
-        gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? null,
+        commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
+        expectedCommitSha: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? null,
+        gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.RAILWAY_GIT_BRANCH ?? process.env.BRANCH ?? process.env.VERCEL_GIT_COMMIT_REF ?? null,
+        promotion: process.env.MAHORAGA_EXPECTED_GIT_SHA ? "exact-sha-railway" : null,
       },
       runtime: {
         databaseTarget: {

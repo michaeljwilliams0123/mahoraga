@@ -17,3 +17,8 @@ test("unpaired cloud health reports runtime provenance as unknown until the pair
   assert.match(route, /state:\s*"unknown"/);
   assert.match(route, /source:\s*"paired-core-required"/);
 });
+test("Railway expected SHA stays deployment metadata and cannot overwrite actual commit identity", () => {
+  assert.match(route, /expectedCommitSha:\s*process\.env\.MAHORAGA_EXPECTED_GIT_SHA/);
+  assert.match(route, /commitSha:\s*process\.env\.MAHORAGA_GIT_COMMIT_SHA\s*\?\?\s*process\.env\.RAILWAY_GIT_COMMIT_SHA/);
+  assert.doesNotMatch(route, /commitSha:\s*process\.env\.MAHORAGA_EXPECTED_GIT_SHA/);
+});
