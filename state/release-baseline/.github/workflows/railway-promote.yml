@@ -1,0 +1,40 @@
+name: Promote Exact Main to Railway
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: read
+
+concurrency:
+  group: mahoraga-railway-production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote exact verified main
+    if: >-
+      github.actor == github.repository_owner &&
+      github.repository == 'michaeljwilliams0123/mahoraga' &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out authoritative main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Promote exact verified main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RAILWAY_PROJECT_TOKEN: ${{ secrets.RAILWAY_PROJECT_TOKEN }}
+        run: node scripts/railway-exact-sha-promotion.mjs promote
