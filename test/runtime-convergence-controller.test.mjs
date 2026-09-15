@@ -81,3 +81,18 @@ test("Windows convergence stop helper never shadows PowerShell automatic PID", a
   assert.doesNotMatch(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$Pid\s*\)/i);
   assert.match(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$ProcessId\s*\)/i);
 });
+
+test("Windows convergence promotes a verified current 4783 candidate into canonical 4782", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  assert.match(controller, /\$productionHealthUrl\s*=\s*["']http:\/\/127\.0\.0\.1:4782\/api\/status["']/i);
+  assert.match(controller, /function\s+Ensure-ProductionCurrent\s*\(\s*\[string\]\s*\$ExpectedCommit\s*\)/i);
+  assert.match(controller, /start-production\.ps1/i);
+  assert.match(controller, /production\.runtime\.provenance\.sourceCommit/i);
+  assert.match(controller, /production\.runtime\.provenance\.authoritativeSourceCommit/i);
+  assert.match(controller, /production\.runtime\.provenance\.state/i);
+  assert.match(controller, /state\s*=\s*["']production-promoted["']/i);
+  assert.match(
+    controller,
+    /if\s*\(\$sourceCommit\s+-eq\s+\$targetCommit\)\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?exit\s+0/i,
+  );
+});
