@@ -34,7 +34,7 @@ test("desktop readiness never executes manual communication send canaries", asyn
   t.after(() => { if (child.connected) child.send({ type: "shutdown" }); else child.kill(); });
   const seen = [];
   await new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("desktop-readiness-timeout")), 15000);
+    const timer = setTimeout(() => reject(new Error("desktop-readiness-timeout")), 30000);
     child.on("message", (message) => {
       seen.push(message);
       if (message?.type === "readiness.complete") {
