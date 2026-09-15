@@ -19,6 +19,7 @@ const HELPERS = [
   { label: "Audit connection posture", command: "Audit outbound-only connection posture. Deny inbound tunnels. Report relay and GitHub surfaces." },
   { label: "Version ledger", command: "Show the version ledger: live 3.6.0, candidate 7.0.0-alpha.2, and this operator deck." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
+  { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
 ] as const;
 
 type CommandCockpitProps = {
@@ -129,6 +130,7 @@ export function CommandCockpit({
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
+            <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
           </div>
         </header>
 
@@ -136,7 +138,7 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Cloud cockpit on 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). UI lane only — Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). UI lane only — Windows production stays 3.6.0.
           </p>
           <dl>
             <div>
@@ -154,6 +156,10 @@ export function CommandCockpit({
             <div>
               <dt>owner login</dt>
               <dd>PR 486 no-store</dd>
+            </div>
+            <div>
+              <dt>artifact bridge</dt>
+              <dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd>
             </div>
             <div>
               <dt>windows runtime</dt>
@@ -217,6 +223,17 @@ export function CommandCockpit({
                 <span className="cockpit-pill ok">NO_STORE_#486</span>
               </header>
               <p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p>
+            </article>
+            <article>
+              <header>
+                <strong>Bounded Artifact Bridge</strong>
+                <span className="cockpit-pill ok">LIVE_#505</span>
+              </header>
+              <p>
+                Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length.
+                Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only.
+                No caller-selected destination, provider, executable, or paid fallback.
+              </p>
             </article>
           </section>
         </div>
