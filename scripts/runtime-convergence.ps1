@@ -49,6 +49,19 @@ function Stop-Listener([int]$ProcessId) {
     $process.WaitForExit(5000) | Out-Null
 }
 
+function Stop-VerifiedCandidate([string]$ExpectedCommit) {
+    $candidate = Get-LiveStatus
+    if (-not $candidate) { return }
+    if ($candidate.product -ne 'Mahoraga') { throw 'Candidate listener is not Mahoraga.' }
+    $source = Resolve-Commit ([string]$candidate.runtime.provenance.sourceCommit) 'candidate stop source'
+    if ($source -ne $ExpectedCommit) { throw 'Candidate source changed before teardown.' }
+    $listenerPid = Get-ListenerPid
+    if (-not $listenerPid) { throw 'Candidate status is live but listener PID is missing.' }
+    Stop-Listener $listenerPid
+    if (Get-ListenerPid) { throw 'Candidate listener remained active after teardown.' }
+    Write-Receipt @{ state = 'candidate-stopped'; sourceCommit = $ExpectedCommit; candidatePort = $Port; productionPort = 4782 }
+}
+
 function Find-SourceWorktree([string]$Commit) {
     $lines = & git -C $ControllerRoot worktree list --porcelain
     if ($LASTEXITCODE -ne 0) { throw 'Unable to enumerate Mahoraga worktrees.' }
@@ -178,6 +191,16 @@ if ($currentControllerCommit -ne $targetCommit) {
 
 $live = Get-LiveStatus
 if (-not $live) {
+    $production = Get-ProductionStatus
+    if ($production -and $production.product -eq 'Mahoraga' -and
+        [string]$production.runtime.provenance.sourceCommit -eq $targetCommit -and
+        [string]$production.runtime.provenance.authoritativeSourceCommit -eq $targetCommit -and
+        [string]$production.runtime.provenance.state -eq 'current' -and
+        $production.runtime.healthy -eq $true) {
+        Write-Receipt @{ state = 'production-already-current'; sourceCommit = $targetCommit; candidatePort = $Port; productionPort = 4782 }
+        Write-Output "Mahoraga production on port 4782 is current at $targetCommit; candidate slot remains stopped."
+        exit 0
+    }
     $occupiedPid = Get-ListenerPid
     if ($occupiedPid) {
         Write-Receipt @{ state = 'listener-conflict'; fromCommit = $null; attemptedCommit = $targetCommit; listenerPid = $occupiedPid }
@@ -192,7 +215,9 @@ if (-not $live) {
         $bootstrapped = Wait-ForCommit $targetCommit $true
         if (-not $bootstrapped) { throw 'Bootstrapped candidate failed exact-head live canary.' }
         Write-Receipt @{ state = 'bootstrapped'; fromCommit = $null; toCommit = $targetCommit; rollbackCommit = $null }
-        Write-Output "Mahoraga candidate bootstrapped at protected main $targetCommit on port $Port."
+        Ensure-ProductionCurrent $targetCommit | Out-Null
+        Stop-VerifiedCandidate $targetCommit
+        Write-Output "Mahoraga production is current at $targetCommit; candidate slot $Port returned to standby."
         exit 0
     } catch {
         if ($bootstrapProcess) {
@@ -213,7 +238,8 @@ if ($sourceCommit -eq $targetCommit) {
         throw 'Current candidate is not healthy; production promotion denied.'
     }
     Ensure-ProductionCurrent $targetCommit | Out-Null
-    Write-Output "Mahoraga candidate on port $Port and production on port 4782 are current at $targetCommit."
+    Stop-VerifiedCandidate $targetCommit
+    Write-Output "Mahoraga production on port 4782 is current at $targetCommit; candidate slot $Port returned to standby."
     exit 0
 }
 if ([string]$live.runtime.provenance.state -ne 'runtime-drift') { throw 'Running Mahoraga is behind main without verified runtime-drift evidence.' }
@@ -254,7 +280,9 @@ try {
     $activated = Wait-ForCommit $targetCommit $true
     if (-not $activated) { throw 'Activated candidate failed exact-head live canary.' }
     Write-Receipt @{ state = 'activated'; fromCommit = $sourceCommit; toCommit = $targetCommit; rollbackCommit = $sourceCommit }
-    Write-Output "Mahoraga converged from $sourceCommit to $targetCommit on port $Port."
+    Ensure-ProductionCurrent $targetCommit | Out-Null
+    Stop-VerifiedCandidate $targetCommit
+    Write-Output "Mahoraga production converged from $sourceCommit to $targetCommit; candidate slot $Port returned to standby."
 } catch {
     $failedPid = Get-ListenerPid
     if ($failedPid) { Stop-Listener $failedPid }
@@ -265,5 +293,6 @@ try {
         throw 'Activation failed and rollback runtime did not recover.'
     }
     Write-Receipt @{ state = 'rolled-back'; fromCommit = $sourceCommit; attemptedCommit = $targetCommit; rollbackCommit = $sourceCommit; error = $_.Exception.Message }
+    Stop-VerifiedCandidate $sourceCommit
     throw
 }
