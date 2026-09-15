@@ -643,10 +643,12 @@
         "desktop.interact",
         "desktop.powershell",
         "desktop.filesystem",
-        "desktop.processes"
+        "desktop.processes",
+        "communication.send"
       ],
       "acceptedTaskTypes": [
-        "desktop"
+        "desktop",
+        "communication"
       ],
       "timeoutMs": 60000,
       "concurrency": 1,
@@ -656,7 +658,8 @@
         "desktop.interact": "provider-derived",
         "desktop.powershell": "provider-derived",
         "desktop.filesystem": "provider-derived",
-        "desktop.processes": "direct"
+        "desktop.processes": "direct",
+        "communication.send": "manual"
       },
       "executionPlane": "local",
       "routing": {

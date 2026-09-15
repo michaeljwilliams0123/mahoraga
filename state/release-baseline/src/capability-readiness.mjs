@@ -30,7 +30,9 @@ export function deriveCapabilityReadiness({ process, provider, canary, capabilit
 
 export function isCapabilityRoutable(policy, readiness) {
   if (!policy || !readiness) return Object.freeze({ eligible: false, reason: "routing-evidence-missing" });
-  if (!readiness.routable) return Object.freeze({ eligible: false, reason: readiness.reason ?? "capability-not-verified" });
+  const manualSendBootstrap = policy.capability === "communication.send" && policy.attendedRequired === true && typeof policy.authoritySessionId === "string" && policy.authoritySessionId.length > 0 && policy.maximumAttempts === 1 && new Set(["canary-never-run", "canary-stale"]).has(readiness.reason);
+  if (!readiness.routable && !manualSendBootstrap) return Object.freeze({ eligible: false, reason: readiness.reason ?? "capability-not-verified" });
+  if (manualSendBootstrap) return Object.freeze({ eligible: true, reason: "manual-canary-bootstrap" });
   if (policy.attendedRequired && !policy.authoritySessionId) return Object.freeze({ eligible: false, reason: "attended-session-required" });
   if (policy.executionPlane === "candidate-worktree" && !policy.integrationLeaseId) return Object.freeze({ eligible: false, reason: "integration-lease-required" });
   return Object.freeze({ eligible: true, reason: null });
