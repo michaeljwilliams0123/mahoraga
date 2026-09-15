@@ -147,6 +147,30 @@ export async function resolveGitHubEvidence({ token, checkoutSha, fetchImpl = fe
   return { currentMainSha, checkRuns: Array.isArray(checks?.check_runs) ? checks.check_runs : [] };
 }
 
+export async function resolveAutoDeployStatus({ token, fetchImpl = fetch }) {
+  const query = `query AutoDeployStatus($projectId: String!, $environmentId: String!, $serviceId: String!) {
+    serviceInstanceAutoDeployStatus(projectId: $projectId, environmentId: $environmentId, serviceId: $serviceId) {
+      enabled
+      canEnable
+      reason
+    }
+  }`;
+  const data = await railwayRequest({
+    query,
+    variables: {
+      projectId: PROMOTION.projectId,
+      environmentId: PROMOTION.environmentId,
+      serviceId: PROMOTION.serviceId,
+    },
+    token,
+    fetchImpl,
+  });
+  const status = data?.serviceInstanceAutoDeployStatus;
+  if (typeof status?.enabled !== "boolean" || typeof status?.canEnable !== "boolean") throw coded("autodeploy-status-invalid");
+  if (status.reason !== null && status.reason !== undefined && typeof status.reason !== "string") throw coded("autodeploy-status-invalid");
+  return { enabled: status.enabled, canEnable: status.canEnable, reason: status.reason ?? null };
+}
+
 export async function resolvePreviousSuccessfulDeployment({ token, fetchImpl = fetch }) {
   const query = `query RecentDeployments($input: DeploymentListInput!) {
     deployments(input: $input, first: 10) { edges { node { id status createdAt meta } } }
@@ -313,6 +337,7 @@ function promotionDeps(overrides = {}) {
   return {
     now: () => new Date().toISOString(),
     resolveGitHubEvidence,
+    resolveAutoDeployStatus,
     resolvePreviousSuccessfulDeployment,
     probeProduction,
     upsertExpectedSha,
@@ -334,6 +359,14 @@ export async function promoteExactMain(input, overrides = {}) {
     checkRuns: evidence.checkRuns,
   });
   if (!gate.ok) return baseReceipt({ state: "blocked", ok: false, targetSha: input.checkoutSha, observedAt: deps.now(), errorCode: gate.reason });
+
+  try {
+    const autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    if (autoDeploy.enabled) throw coded("railway-autodeploy-enabled");
+  } catch (error) {
+    const failure = normalizeRailwayError(error);
+    return baseReceipt({ state: "failed", ok: false, targetSha: gate.targetSha, observedAt: deps.now(), errorCode: failure.code, errorStage: "autodeploy-preflight" });
+  }
 
   let previous;
   try {
