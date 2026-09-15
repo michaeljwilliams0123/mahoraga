@@ -57,6 +57,7 @@ test("workflow is manual owner-only, input-free, fixed, and zero-model", async (
   assert.match(source, /checks:\s*read/);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
   assert.match(source, /node scripts\/railway-exact-sha-promotion\.mjs promote/);
+  assert.match(source, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
   assert.doesNotMatch(source, /OPENAI|ANTHROPIC|MODEL|provider|schedule:|push:|pull_request:|workflow_run:/i);
 });
 
@@ -258,4 +259,31 @@ test("failed rollback verification is explicit and never reported as recovered",
   assert.equal(receipt.rollback.ok, false);
   assert.equal(receipt.rollback.errorCode, "rollback-probe-failed");
   assert.doesNotMatch(JSON.stringify(receipt), /github-token|project-token|connection-reset/);
+});
+
+test("promotion workflow and controller are protected release-baseline files", async () => {
+  const { ESSENTIAL_FILES } = await import("../src/repair.mjs");
+  assert.equal(ESSENTIAL_FILES.includes(".github/workflows/railway-promote.yml"), true);
+  assert.equal(ESSENTIAL_FILES.includes("scripts/railway-exact-sha-promotion.mjs"), true);
+});
+
+test("Railway read retries honor Retry-After while mutations never retry", async () => {
+  const { railwayRequest } = await controller();
+  let reads = 0;
+  const slept = [];
+  const fetchRead = async () => {
+    reads += 1;
+    if (reads === 1) return { ...response({}, 429), headers: { get: (name) => name.toLowerCase() === "retry-after" ? "2" : null } };
+    return response({ data: { ok: true } });
+  };
+  assert.deepEqual(await railwayRequest({ query: "query Q { ok }", variables: {}, token: "project-token", fetchImpl: fetchRead, sleepImpl: async (ms) => slept.push(ms) }), { ok: true });
+  assert.equal(reads, 2);
+  assert.deepEqual(slept, [2000]);
+
+  let writes = 0;
+  await assert.rejects(
+    railwayRequest({ query: "mutation M { nope }", variables: {}, token: "project-token", fetchImpl: async () => { writes += 1; return response({}, 429); }, sleepImpl: async () => { throw new Error("mutation-must-not-sleep"); } }),
+    /railway-http-error/,
+  );
+  assert.equal(writes, 1);
 });
