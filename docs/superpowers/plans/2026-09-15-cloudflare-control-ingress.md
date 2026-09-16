@@ -46,7 +46,7 @@ const ignore = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 
 test("owner gateway keeps identity and assertion key out of tracked vars", () => {
   assert.match(config, /\[secrets\][\s\S]*MAHORAGA_CLOUD_OWNER_ID[\s\S]*MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET/);
-  assert.doesNotMatch(config, /owner@example\.invalid/);
+  assert.doesNotMatch(config, /example\.invalid/);
   assert.match(config, /MAHORAGA_RUNTIME_ORIGIN\s*=\s*"https:\/\/mahoraga-runtime-main-production\.up\.railway\.app\/"/);
 });
 
@@ -60,7 +60,7 @@ Run:
 ```powershell
 node --test test/cloudflare-owner-gateway-deployment-contract.test.mjs
 ```
-Expected: FAIL because the current config tracks `owner@example.invalid`, has no `[secrets]` declaration, and `.gitignore` does not ignore `.wrangler/`.
+Expected: FAIL because the current config tracks `the legacy placeholder owner identity`, has no `[secrets]` declaration, and `.gitignore` does not ignore `.wrangler/`.
 
 - [ ] **Step 3: Make the minimal config and ignore changes**
 
