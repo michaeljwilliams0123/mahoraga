@@ -31,7 +31,9 @@ test("one host-neutral cloud workspace is the only Mahoraga browser interaction 
     assert.match(workspace, new RegExp(`label: "${label}"`));
   }
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
-  assert.match(workspace, /Connect the Mahoraga brain/);
+  assert.match(workspace, /Sign in to Mahoraga/);
+  assert.match(workspace, /Recovery connection/);
+  assert.doesNotMatch(workspace, /Connect the Mahoraga brain/);
   assert.match(relay, /wss:\/\/mahoraga-relay\.mahoraga-mjw0123\.workers\.dev\/pair/);
   assert.match(docs, /single cloud-hosted workspace/i);
   assert.match(docs, /Cloudflare Workers/);

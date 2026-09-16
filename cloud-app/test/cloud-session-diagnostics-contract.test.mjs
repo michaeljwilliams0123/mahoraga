@@ -17,6 +17,7 @@ test("cloud session exposes safe compatibility diagnostics before optional relay
   assert.match(relay, /cloudSessionDiagnostic/);
   assert.match(relay, /cloud-runtime-contract-incompatible/);
   assert.match(workspace, /cloud-session-unavailable/);
-  assert.match(workspace, /Windows 3\.6\.0 remains a rollback baseline/i);
+  assert.match(workspace, /Legacy rollback remains available under Advanced; normal execution stays blocked/i);
+  assert.doesNotMatch(workspace, /Windows 3\.6\.0 remains/i);
   assert.doesNotMatch(`${session}\n${relay}\n${workspace}`, /MAHORAGA_PRIMARY_CODEX_TOKEN|MAHORAGA_CLOUD_SESSION_SECRET/);
 });
