@@ -50,7 +50,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Railway exact-SHA cloud health is observational only — no fake rollback API.",
+      summary: "Railway exact-SHA cloud health is observational only â€” no fake rollback API.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -67,7 +67,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
     tone: coreReady ? "ok" : "warn",
     summary: coreReady
       ? "Paired core expected. Mutating Operations stay relay-mediated."
-      : "Core not paired — Cockpit stays fail-closed for mutations.",
+      : "Core not paired â€” Cockpit stays fail-closed for mutations.",
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
@@ -149,7 +149,7 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Mahoraga cloud cockpit. Build provenance is 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. The active Windows runtime is reported from live core status; 3.6.0 is retained only as the legacy rollback predecessor.
           </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
@@ -166,7 +166,8 @@ export function CommandCockpit({
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
-            <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
+            <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
+            <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
         </aside>
 
@@ -195,7 +196,7 @@ export function CommandCockpit({
             <dl>{active.lines.map((line) => (<div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>))}</dl>
             <div className="cockpit-actions">
               {!coreReady && (<button type="button" onClick={onRequestPairing}>Pair runtime</button>)}
-              <button type="button" className="secondary" onClick={onOpenOperations}>Core mutations → Operations</button>
+              <button type="button" className="secondary" onClick={onOpenOperations}>Core mutations â†’ Operations</button>
             </div>
           </section>
 
@@ -205,7 +206,7 @@ export function CommandCockpit({
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
-            <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>; trusted requests are rewritten only to the canonical Railway upstream. Observational status only—no browser mutation authority is added.</p></article>
+            <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>; trusted requests are rewritten only to the canonical Railway upstream. Observational status onlyâ€”no browser mutation authority is added.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
         </div>
@@ -214,7 +215,7 @@ export function CommandCockpit({
 
         <section className="cockpit-helpers" aria-label="Automation helpers">
           <h3>Automation helpers</h3>
-          <p className="cockpit-muted">Copy-only starters. Browser GitHub write authority is hard-denied — use paired-core Operations.</p>
+          <p className="cockpit-muted">Copy-only starters. Browser GitHub write authority is hard-denied â€” use paired-core Operations.</p>
           <div className="cockpit-helper-grid">{HELPERS.map((helper) => (<button key={helper.label} type="button" onClick={() => void copyHelper(helper.command)}><strong>{helper.label}</strong><span>{helper.command}</span></button>))}</div>
           {copied && <p className="cockpit-muted">Clipboard: {copied === "copy-failed" ? "copy failed" : "helper command copied"}</p>}
           <ul className="cockpit-denies">

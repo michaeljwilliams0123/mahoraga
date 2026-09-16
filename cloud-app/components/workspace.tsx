@@ -41,16 +41,16 @@ function readableBytes(bytes: number) {
 
 function runtimeErrorMessage(code: string) {
   const messages: Record<string, string> = {
-    "zero-credit-provider-unavailable": "No verified zero-credit language provider is connected yet. Mahoraga will not use a paid fallback.",
-    "zero-credit-objective-provider-unavailable": "This work is waiting for a verified zero-credit provider. No paid fallback was attempted.",
+    "zero-credit-provider-unavailable": "No verified zero-credit language provider is connected yet. Licensed ChatGPT/Codex is available only as an explicit one-message escalation; Mahoraga will not retry licensed routes automatically.",
+    "zero-credit-objective-provider-unavailable": "This work is waiting for a verified zero-credit provider. Build and Ship will not silently consume licensed credits.",
     "relay-not-paired": "The Mahoraga brain is no longer connected. Connect it again to continue.",
     "relay-disconnected": "The encrypted brain connection closed. No alternate execution brain was used.",
     "relay-request-timeout": "Mahoraga did not answer before the bounded timeout. No paid fallback was attempted.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
-    "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
-    "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
-    "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
-    "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Windows 3.6.0 remains a rollback baseline and cannot create relay pairing offers.",
+    "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Sign in to the canonical cloud workspace or use the recovery connection only if needed.",
+    "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
+    "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Execution remains fail-closed while the cloud session recovers.",
+    "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Legacy rollback remains available under Advanced; normal execution stays blocked.",
     "cloud-owner-login-required": "The owner sign-in secret was not accepted.",
     "cloud-owner-login-not-configured": "Direct owner sign-in has not been configured yet.",
     "cloud-owner-login-secret-invalid": "The direct owner sign-in configuration is invalid.",

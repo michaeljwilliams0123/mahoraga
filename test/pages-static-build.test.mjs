@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { access, lstat, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { access, lstat, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
+import { DEFAULT_CANONICAL_WORKSPACE_URL, isDirectExecution, linkPagesDependencies, pagesLauncherHtml, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
 
 async function exists(file) {
   try {
@@ -67,4 +67,17 @@ test("Pages staging stays inside the repository root without copying the UI into
   assert.equal((await lstat(path.join(destination, "node_modules"))).isSymbolicLink(), true);
   assert.equal(path.relative(root, destination).startsWith(".."), false);
   assert.equal(path.relative(source, destination).startsWith(".."), true);
+});
+
+
+test("Pages root launches the canonical Railway workspace instead of acting as execution UI", async () => {
+  const html = pagesLauncherHtml();
+  assert.match(html, new RegExp(DEFAULT_CANONICAL_WORKSPACE_URL.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&")));
+  assert.doesNotMatch(html, /github\.io\/mahoraga/);
+  assert.throws(() => pagesLauncherHtml("http://example.test/"), /canonical-workspace-url-invalid/);
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
+  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+  assert.match(readme, /Open Mahoraga/);
+  assert.match(readme, /mahoraga-runtime-main-production\.up\.railway\.app/);
 });

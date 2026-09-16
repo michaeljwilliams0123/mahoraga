@@ -153,7 +153,7 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
-            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed brain for this message</button>}
+            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}
 

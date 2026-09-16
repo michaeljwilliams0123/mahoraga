@@ -114,7 +114,7 @@ test("connecting hides technical pairing controls and licensed fallback stays ow
     read("components/workspace/chat-view.tsx"),
   ]);
   assert.match(chat, /relayState !== "resuming"/);
-  assert.match(chat, /Use licensed brain for this message/);
+  assert.match(chat, /Use licensed ChatGPT\/Codex for this message/);
   assert.match(workspace, /retryLicensed/);
   assert.match(workspace, /setLicensedRetry\(null\)/);
   assert.match(workspace, /submitCore\(saved\.text, saved\.mode, null, "licensed-approved"\)/);
