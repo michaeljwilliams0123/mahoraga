@@ -14,6 +14,8 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /READY_OFFLINE/);
     assert.match(cockpit, /parent supervisor injects a shared core bearer only when the configured token is blank/);
     assert.match(cockpit, /Bearer value is never shown/);
+    assert.match(cockpit, /Liveness is never readiness \(#552\)/);
+    assert.match(cockpit, /LIVENESS_NEVER_READY_#552/);
     assert.doesNotMatch(cockpit, /MAHORAGA_PRIMARY_CODEX_TOKEN\s*=/);
   });
 
@@ -45,6 +47,15 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /Cloudflare owner gateway same-origin mutation boundary/i);
     assert.doesNotMatch(cockpit, /onClick=\{.*(?:gateway|origin).*mutation/i);
   });
+
+  it("surfaces CF-1 cognitive-control-fabric without Windows activation", () => {
+    assert.match(cockpit, /CF-1_FABRIC_OBS/);
+    assert.match(cockpit, /cognitive-control-fabric/);
+    assert.match(cockpit, /does not activate 7\.0\.0-alpha\.1 or 7\.0\.0-alpha\.2 on Windows/);
+    assert.match(cockpit, /does not imply Windows activation/);
+    assert.doesNotMatch(cockpit, /Windows.*7\.0\.0-alpha\.2.*activated/i);
+  });
+
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);
     assert.match(cockpit, /7\.0\.0-alpha\.2/);
