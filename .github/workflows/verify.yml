@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - check_name: ubuntu-latest
-            runner_labels: '["self-hosted","linux","x64","ubuntu"]'
+            runner_labels: '["self-hosted","linux","x64"]'
           - check_name: windows-latest
             runner_labels: '["self-hosted","windows","x64"]'
 
@@ -37,6 +37,13 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Verify Ubuntu runner identity
+        if: matrix.check_name == 'ubuntu-latest'
+        shell: bash
+        run: |
+          source /etc/os-release
+          test "$ID" = "ubuntu"
 
       - name: Verify conversation and evolution contracts
         run: npm run verify:conversation-plane
