@@ -15,15 +15,17 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Verify (${{ matrix.check_name }})
+    runs-on: ${{ fromJSON(matrix.runner_labels) }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+        include:
+          - check_name: ubuntu-latest
+            runner_labels: '["self-hosted","linux","x64","ubuntu"]'
+          - check_name: windows-latest
+            runner_labels: '["self-hosted","windows","x64"]'
 
     steps:
       - name: Check out repository
@@ -51,7 +53,7 @@ jobs:
         run: npm run gap:audit
 
       - name: Publish GitHub assurance dashboard
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.check_name == 'ubuntu-latest'
         shell: bash
         run: node scripts/github-audit.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
 
