@@ -57,6 +57,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
+        { label: "cf1Fabric", value: "cognitive-control-fabric observed; Windows stays 3.6.0" },
       ],
       actionable: false,
     };
@@ -70,6 +71,8 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       : "Core not paired — Cockpit stays fail-closed for mutations.",
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
+      { label: "liveness", value: "observational /api/live — not readiness (#552)" },
+      { label: "interactionReady", value: coreReady ? "paired core + /api/ready" : "not ready" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
       { label: "browserMaySelectProvider", value: String(health?.browserMaySelectProvider ?? false) },
     ],
@@ -142,6 +145,8 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
+            <span className="cockpit-pill steel">CF-1_FABRIC_OBS</span>
+            <span className="cockpit-pill warn">LIVENESS_NEVER_READY_#552</span>
           </div>
         </header>
 
@@ -153,9 +158,13 @@ export function CommandCockpit({
           </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
+            Liveness is never readiness (#552): interaction readiness is a separate signal from live health.
           </p>
           <p>
             7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550).
+          </p>
+          <p>
+            CF-1 cognitive-control-fabric status is observational on this cloud workspace only. It does not activate 7.0.0-alpha.1 or 7.0.0-alpha.2 on Windows.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
@@ -166,6 +175,8 @@ export function CommandCockpit({
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
+            <div><dt>readiness defect</dt><dd>PR 552 liveness is never readiness; interaction ready is separate from live</dd></div>
+            <div><dt>cf-1 fabric</dt><dd>cognitive-control-fabric observed on cloud workspace; Windows production stays 3.6.0</dd></div>
             <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
           </dl>
         </aside>
@@ -206,6 +217,8 @@ export function CommandCockpit({
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
             <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>; trusted requests are rewritten only to the canonical Railway upstream. Observational status only—no browser mutation authority is added.</p></article>
+            <article><header><strong>CF-1 cognitive-control-fabric</strong><span className="cockpit-pill steel">OBS_CLOUD_ONLY</span></header><p>Fabric status is visible on this 7.0.0-alpha.2 cloud workspace. It does not imply Windows activation. Windows production stays locked to 3.6.0.</p></article>
+            <article><header><strong>Interaction readiness</strong><span className={`cockpit-pill ${readyOk ? "ok" : "warn"}`}>{readyOk ? "READY_ONLINE" : "NOT_READY"}</span></header><p>Separate from liveness (#552). /api/live being up is not /api/ready. Interaction stays fail-closed until paired core readiness is true.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
         </div>
