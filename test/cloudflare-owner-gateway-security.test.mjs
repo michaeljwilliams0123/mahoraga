@@ -59,3 +59,33 @@ test("valid Access identity gets a fresh assertion and caller assertions are rep
     assert.equal(forwarded.redirect, "manual");
   } finally { globalThis.fetch = originalFetch; }
 });
+
+
+test("gateway rejects cross-origin mutation requests before proxying", async () => {
+  const originalFetch = globalThis.fetch;
+  let proxied = false;
+  globalThis.fetch = async () => { proxied = true; return new Response("ok", { status: 200 }); };
+  try {
+    const mutation = new Request("https://mahoraga-owner-gateway.example/api/runtime/action", {
+      method: "POST", headers: { origin: "https://evil.example" },
+    });
+    const response = await gateway.fetch(mutation, baseEnv, access(baseEnv.MAHORAGA_CLOUD_OWNER_ID));
+    assert.equal(response.status, 403);
+    assert.equal(await response.text(), "gateway-same-origin-required");
+    assert.equal(proxied, false);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("gateway rewrites trusted mutation origin to the canonical upstream origin", async () => {
+  const originalFetch = globalThis.fetch;
+  let forwarded;
+  globalThis.fetch = async (next) => { forwarded = next; return new Response("ok", { status: 200 }); };
+  try {
+    const mutation = new Request("https://mahoraga-owner-gateway.example/api/runtime/action", {
+      method: "POST", headers: { origin: "https://mahoraga-owner-gateway.example" },
+    });
+    const response = await gateway.fetch(mutation, baseEnv, access(baseEnv.MAHORAGA_CLOUD_OWNER_ID));
+    assert.equal(response.status, 200);
+    assert.equal(forwarded.headers.get("origin"), "https://mahoraga-runtime-main-production.up.railway.app");
+  } finally { globalThis.fetch = originalFetch; }
+});
