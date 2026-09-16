@@ -24,7 +24,7 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
-  assert.match(source, /npm run verify/);
+  assert.match(source, /npm run verify -- --test-concurrency=1/);
   assert.match(source, /npm run gap:audit/);
   assert.match(source, /github-audit\.mjs --format markdown >> "\$GITHUB_STEP_SUMMARY"/);
   assert.match(source, /if: matrix\.check_name == 'ubuntu-latest'/);
