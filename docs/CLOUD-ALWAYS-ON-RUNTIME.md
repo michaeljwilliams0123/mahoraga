@@ -26,6 +26,49 @@ The authenticated session response includes a public, content-free runtime contr
 6. Prove one real owner-bound zero-credit request from the production UI through AuthorityDecision, verified provider admission, model execution, durable task/event/result persistence, and returned answer before treating downstream receipt UI as production proof.
 7. Retain exact-head Ubuntu and Windows Verify receipts before promotion. Roll back Railway by promoting a previously verified image/source revision; do not weaken `/api/ready` to make a deployment green.
 
+## Exact-SHA promotion and readiness mismatch recovery (#552)
+
+`MAHORAGA_EXPECTED_GIT_SHA` is an independently approved, full 40-character
+commit pin. Railway's automatic deployment of a new `main` commit does not
+advance that pin. A successful platform deployment can therefore serve
+`/api/live` = 200 while `/api/ready` correctly returns 503 with
+`deployment-provenance-mismatch`. Platform success is not application readiness.
+
+For every production promotion, including documentation-only merges:
+
+1. Resolve the exact authoritative GitHub `main` SHA and retain the required
+   Ubuntu and Windows Verify evidence for the integrated PR head. Do not use
+   a PR head SHA as the production pin after a squash merge.
+2. Inspect the canonical Railway production environment and service. Require
+   the deployment metadata to identify the same repository, `main` branch,
+   and exact merged SHA. Capture the deployment ID and the fresh `/api/ready`
+   JSON body; do not diagnose from HTTP status alone.
+3. If the reason is `deployment-provenance-mismatch`, reconcile the independent
+   `MAHORAGA_EXPECTED_GIT_SHA` pin to that verified merged SHA through the
+   authorized Railway configuration path and redeploy that revision. Change
+   only this variable; preserve owner credentials, provider policy, persistent
+   storage, and the platform `/api/live` healthcheck.
+4. Re-read GitHub `main` and Railway metadata after deployment. If `main` moved
+   during promotion, reconcile against the newly verified revision before
+   claiming convergence. Never substitute an older successful deployment for
+   evidence about the current revision.
+5. Require fresh `/api/live` = 200, `/api/ready` = 200 with the exact merged
+   `gitSha` and `modelInvocations: 0`, and an unauthenticated
+   `/api/runtime/session` = 401. Persist a bounded receipt with timestamp,
+   source SHA, deployment ID, endpoint results, and provider/authority state.
+   These probes do not prove provider admission or model execution; record
+   those states as unverified unless separate authenticated evidence exists.
+6. If readiness still fails, investigate the new reason. Missing provenance,
+   core gateway rejection, connection failure, and timeout are separate
+   defects; a corrected pin does not prove those dependencies are healthy.
+
+Never set the expected pin from `RAILWAY_GIT_COMMIT_SHA` inside application
+startup, use a self-referential variable to make the two values always equal,
+remove the mismatch check, or return readiness success based only on liveness.
+For rollback, independently approve and deploy the rollback revision and
+reconcile its expected pin as one promotion operation; retain the prior
+deployment and evidence for recovery.
+
 ## Cloudflare owner gateway deployment
 
 1. `npm run cloudflare:owner-gateway:whoami` must identify the intended Cloudflare account.
