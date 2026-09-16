@@ -1,6 +1,6 @@
 # Cloudflare GitHub Capability Broker — Design
 
-**Status:** Owner-approved architecture; implementation pending written-spec review.
+**Status:** Owner approved on 2026-09-16; implementation plan written at `docs/superpowers/plans/2026-09-16-cloudflare-github-capability-broker.md`.
 
 **Date:** 2026-09-16
 
