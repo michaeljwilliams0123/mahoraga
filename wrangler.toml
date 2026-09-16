@@ -1,0 +1,9 @@
+name = "mahoraga-owner-gateway"
+main = "deploy/cloudflare-owner-gateway/worker.mjs"
+compatibility_date = "2026-09-01"
+
+[vars]
+MAHORAGA_RUNTIME_ORIGIN = "https://mahoraga-runtime-main-production.up.railway.app/"
+
+[secrets]
+required = ["MAHORAGA_CLOUD_OWNER_ID", "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET"]
