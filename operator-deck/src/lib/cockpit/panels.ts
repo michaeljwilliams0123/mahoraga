@@ -1,5 +1,5 @@
 import { previewCreditFreeHeartbeat } from "../fleet/heartbeat";
-import { VERSION_SURFACES, versionReceipt, CLOUD_APP_URL, PRODUCTION_VERSION, CANDIDATE_VERSION } from "../fleet/versions";
+import { VERSION_SURFACES, versionReceipt, CLOUD_APP_URL, ROLLBACK_VERSION, CANDIDATE_VERSION } from "../fleet/versions";
 import type { AdapterResult, CockpitPanelModel } from "./types";
 
 /** Observational MESH | CLOUD | WORKSPACE panel models — no live GH writes. */
@@ -48,7 +48,7 @@ export function buildCloudPanel(input?: {
         { label: "host", value: CLOUD_APP_URL },
         { label: "authority", value: String(input?.authority ?? "paired-mahoraga-core") },
         { label: "paidFallback", value: "false" },
-        { label: "rollbackTarget", value: PRODUCTION_VERSION },
+        { label: "rollbackTarget", value: ROLLBACK_VERSION },
       ],
       actionable: false,
     },
