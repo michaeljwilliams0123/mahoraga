@@ -1,6 +1,6 @@
 # Cloudflare Cognitive Control Fabric — Design
 
-**Status:** Architecture direction approved in conversation; written spec pending owner review before implementation.
+**Status:** Architecture approved by owner on 2026-09-15; implementation decomposed into independently releasable tranche plans.
 
 **Date:** 2026-09-15
 **Baseline:** protected `main` at `5cc4eac97883f592f22e8939ed8fe57cefd11fdd`
