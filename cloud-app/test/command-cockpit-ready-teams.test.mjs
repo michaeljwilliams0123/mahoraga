@@ -37,6 +37,14 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.doesNotMatch(cockpit, /4783/);
   });
 
+  it("surfaces the #550 same-origin mutation boundary without adding browser authority", () => {
+    assert.match(cockpit, /ORIGIN_BOUNDARY_#550/);
+    assert.match(cockpit, /same-origin only/i);
+    assert.match(cockpit, /gateway-same-origin-required/);
+    assert.match(cockpit, /trusted mutation origin is rewritten to the canonical Railway upstream/i);
+    assert.match(cockpit, /Cloudflare owner gateway same-origin mutation boundary/i);
+    assert.doesNotMatch(cockpit, /onClick=\{.*(?:gateway|origin).*mutation/i);
+  });
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);
     assert.match(cockpit, /7\.0\.0-alpha\.2/);
