@@ -40,9 +40,12 @@ export function establishOwnerSession(request: Request): OwnerSession {
   if (decoded) return { ownerId: decoded.ownerId, sessionId: decoded.sessionId, csrf: sign(secret, `csrf:${decoded.sessionId}`) };
   const ownerId = required("MAHORAGA_CLOUD_OWNER_ID");
   const assertedOwner = request.headers.get(CLOUD_OWNER_HEADER) ?? "";
-  const assertedAt = Number(request.headers.get("x-mahoraga-owner-timestamp"));
+  const assertedAtHeader = request.headers.get("x-mahoraga-owner-timestamp") ?? "";
   const assertionNonce = request.headers.get("x-mahoraga-owner-nonce") ?? "";
   const assertionSignature = request.headers.get("x-mahoraga-owner-signature") ?? "";
+  const hasSignedAssertion = Boolean(assertedOwner || assertedAtHeader || assertionNonce || assertionSignature);
+  if (!hasSignedAssertion) throw gatewayError("cloud-owner-auth-required", 401);
+  const assertedAt = Number(assertedAtHeader);
   const assertionSecret = required("MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET");
   const assertion = `${assertedOwner}\n${assertedAt}\n${assertionNonce}`;
   if (!safeEqual(assertedOwner, ownerId) || !Number.isSafeInteger(assertedAt) || Math.abs(Date.now() - assertedAt) > REPLAY_WINDOW_MS || !/^[a-f0-9-]{36}$/i.test(assertionNonce)
