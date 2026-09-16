@@ -141,6 +141,7 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
+            <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
           </div>
         </header>
 
@@ -149,6 +150,9 @@ export function CommandCockpit({
           <p>
             Mahoraga cloud cockpit. Build provenance is 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. Windows production stays 3.6.0.
+          </p>
+          <p>
+            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin POST/PUT/PATCH/DELETE fail closed with 403 <code>gateway-same-origin-required</code>. Trusted mutation Origin is rewritten to the canonical Railway upstream. GET/HEAD/OPTIONS stay unrestricted by that check.
           </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
@@ -161,6 +165,7 @@ export function CommandCockpit({
             <div><dt>shared bearer</dt><dd>parent supervisor injects a shared core bearer only when the configured token is blank (#542)</dd></div>
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
+            <div><dt>origin boundary</dt><dd>PR 550 same-origin mutations only; cross-origin fail closed 403 gateway-same-origin-required; trusted Origin rewritten to Railway upstream</dd></div>
             <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
           </dl>
         </aside>
@@ -199,6 +204,7 @@ export function CommandCockpit({
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
+            <article><header><strong>Cloudflare owner gateway</strong><span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span></header><p>Same-origin mutation boundary. Owner-gateway POST/PUT/PATCH/DELETE require a matching Origin. Cross-origin mutations fail closed (403 <code>gateway-same-origin-required</code>). Trusted mutation Origin is rewritten to the canonical Railway upstream. GET/HEAD/OPTIONS are not gated by this check.</p></article>
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
