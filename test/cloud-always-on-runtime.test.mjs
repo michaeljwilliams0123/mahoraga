@@ -67,7 +67,9 @@ test("cloud runtime keeps core loopback-only and secrets in server environment",
   assert.match(gateway, /timingSafeEqual/);
   assert.match(gateway, /request_nonces/);
   assert.match(action, /cloud-action-not-allowed/);
-  assert.match(edge, /cf-access-authenticated-user-email/);
+  assert.match(edge, /ctx\?\.access/);
+  assert.match(edge, /ctx\.access\.getIdentity/);
+  assert.doesNotMatch(edge, /request\.headers\.get\("cf-access-authenticated-user-email"\)/);
   assert.match(edge, /crypto\.subtle\.sign\("HMAC"/);
   assert.doesNotMatch(action, /child_process|exec\(|spawn\(|port.forward|reverse.shell/i);
 });
