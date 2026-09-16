@@ -15,7 +15,10 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   assert.match(source, /pull_request:/);
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
   assert.match(source, /check_name:\s*ubuntu-latest/);
-  assert.match(source, /runner_labels:\s*'\["self-hosted","linux","x64","ubuntu"\]'/);
+  assert.match(source, /runner_labels:\s*'\["self-hosted","linux","x64"\]'/);
+  assert.match(source, /name:\s*Verify Ubuntu runner identity/);
+  assert.match(source, /source \/etc\/os-release/);
+  assert.match(source, /test "\$ID" = "ubuntu"/);
   assert.match(source, /check_name:\s*windows-latest/);
   assert.match(source, /runner_labels:\s*'\["self-hosted","windows","x64"\]'/);
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
