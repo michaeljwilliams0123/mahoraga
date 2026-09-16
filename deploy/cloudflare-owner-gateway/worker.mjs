@@ -29,6 +29,13 @@
     target.protocol = origin.protocol;
     target.host = origin.host;
     if (target.origin === requestUrl.origin) return new Response("gateway-origin-invalid", { status: 503 });
+    const safeMethod = new Set(["GET", "HEAD", "OPTIONS"]).has(request.method.toUpperCase());
+    if (!safeMethod) {
+      let callerOrigin;
+      try { callerOrigin = new URL(request.headers.get("origin") ?? "").origin; }
+      catch { return new Response("gateway-same-origin-required", { status: 403 }); }
+      if (callerOrigin !== requestUrl.origin) return new Response("gateway-same-origin-required", { status: 403 });
+    }
 
     const timestamp = Date.now();
     const nonce = crypto.randomUUID();
@@ -42,6 +49,7 @@
     headers.set("x-mahoraga-owner-timestamp", String(timestamp));
     headers.set("x-mahoraga-owner-nonce", nonce);
     headers.set("x-mahoraga-owner-signature", signature);
+    if (!safeMethod) headers.set("origin", origin.origin);
     return fetch(new Request(target, { method: request.method, headers, body: request.body, redirect: "manual" }));
   },
 };
