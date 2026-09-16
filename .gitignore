@@ -38,3 +38,4 @@ coverage/
 state/enterprise-workspace.json
 state/enterprise-workspace/
 enterprise-workspace/
+.wrangler/

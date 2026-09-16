@@ -51,6 +51,11 @@
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
     "review:adaptive": "node scripts/adaptive-directive-review.mjs",
+    "cloudflare:owner-gateway:whoami": "npx --yes wrangler@4.132.0 whoami",
+    "cloudflare:owner-gateway:deploy": "npx --yes wrangler@4.132.0 deploy --config deploy/cloudflare-owner-gateway/wrangler.toml",
+    "cloudflare:owner-gateway:deployments": "npx --yes wrangler@4.132.0 deployments list --config deploy/cloudflare-owner-gateway/wrangler.toml",
+    "cloudflare:owner-gateway:secret:owner": "npx --yes wrangler@4.132.0 secret put MAHORAGA_CLOUD_OWNER_ID --config deploy/cloudflare-owner-gateway/wrangler.toml",
+    "cloudflare:owner-gateway:secret:assertion": "npx --yes wrangler@4.132.0 secret put MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET --config deploy/cloudflare-owner-gateway/wrangler.toml",
     "simulate:communication": "node scripts/communication-simulator.mjs"
   },
   "dependencies": {

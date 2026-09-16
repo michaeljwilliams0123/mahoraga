@@ -34,6 +34,7 @@ export function createTwinRelayRemotePeer({
   let reconnectTimer = null;
   let reconnectAttempts = 0;
   let stopped = false;
+  const inFlightReceives = new Set();
 
   const api = {
     async connect() {
@@ -50,13 +51,17 @@ export function createTwinRelayRemotePeer({
       socket.send(JSON.stringify({ action: "forward", sessionId: session.sessionId, from: "remote", frame }));
       return Object.freeze({ accepted: true, eventId: event.eventId, sessionId: session.sessionId });
     },
-    close() {
+    async close() {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = null;
-      if (socket) socket.close?.(1000, "twin-runtime-shutdown");
+      const closingSocket = socket;
       socket = null;
       session = null;
+      closingSocket?.close?.(1000, "twin-runtime-shutdown");
+      if (inFlightReceives.size > 0) {
+        await Promise.allSettled([...inFlightReceives]);
+      }
     },
     status() {
       return Object.freeze({
@@ -80,7 +85,7 @@ export function createTwinRelayRemotePeer({
     if (!/^rls-[A-Za-z0-9_-]{32}$/.test(paired.sessionId)) fail("twin-relay-session-invalid");
     session ??= await deriveRelaySession(remotePairing.privateKey, paired.peerPublicKey, remotePairing.context);
     session.sessionId = paired.sessionId;
-    socket.addEventListener("message", (event) => { void receive(event); });
+    socket.addEventListener("message", trackReceive);
     socket.addEventListener("close", () => {
       if (!stopped && session) {
         socket = null;
@@ -146,6 +151,15 @@ export function createTwinRelayRemotePeer({
         devicePublicKey: remotePairing.publicKey,
       }));
     });
+  }
+
+  function trackReceive(rawMessage) {
+    const operation = receive(rawMessage);
+    inFlightReceives.add(operation);
+    void operation.then(
+      () => inFlightReceives.delete(operation),
+      () => inFlightReceives.delete(operation),
+    );
   }
 
   async function receive(rawMessage) {

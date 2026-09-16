@@ -25,3 +25,15 @@ The authenticated session response includes a public, content-free runtime contr
 5. Point the owner-facing hostname at the Access-protected Worker rather than bypassing it. Verify an unsigned request is rejected, a valid Access-authenticated request establishes the owner session, replay is denied, and the browser never receives assertion or session secrets.
 6. Prove one real owner-bound zero-credit request from the production UI through AuthorityDecision, verified provider admission, model execution, durable task/event/result persistence, and returned answer before treating downstream receipt UI as production proof.
 7. Retain exact-head Ubuntu and Windows Verify receipts before promotion. Roll back Railway by promoting a previously verified image/source revision; do not weaken `/api/ready` to make a deployment green.
+
+## Cloudflare owner gateway deployment
+
+1. `npm run cloudflare:owner-gateway:whoami` must identify the intended Cloudflare account.
+2. Confirm Railway production is the canonical `mahoraga-runtime-main` service and `/api/ready` is green at current GitHub `main`.
+3. Run `npm run cloudflare:owner-gateway:secret:owner` and enter only the owner identity authorized by the Access policy.
+4. Run `npm run cloudflare:owner-gateway:secret:assertion` and enter the same assertion secret configured as Railway `MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET`; never print or commit the value.
+5. Run `npm run cloudflare:owner-gateway:deploy`.
+6. Protect the exact production `workers.dev` URL for `mahoraga-owner-gateway` with Cloudflare Access and allow only the pinned owner identity.
+7. Until Access authenticates the invocation, without `ctx.access` the Worker must return `403 owner-access-required`; a caller-supplied identity header is never sufficient.
+8. Authenticate through Access as the owner and verify the Worker reaches the canonical Railway hostname, establishes the normal server-side owner session, and never exposes the HMAC assertion secret.
+9. Run `npm run cloudflare:owner-gateway:deployments` and record the deployment/version identifier with the exact Git SHA used for verification.
