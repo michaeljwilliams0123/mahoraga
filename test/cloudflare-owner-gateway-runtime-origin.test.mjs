@@ -16,3 +16,9 @@ test("owner gateway rejects forwarding loops before proxying", () => {
   assert.match(worker, /target\.origin\s*===\s*requestUrl\.origin/);
   assert.match(worker, /gateway-origin-invalid/);
 });
+
+test("owner gateway trusts Cloudflare Access context rather than a caller identity header", () => {
+  assert.match(worker, /ctx\?\.access/);
+  assert.match(worker, /ctx\.access\.getIdentity/);
+  assert.doesNotMatch(worker, /request\.headers\.get\("cf-access-authenticated-user-email"\)/);
+});
