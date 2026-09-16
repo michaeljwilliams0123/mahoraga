@@ -42,7 +42,7 @@ export function CockpitView({
   const deploymentDetail = railwayExactSha
     ? `Railway production · pin after merge · ${deploymentEnvironment}`
     : deploymentProvider === "vercel"
-      ? `historical preview only · not production · ${deploymentEnvironment}`
+      ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
