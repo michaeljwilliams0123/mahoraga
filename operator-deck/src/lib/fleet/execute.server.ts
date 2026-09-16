@@ -234,7 +234,7 @@ export async function runDirective(command: string): Promise<ExecuteResult> {
           href: surface.href,
         })),
         { label: "Repo", value: "michaeljwilliams0123/mahoraga", href: REPO_URL },
-        { label: "Conversation UI", value: "Vercel cloud-app", href: CLOUD_APP_URL },
+        { label: "Conversation UI", value: "Railway cloud-app", href: CLOUD_APP_URL },
         { label: "Language lock", value: LANGUAGE_LOCK },
         { label: "App host", value: APP_HOST },
       ],
