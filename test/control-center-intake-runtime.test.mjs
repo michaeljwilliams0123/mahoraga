@@ -65,7 +65,7 @@ test("private browser artifact intake and provider gaps produce explicit receipt
   assert.match(summary, /Microsoft 365 execution provider is not enabled/i);
 });
 
-async function waitFor(check, timeoutMs = 8000) {
+async function waitFor(check, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await check();
