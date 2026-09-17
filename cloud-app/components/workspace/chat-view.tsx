@@ -83,6 +83,8 @@ export function ChatView(props: ChatViewProps) {
     retryLicensed,
   } = props;
 
+  const pinComplete = /^\d{4}$/.test(ownerLoginPin);
+
   return (
     <div className="one-chat-page">
       <header className="topbar one-topbar">
@@ -158,12 +160,40 @@ export function ChatView(props: ChatViewProps) {
         )}
 
         {ownerLoginRequired && !coreReady && (
-          <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. The PIN is verified server-side and exchanged only for a secure session cookie.</p></div></div>
-            <div className="connect-controls">
-              <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={ownerLoginPin} onChange={(event) => setOwnerLoginPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="4-digit PIN" aria-label="Owner PIN" autoComplete="off" />
-              <button type="button" onClick={() => void onOwnerLogin()} disabled={!/^\d{4}$/.test(ownerLoginPin) || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
+          <div className="connect-card owner-pin-card">
+            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. Verified server-side and exchanged only for a secure session cookie.</p></div></div>
+            <div className="connect-controls owner-pin-controls">
+              <div className="owner-pin-field">
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={4}
+                  value={ownerLoginPin}
+                  onChange={(event) => setOwnerLoginPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && pinComplete && !ownerLoginBusy) {
+                      event.preventDefault();
+                      void onOwnerLogin();
+                    }
+                  }}
+                  placeholder="••••"
+                  aria-label="Owner PIN"
+                  aria-describedby="owner-pin-hint"
+                  autoComplete="one-time-code"
+                  autoFocus
+                />
+                <div className="owner-pin-slots" aria-hidden="true">
+                  {[0, 1, 2, 3].map((index) => (
+                    <span key={index} className={ownerLoginPin.length > index ? "filled" : ""} />
+                  ))}
+                </div>
+              </div>
+              <button type="button" onClick={() => void onOwnerLogin()} disabled={!pinComplete || ownerLoginBusy}>
+                {ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in
+              </button>
             </div>
+            <p id="owner-pin-hint" className="owner-pin-hint">{ownerLoginPin.length}/4 digits · lockout after 5 failed attempts</p>
           </div>
         )}
 
