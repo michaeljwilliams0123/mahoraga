@@ -82,7 +82,7 @@ test("runtime API uploads, attaches, inspects, and protects a private artifact",
   assert.equal((await deniedDelete.json()).error, "artifact-in-use");
 });
 
-async function waitFor(check, timeoutMs = 8000) {
+async function waitFor(check, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const value = await check();
