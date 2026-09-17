@@ -43,7 +43,7 @@ test("UI is an encrypted client and has no direct model transport or provider se
   assert.doesNotMatch(source, /useChat\(|DefaultChatTransport|sendMessage\(|conversationRoute|Cloud Pro/);
 });
 
-test("one host-neutral workspace connects to the authoritative core through the paired encrypted relay", async () => {
+test("one host-neutral workspace prefers owner session and retains encrypted relay recovery", async () => {
   const [workspace, chat, relay, health] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/chat-view.tsx"),
@@ -51,7 +51,7 @@ test("one host-neutral workspace connects to the authoritative core through the 
     read("app/api/health/route.ts"),
   ]);
   assert.match(chat, /Brain-routed/);
-  assert.match(chat, /Connect the Mahoraga brain/);
+  assert.match(chat, /Cloud connection unavailable/);
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
@@ -133,6 +133,6 @@ test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fa
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
   assert.match(chat, /Brain-routed/);
-  assert.match(chat, /Connect the Mahoraga brain/);
+  assert.match(chat, /Cloud connection unavailable/);
   assert.doesNotMatch(workspace, /useChat\(|DefaultChatTransport|Cloud Pro/);
 });

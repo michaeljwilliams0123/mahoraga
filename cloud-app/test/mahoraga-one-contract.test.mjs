@@ -53,7 +53,7 @@ test("Mahoraga One exposes durable brain states and explicit licensed retry", as
   assert.match(types, /"Connecting"[\s\S]*"Idle"[\s\S]*"Awake"[\s\S]*"Degraded"[\s\S]*"Offline"/);
   assert.match(workspace, /licensedRetry/);
   assert.match(workspace, /licensed-approved/);
-  assert.match(workspace + chat, /Use licensed brain for this message/);
+  assert.match(workspace + chat, /Use licensed ChatGPT\/Codex for this message/);
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /creditPolicy === "zero-codex"/);
   assert.doesNotMatch(workspace, /zero-credit-provider-unavailable[^}]+submitCore\([^)]*"licensed-approved"/s);

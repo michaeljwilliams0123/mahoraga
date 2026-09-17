@@ -153,7 +153,7 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
-            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed brain for this message</button>}
+            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}
 
@@ -169,9 +169,9 @@ export function ChatView(props: ChatViewProps) {
 
         {!coreReady && relayState !== "resuming" && !ownerLoginRequired && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Mahoraga uses the authenticated cloud session first. Relay pairing is reserved for recovery when that path cannot be used.</p></div></div>
             <details>
-              <summary>Connect securely <ChevronDown size={15} /></summary>
+              <summary>Recovery connection <ChevronDown size={15} /></summary>
               <div className="connect-controls">
                 <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
                 <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
@@ -196,7 +196,7 @@ export function ChatView(props: ChatViewProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
             }}
-            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Pair an approved runtime to execute work…"}
+            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Sign in or restore the cloud connection to execute work…"}
             aria-label="Message Mahoraga"
           />
           <div className="composer-actions">
