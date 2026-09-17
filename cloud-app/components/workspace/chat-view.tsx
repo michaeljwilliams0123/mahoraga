@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
+import "./owner-pin.css";
 
 const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
   upload: Upload,
