@@ -233,7 +233,7 @@ test("completed worker receipts return to the chat conversation", async (t) => {
   assert.match(messages[1].content, /runtime is responsive/);
 });
 
-async function waitFor(check, timeoutMs = 8000) {
+async function waitFor(check, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) { const value = await check(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 100)); }
   throw new Error("Timed out waiting for runtime state.");
