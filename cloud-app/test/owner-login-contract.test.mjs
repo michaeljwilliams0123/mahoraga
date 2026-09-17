@@ -32,6 +32,7 @@ test("the Railway workspace offers a same-origin owner sign-in without exposing 
 
   assert.match(workspace, /loginDirectOwner/);
   assert.match(workspace, /\/api\/runtime\/login/);
+  assert.match(workspace, /body: JSON\.stringify\(\{ ownerPin: ownerLoginPin \}\)/);
   assert.match(chat, /Sign in to Mahoraga/);
   assert.match(chat, /ownerLoginPin/);
   assert.match(chat, /inputMode="numeric"/);

@@ -160,7 +160,7 @@ export function Workspace() {
         credentials: "include",
         cache: "no-store",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ownerPin }),
+        body: JSON.stringify({ ownerPin: ownerLoginPin }),
       });
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "cloud-owner-login-required");
