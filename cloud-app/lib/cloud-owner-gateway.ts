@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { hasTrustedRequestOrigin, verifyOwnerLoginSecret } from "./owner-login";
+import { hasTrustedRequestOrigin, nextOwnerLoginFailure, ownerLoginRetryAfter, verifyOwnerLoginPin, type OwnerLoginAttemptState } from "./owner-login";
 
 const COOKIE = "mahoraga_cloud_session";
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -54,10 +54,19 @@ export function establishOwnerSession(request: Request): OwnerSession {
   return issueOwnerSession(ownerId, secret);
 }
 
-export function establishOwnerLoginSession(request: Request, suppliedSecret: unknown): OwnerSession {
+export function establishOwnerLoginSession(request: Request, suppliedPin: unknown): OwnerSession {
   if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
-  const login = verifyOwnerLoginSecret(suppliedSecret);
-  if (!login.ok) throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
+  const existingRetryAfter = ownerLoginRequestRetryAfter(request);
+  if (existingRetryAfter > 0) throw gatewayError("cloud-owner-login-rate-limited", 429, existingRetryAfter);
+  const login = verifyOwnerLoginPin(suppliedPin);
+  if (!login.ok) {
+    if (login.code === "cloud-owner-login-required") {
+      const retryAfter = recordOwnerLoginFailure(request);
+      if (retryAfter > 0) throw gatewayError("cloud-owner-login-rate-limited", 429, retryAfter);
+    }
+    throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
+  }
+  clearOwnerLoginFailures(request);
   return issueOwnerSession(required("MAHORAGA_CLOUD_OWNER_ID"), requiredSecret());
 }
 
@@ -92,13 +101,18 @@ export async function coreRequest(type: string, payload: unknown = {}) {
 export function gatewayFailure(error: unknown) {
   const status = typeof error === "object" && error && "status" in error ? Number(error.status) : 503;
   const code = error instanceof Error ? error.message : "cloud-gateway-unavailable";
-  return { status: Number.isInteger(status) ? status : 503, code: /^[a-z0-9.-]+$/.test(code) ? code : "cloud-gateway-unavailable" };
+  const retryAfterSeconds = typeof error === "object" && error && "retryAfterSeconds" in error ? Number(error.retryAfterSeconds) : 0;
+  return {
+    status: Number.isInteger(status) ? status : 503,
+    code: /^[a-z0-9.-]+$/.test(code) ? code : "cloud-gateway-unavailable",
+    retryAfterSeconds: Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0 ? Math.ceil(retryAfterSeconds) : 0,
+  };
 }
 
 function replayDatabase() {
   mkdirSync(REPLAY_ROOT, { recursive: true });
   const db = new DatabaseSync(path.join(REPLAY_ROOT, "cloud-gateway.sqlite"));
-  db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS request_nonces(nonce TEXT PRIMARY KEY,session_id TEXT NOT NULL,expires_at INTEGER NOT NULL);");
+  db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS request_nonces(nonce TEXT PRIMARY KEY,session_id TEXT NOT NULL,expires_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS owner_login_attempts(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,window_started_at INTEGER NOT NULL,locked_until INTEGER NOT NULL);");
   return db;
 }
 function persistNonce(nonce: string, sessionId: string, expiresAt: number, replayCode: string) {
@@ -109,6 +123,49 @@ function persistNonce(nonce: string, sessionId: string, expiresAt: number, repla
     catch { throw gatewayError(replayCode, 409); }
   } finally { db.close(); }
 }
+const OWNER_LOGIN_CLIENT_MAX_FAILURES = 5;
+const OWNER_LOGIN_GLOBAL_MAX_FAILURES = 25;
+function ownerLoginClientKey(request: Request) {
+  const source = request.headers.get("cf-connecting-ip")?.trim()
+    || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || "unknown";
+  return `client:${sign(required("MAHORAGA_CLOUD_OWNER_LOGIN_SECRET"), `owner-login-client:${source}`)}`;
+}
+function ownerLoginAttemptKeys(request: Request): Array<[string, number]> {
+  return [[ownerLoginClientKey(request), OWNER_LOGIN_CLIENT_MAX_FAILURES], ["global", OWNER_LOGIN_GLOBAL_MAX_FAILURES]];
+}
+function readOwnerLoginAttempt(db: DatabaseSync, key: string): OwnerLoginAttemptState | null {
+  const row = db.prepare("SELECT failures,window_started_at,locked_until FROM owner_login_attempts WHERE key=?").get(key) as { failures?: unknown; window_started_at?: unknown; locked_until?: unknown } | undefined;
+  if (!row) return null;
+  const state = { failures: Number(row.failures), windowStartedAt: Number(row.window_started_at), lockedUntil: Number(row.locked_until) };
+  return Number.isInteger(state.failures) && Number.isFinite(state.windowStartedAt) && Number.isFinite(state.lockedUntil) ? state : null;
+}
+function ownerLoginRequestRetryAfter(request: Request) {
+  const db = replayDatabase();
+  try { return Math.max(...ownerLoginAttemptKeys(request).map(([key]) => ownerLoginRetryAfter(readOwnerLoginAttempt(db, key)))); }
+  finally { db.close(); }
+}
+function recordOwnerLoginFailure(request: Request) {
+  const db = replayDatabase();
+  try {
+    const now = Date.now();
+    let retryAfter = 0;
+    for (const [key, maxFailures] of ownerLoginAttemptKeys(request)) {
+      const next = nextOwnerLoginFailure(readOwnerLoginAttempt(db, key), now, maxFailures);
+      db.prepare("INSERT INTO owner_login_attempts(key,failures,window_started_at,locked_until) VALUES(?,?,?,?) ON CONFLICT(key) DO UPDATE SET failures=excluded.failures,window_started_at=excluded.window_started_at,locked_until=excluded.locked_until")
+        .run(key, next.failures, next.windowStartedAt, next.lockedUntil);
+      retryAfter = Math.max(retryAfter, ownerLoginRetryAfter(next, now));
+    }
+    return retryAfter;
+  } finally { db.close(); }
+}
+function clearOwnerLoginFailures(request: Request) {
+  const db = replayDatabase();
+  try {
+    const clientKey = ownerLoginClientKey(request);
+    db.prepare("DELETE FROM owner_login_attempts WHERE key=? OR key='global'").run(clientKey);
+  } finally { db.close(); }
+}
 function requiredSecret() { const value = required("MAHORAGA_CLOUD_SESSION_SECRET"); if (value.length < 32) throw gatewayError("cloud-session-secret-invalid", 503); return value; }
 function required(name: string) { const value = process.env[name]?.trim(); if (!value) throw gatewayError("cloud-gateway-not-configured", 503); return value; }
 function createToken(value: { ownerId: string; sessionId: string; expiresAt: number }, secret: string) { const payload = Buffer.from(JSON.stringify(value)).toString("base64url"); return `${payload}.${sign(secret, payload)}`; }
@@ -116,7 +173,7 @@ function verifyToken(value: string, secret: string) { const [payload, signature,
 function sign(secret: string, value: string) { return createHmac("sha256", secret).update(value).digest("base64url"); }
 function cookieValue(source: string | null, name: string) { return source?.split(";").map((part) => part.trim()).find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1) ?? null; }
 function safeEqual(left: string, right: string) { const a = Buffer.from(left); const b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); }
-function gatewayError(code: string, status: number) { const error = new Error(code) as Error & { status: number }; error.status = status; return error; }
+function gatewayError(code: string, status: number, retryAfterSeconds = 0) { const error = new Error(code) as Error & { status: number; retryAfterSeconds?: number }; error.status = status; if (retryAfterSeconds > 0) error.retryAfterSeconds = retryAfterSeconds; return error; }
 function isObject(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }
 
 export async function coreArtifactRequest(input: { name: string; mimeType: string; source: string; bytes: Uint8Array }) {

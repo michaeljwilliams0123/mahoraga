@@ -55,7 +55,7 @@ export function ChatView(props: ChatViewProps) {
     relayState,
     pairingOffer,
     ownerLoginRequired,
-    ownerLoginSecret,
+    ownerLoginPin,
     ownerLoginBusy,
     starters,
     quickActions,
@@ -67,7 +67,7 @@ export function ChatView(props: ChatViewProps) {
     bottom,
     setInput,
     setPairingOffer,
-    setOwnerLoginSecret,
+    setOwnerLoginPin,
     setSidebarOpen,
     chooseStarter,
     addFiles,
@@ -159,10 +159,10 @@ export function ChatView(props: ChatViewProps) {
 
         {ownerLoginRequired && !coreReady && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter the direct-owner secret configured for this Railway workspace. It is exchanged only for a secure session cookie.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. The PIN is verified server-side and exchanged only for a secure session cookie.</p></div></div>
             <div className="connect-controls">
-              <input type="password" value={ownerLoginSecret} onChange={(event) => setOwnerLoginSecret(event.target.value)} placeholder="Owner sign-in secret" aria-label="Owner sign-in secret" autoComplete="current-password" />
-              <button type="button" onClick={() => void onOwnerLogin()} disabled={!ownerLoginSecret.trim() || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
+              <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={ownerLoginPin} onChange={(event) => setOwnerLoginPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="4-digit PIN" aria-label="Owner PIN" autoComplete="off" />
+              <button type="button" onClick={() => void onOwnerLogin()} disabled={!/^\d{4}$/.test(ownerLoginPin) || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
             </div>
           </div>
         )}

@@ -51,7 +51,8 @@ function runtimeErrorMessage(code: string) {
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
     "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Execution remains fail-closed while the cloud session recovers.",
     "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Legacy rollback remains available under Advanced; normal execution stays blocked.",
-    "cloud-owner-login-required": "The owner sign-in secret was not accepted.",
+    "cloud-owner-login-required": "The 4-digit owner PIN was not accepted.",
+    "cloud-owner-login-rate-limited": "Too many PIN attempts. Wait a few minutes and try again.",
     "cloud-owner-login-not-configured": "Direct owner sign-in has not been configured yet.",
     "cloud-owner-login-secret-invalid": "The direct owner sign-in configuration is invalid.",
   };
@@ -68,7 +69,7 @@ export function Workspace() {
   const [taskMode] = useState<TaskMode>("auto");
   const [pairingOffer, setPairingOffer] = useState("");
   const [ownerLoginRequired, setOwnerLoginRequired] = useState(false);
-  const [ownerLoginSecret, setOwnerLoginSecret] = useState("");
+  const [ownerLoginPin, setOwnerLoginPin] = useState("");
   const [ownerLoginBusy, setOwnerLoginBusy] = useState(false);
   const [relayState, setRelayState] = useState<RelayState>("resuming");
   const [pairedRelay, setPairedRelay] = useState<RuntimeRelay | null>(null);
@@ -150,7 +151,7 @@ export function Workspace() {
   }, []);
 
   async function loginDirectOwner() {
-    if (!ownerLoginSecret.trim() || ownerLoginBusy) return;
+    if (!/^\d{4}$/.test(ownerLoginPin) || ownerLoginBusy) return;
     setOwnerLoginBusy(true);
     setRuntimeError(null);
     try {
@@ -159,11 +160,11 @@ export function Workspace() {
         credentials: "include",
         cache: "no-store",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ownerSecret: ownerLoginSecret }),
+        body: JSON.stringify({ ownerPin: ownerLoginPin }),
       });
       const body = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "cloud-owner-login-required");
-      setOwnerLoginSecret("");
+      setOwnerLoginPin("");
       window.location.reload();
     } catch (caught) {
       setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "cloud-owner-login-required"));
@@ -412,10 +413,10 @@ export function Workspace() {
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
           busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
-          ownerLoginRequired={ownerLoginRequired} ownerLoginSecret={ownerLoginSecret} ownerLoginBusy={ownerLoginBusy}
+          ownerLoginRequired={ownerLoginRequired} ownerLoginPin={ownerLoginPin} ownerLoginBusy={ownerLoginBusy}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
-          setOwnerLoginSecret={setOwnerLoginSecret}
+          setOwnerLoginPin={setOwnerLoginPin}
           addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
           stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
         />
