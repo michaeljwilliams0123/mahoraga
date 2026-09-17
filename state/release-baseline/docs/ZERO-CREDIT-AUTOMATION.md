@@ -22,7 +22,7 @@ whether work exists.
 These paths use GitHub-hosted compute or local deterministic processes. They do
 not send a prompt to ChatGPT, Codex, Copilot, or an OpenAI Platform endpoint.
 
-The Vercel-hosted interface does not make inference free. General-language
+The Railway-hosted interface does not make inference free. General-language
 generation on the ordinary route is available only when a separately deployed
 open-weight provider has verified zero-credit billing evidence and a fresh
 capability canary. Without that evidence, Mahoraga reports
