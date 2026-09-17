@@ -1,7 +1,7 @@
 # GitHub security baseline
 
-This baseline covers GitHub controls around the public Mahoraga coordination
-repository. It does not change repository visibility. Visibility remains a
+This baseline covers GitHub controls around the Mahoraga repository. It does
+not change repository visibility. Visibility remains a
 user-controlled setting and must never be changed by a workflow or controller
 without a new explicit instruction.
 
@@ -27,20 +27,20 @@ Live `main` protection is attested by `node scripts/github-live-protection.mjs`
 against `config/main-protection.contract.json`. Repository-only `github:audit`
 success is not proof of live settings.
 
-The current private-repository plan reports rulesets as unavailable. Until a
-GitHub plan with private-repository ruleset support is enabled, exact-head
-success remains an operational merge requirement for:
+Ruleset `22502690` (`Protect main - exact-head Verify`) is active with no
+bypass actors. It requires strict, exact-head success for exactly these contexts:
 
 - `Verify (ubuntu-latest)`
 - `Verify (windows-latest)`
 
-`Verify unified Vercel workspace` may run. It must not gate PR completion.
-The live-protection evaluator fails closed if that job, or any other extra
-context, is required.
+Vercel is retired and non-routable. A Vercel provider or deployment status is
+not a PR completion gate, runtime fallback, or authority signal. The
+live-protection evaluator fails closed if any context beyond the two required
+Verify checks is configured as required.
 
-No actor may treat the missing server-side ruleset as permission to bypass
-these checks. Autonomous integration may squash-merge only after both exact-head
-checks pass and the candidate base is still current.
+No actor may bypass, synthesize, or substitute these checks. Autonomous
+integration may squash-merge only after both exact-head checks pass and the
+candidate base is still current.
 
 Account-level controls last verified 2026-08-24 and re-checked 2026-09-07:
 

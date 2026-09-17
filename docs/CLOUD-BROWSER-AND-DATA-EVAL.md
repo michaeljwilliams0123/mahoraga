@@ -15,8 +15,8 @@ Every result must contain quantified findings, an answer-first conclusion, and a
 ## Isolated cloud browser
 
 The supported design is a provider-backed isolated browser, not a Chrome
-extension and not remote control of the user's installed browser. The Vercel
-workspace exposes this capability only when the complete bounded HTTPS adapter
+extension and not remote control of the user's installed browser. The canonical
+Railway workspace exposes this capability only when the complete bounded HTTPS adapter
 configuration is present; a provider name or UI badge alone never marks it
 ready.
 
@@ -35,11 +35,11 @@ The former loopback CDP launcher is retired. The remaining runtime
 `browser.status` capability reports this cloud-only boundary and cannot launch,
 attach to, or modify a browser on the device. An authenticated cloud provider,
 an HTTPS adapter that enforces the same domain/data boundary, and protected
-Vercel environment variables are still required before production execution is
+Bounded browser-provider environment variables are still required before production execution is
 reported as configured.
 
 Browserbase is the current recommended managed option because it is available
-through the Vercel Marketplace and supports isolated remote browser sessions,
+through an explicitly approved provider and supports isolated remote browser sessions,
 session-level allowed domains, and agent runs. Selection and billing approval
 remain an owner decision; the repository does not silently create an account or
 enable paid usage.

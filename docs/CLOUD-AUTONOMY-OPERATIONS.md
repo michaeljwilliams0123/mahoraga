@@ -4,7 +4,7 @@
 
 The current primary device is immutable from the cloud lane. No extension, Docker service, browser profile, inbound listener, scheduled process, credential, repository checkout, or background agent may be installed or changed on it.
 
-Cloud work occurs in GitHub, GitLab, Vercel, or another explicitly authorized managed provider. Optional local orchestration is confined to the separately approved secondary machine.
+Cloud work occurs in GitHub, GitLab, Railway, Cloudflare, or another explicitly authorized managed provider. Optional local orchestration is confined to the separately approved secondary machine.
 
 ## Architecture
 
@@ -12,7 +12,7 @@ Cloud work occurs in GitHub, GitLab, Vercel, or another explicitly authorized ma
 |---|---|---|
 | Repository work | GitHub pull requests | authoritative main; verified integration only |
 | Independent assurance | GitLab merge requests/CI | same-SHA verification; never authoritative for GitHub main |
-| Cloud interface | Vercel | static UI first; server functions only after authentication and data-boundary review |
+| Cloud interface | Railway with the Cloudflare owner edge | server-capable workspace; owner authentication and data-boundary review remain mandatory |
 | Browser actions | isolated cloud browser | allowlisted domains/actions; no local Chrome extension |
 | Microsoft 365 | Microsoft Graph | tenant-contained content and least-privilege OAuth |
 | Workflow orchestration | managed n8n or secondary-host n8n | no public webhook on the protected device |
@@ -48,6 +48,6 @@ Operational notes:
 
 ## Current blockers
 
-- Vercel accepted a preview request but the connected account could not retrieve the deployment or build logs; do not treat that preview as live.
+- A historical Vercel preview request was not retrievable or verifiable. Vercel is now retired and that preview is not live or routable evidence.
 - GitLab CI creates a failed pipeline with zero jobs; do not merge its evaluation MR until runner execution is proven.
 - n8n, Qdrant, Microsoft Graph credentials, and an MCP gateway image are not provisioned. Repository declarations must not invent or store them.

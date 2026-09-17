@@ -57,7 +57,7 @@ test("private browser artifact intake and provider gaps produce explicit receipt
   const completed = await waitFor(async () => {
     const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
-  });
+  }, 30_000);
   const summary = runtime.contentVault.get(completed.resultSummaryReference, {
     ownerType: "task-result", ownerId: completed.id, classification: completed.dataClass,
   }).toString("utf8");

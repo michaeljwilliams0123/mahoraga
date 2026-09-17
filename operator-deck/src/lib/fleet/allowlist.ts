@@ -4,7 +4,7 @@ export const ALLOWED_HOSTS = new Set([
   "www.github.com",
   "raw.githubusercontent.com",
   "docs.github.com",
-  "mahoraga-cloud-workspace.vercel.app",
+  "mahoraga-runtime-main-production.up.railway.app",
   "en.wikipedia.org",
   "wikipedia.org",
   "developer.mozilla.org",

@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { startRuntime } from "../src/runtime.mjs";
+import { planConversationCapabilities } from "../src/conversation-capability-planner.mjs";
 
 const TOKEN = "chat-runtime-primary-token-000000000000001";
 const AUTH = { authorization: `Bearer ${TOKEN}`, "content-type": "application/json" };
@@ -19,7 +20,15 @@ test("unified chat intake separates questions from explicit actions", { concurre
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
   const base = `http://127.0.0.1:${runtime.address.port}`;
-  await waitFor(async () => (await (await fetch(`${base}/api/status`)).json()).capabilities.some((item) => item.capability === "system.health" && item.routable === true));
+  await waitFor(async () => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    const healthReady = status.capabilities.some((item) => item.capability === "system.health" && item.routable === true);
+    const actionPlan = planConversationCapabilities({
+      content: "Update the Mahoraga interface and apply the change",
+      capabilityRoutes: status.capabilities,
+    });
+    return healthReady && actionPlan.capabilityPlan.includes("codex.execute");
+  }, 15_000);
 
   const zeroCredit = await fetch(`${base}/api/chat`, {
     method: "POST",

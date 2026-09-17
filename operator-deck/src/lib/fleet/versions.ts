@@ -2,11 +2,11 @@ export const LANGUAGE_LOCK = "TypeScript";
 export const APP_HOST = "Railway";
 export const WORKSPACE_NOTE =
   "Google Workspace is identity, mail, and docs. It is not the app host. Production browser UIs ship Railway-only; active Vercel deploy config is retired.";
-export const CLOUD_APP_URL = "https://mahoraga-cloud-workspace.vercel.app/";
+export const CLOUD_APP_URL = "https://mahoraga-runtime-main-production.up.railway.app/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
-export const PRODUCTION_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
+export const ROLLBACK_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
 export const CANDIDATE_VERSION = "7.0.0-alpha.2";
-export const PRODUCTION_VERSION = "3.6.0";
+export const ROLLBACK_VERSION = "3.6.0";
 export const DECK_VERSION = "fleet-1";
 
 export const REQUIRED_VERIFY_CONTEXTS = [
@@ -14,9 +14,7 @@ export const REQUIRED_VERIFY_CONTEXTS = [
   "Verify (windows-latest)",
 ] as const;
 
-export const OPTIONAL_VERIFY_CONTEXTS = [
-  "Verify unified Vercel workspace",
-] as const;
+export const OPTIONAL_VERIFY_CONTEXTS = [] as const;
 
 export type SurfaceId = "windows-rollback" | "conversation" | "operator-deck";
 
@@ -34,12 +32,12 @@ export type VersionSurface = {
 export const VERSION_SURFACES: VersionSurface[] = [
   {
     id: "windows-rollback",
-    label: "Windows production",
-    version: PRODUCTION_VERSION,
-    role: "Live rollback runtime. Loopback control API only.",
+    label: "Windows rollback predecessor",
+    version: ROLLBACK_VERSION,
+    role: "Protected rollback predecessor. Current live runtime requires fresh host evidence.",
     host: "Loopback on the Windows host — this console cannot reach it",
     language: "Existing Node.js control plane. Do not rewrite to Java.",
-    status: "Do not replace with 7.0. Activation from this deck is a hard deny.",
+    status: "Do not infer active Windows production from this ledger. Activation from this deck is a hard deny.",
   },
   {
     id: "conversation",
