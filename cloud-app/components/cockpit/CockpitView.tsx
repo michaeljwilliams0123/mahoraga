@@ -78,7 +78,7 @@ export function CockpitView({
           <ShieldCheck size={18} />
           <div>
             <strong>The interface is online and ready to pair.</strong>
-            <p>GitHub Pages serves the static workspace; execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
+            <p>Railway hosts the 7.0.0-alpha.2 conversation workspace; execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
           </div>
         </div>
       )}
