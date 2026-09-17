@@ -3,12 +3,13 @@ import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { routeTask } from "./router.mjs";
+import { capabilityIndex, routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { capabilityClass, deriveCapabilityReadiness } from "./capability-readiness.mjs";
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
+import { zeroCreditProviderEvidenceFromEnv } from "./native-cloud-model.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 const READINESS_RENEWAL_LEAD_MS = 60 * 1000;
@@ -223,7 +224,7 @@ export class Supervisor extends EventEmitter {
       if (task?.conversationId) {
         const evaluation = evaluateAnswerQuality({ task, result: message.result ?? {} });
         const alternate = task.attemptCount < task.maximumAttempts
-          ? routeTask(this.manifest, { ...task, excludedWorkerIds: [...task.excludedWorkerIds, state.definition.id] }, { workerStates: this.status() })
+          ? routeTask(this.manifest, { ...task, excludedWorkerIds: [...task.excludedWorkerIds, state.definition.id] }, this.#routingContext(task))
           : { status: "waiting" };
         const decision = evaluation.accepted
           ? "accepted"
@@ -394,7 +395,7 @@ export class Supervisor extends EventEmitter {
       if (!state.ready || state.busy) continue;
       const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
       if (!task) continue;
-      const route = routeTask(this.manifest, task, { workerStates: this.status() });
+      const route = routeTask(this.manifest, task, this.#routingContext(task));
       this.database.recordTaskAuthorityDecision(task.id, route.authorityDecision);
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
@@ -424,8 +425,27 @@ export class Supervisor extends EventEmitter {
       const workerTask = task.capability.startsWith("cognitive.")
         ? { ...envelope, expectedSourceCommit: this.expectedSourceCommit }
         : envelope;
-      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask });
+      const admission = task.requestedMode === "zero-credit" ? {
+        authorityDecision: route.authorityDecision,
+        providerDecision: route.providerDecision ?? null,
+        billingDecision: route.billingDecision,
+      } : null;
+      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask, ...(admission ? { admission } : {}) });
     }
+  }
+
+  #routingContext(task) {
+    const workerStates = this.status();
+    if (task?.requestedMode !== "zero-credit" || task?.capability !== "assistant.respond") return { workerStates };
+    const registry = capabilityIndex(this.manifest, workerStates);
+    const providers = [];
+    for (const providerId of ["codespaces-open-weight", "local-open-weight"]) {
+      const route = registry.find((item) => item.workerId === providerId && item.capability === "assistant.respond");
+      if (route?.routable !== true) continue;
+      const evidence = zeroCreditProviderEvidenceFromEnv({ providerId });
+      if (evidence.ok) providers.push(evidence.value);
+    }
+    return { workerStates, providerPolicy: "zero-credit", providers, cloudModeEnabled: true, requiresGeneration: true };
   }
 
   #refreshStaleReadiness(state, now) {
@@ -533,7 +553,7 @@ export class Supervisor extends EventEmitter {
   }
 
   #canSchedule(task) {
-    const route = routeTask(this.manifest, { ...task, excludedWorkerIds: [] }, { workerStates: this.status() });
+    const route = routeTask(this.manifest, { ...task, excludedWorkerIds: [] }, this.#routingContext(task));
     if (route.status !== "routable") return false;
     const state = this.workers.get(route.worker.id);
     const heartbeatAge = state?.lastHeartbeatAt ? Date.now() - Date.parse(state.lastHeartbeatAt) : Number.POSITIVE_INFINITY;
