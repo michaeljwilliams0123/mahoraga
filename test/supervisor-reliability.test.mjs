@@ -624,3 +624,26 @@ test("zero-credit answer scheduler preserves verified provider admission", async
   assert.equal(delivery.admission?.billingDecision?.eligible, true);
   assert.equal(delivery.admission?.authorityDecision?.decision, "allow");
 });
+test("graceful supervisor stop waits for the worker process to close", async () => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  supervisor.start();
+
+  let stopped = false;
+  const stopping = Promise.resolve(supervisor.stop({ waitForWorkers: true })).then(() => { stopped = true; });
+  await Promise.resolve();
+  assert.equal(stopped, false, "stop must remain pending until the worker closes");
+  assert.deepEqual(child.sent.at(-1), { type: "shutdown" });
+
+  child.exitCode = 0;
+  child.emit("exit", 0, null);
+  child.emit("close", 0, null);
+  await stopping;
+  assert.equal(stopped, true);
+  cleanup();
+});
