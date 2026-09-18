@@ -1,9 +1,9 @@
 # Mahoraga Polyglot Migration Ledger
 
 **Tranche:** 1 — TypeScript foundation and assistant-answer vertical slice  
-**Branch:** `feature/polyglot-runtime-architecture`  
-**Source base:** `0a863a14e2f7f3ea784ef794d7b2d1546ea1970c`  
-**Status:** implementation branch; not yet merged or deployed
+**Branch:** `feature/polyglot-runtime-architecture` (merged)  
+**Source base:** `a5261cb` via PR `#586`; current protected `main` moved on through the 2026-09-18 squash stack  
+**Status:** merged to protected `main`; live Railway promotion is a separate evidence domain
 
 ## Completed in tranche 1
 
@@ -44,7 +44,7 @@ No ordinary JavaScript exception is approved in tranche 1. `javascriptExceptions
 
 ## Verification evidence before integration
 
-Focused evidence collected during implementation:
+Focused evidence collected during implementation (historical; SHA `0a863a14` was the then-current `main`, not the 2026-09-18 head):
 
 - Root native-TypeScript contract: PASS.
 - Language policy: PASS with zero violations.

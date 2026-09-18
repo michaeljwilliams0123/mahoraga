@@ -70,6 +70,8 @@ test("health route publishes active deployment identity without retired Vercel f
     assert.match(health, new RegExp(portable));
   }
   assert.match(health, /provider:/);
+  assert.match(health, /force-dynamic/);
+  assert.doesNotMatch(health, /force-static/);
   assert.doesNotMatch(health, /VERCEL_/);
   assert.doesNotMatch(health, /process\.env\.VERCEL/);
 });
