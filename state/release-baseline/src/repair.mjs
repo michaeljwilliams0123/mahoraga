@@ -28,6 +28,7 @@ export const ESSENTIAL_FILES = [
   "scripts/railway-exact-sha-promotion.mjs",
   "src/cli.mjs",
   "src/answer-quality.ts",
+  "src/assistant-result.ts",
   "src/control-session.mjs",
   "src/task-policy.mjs",
   "src/receipt-registry.mjs",
