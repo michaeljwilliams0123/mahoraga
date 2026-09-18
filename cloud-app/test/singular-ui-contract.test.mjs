@@ -74,13 +74,21 @@ test("health route publishes active deployment identity without retired Vercel f
   assert.doesNotMatch(health, /process\.env\.VERCEL/);
 });
 
-test("Vercel deployment entrypoints stay retired", async () => {
+test("Vercel deployment entrypoints stay retired and silent", async () => {
   const [rootConfigSource, appConfigSource] = await Promise.all([
     read("../vercel.json"),
     read("vercel.json"),
   ]);
   assert.equal(rootConfigSource, "");
-  assert.equal(appConfigSource, "");
+  assert.notEqual(appConfigSource, "");
+
+  const config = JSON.parse(appConfigSource);
+  assert.equal(config.git?.deploymentEnabled, false);
+  assert.equal(config.github?.silent, true);
+  assert.equal(config.framework, undefined);
+  assert.equal(config.buildCommand, undefined);
+  assert.equal(config.installCommand, undefined);
+  assert.equal(config.outputDirectory, undefined);
 });
 
 test("repository declares one canonical workspace source without reviving legacy deployments", async () => {
