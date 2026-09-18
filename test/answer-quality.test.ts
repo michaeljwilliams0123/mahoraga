@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateAnswerQuality, unresolvedAnswerSummary } from "../src/answer-quality.mjs";
+import { evaluateAnswerQuality, unresolvedAnswerSummary } from "../src/answer-quality.ts";
 
 const task = Object.freeze({
   capability: "assistant.respond",

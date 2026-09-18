@@ -1,12 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 const tsconfig = JSON.parse(readFileSync(path.join(root, "tsconfig.json"), "utf8"));
+
+function filesUnder(relative: string): string[] {
+  const absolute = path.join(root, relative);
+  if (!existsSync(absolute)) return [];
+  return readdirSync(absolute, { withFileTypes: true }).flatMap((entry) => {
+    const child = path.join(relative, entry.name);
+    return entry.isDirectory() ? filesUnder(child) : [child];
+  });
+}
 
 test("root control plane has a strict native-TypeScript contract", () => {
   assert.equal(pkg.scripts.typecheck, "tsc --noEmit");
@@ -21,4 +30,20 @@ test("root control plane has a strict native-TypeScript contract", () => {
   assert.equal(tsconfig.compilerOptions.noUncheckedIndexedAccess, true);
   assert.equal(tsconfig.compilerOptions.exactOptionalPropertyTypes, true);
   assert.ok(pkg.scripts.verify.startsWith("npm run typecheck &&"));
+});
+
+test("answer quality is migrated to native TypeScript with no stale imports", () => {
+  assert.equal(existsSync(path.join(root, "src/answer-quality.ts")), true);
+  assert.equal(existsSync(path.join(root, "src/answer-quality.mjs")), false);
+  assert.equal(existsSync(path.join(root, "state/release-baseline/src/answer-quality.ts")), true);
+  assert.equal(existsSync(path.join(root, "state/release-baseline/src/answer-quality.mjs")), false);
+
+  const staleImports = ["src", "test", "scripts"]
+    .flatMap(filesUnder)
+    .filter((file) => /\.(?:mjs|js|ts)$/.test(file))
+    .filter((file) => {
+      const source = readFileSync(path.join(root, file), "utf8");
+      return /(?:from\s+["'][^"']*answer-quality\.mjs["']|import\(["'][^"']*answer-quality\.mjs["']\))/.test(source);
+    });
+  assert.deepEqual(staleImports, []);
 });

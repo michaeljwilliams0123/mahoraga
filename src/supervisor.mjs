@@ -4,7 +4,7 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilityIndex, routeTask } from "./router.mjs";
-import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
+import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.ts";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { capabilityClass, deriveCapabilityReadiness } from "./capability-readiness.mjs";

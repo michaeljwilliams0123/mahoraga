@@ -2,6 +2,44 @@ import { createHash } from "node:crypto";
 
 export const ANSWER_EVALUATOR_VERSION = "1.0.0";
 
+export type AnswerQualityTask = Readonly<{
+  [key: string]: unknown;
+  capability?: unknown;
+  requestedOutcome?: unknown;
+  completionCriteria?: unknown;
+}>;
+
+export type AnswerQualityResult = Readonly<{
+  [key: string]: unknown;
+  verified?: unknown;
+  answer?: unknown;
+  summary?: unknown;
+  completionEvidence?: unknown;
+}>;
+
+type CompletionEvidence = Readonly<{
+  criteriaSatisfied: boolean | null;
+  evidenceCount: number;
+  unresolved: boolean;
+}>;
+
+export type AnswerQualityEvaluation = Readonly<{
+  accepted: boolean;
+  reasons: readonly string[];
+  evidence: Readonly<{
+    summarySha256: string;
+    criteriaSha256: string;
+    summaryWordCount: number;
+    criterionTokenCount: number;
+    matchedCriterionCount: number;
+    providerVerified: boolean;
+    declaredEvidenceCount: number;
+    acknowledgementDetected: boolean;
+    vagueDetected: boolean;
+    contradictionDetected: boolean;
+  }>;
+}>;
+
 const ACKNOWLEDGEMENT = /\b(?:i (?:have )?(?:saved|recorded|received|accepted)|i(?:'ll| will) (?:keep|continue|work on|look into)|assignment (?:accepted|saved|queued)|request (?:accepted|received)|execution is pending|will keep the context)\b/i;
 const VAGUE = /^(?:done|completed|complete|handled|fixed|looks good|all good|ok(?:ay)?|success(?:ful)?|not[- ]?found|unknown|unavailable)[.!]?$/i;
 const UNCERTAINTY = /\b(?:unable|unavailable|unknown|unverified|not[- ]found|not[- ]implemented|not[- ]completed|failed|cannot|can't|do not know|don't know|error)\b/i;
@@ -14,7 +52,9 @@ const STOP_WORDS = new Set([
   "what", "when", "where", "which", "while", "will", "with", "would", "your",
 ]);
 
-export function evaluateAnswerQuality({ task, result }) {
+export function evaluateAnswerQuality(
+  { task, result }: { task: AnswerQualityTask; result: AnswerQualityResult },
+): AnswerQualityEvaluation {
   if (!task || typeof task !== "object") throw new TypeError("answer-quality-task-required");
   if (!result || typeof result !== "object") throw new TypeError("answer-quality-result-required");
   const summary = normalize(result.answer ?? result.summary);
@@ -31,7 +71,7 @@ export function evaluateAnswerQuality({ task, result }) {
   const vagueDetected = summary.length === 0 || VAGUE.test(summary);
   const contradictionDetected = UNCERTAINTY.test(summary.replace(RESOLVED_NEGATIVE, "")) && !RESOLUTION.test(summary);
   const strongResponseRequired = task.capability === "assistant.respond" || criteria !== "worker-verified";
-  const reasons = [];
+  const reasons: string[] = [];
 
   if (!summary) reasons.push("missing-summary");
   if (!providerVerified) reasons.push("provider-verification-failed");
@@ -64,29 +104,45 @@ export function evaluateAnswerQuality({ task, result }) {
   });
 }
 
-export function unresolvedAnswerSummary(evaluation, attemptCount) {
-  if (!evaluation || evaluation.accepted !== false || !Array.isArray(evaluation.reasons) || evaluation.reasons.length < 1) {
+export function unresolvedAnswerSummary(evaluation: unknown, attemptCount: number): string {
+  if (!evaluation || typeof evaluation !== "object" || Array.isArray(evaluation)) {
+    throw new TypeError("answer-quality-unresolved-evaluation-required");
+  }
+  const record = evaluation as Record<string, unknown>;
+  if (record.accepted !== false || !Array.isArray(record.reasons) || record.reasons.length < 1) {
     throw new TypeError("answer-quality-unresolved-evaluation-required");
   }
   if (!Number.isInteger(attemptCount) || attemptCount < 1 || attemptCount > 20) throw new TypeError("answer-quality-attempt-invalid");
-  const checks = evaluation.reasons.map((reason) => reason.replaceAll("-", " ")).join(", ");
+  const reasons = record.reasons as string[];
+  const checks = reasons.map((reason) => reason.replaceAll("-", " ")).join(", ");
   return `Mahoraga could not verify a complete response after ${attemptCount} bounded attempt${attemptCount === 1 ? "" : "s"}. Unresolved checks: ${checks}. No claim of completion was recorded.`;
 }
 
-function completionEvidence(value) {
+function completionEvidence(value: unknown): CompletionEvidence {
   if (value === undefined || value === null) return Object.freeze({ criteriaSatisfied: null, evidenceCount: 0, unresolved: false });
   if (typeof value !== "object" || Array.isArray(value)) throw new TypeError("answer-quality-completion-evidence-invalid");
+  const record = value as Record<string, unknown>;
   const allowed = new Set(["criteriaSatisfied", "evidenceCount", "unresolved"]);
-  for (const key of Object.keys(value)) if (!allowed.has(key)) throw new TypeError("answer-quality-completion-evidence-field-invalid");
-  if (value.criteriaSatisfied !== true && value.criteriaSatisfied !== false) throw new TypeError("answer-quality-criteria-state-invalid");
-  if (!Number.isInteger(value.evidenceCount) || value.evidenceCount < 0 || value.evidenceCount > 1000) throw new TypeError("answer-quality-evidence-count-invalid");
-  if (typeof value.unresolved !== "boolean") throw new TypeError("answer-quality-unresolved-state-invalid");
-  return Object.freeze({ criteriaSatisfied: value.criteriaSatisfied, evidenceCount: value.evidenceCount, unresolved: value.unresolved });
+  for (const key of Object.keys(record)) if (!allowed.has(key)) throw new TypeError("answer-quality-completion-evidence-field-invalid");
+  if (record.criteriaSatisfied !== true && record.criteriaSatisfied !== false) throw new TypeError("answer-quality-criteria-state-invalid");
+  if (!Number.isInteger(record.evidenceCount) || (record.evidenceCount as number) < 0 || (record.evidenceCount as number) > 1000) throw new TypeError("answer-quality-evidence-count-invalid");
+  if (typeof record.unresolved !== "boolean") throw new TypeError("answer-quality-unresolved-state-invalid");
+  return Object.freeze({
+    criteriaSatisfied: record.criteriaSatisfied,
+    evidenceCount: record.evidenceCount as number,
+    unresolved: record.unresolved,
+  });
 }
 
-function tokens(value) {
+function tokens(value: unknown): string[] {
   return [...new Set(String(value).toLowerCase().match(/[a-z0-9]+/g) ?? [])]
     .filter((token) => (token.length >= 3 || /^\d+$/.test(token)) && !STOP_WORDS.has(token));
 }
-function normalize(value) { return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 4000) : ""; }
-function digest(value) { return createHash("sha256").update(value, "utf8").digest("hex"); }
+
+function normalize(value: unknown): string {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 4000) : "";
+}
+
+function digest(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
