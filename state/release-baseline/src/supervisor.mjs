@@ -14,6 +14,8 @@ import { zeroCreditProviderEvidenceFromEnv } from "./native-cloud-model.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 const READINESS_RENEWAL_LEAD_MS = 60 * 1000;
+const WORKER_SHUTDOWN_GRACE_MS = 5000;
+const WORKER_SHUTDOWN_HARD_MS = 10000;
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
@@ -45,19 +47,25 @@ export class Supervisor extends EventEmitter {
     this.timer.unref();
   }
 
-  stop() {
+  stop({ waitForWorkers = false } = {}) {
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.startedAt = null;
-    for (const state of this.workers.values()) {
+    const states = [...this.workers.values()];
+    const workerClosures = waitForWorkers ? states.map((state) => waitForWorkerClose(state)) : null;
+    for (const state of states) {
       const observedAt = new Date().toISOString();
       this.#setProcessReadiness(state, "stopped", observedAt);
       this.database.setWorkerState({ workerId: state.definition.id, status: "stopped", pid: null, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
       if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-stopping");
       state.process?.send?.({ type: "shutdown" });
     }
-    this.workers.clear();
+    if (!waitForWorkers) {
+      this.workers.clear();
+      return undefined;
+    }
+    return Promise.all(workerClosures).then(() => { this.workers.clear(); });
   }
 
   status() {
@@ -581,6 +589,30 @@ export class Supervisor extends EventEmitter {
 function secondaryAssignmentId(task, prefix) {
   const match = String(task?.idempotencyKey ?? "").match(new RegExp(`^${prefix}:(sec-[a-f0-9-]+):`));
   return match?.[1] ?? null;
+}
+
+function waitForWorkerClose(state) {
+  const child = state?.process;
+  if (!child || state.terminated || child.exitCode !== null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(graceTimer);
+      clearTimeout(hardTimer);
+      child.off?.("close", onClose);
+      if (error) reject(error); else resolve();
+    };
+    const onClose = () => finish();
+    child.once?.("close", onClose);
+    const graceTimer = setTimeout(() => {
+      try { child.kill?.(); } catch {}
+    }, WORKER_SHUTDOWN_GRACE_MS);
+    const hardTimer = setTimeout(() => finish(new Error(`worker-shutdown-timeout:${state.definition.id}`)), WORKER_SHUTDOWN_HARD_MS);
+    graceTimer.unref?.();
+    hardTimer.unref?.();
+  });
 }
 
 export function normalizeSummary(value) {
