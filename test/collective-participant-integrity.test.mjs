@@ -20,18 +20,16 @@ const base = {
   plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
 };
 
+const position = (individualId, evidenceRef) => ({ individualId, conclusion: 'repair', confidence: 0.8, evidenceRefs: [evidenceRef], assumptions: [], unknowns: [], dissentTags: [] });
+
 test('rejects positions from identities outside the selected collective', () => {
-  assert.throws(() => runCognitiveLoop({ ...base, positions: [
-    { individualId: 'builder-agent', conclusion: 'repair', confidence: 0.8, evidenceRefs: ['ev:a'], assumptions: [], unknowns: [], dissentTags: [] },
-    { individualId: 'research-agent', conclusion: 'repair', confidence: 0.78, evidenceRefs: ['ev:b'], assumptions: [], unknowns: [], dissentTags: [] },
-    { individualId: 'skeptic-agent', conclusion: 'repair', confidence: 0.75, evidenceRefs: ['ev:c'], assumptions: [], unknowns: [], dissentTags: [] },
-    { individualId: 'shadow-agent', conclusion: 'approve', confidence: 1, evidenceRefs: ['ev:shadow'], assumptions: [], unknowns: [], dissentTags: [] },
-  ] }), { code: 'collective-participant-integrity-invalid' });
+  assert.throws(() => runCognitiveLoop({ ...base, positions: [position('builder-agent', 'ev:a'), position('research-agent', 'ev:b'), position('skeptic-agent', 'ev:c'), position('shadow-agent', 'ev:shadow')] }), { code: 'collective-participant-integrity-invalid' });
 });
 
 test('requires every selected individual to contribute exactly one position', () => {
-  assert.throws(() => runCognitiveLoop({ ...base, positions: [
-    { individualId: 'builder-agent', conclusion: 'repair', confidence: 0.8, evidenceRefs: ['ev:a'], assumptions: [], unknowns: [], dissentTags: [] },
-    { individualId: 'research-agent', conclusion: 'repair', confidence: 0.78, evidenceRefs: ['ev:b'], assumptions: [], unknowns: [], dissentTags: [] },
-  ] }), { code: 'collective-participant-integrity-invalid' });
+  assert.throws(() => runCognitiveLoop({ ...base, positions: [position('builder-agent', 'ev:a'), position('research-agent', 'ev:b')] }), { code: 'collective-participant-integrity-invalid' });
+});
+
+test('rejects duplicate positions from a selected individual', () => {
+  assert.throws(() => runCognitiveLoop({ ...base, positions: [position('builder-agent', 'ev:a'), position('builder-agent', 'ev:duplicate'), position('research-agent', 'ev:b'), position('skeptic-agent', 'ev:c')] }), { code: 'collective-participant-integrity-invalid' });
 });
