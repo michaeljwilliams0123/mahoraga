@@ -39,9 +39,11 @@ export function CockpitView({
   const promotionMode = health?.deployment?.promotion ?? "unverified";
   const deploymentUrl = health?.deployment?.url ?? "unavailable";
   const railwayExactSha = deploymentProvider === "railway" || promotionMode === "exact-sha-railway";
-  const deploymentDetail = deploymentProvider === "vercel"
-    ? `non-authoritative preview · ${deploymentEnvironment}`
-    : `${deploymentProvider} · ${deploymentEnvironment}`;
+  const deploymentDetail = railwayExactSha
+    ? `Railway production · pin after merge · ${deploymentEnvironment}`
+    : deploymentProvider === "vercel"
+      ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
+      : `${deploymentProvider} · ${deploymentEnvironment}`;
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
   const runtimeDatabase = health?.runtime?.databaseTarget?.basename ?? "paired core required";
@@ -59,7 +61,7 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>One cockpit for deployment identity, verified model routes, connector readiness, and policy-gated evolution.</p>
+          <p>7.0.0-alpha.2 Railway workspace: deployment identity, exact-SHA pin, verified routes, and policy-gated evolution. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
@@ -94,13 +96,19 @@ export function CockpitView({
           label="Deployment"
           value={railwayExactSha ? "Railway exact-SHA production" : health?.ok ? "Published" : "Awaiting health"}
           detail={deploymentDetail}
-          tone={health?.ok ? "good" : "warn"}
+          tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"}
         />
         <StatusCard
           label="Source convergence"
           value={deploymentConvergence}
           detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`}
           tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"}
+        />
+        <StatusCard
+          label="Expected SHA pin"
+          value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"}
+          detail="Reconcile MAHORAGA_EXPECTED_GIT_SHA after each protected-main merge. Never derive the pin from the running SHA."
+          tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"}
         />
         <StatusCard
           label="Owner login"
@@ -135,7 +143,7 @@ export function CockpitView({
         <StatusCard
           label="Evolution lane"
           value="Verified convergence"
-          detail="Drift → verify → canary → activate"
+          detail="Stage → verify → canary → pin → converge"
           tone="good"
         />
       </div>
@@ -152,12 +160,13 @@ export function CockpitView({
           <dl className="eclipse-metrics">
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
-            <div><dt>Host provider</dt><dd>{deploymentProvider}</dd></div>
+            <div><dt>Host provider</dt><dd>{railwayExactSha ? "railway (authoritative production)" : deploymentProvider}</dd></div>
             <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
             <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
             <div><dt>Source convergence</dt><dd>{deploymentConvergence}</dd></div>
+            <div><dt>Pin policy</dt><dd>independent Railway pin after each protected-main merge</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
@@ -181,7 +190,8 @@ export function CockpitView({
             <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
             <li><span>2</span><div><strong>Verify</strong><small>Exact-head CI plus rollback checkpoint</small></div></li>
             <li><span>3</span><div><strong>Canary</strong><small>Prove candidate and runtime readiness</small></div></li>
-            <li><span>4</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
+            <li><span>4</span><div><strong>Pin</strong><small>Reconcile Railway expected SHA independently of the running process</small></div></li>
+            <li><span>5</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
           </ol>
         </section>
       </div>

@@ -133,10 +133,13 @@ describe("singular control center contract", () => {
   it("describes the live evolution lane as verified canary-backed convergence", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     assert.match(cockpit, /Verified convergence/);
-    assert.match(cockpit, /Drift → verify → canary → activate/);
+    assert.match(cockpit, /Stage → verify → canary → pin → converge/);
     assert.match(cockpit, /Verified convergence path/);
+    assert.match(cockpit, /Expected SHA pin/);
+    assert.match(cockpit, /MAHORAGA_EXPECTED_GIT_SHA/);
     assert.match(cockpit, /Exact-head CI plus rollback checkpoint/);
     assert.match(cockpit, /Prove candidate and runtime readiness/);
+    assert.match(cockpit, /Reconcile Railway expected SHA independently of the running process/);
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });
