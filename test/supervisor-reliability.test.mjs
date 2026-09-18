@@ -647,3 +647,25 @@ test("graceful supervisor stop waits for the worker process to close", async () 
   assert.equal(stopped, true);
   cleanup();
 });
+
+
+test("graceful supervisor stop accepts process exit without waiting for delayed stdio close", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+
+  const stopping = Promise.resolve(supervisor.stop({ waitForWorkers: true }));
+  child.exitCode = 0;
+  child.emit("exit", 0, null);
+  const resolved = await Promise.race([
+    stopping.then(() => true),
+    new Promise((resolve) => setImmediate(() => resolve(false))),
+  ]);
+  assert.equal(resolved, true, "process exit must satisfy the teardown barrier even if stdio close is delayed");
+});
