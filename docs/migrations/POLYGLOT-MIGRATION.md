@@ -56,7 +56,7 @@ Focused evidence collected during implementation:
 - Refreshed `origin/main`: exact `0a863a14e2f7f3ea784ef794d7b2d1546ea1970c`.
 - Branch divergence before full verification: 0 behind main.
 
-Full local verification is now complete: root `npm run verify` executed 1,360 tests with 1,357 passed, 0 failed, and 3 skipped; `npm --prefix cloud-app run verify` executed 72 tests with 72 passed and completed a successful Next.js production build. Protected exact-head CI, Railway deployment, and live chat acceptance remain required before any completion claim.
+Full local verification is now complete: root `npm run verify` executed 1,361 tests with 1,358 passed, 0 failed, and 3 skipped; `npm --prefix cloud-app run verify` executed 72 tests with 72 passed and completed a successful Next.js production build. Protected exact-head CI, Railway deployment, and live chat acceptance remain required before any completion claim.
 
 ## Next migration cluster
 

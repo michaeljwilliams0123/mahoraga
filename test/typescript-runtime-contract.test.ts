@@ -47,3 +47,13 @@ test("answer quality is migrated to native TypeScript with no stale imports", ()
     });
   assert.deepEqual(staleImports, []);
 });
+
+test("Verify installs pinned root dependencies before TypeScript execution", () => {
+  const workflow = readFileSync(path.join(root, ".github/workflows/verify.yml"), "utf8");
+  const installIndex = workflow.indexOf("- name: Install root dependencies");
+  const typecheckIndex = workflow.indexOf("- name: Typecheck control plane");
+  assert.ok(installIndex >= 0, "Verify must install root dependencies");
+  assert.ok(typecheckIndex >= 0, "Verify must retain the TypeScript gate");
+  assert.ok(installIndex < typecheckIndex, "dependency install must precede typecheck");
+  assert.match(workflow, /run: npm ci --ignore-scripts/);
+});
