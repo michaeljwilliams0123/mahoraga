@@ -65,3 +65,10 @@ test("cloud gateway workflow is owner-only, event-file parsed, and model-free", 
   assert.match(workflow, /node scripts\/codex-cloud-task\.mjs dispatch-bundle/);
   assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex exec|\$\{\{\s*secrets\./);
 });
+
+test("terminal runtime work cannot silently return the chat to idle without a rendered reply", async () => {
+  const workspace = await read("cloud-app/components/workspace.tsx");
+  assert.match(workspace, /terminalWithoutResponsePolls/);
+  assert.match(workspace, /runtime-response-missing/);
+  assert.match(workspace, /setRuntimeError\(runtimeErrorMessage\("runtime-response-missing"\)\)/);
+});
