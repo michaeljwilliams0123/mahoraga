@@ -1,0 +1,32 @@
+.owner-pin-card { padding: 14px 15px 12px; }
+.owner-pin-controls { align-items: center; }
+.owner-pin-field { position: relative; flex: 1; min-width: 0; }
+.owner-pin-field input {
+  width: 100%;
+  letter-spacing: .55em;
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  padding: 11px 12px 14px;
+}
+.owner-pin-slots {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  pointer-events: none;
+}
+.owner-pin-slots span {
+  height: 2px;
+  border-radius: 99px;
+  background: rgba(20,20,20,.14);
+}
+.owner-pin-slots span.filled { background: #171717; }
+.owner-pin-hint {
+  margin: 7px 0 0 !important;
+  color: #8a8b88 !important;
+  font-size: 8px !important;
+}
