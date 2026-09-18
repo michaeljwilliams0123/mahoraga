@@ -18,7 +18,18 @@ test("chat answers route only to dedicated answer workers and prefer zero-credit
     primaryCodexToken: PRIMARY_TOKEN,
     syncCoordinationMailbox: false,
   });
-  t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  t.after(async () => {
+    await runtime.stop();
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
+        break;
+      } catch (error) {
+        if (attempt === 4) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 50 * (attempt + 1)));
+      }
+    }
+  });
   const base = `http://127.0.0.1:${runtime.address.port}`;
   const submitted = await (await fetch(`${base}/api/tasks`, {
     method: "POST", headers: { ...AUTH, "content-type": "application/json" },
