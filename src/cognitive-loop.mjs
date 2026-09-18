@@ -12,6 +12,7 @@ export function runCognitiveLoop(input) {
     maximumParticipants: Math.min(12, input.members?.length ?? 0),
   });
   const positions = (input.positions ?? []).map(createCollectivePosition);
+  assertParticipantIntegrity(participants, positions);
   const metacognitive = assessMetacognition(input.metacognition);
   const deliberation = synthesizeCollectiveDeliberation({ positions });
   const plan = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
@@ -36,6 +37,11 @@ export function runCognitiveLoop(input) {
     storedLesson: { decision, evidenceRefs, promotable: decision !== 'hold' },
   };
   return deepFreeze({ ...core, fingerprint: digest(core) });
+}
+function assertParticipantIntegrity(participants, positions) {
+  const participantIds = participants.map((item) => item.individualId).sort();
+  const positionIds = positions.map((item) => item.individualId).sort();
+  if (positionIds.length !== participantIds.length || new Set(positionIds).size !== positionIds.length || positionIds.some((id, index) => id !== participantIds[index])) fail('collective-participant-integrity-invalid');
 }
 function publicAssessment(value) {
   return deepFreeze({ action: value.action, proceed: value.proceed, evidenceCoverage: value.evidenceCoverage, calibratedConfidence: value.calibratedConfidence, calibrationGap: value.calibrationGap, knownUnknowns: value.knownUnknowns, materialConflictCount: value.materialConflictCount, reversible: value.reversible, fingerprint: value.fingerprint });
