@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - TypeScript is the default application and control-plane language.
-- Root TypeScript uses `strict: true`, `noEmit: true`, `module: "nodenext"`, `target: "esnext"`, `erasableSyntaxOnly: true`, `verbatimModuleSyntax: true`, `noUncheckedIndexedAccess: true`, and `exactOptionalPropertyTypes: true`.
+- Root TypeScript uses `strict: true`, `noEmit: true`, `module: "nodenext"`, `target: "esnext"`, `allowImportingTsExtensions: true`, `erasableSyntaxOnly: true`, `verbatimModuleSyntax: true`, `noUncheckedIndexedAccess: true`, and `exactOptionalPropertyTypes: true`.
 - Runtime code must execute directly on Node 24 without requiring generated JavaScript.
 - Railway remains the canonical cloud runtime.
 - GitHub `main` remains source authority.
@@ -52,6 +52,7 @@ Create `test/typescript-runtime-contract.test.ts` that loads root `package.json`
 - TypeScript is pinned in root `devDependencies`;
 - all required strict compiler options match the Global Constraints;
 - `allowJs` is false;
+- `allowImportingTsExtensions` is true for direct Node-native `.ts` imports;
 - `include` covers `src/**/*.ts`, `scripts/**/*.ts`, `relay/**/*.ts`, `test/**/*.ts`, and `contracts/**/*.ts`;
 - `verify` invokes `npm run typecheck` before the full Node test suite.
 
@@ -89,6 +90,7 @@ Create `tsconfig.json`:
     "strict": true,
     "noEmit": true,
     "allowJs": false,
+    "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
     "verbatimModuleSyntax": true,
     "noUncheckedIndexedAccess": true,

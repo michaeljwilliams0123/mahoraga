@@ -16,8 +16,10 @@ Read `docs/MAHORAGA-OPERATING-DOCTRINE.md` before substantive inspection, editin
 - **There is one deployable browser UI source:** `cloud-app/`, published on GitHub Pages, containing
   Chat, Control Center, Operations, and Connections. Do not recreate
   `operator-deck/` as a second browser deployment.
-- **Control plane stays Node ESM `.mjs`** (`src/`, `scripts/`, `test/`,
-  `relay/`). Do not mass-convert those trees.
+- **TypeScript is the canonical control-plane/runtime language.** Existing
+  `.mjs`/`.js`/`.cjs` is migration debt and moves only in bounded verified
+  tranches. Specialized languages require `config/language-policy.json` and
+  versioned contract boundaries.
 - Java is not the UI language. Do not translate this repo to Java.
 - Do not delete `src/`, `cloud-app/`, `operator-deck/`, `.github/`,
   `mahoraga.manifest.json`, `state/release-baseline/`, or `AGENTS.md`.
@@ -50,7 +52,7 @@ If the request is allowed but you are unsure, stop. Do not start over.
   Chat, Control Center, Operations, and Connections
 - `operator-deck/` — non-deployable TypeScript reference/control-library helpers;
   preserve the tree but do not expose it as a second app
-- `src/*.mjs` — existing control plane
+- `src/*.ts` — target-state control plane; legacy `.mjs` remains migration debt until converted
 - `.github/workflows/sovereign-eight-hour-cycle.yml` — four-hour
   zero-credit candidate cycle; do not rename-to-delete or disable it
 

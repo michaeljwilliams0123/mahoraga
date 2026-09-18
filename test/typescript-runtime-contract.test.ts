@@ -15,6 +15,7 @@ test("root control plane has a strict native-TypeScript contract", () => {
   assert.equal(tsconfig.compilerOptions.strict, true);
   assert.equal(tsconfig.compilerOptions.noEmit, true);
   assert.equal(tsconfig.compilerOptions.allowJs, false);
+  assert.equal(tsconfig.compilerOptions.allowImportingTsExtensions, true);
   assert.equal(tsconfig.compilerOptions.erasableSyntaxOnly, true);
   assert.equal(tsconfig.compilerOptions.verbatimModuleSyntax, true);
   assert.equal(tsconfig.compilerOptions.noUncheckedIndexedAccess, true);
