@@ -36,7 +36,7 @@
 **Files:**
 - Modify: `package.json`
 - Create: `tsconfig.json`
-- Create: `test/typescript-runtime-contract.test.mjs`
+- Create: `test/typescript-runtime-contract.test.ts`
 - Modify: `.github/workflows/verify.yml`
 - Modify: `state/release-baseline/package.json` only if the canonical baseline currently mirrors root package metadata
 - Modify: `state/release-baseline/.github/workflows/verify.yml` if the workflow is governed by the release baseline
@@ -47,7 +47,7 @@
 
 - [ ] **Step 1: Write the failing runtime-contract test**
 
-Create `test/typescript-runtime-contract.test.mjs` that loads root `package.json` and `tsconfig.json`, asserting:
+Create `test/typescript-runtime-contract.test.ts` that loads root `package.json` and `tsconfig.json`, asserting:
 - a root `typecheck` script exists and runs `tsc --noEmit`;
 - TypeScript is pinned in root `devDependencies`;
 - all required strict compiler options match the Global Constraints;
@@ -71,7 +71,7 @@ test("root control plane has a strict native-TypeScript contract", () => {
 
 Run:
 ```bash
-node --test test/typescript-runtime-contract.test.mjs
+node --test test/typescript-runtime-contract.test.ts
 ```
 
 Expected: FAIL because root `tsconfig.json`, root TypeScript dependency, and `typecheck` do not yet exist.
@@ -124,7 +124,7 @@ Update `.github/workflows/verify.yml` with a distinct `npm run typecheck` step b
 Run:
 ```bash
 npm install
-node --test test/typescript-runtime-contract.test.mjs
+node --test test/typescript-runtime-contract.test.ts
 npm run typecheck
 ```
 
@@ -142,7 +142,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add package.json package-lock.json tsconfig.json test/typescript-runtime-contract.test.mjs .github/workflows/verify.yml state/release-baseline
+git add package.json package-lock.json tsconfig.json test/typescript-runtime-contract.test.ts .github/workflows/verify.yml state/release-baseline
 git commit -m "build(typescript): establish strict native control-plane toolchain"
 ```
 
@@ -359,7 +359,7 @@ git commit -m "feat(contracts): add typed polyglot worker result envelope"
 
 - [ ] **Step 1: Add a migration regression test before renaming**
 
-Extend `test/typescript-runtime-contract.test.mjs` to assert:
+Extend `test/typescript-runtime-contract.test.ts` to assert:
 - `src/answer-quality.ts` exists;
 - `src/answer-quality.mjs` does not exist;
 - release-baseline uses the same `.ts` path;
@@ -398,7 +398,7 @@ Update the exact release-baseline mirror in the same change.
 
 Run:
 ```bash
-node --test test/answer-quality.test.ts test/typescript-runtime-contract.test.mjs
+node --test test/answer-quality.test.ts test/typescript-runtime-contract.test.ts
 npm run typecheck
 node scripts/create-release-baseline.mjs --verify
 ```
@@ -408,7 +408,7 @@ Expected: PASS.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add -A src/answer-quality.* test/answer-quality.test.* test/typescript-runtime-contract.test.mjs state/release-baseline config
+git add -A src/answer-quality.* test/answer-quality.test.* test/typescript-runtime-contract.test.ts state/release-baseline config
 git commit -m "refactor(typescript): migrate answer quality without behavior change"
 ```
 

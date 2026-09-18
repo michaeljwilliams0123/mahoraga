@@ -48,6 +48,9 @@ jobs:
       - name: Verify conversation and evolution contracts
         run: npm run verify:conversation-plane
 
+      - name: Typecheck control plane
+        run: npm run typecheck
+
       - name: Verify authoritative repository
         env:
           GITHUB_TOKEN: ${{ github.token }}

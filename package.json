@@ -46,7 +46,7 @@
     "baseline:verify": "node scripts/create-release-baseline.mjs --verify",
     "test": "node --test --test-isolation=none",
     "test:alpha": "node --test --test-isolation=none",
-    "verify": "node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
+    "verify": "npm run typecheck && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
@@ -56,10 +56,15 @@
     "cloudflare:owner-gateway:deployments": "npx --yes wrangler@4.132.0 deployments list --config deploy/cloudflare-owner-gateway/wrangler.toml",
     "cloudflare:owner-gateway:secret:owner": "npx --yes wrangler@4.132.0 secret put MAHORAGA_CLOUD_OWNER_ID --config deploy/cloudflare-owner-gateway/wrangler.toml",
     "cloudflare:owner-gateway:secret:assertion": "npx --yes wrangler@4.132.0 secret put MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET --config deploy/cloudflare-owner-gateway/wrangler.toml",
-    "simulate:communication": "node scripts/communication-simulator.mjs"
+    "simulate:communication": "node scripts/communication-simulator.mjs",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",
     "@microsoft/agents-copilotstudio-client": "1.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.0",
+    "typescript": "7.0.2"
   }
 }
