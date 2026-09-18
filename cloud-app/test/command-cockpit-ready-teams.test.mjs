@@ -22,7 +22,9 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /Observational status only/);
     assert.match(cockpit, /No Graph, SendKeys, or discovery/);
     assert.match(cockpit, /No browser send action/);
-    assert.match(cockpit, /Windows production stays 3\.6\.0/);
+    assert.match(cockpit, /active Windows runtime.*observed through live core status/is);
+    assert.match(cockpit, /legacy rollback predecessor.*3\.6\.0/is);
+    assert.doesNotMatch(cockpit, /Windows production stays 3\.6\.0/);
     assert.doesNotMatch(cockpit, /onClick=\{.*sendTeams/);
   });
 

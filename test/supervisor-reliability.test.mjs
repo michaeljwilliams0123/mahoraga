@@ -553,3 +553,119 @@ test("failed communication send receipt never promotes the manual canary", async
   assert.equal(readiness.canaryStatus, "never");
   assert.equal(readiness.canaryVerifiedAt, null);
 });
+test("zero-credit answer scheduler preserves verified provider admission", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  const worker = workerDefinition({
+    id: "codespaces-open-weight", label: "Zero-Credit Cloud Answer",
+    healthProbe: "assistant.health", capabilities: ["assistant.health", "assistant.respond"],
+    capabilityCanaries: { "assistant.health": "health", "assistant.respond": "provider-derived" },
+    billingClassByCapability: { "assistant.health": "deterministic-zero", "assistant.respond": "deterministic-zero" },
+    dataClasses: ["synthetic", "personal", "local-only"], executionPlane: "cloud-open-weight",
+    costClass: "cloud-open-weight",
+    routing: {
+      interfaceType: "native-api", permissionClass: "bounded-zero-credit-model", reliability: 92,
+      requiresAttendedDesktop: false, executionType: "remote-provider", latencyMs: 750,
+      maximumWorkload: 1, fallbackWorkerIds: [],
+    },
+  });
+  const manifest = manifestFixture({
+    repair: { enabled: false, scanIntervalMs: 1000 },
+    routingPolicy: {
+      interfaceOrder: ["native-api"], availabilityOrder: ["healthy", "busy", "starting"],
+      minimumReliability: 60,
+    },
+    costModes: {
+      local: ["deterministic"], hybrid: ["deterministic", "cloud-open-weight"],
+      maximum: ["deterministic", "cloud-open-weight"],
+      "zero-credit": ["deterministic", "cloud-open-weight"],
+    },
+    workers: [worker],
+  });
+  const envKeys = {
+    MAHORAGA_ZERO_CREDIT_METERED: "false", MAHORAGA_ZERO_CREDIT_PRICE_USD: "0",
+    MAHORAGA_ZERO_CREDIT_SPEND_USD: "0", MAHORAGA_ZERO_CREDIT_BILLING_STATE: "verified-zero",
+    MAHORAGA_ZERO_CREDIT_ZERO_DOLLAR_STOP_GUARANTEED: "true",
+  };
+  const previous = Object.fromEntries(Object.keys(envKeys).map((key) => [key, process.env[key]]));
+  Object.assign(process.env, envKeys);
+  const supervisor = new Supervisor({
+    manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 10,
+  });
+  t.after(() => {
+    supervisor.stop(); cleanup();
+    for (const [key, value] of Object.entries(previous)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  supervisor.start();
+  child.emit("message", { type: "process.ready" });
+  child.emit("message", { type: "readiness.complete" });
+  const observedAt = new Date().toISOString();
+  for (const capability of ["assistant.health", "assistant.respond"]) {
+    database.setCapabilityReadiness({
+      workerId: worker.id, capability, processStatus: "live", providerStatus: "ready",
+      canaryStatus: "verified", processObservedAt: observedAt, providerObservedAt: observedAt,
+      canaryVerifiedAt: observedAt, lastErrorCode: null,
+    });
+  }
+  const submitted = database.submitTask({
+    capability: "assistant.respond", dataClass: "synthetic", requestedMode: "zero-credit",
+    requestedOutcome: "Reply with a short greeting.", idempotencyKey: "zero-credit-supervisor-admission",
+    maximumAttempts: 1,
+  });
+  await delay(80);
+  const delivery = child.sent.find((message) => message?.type === "task" && message.taskId === submitted.id);
+  assert.ok(delivery, "verified zero-credit task should be delivered to the selected worker");
+  assert.equal(delivery.admission?.providerDecision?.providerId, "codespaces-open-weight");
+  assert.equal(delivery.admission?.providerDecision?.status, "selected");
+  assert.equal(delivery.admission?.billingDecision?.required, true);
+  assert.equal(delivery.admission?.billingDecision?.eligible, true);
+  assert.equal(delivery.admission?.authorityDecision?.decision, "allow");
+});
+test("graceful supervisor stop waits for the worker process to close", async () => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  supervisor.start();
+
+  let stopped = false;
+  const stopping = Promise.resolve(supervisor.stop({ waitForWorkers: true })).then(() => { stopped = true; });
+  await Promise.resolve();
+  assert.equal(stopped, false, "stop must remain pending until the worker closes");
+  assert.deepEqual(child.sent.at(-1), { type: "shutdown" });
+
+  child.exitCode = 0;
+  child.emit("exit", 0, null);
+  child.emit("close", 0, null);
+  await stopping;
+  assert.equal(stopped, true);
+  cleanup();
+});
+
+
+test("graceful supervisor stop accepts process exit without waiting for delayed stdio close", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => child, tickIntervalMs: 1000,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+
+  const stopping = Promise.resolve(supervisor.stop({ waitForWorkers: true }));
+  child.exitCode = 0;
+  child.emit("exit", 0, null);
+  const resolved = await Promise.race([
+    stopping.then(() => true),
+    new Promise((resolve) => setImmediate(() => resolve(false))),
+  ]);
+  assert.equal(resolved, true, "process exit must satisfy the teardown barrier even if stdio close is delayed");
+});

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluateAnswerQuality, unresolvedAnswerSummary } from "../src/answer-quality.mjs";
+import { evaluateAnswerQuality, unresolvedAnswerSummary } from "../src/answer-quality.ts";
 
 const task = Object.freeze({
   capability: "assistant.respond",
@@ -74,4 +74,20 @@ test("completion evidence rejects extra content-bearing fields", () => {
     task,
     result: { verified: true, summary: "A detailed response.", completionEvidence: { criteriaSatisfied: true, evidenceCount: 1, unresolved: false, modelOutput: "private" } },
   }), /completion-evidence-field-invalid/);
+});
+
+test("brief conversational greetings accept concise verified replies", () => {
+  const evaluation = evaluateAnswerQuality({
+    task: {
+      capability: "assistant.respond",
+      requestedOutcome: "Hello",
+      completionCriteria: "substantive-response",
+    },
+    result: {
+      verified: true,
+      answer: "Hello! How can I help you today?",
+    },
+  });
+  assert.equal(evaluation.accepted, true);
+  assert.deepEqual(evaluation.reasons, []);
 });

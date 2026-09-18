@@ -55,7 +55,7 @@ export function ChatView(props: ChatViewProps) {
     relayState,
     pairingOffer,
     ownerLoginRequired,
-    ownerLoginSecret,
+    ownerLoginPin,
     ownerLoginBusy,
     starters,
     quickActions,
@@ -67,7 +67,7 @@ export function ChatView(props: ChatViewProps) {
     bottom,
     setInput,
     setPairingOffer,
-    setOwnerLoginSecret,
+    setOwnerLoginPin,
     setSidebarOpen,
     chooseStarter,
     addFiles,
@@ -153,25 +153,25 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
-            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed brain for this message</button>}
+            {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}
 
         {ownerLoginRequired && !coreReady && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter the direct-owner secret configured for this Railway workspace. It is exchanged only for a secure session cookie.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. The PIN is verified server-side and exchanged only for a secure session cookie.</p></div></div>
             <div className="connect-controls">
-              <input type="password" value={ownerLoginSecret} onChange={(event) => setOwnerLoginSecret(event.target.value)} placeholder="Owner sign-in secret" aria-label="Owner sign-in secret" autoComplete="current-password" />
-              <button type="button" onClick={() => void onOwnerLogin()} disabled={!ownerLoginSecret.trim() || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
+              <input type="password" inputMode="numeric" pattern="[0-9]*" maxLength={4} value={ownerLoginPin} onChange={(event) => setOwnerLoginPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="4-digit PIN" aria-label="Owner PIN" autoComplete="off" />
+              <button type="button" onClick={() => void onOwnerLogin()} disabled={!/^\d{4}$/.test(ownerLoginPin) || ownerLoginBusy}>{ownerLoginBusy ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Sign in</button>
             </div>
           </div>
         )}
 
         {!coreReady && relayState !== "resuming" && !ownerLoginRequired && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Connect the Mahoraga brain</strong><p>The published interface is healthy. Pair an approved cloud or owner runtime when you want it to execute work.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Mahoraga uses the authenticated cloud session first. Relay pairing is reserved for recovery when that path cannot be used.</p></div></div>
             <details>
-              <summary>Connect securely <ChevronDown size={15} /></summary>
+              <summary>Recovery connection <ChevronDown size={15} /></summary>
               <div className="connect-controls">
                 <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
                 <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
@@ -196,7 +196,7 @@ export function ChatView(props: ChatViewProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
             }}
-            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Pair an approved runtime to execute work…"}
+            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Sign in or restore the cloud connection to execute work…"}
             aria-label="Message Mahoraga"
           />
           <div className="composer-actions">

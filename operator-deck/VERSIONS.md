@@ -4,7 +4,7 @@ Mahoraga is three surfaces. Use the **operator console** for GitHub work so you 
 
 | Surface | Version | Host | Language | What it is |
 |---|---|---|---|---|
-| Windows production | `3.6.0` | Loopback `127.0.0.1:4782` on the Windows host | Existing Node.js control plane | Live rollback. Never replace with 7.0 from a cloud UI. SHA `397acebf16766f44e3b4317f9d8b68b10de5f821`. |
+| Windows rollback predecessor | `3.6.0` | Loopback `127.0.0.1:4782` when restored on a Windows host | Existing Node.js control plane | Protected rollback predecessor, not proof of the active Windows runtime. SHA `397acebf16766f44e3b4317f9d8b68b10de5f821`. |
 | Conversation workspace | `7.0.0-alpha.2` | Railway-only production (`cloud-app/`). No active `vercel.json` deploy config. Historical Vercel docs retained. | TypeScript (Next.js `cloud-app/`) | ChatGPT-style workspace. Not the Windows PID. After steward #263, signed-browser is live; local-reasoner and microsoft-durable-queue remain holds. L7 in-memory mesh experiment isolated under `experiments/level7-inmemory-mesh/` (PR #177). |
 | Operator console | `fleet-1` | Non-deployable TypeScript reference/control library (`operator-deck/`); operator capabilities live in `cloud-app/`. | TypeScript (TanStack Start) | Reference/control helpers for the unified operator surface; no separate deployed UI. |
 
@@ -19,4 +19,4 @@ TypeScript for all new UI. Do not rewrite TypeScript to JavaScript or Java. Do n
 
 ## Write plane
 
-Owner GitHub writes run from the operator console through the connected `gh` session. Merge refuses unless `mergeStateStatus` is `CLEAN` (Protect main: exact-head Verify on Ubuntu and Windows). Unified workspace Verify may run and must not gate merge. Wave A deletes preview first and skip anything `ahead_by != 0`, anything with an open PR, and `main`. Destiny spend and Windows 7.0 activate remain hard denies.
+Owner GitHub writes run from the operator console through the connected `gh` session. Merge refuses unless `mergeStateStatus` is `CLEAN` (Protect main: exact-head Verify on Ubuntu and Windows). Retired Vercel statuses are non-authoritative and must not gate merge. Wave A deletes preview first and skip anything `ahead_by != 0`, anything with an open PR, and `main`. Destiny spend and Windows 7.0 activate remain hard denies.

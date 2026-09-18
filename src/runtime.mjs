@@ -124,7 +124,7 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     uccp?.plane.stop();
     clearInterval(provenanceRefreshTimer);
     clearInterval(vaultCleanupTimer);
-    supervisor.stop();
+    await supervisor.stop({ waitForWorkers: true });
     await new Promise((resolve) => server.close(resolve));
     database.close();
     uccp?.stateStore.close();

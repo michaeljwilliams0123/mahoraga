@@ -32,6 +32,7 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /deployment\?\.expectedCommitSha/);
   assert.match(cockpit, /Source convergence/);
   assert.match(cockpit, /Railway exact-SHA production/);
+  assert.match(cockpit, /Railway hosts the 7\.0\.0-alpha\.2 conversation workspace/);
   assert.match(cockpit, /Expected SHA/);
   assert.match(cockpit, /Promotion mode/);
   assert.match(cockpit, /Deployment URL/);
@@ -40,6 +41,9 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /runtimeCapabilities/);
   assert.match(cockpit, /automaticPaidFallback/);
   assert.doesNotMatch(cockpit, /127\.0\.0\.1:11434|api\.github\.com/);
+  assert.doesNotMatch(cockpit, /GitHub Pages serves the static workspace/);
+  assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
+  assert.doesNotMatch(cockpit, /unified Vercel workspace/);
 });
 
 test("connections surface reports relay capabilities without gaining direct authority", async () => {
@@ -110,7 +114,7 @@ test("connecting hides technical pairing controls and licensed fallback stays ow
     read("components/workspace/chat-view.tsx"),
   ]);
   assert.match(chat, /relayState !== "resuming"/);
-  assert.match(chat, /Use licensed brain for this message/);
+  assert.match(chat, /Use licensed ChatGPT\/Codex for this message/);
   assert.match(workspace, /retryLicensed/);
   assert.match(workspace, /setLicensedRetry\(null\)/);
   assert.match(workspace, /submitCore\(saved\.text, saved\.mode, null, "licensed-approved"\)/);

@@ -44,13 +44,15 @@ test("pull requests require deterministic evidence and public-repository privacy
 
 test("security baseline attests live exact-head main protection", async () => {
   const baseline = await source("docs/GITHUB-SECURITY-BASELINE.md");
-  assert.match(baseline, /does not change repository visibility/);
+  assert.match(baseline, /does\s+not\s+change\s+repository\s+visibility/);
   assert.match(baseline, /Secret scanning, push protection, Dependabot alerts/i);
-  assert.match(baseline, /private-repository plan reports rulesets as unavailable/);
-  assert.match(baseline, /operational merge requirement/);
+  assert.match(baseline, /Ruleset `22502690` \(`Protect main - exact-head Verify`\) is active with no\s+bypass actors/);
+  assert.match(baseline, /requires strict, exact-head success for exactly these contexts/);
+  assert.match(baseline, /Verify \(ubuntu-latest\)/);
+  assert.match(baseline, /Verify \(windows-latest\)/);
+  assert.match(baseline, /No actor may bypass, synthesize, or substitute these checks/);
   assert.match(baseline, /github-live-protection\.mjs/);
   assert.match(baseline, /incumbent-trust-epoch\.json/);
   assert.doesNotMatch(baseline, /does not require pull requests or status checks/);
   assert.doesNotMatch(baseline, /Chromebook control workflow still fast-forwards/);
-  assert.doesNotMatch(baseline, /Ruleset `22502690`/);
 });

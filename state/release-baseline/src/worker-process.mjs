@@ -33,6 +33,7 @@ import {
   probeZeroCreditAnswerModel,
   zeroCreditProviderEvidenceFromEnv,
 } from "./native-cloud-model.mjs";
+import { normalizeAssistantCompletion } from "./assistant-result.ts";
 import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
 
 const workerId = process.argv[2];
@@ -57,8 +58,15 @@ process.on("message", async (message) => {
   try {
     const startedAt = Date.now();
     const result = await execute(message.capability, message.task, message.admission);
-    const receipt = createCapabilityReceipt(message.capability, result, { durationMs: Date.now() - startedAt });
-    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...result, receipt } });
+    const assistantCompletion = message.capability === "assistant.respond" && result?.verified === true
+      ? normalizeAssistantCompletion(result)
+      : null;
+    if (message.capability === "assistant.respond" && result?.verified === true && !assistantCompletion) {
+      throw new Error("assistant-answer-invalid");
+    }
+    const completedResult = assistantCompletion ? { ...result, answer: assistantCompletion.answer } : result;
+    const receipt = createCapabilityReceipt(message.capability, completedResult, { durationMs: Date.now() - startedAt });
+    process.send?.({ type: "task.completed", workerId, taskId: message.taskId, result: { ...completedResult, receipt } });
   } catch (error) {
     const errorCode = classifyError(error);
     process.send?.({ type: "task.failed", workerId, taskId: message.taskId, errorCode });
@@ -206,6 +214,7 @@ function artifactStoreForWorker() {
 function classifyError(error) {
   if (error?.code === "question-model-usage-limit") return error.code;
   if (error?.message === "unsupported-capability") return "unsupported-capability";
+  if (error?.message === "assistant-answer-invalid") return "assistant-answer-invalid";
   if (error?.code === "ENOENT") return "required-file-missing";
   if (/zero-credit/i.test(error?.message ?? "")) return error?.code ?? "zero-credit-provider-failed";
   if (/browser/i.test(error?.message ?? "")) return "browser-verification-failed";

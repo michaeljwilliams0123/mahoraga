@@ -1,17 +1,21 @@
-import { fork } from "node:child_process";
+﻿import { fork } from "node:child_process";
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { routeTask } from "./router.mjs";
-import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
+import { capabilityIndex, routeTask } from "./router.mjs";
+import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.ts";
+import { normalizeAssistantCompletion } from "./assistant-result.ts";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { capabilityClass, deriveCapabilityReadiness } from "./capability-readiness.mjs";
 import { applyAutomaticRepairs, scanRepairState } from "./repair.mjs";
+import { zeroCreditProviderEvidenceFromEnv } from "./native-cloud-model.mjs";
 
 const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "worker-process.mjs");
 const READINESS_RENEWAL_LEAD_MS = 60 * 1000;
+const WORKER_SHUTDOWN_GRACE_MS = 5000;
+const WORKER_SHUTDOWN_HARD_MS = 10000;
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
@@ -43,19 +47,25 @@ export class Supervisor extends EventEmitter {
     this.timer.unref();
   }
 
-  stop() {
+  stop({ waitForWorkers = false } = {}) {
     this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     this.startedAt = null;
-    for (const state of this.workers.values()) {
+    const states = [...this.workers.values()];
+    const workerClosures = waitForWorkers ? states.map((state) => waitForWorkerClose(state)) : null;
+    for (const state of states) {
       const observedAt = new Date().toISOString();
       this.#setProcessReadiness(state, "stopped", observedAt);
       this.database.setWorkerState({ workerId: state.definition.id, status: "stopped", pid: null, restartCount: state.restartCount, lastHeartbeatAt: state.lastHeartbeatAt });
       if (state.currentTaskId) this.database.recoverWorkerTasks(state.definition.id, "supervisor-stopping");
       state.process?.send?.({ type: "shutdown" });
     }
-    this.workers.clear();
+    if (!waitForWorkers) {
+      this.workers.clear();
+      return undefined;
+    }
+    return Promise.all(workerClosures).then(() => { this.workers.clear(); });
   }
 
   status() {
@@ -223,7 +233,7 @@ export class Supervisor extends EventEmitter {
       if (task?.conversationId) {
         const evaluation = evaluateAnswerQuality({ task, result: message.result ?? {} });
         const alternate = task.attemptCount < task.maximumAttempts
-          ? routeTask(this.manifest, { ...task, excludedWorkerIds: [...task.excludedWorkerIds, state.definition.id] }, { workerStates: this.status() })
+          ? routeTask(this.manifest, { ...task, excludedWorkerIds: [...task.excludedWorkerIds, state.definition.id] }, this.#routingContext(task))
           : { status: "waiting" };
         const decision = evaluation.accepted
           ? "accepted"
@@ -267,10 +277,9 @@ export class Supervisor extends EventEmitter {
         if (task.capability === "codex.execute") {
           this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
         }
+        const assistantCompletion = task.capability === "assistant.respond" ? normalizeAssistantCompletion(message.result) : null;
         this.database.completeTaskWithReceipt(message.taskId, receipt, {
-          conversationContent: task.capability === "assistant.respond" && typeof message.result?.answer === "string"
-            ? message.result.answer
-            : null,
+          conversationContent: assistantCompletion?.answer ?? null,
         });
       } catch (error) {
         const failure = receiptFailure(error);
@@ -394,7 +403,7 @@ export class Supervisor extends EventEmitter {
       if (!state.ready || state.busy) continue;
       const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
       if (!task) continue;
-      const route = routeTask(this.manifest, task, { workerStates: this.status() });
+      const route = routeTask(this.manifest, task, this.#routingContext(task));
       this.database.recordTaskAuthorityDecision(task.id, route.authorityDecision);
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
@@ -424,8 +433,27 @@ export class Supervisor extends EventEmitter {
       const workerTask = task.capability.startsWith("cognitive.")
         ? { ...envelope, expectedSourceCommit: this.expectedSourceCommit }
         : envelope;
-      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask });
+      const admission = task.requestedMode === "zero-credit" ? {
+        authorityDecision: route.authorityDecision,
+        providerDecision: route.providerDecision ?? null,
+        billingDecision: route.billingDecision,
+      } : null;
+      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask, ...(admission ? { admission } : {}) });
     }
+  }
+
+  #routingContext(task) {
+    const workerStates = this.status();
+    if (task?.requestedMode !== "zero-credit" || task?.capability !== "assistant.respond") return { workerStates };
+    const registry = capabilityIndex(this.manifest, workerStates);
+    const providers = [];
+    for (const providerId of ["codespaces-open-weight", "local-open-weight"]) {
+      const route = registry.find((item) => item.workerId === providerId && item.capability === "assistant.respond");
+      if (route?.routable !== true) continue;
+      const evidence = zeroCreditProviderEvidenceFromEnv({ providerId });
+      if (evidence.ok) providers.push(evidence.value);
+    }
+    return { workerStates, providerPolicy: "zero-credit", providers, cloudModeEnabled: true, requiresGeneration: true };
   }
 
   #refreshStaleReadiness(state, now) {
@@ -533,7 +561,7 @@ export class Supervisor extends EventEmitter {
   }
 
   #canSchedule(task) {
-    const route = routeTask(this.manifest, { ...task, excludedWorkerIds: [] }, { workerStates: this.status() });
+    const route = routeTask(this.manifest, { ...task, excludedWorkerIds: [] }, this.#routingContext(task));
     if (route.status !== "routable") return false;
     const state = this.workers.get(route.worker.id);
     const heartbeatAge = state?.lastHeartbeatAt ? Date.now() - Date.parse(state.lastHeartbeatAt) : Number.POSITIVE_INFINITY;
@@ -561,6 +589,33 @@ export class Supervisor extends EventEmitter {
 function secondaryAssignmentId(task, prefix) {
   const match = String(task?.idempotencyKey ?? "").match(new RegExp(`^${prefix}:(sec-[a-f0-9-]+):`));
   return match?.[1] ?? null;
+}
+
+function waitForWorkerClose(state) {
+  const child = state?.process;
+  if (!child || state.terminated || child.exitCode !== null) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const finish = (error = null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(graceTimer);
+      clearTimeout(hardTimer);
+      child.off?.("exit", onExit);
+      child.off?.("close", onClose);
+      if (error) reject(error); else resolve();
+    };
+    const onExit = () => finish();
+    const onClose = () => finish();
+    child.once?.("exit", onExit);
+    child.once?.("close", onClose);
+    const graceTimer = setTimeout(() => {
+      try { child.kill?.(); } catch {}
+    }, WORKER_SHUTDOWN_GRACE_MS);
+    const hardTimer = setTimeout(() => finish(new Error(`worker-shutdown-timeout:${state.definition.id}`)), WORKER_SHUTDOWN_HARD_MS);
+    graceTimer.unref?.();
+    hardTimer.unref?.();
+  });
 }
 
 export function normalizeSummary(value) {

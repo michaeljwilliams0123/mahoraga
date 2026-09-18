@@ -87,7 +87,7 @@ sharing ChatGPT conversations.
 4. The repository owner opens the draft pull request and writes a new comment
    whose first token is the connected Codex mention, followed by the validated
    body from the staging issue. An owner-authored pull-request mention is the
-   supported subscription-backed GitHub trigger. Vercel hosts the workspace but
+   supported subscription-backed GitHub trigger. Railway hosts the workspace but
    does not invoke Codex.
 5. Codex cloud works on that pull-request branch, removes the activation pointer,
    implements only the declared paths, and runs the fixed verification commands.

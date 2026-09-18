@@ -57,7 +57,7 @@ export type ChatViewProps = {
   relayState: RelayState;
   pairingOffer: string;
   ownerLoginRequired: boolean;
-  ownerLoginSecret: string;
+  ownerLoginPin: string;
   ownerLoginBusy: boolean;
   routableCapabilities: RuntimeCapability[];
   starters: Starter[];
@@ -70,7 +70,7 @@ export type ChatViewProps = {
   bottom: RefObject<HTMLDivElement | null>;
   setInput: (value: string) => void;
   setPairingOffer: (value: string) => void;
-  setOwnerLoginSecret: (value: string) => void;
+  setOwnerLoginPin: (value: string) => void;
   setSidebarOpen: (open: boolean) => void;
   chooseStarter: (prompt: string) => void;
   addFiles: (files: File[]) => void;

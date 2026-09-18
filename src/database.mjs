@@ -19,7 +19,7 @@ const ANSWER_EVALUATION_STATES = new Set(["accepted", "retry", "reroute", "unres
 const CONVERSATION_RUN_STATES = new Set(["accepted", "running", "verifying", "waiting", "completed", "failed", "cancelled"]);
 const ACTIVE_RUN_STATES = new Set(["accepted", "running", "verifying", "waiting"]);
 const EVOLUTION_STATES = new Set(["planned", "candidate-created", "verified", "deployed", "canary-passed", "activated", "failed", "rolled-back"]);
-const CONTENT_ACCESS_MECHANISMS = new Set(["bearer", "cookie", "owner-paired-relay"]);
+const CONTENT_ACCESS_MECHANISMS = new Set(["bearer", "cookie", "owner-paired-relay", "owner-server-gateway"]);
 
 export class RuntimeDatabase {
   constructor(file, { contentVault = null, contentTtlMs = 90 * 24 * 60 * 60 * 1000, allowLegacyPlaintextWrites = false, objectiveReleaseAuthority = null } = {}) {

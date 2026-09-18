@@ -20,6 +20,7 @@ const HELPERS = [
   { label: "Build ledger", command: "Show Mahoraga build provenance, Windows compatibility runtime 3.6.0, and this operator deck. No lane or port selection is required." },
   { label: "List arsenal", command: "List the command arsenal and show what this deck can run live versus GitHub, loopback, or deny." },
   { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
+  { label: "Workers Builds detect", command: "Describe Cloudflare Workers Builds root wrangler.toml (#562): production npx wrangler deploy and preview npx wrangler versions upload resolve deploy/cloudflare-owner-gateway/worker.mjs from repo root. Nested wrangler.toml remains valid. No Worker logic or secret values changed." },
 ] as const;
 
 type CommandCockpitProps = {
@@ -57,6 +58,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
+        { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
       ],
       actionable: false,
     };
@@ -142,6 +144,7 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
+            <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
           </div>
         </header>
 
@@ -149,13 +152,16 @@ export function CommandCockpit({
           <h3>CONVERGENCE</h3>
           <p>
             Mahoraga cloud cockpit. Build provenance is 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
-            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. Windows production stays 3.6.0.
+            Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. The active Windows runtime is reported from live core status; 3.6.0 is retained only as the legacy rollback predecessor.
           </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
           </p>
           <p>
             7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550).
+          </p>
+          <p>
+            Cloudflare Workers Builds now detects the owner gateway from repo root via root <code>wrangler.toml</code> pointing at <code>deploy/cloudflare-owner-gateway/worker.mjs</code> (#562). Production <code>npx wrangler deploy</code> and preview <code>npx wrangler versions upload</code> resolve the same live Worker. Nested config remains valid. No Worker logic or secret values changed.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
@@ -166,7 +172,9 @@ export function CommandCockpit({
             <div><dt>owner login</dt><dd>PR 486 no-store</dd></div>
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
-            <div><dt>windows runtime</dt><dd>3.6.0 locked</dd></div>
+            <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
+            <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
+            <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
         </aside>
 
@@ -206,6 +214,7 @@ export function CommandCockpit({
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
             <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>; trusted requests are rewritten only to the canonical Railway upstream. Observational status only—no browser mutation authority is added.</p></article>
+            <article><header><strong>Cloudflare Workers Builds detect</strong><span className="cockpit-pill ok">ROOT_WRANGLER_#562</span></header><p>Root <code>wrangler.toml</code> points at the live owner gateway entry <code>deploy/cloudflare-owner-gateway/worker.mjs</code>. Workers Builds production/preview commands from repo root can resolve the Worker. Nested gateway wrangler remains valid for explicit operator commands. Observational status only.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
         </div>

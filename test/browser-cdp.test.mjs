@@ -10,6 +10,7 @@ test("browser status is side-effect free and points to the isolated cloud tool",
   assert.equal(status.localLaunchAttempted, false);
   assert.equal(status.localExtensionRequired, false);
   assert.equal(status.interactionCapability, "cloud-browser-tool");
+  assert.match(status.summary, /canonical Railway workspace/);
   await assert.rejects(() => executeBrowserCapability("browser.observe"), /unsupported-capability/);
 });
 

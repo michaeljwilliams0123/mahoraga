@@ -28,7 +28,9 @@ test("unified workspace delegates conversation authority to one Mahoraga core", 
   assert.doesNotMatch(source, /setConversationRoute\("runtime"\)/);
   assert.doesNotMatch(source, /DefaultChatTransport/);
   assert.match(source, /new RuntimeRelay\(\)/);
-  assert.match(source, /Connect the Mahoraga brain/);
+  assert.match(source, /Sign in to Mahoraga/);
+  assert.match(source, /Recovery connection/);
+  assert.doesNotMatch(source, /Connect the Mahoraga brain/);
   assert.match(source, /no paid fallback/i);
   assert.match(source, /resetConversation/);
   assert.match(source, /messageContent\(message, conversationId\)/);
@@ -50,9 +52,9 @@ test("runtime relay keeps decrypted content in browser memory and rejects attach
   assert.doesNotMatch(source, /localStorage|sessionStorage|indexedDB|document\.cookie/);
 });
 
-test("single workspace exposes pairing, cancellation, files, and live status without a route selector", async () => {
+test("single workspace exposes owner sign-in, recovery pairing, cancellation, files, and live status without a route selector", async () => {
   const source = await readWorkspaceSurface();
-  for (const marker of ["Connect the Mahoraga brain", "Disconnect", "Upload files", "Stop response", 'aria-live="polite"']) {
+  for (const marker of ["Sign in to Mahoraga", "Recovery connection", "Disconnect", "Upload files", "Stop response", 'aria-live="polite"']) {
     assert.match(source, new RegExp(marker));
   }
   assert.doesNotMatch(source, />Cloud Pro</);

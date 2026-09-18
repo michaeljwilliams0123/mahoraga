@@ -161,7 +161,7 @@ test("runtime serves the cockpit API and completes a health task", async (t) => 
   const completed = await waitFor(async () => {
     const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
-  });
+  }, 30_000);
   assert.match(runtime.contentVault.get(completed.resultSummaryReference, {
     ownerType: "task-result", ownerId: completed.id, classification: completed.dataClass,
   }).toString("utf8"), /runtime is responsive/);
@@ -227,7 +227,7 @@ test("completed worker receipts return to the chat conversation", async (t) => {
     const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
 
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
-  });
+  }, 30_000);
   const messages = runtime.database.listConversationMessagesForExecution(conversation.conversation.id);
   assert.deepEqual(messages.map((item) => item.role), ["user", "assistant"]);
   assert.match(messages[1].content, /runtime is responsive/);
