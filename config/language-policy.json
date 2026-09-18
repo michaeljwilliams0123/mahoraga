@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "defaultLanguage": "typescript",
+  "controlPlaneRoots": ["src", "scripts", "relay", "test"],
+  "uiRoots": ["cloud-app", "operator-deck"],
+  "specializedRoots": {
+    "sql": [".sql"],
+    "python": [".py"],
+    "native": [".cc", ".cpp", ".cxx", ".h", ".hpp"],
+    "ops/windows": [".ps1"],
+    "ops/linux": [".sh"]
+  },
+  "javascriptMigrationDebtExtensions": [".js", ".mjs", ".cjs"],
+  "javascriptExceptions": [],
+  "nativeCodeRequiresBenchmark": true
+}

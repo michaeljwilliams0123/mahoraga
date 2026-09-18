@@ -4,7 +4,8 @@ import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { capabilityIndex, routeTask } from "./router.mjs";
-import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.mjs";
+import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.ts";
+import { normalizeAssistantCompletion } from "./assistant-result.ts";
 import { syncCoordinationAssignments } from "./coordination-mailbox.mjs";
 import { receiptFailure, validateCapabilityReceipt } from "./receipt-registry.mjs";
 import { capabilityClass, deriveCapabilityReadiness } from "./capability-readiness.mjs";
@@ -268,10 +269,9 @@ export class Supervisor extends EventEmitter {
         if (task.capability === "codex.execute") {
           this.database.recordCodexBuilderExecution({ taskId: task.id, outcome: receipt.outcome, evidence: receipt.details.providerEvidence });
         }
+        const assistantCompletion = task.capability === "assistant.respond" ? normalizeAssistantCompletion(message.result) : null;
         this.database.completeTaskWithReceipt(message.taskId, receipt, {
-          conversationContent: task.capability === "assistant.respond" && typeof message.result?.answer === "string"
-            ? message.result.answer
-            : null,
+          conversationContent: assistantCompletion?.answer ?? null,
         });
       } catch (error) {
         const failure = receiptFailure(error);

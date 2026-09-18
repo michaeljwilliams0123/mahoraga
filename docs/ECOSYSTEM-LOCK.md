@@ -21,10 +21,11 @@ Canonical machine-readable copies:
    `operator-deck/` remains a TypeScript reference/control-library layer.
    Keep both trees `.ts` / `.tsx`; do not emit `.js` / `.jsx` UI or simplify
    either tree to JavaScript because a model prefers it.
-3. **Control plane stays Node ESM `.mjs`.** `src/`, `scripts/`, `test/`,
-   and `relay/` are the existing control plane. Do not mass-convert to
-   `.js`, `.cjs`, or TypeScript unless the owner explicitly starts that
-   migration in a bounded PR.
+3. **TypeScript is the canonical control-plane/runtime language.** Existing
+   `.mjs` / `.js` / `.cjs` under `src/`, `scripts/`, `test/`, and `relay/`
+   is migration debt and moves only in bounded verified tranches. Specialized
+   languages are permitted only under `config/language-policy.json` and
+   versioned contract boundaries.
 4. **Java is not the UI language.** Java only if the owner explicitly
    starts a Java service. Never translate the UI or the `.mjs` plane to Java.
 5. **Do not restore retired frontends or create a parallel browser app.**
@@ -121,7 +122,7 @@ transfer root credentials that establish ownership.
 
 | Surface | Language | Role |
 |---|---|---|
-| Control plane `src/`, `scripts/`, `test/`, `relay/` | Node ESM `.mjs` | Supervisor, workers, verify, learning/evolution cycles |
+| Control plane `src/`, `scripts/`, `test/`, `relay/` | TypeScript by default; specialized languages only by policy | Supervisor, workers, verify, learning/evolution cycles |
 | Browser workspace `cloud-app/` | TypeScript | One host-neutral UI source: Chat, Control Center, Operations, Connections |
 | Operator reference `operator-deck/` | TypeScript | Non-deployable bounded reference/control helpers |
 | Copilot profiles `.github/agents/` | Markdown | Specialist prompts, not live workers |
@@ -135,8 +136,8 @@ mail, and docs — not the app host.
 
 ## What an agent may do
 
-- Edit existing TypeScript UI or existing `.mjs` files inside a declared
-  path fence.
+- Edit existing TypeScript UI and migrate control-plane modules in bounded
+  verified tranches inside a declared path fence.
 - Add a focused test next to the change.
 - Create deterministic routine, coworker, handoff, aperture, feat, and
   evolution artifacts inside their governing contracts.

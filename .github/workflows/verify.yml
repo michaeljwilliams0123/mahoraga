@@ -38,6 +38,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Install root dependencies
+        run: npm ci --ignore-scripts
+
       - name: Verify Ubuntu runner identity
         if: matrix.check_name == 'ubuntu-latest'
         shell: bash
@@ -47,6 +50,9 @@ jobs:
 
       - name: Verify conversation and evolution contracts
         run: npm run verify:conversation-plane
+
+      - name: Typecheck control plane
+        run: npm run typecheck
 
       - name: Verify authoritative repository
         env:

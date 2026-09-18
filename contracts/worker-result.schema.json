@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mahoraga.local/contracts/worker-result.schema.json",
+  "title": "Mahoraga Worker Result",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "receipt", "output"],
+      "properties": {
+        "status": { "const": "completed" },
+        "receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "outcome"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "outcome": { "enum": ["succeeded", "failed", "waiting"] }
+          }
+        },
+        "output": {}
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "reasonCode"],
+      "properties": {
+        "status": { "const": "waiting" },
+        "reasonCode": { "type": "string", "minLength": 1 }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "errorCode"],
+      "properties": {
+        "status": { "const": "failed" },
+        "errorCode": { "type": "string", "minLength": 1 }
+      }
+    }
+  ]
+}
