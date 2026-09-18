@@ -333,3 +333,29 @@ test("the local run lock prevents overlapping model executions", async (t) => {
   releaseFetch();
   assert.deepEqual(await firstRun, { status: "idle" });
 });
+
+test("state persistence retries only transient rename contention", async (t) => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-secondary-state-replace-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  let attempts = 0;
+  const replaceFile = async (source, target) => {
+    attempts += 1;
+    if (attempts < 3) throw Object.assign(new Error("temporary contention"), { code: "EPERM" });
+    await writeFile(target, await readFile(source, "utf8"), "utf8");
+    await rm(source, { force: true });
+  };
+  const runner = new SecondaryCodexRunner({ root, replaceFile, sleep: async () => {} });
+  const state = { schemaVersion: 1, assignments: {}, lastOutcome: { status: "idle" } };
+  await runner.saveState(state);
+  assert.equal(attempts, 3);
+  assert.deepEqual(JSON.parse(await readFile(path.join(root, "state", "secondary-runner-state.json"), "utf8")), state);
+
+  let semanticAttempts = 0;
+  const semanticFailure = new SecondaryCodexRunner({
+    root,
+    replaceFile: async () => { semanticAttempts += 1; throw Object.assign(new Error("invalid"), { code: "EINVAL" }); },
+    sleep: async () => {},
+  });
+  await assert.rejects(() => semanticFailure.saveState(state), (error) => error?.code === "EINVAL");
+  assert.equal(semanticAttempts, 1);
+});

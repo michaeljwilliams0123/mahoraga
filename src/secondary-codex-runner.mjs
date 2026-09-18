@@ -11,6 +11,10 @@ const CONFIG_KEYS = new Set(["schemaVersion", "controlBranch", "maxAttempts", "p
 const PROJECT_KEYS = new Set(["taskArea", "repository", "checkout", "defaultBranch", "allowedPaths", "maxRuntimeMinutes", "enabled"]);
 export const SECONDARY_CODEX_ARGS = Object.freeze(["exec", "--sandbox", "workspace-write", "--ephemeral"]);
 const RUN_LOCK_STALE_MS = 5 * 60 * 60 * 1000;
+const STATE_REPLACE_RETRYABLE_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+const STATE_REPLACE_MAX_ATTEMPTS = 4;
+const STATE_REPLACE_RETRY_DELAY_MS = 25;
+const defaultSleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export function codexSubscriptionEnvironment(environment = process.env) {
   const safe = {};
@@ -95,11 +99,13 @@ export function assertChangedPathsAllowed(changedFiles, allowedPaths) {
 }
 
 export class SecondaryCodexRunner {
-  constructor({ root = ROOT, run = execFileAsync, now = () => new Date(), executionId = () => randomUUID() } = {}) {
+  constructor({ root = ROOT, run = execFileAsync, now = () => new Date(), executionId = () => randomUUID(), replaceFile = rename, sleep: wait = defaultSleep } = {}) {
     this.root = root;
     this.run = run;
     this.now = now;
     this.executionId = executionId;
+    this.replaceFile = replaceFile;
+    this.wait = wait;
     this.configFile = path.join(root, "state", "secondary-runner.json");
     this.stateFile = path.join(root, "state", "secondary-runner-state.json");
     this.lockFile = path.join(root, "state", "secondary-runner.lock");
@@ -344,7 +350,20 @@ export class SecondaryCodexRunner {
     await mkdir(path.dirname(this.stateFile), { recursive: true });
     const temporary = `${this.stateFile}.${process.pid}.tmp`;
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-    await rename(temporary, this.stateFile);
+    await this.replaceStateFile(temporary, this.stateFile);
+  }
+
+  async replaceStateFile(source, target) {
+    for (let attempt = 1; attempt <= STATE_REPLACE_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        await this.replaceFile(source, target);
+        return;
+      } catch (error) {
+        const retryable = STATE_REPLACE_RETRYABLE_CODES.has(error?.code);
+        if (!retryable || attempt === STATE_REPLACE_MAX_ATTEMPTS) throw error;
+        await this.wait(STATE_REPLACE_RETRY_DELAY_MS * attempt);
+      }
+    }
   }
 
   async finishRun(state, result) {
