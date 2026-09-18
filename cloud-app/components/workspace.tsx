@@ -46,6 +46,7 @@ function runtimeErrorMessage(code: string) {
     "relay-not-paired": "The Mahoraga brain is no longer connected. Connect it again to continue.",
     "relay-disconnected": "The encrypted brain connection closed. No alternate execution brain was used.",
     "relay-request-timeout": "Mahoraga did not answer before the bounded timeout. No paid fallback was attempted.",
+    "runtime-response-missing": "Mahoraga finished the task, but its reply did not reach this conversation. Try again or open Work for the task state.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
     "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Sign in to the canonical cloud workspace or use the recovery connection only if needed.",
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
@@ -332,13 +333,25 @@ export function Workspace() {
   async function pollRuntime(transport: RuntimeRelay, conversationId: string, expectsWork: boolean, pollGeneration: number) {
     let sawTerminal = false;
     let sawResponse = false;
+    let terminalWithoutResponsePolls = 0;
     for (let attempt = 0; attempt < 160; attempt += 1) {
       if (runtimePollGeneration.current !== pollGeneration) return;
       const [runtimeMessages, tasks] = await Promise.all([transport.messages(conversationId), transport.tasks(conversationId)]);
       if (await syncRuntimeMessages(transport, conversationId, runtimeMessages)) sawResponse = true;
       activeRuntimeTask.current = tasks.find((task) => ACTIVE_TASK_STATES.has(task.status)) ?? null;
-      sawTerminal ||= tasks.some((task) => TERMINAL_TASK_STATES.has(task.status));
-      if (!activeRuntimeTask.current && (sawTerminal || (sawResponse && !expectsWork))) return;
+      const terminalTask = tasks.find((task) => TERMINAL_TASK_STATES.has(task.status)) ?? null;
+      sawTerminal ||= terminalTask !== null;
+      if (!activeRuntimeTask.current && sawTerminal && !sawResponse) {
+        terminalWithoutResponsePolls += 1;
+        if (terminalWithoutResponsePolls >= 3) {
+          if (terminalTask?.errorCode) setRuntimeError(runtimeErrorMessage(terminalTask.errorCode));
+          else setRuntimeError(runtimeErrorMessage("runtime-response-missing"));
+          return;
+        }
+      } else {
+        terminalWithoutResponsePolls = 0;
+      }
+      if (!activeRuntimeTask.current && sawResponse && (sawTerminal || !expectsWork)) return;
       await new Promise((resolve) => setTimeout(resolve, 750));
     }
     appendMessage("assistant", "Mahoraga accepted this work and is still processing it. The result remains bound to this core conversation.");
