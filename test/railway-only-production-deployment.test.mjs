@@ -7,9 +7,17 @@ const cloudVercel = new URL("../cloud-app/vercel.json", import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const readme = read("README.md");
 
-test("Railway-only production has no active Vercel deployment configuration", () => {
+test("Railway-only production keeps Vercel as a silent non-deploying tombstone", () => {
   assert.equal(existsSync(rootVercel), false);
-  assert.equal(existsSync(cloudVercel), false);
+  assert.equal(existsSync(cloudVercel), true);
+
+  const config = JSON.parse(readFileSync(cloudVercel, "utf8"));
+  assert.equal(config.git?.deploymentEnabled, false);
+  assert.equal(config.github?.silent, true);
+  assert.equal(config.framework, undefined);
+  assert.equal(config.buildCommand, undefined);
+  assert.equal(config.installCommand, undefined);
+  assert.equal(config.outputDirectory, undefined);
   assert.match(readme, /Vercel:\*\* historical\/retired from the active production-completion path/);
 });
 
