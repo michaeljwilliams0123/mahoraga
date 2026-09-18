@@ -1,4 +1,4 @@
-import { fork } from "node:child_process";
+﻿import { fork } from "node:child_process";
 import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
@@ -601,10 +601,13 @@ function waitForWorkerClose(state) {
       settled = true;
       clearTimeout(graceTimer);
       clearTimeout(hardTimer);
+      child.off?.("exit", onExit);
       child.off?.("close", onClose);
       if (error) reject(error); else resolve();
     };
+    const onExit = () => finish();
     const onClose = () => finish();
+    child.once?.("exit", onExit);
     child.once?.("close", onClose);
     const graceTimer = setTimeout(() => {
       try { child.kill?.(); } catch {}
