@@ -45,6 +45,7 @@ const VAGUE = /^(?:done|completed|complete|handled|fixed|looks good|all good|ok(
 const UNCERTAINTY = /\b(?:unable|unavailable|unknown|unverified|not[- ]found|not[- ]implemented|not[- ]completed|failed|cannot|can't|do not know|don't know|error)\b/i;
 const RESOLVED_NEGATIVE = /\bno (?:errors?|failures?|issues?|problems?)\b/gi;
 const RESOLUTION = /\b(?:because|corrected|fix(?:ed)?|resolved|restart(?:ed)?|solution|verified)\b/i;
+const BRIEF_SOCIAL_PROMPT = /^(?:hi|hello|hey|good (?:morning|afternoon|evening))[!.? ]*$/i;
 const STOP_WORDS = new Set([
   "about", "after", "again", "also", "and", "are", "been", "before", "being", "but", "can", "could",
   "does", "for", "from", "have", "into", "just", "make", "more", "only", "other", "please", "should",
@@ -71,6 +72,7 @@ export function evaluateAnswerQuality(
   const vagueDetected = summary.length === 0 || VAGUE.test(summary);
   const contradictionDetected = UNCERTAINTY.test(summary.replace(RESOLVED_NEGATIVE, "")) && !RESOLUTION.test(summary);
   const strongResponseRequired = task.capability === "assistant.respond" || criteria !== "worker-verified";
+  const briefSocialPrompt = BRIEF_SOCIAL_PROMPT.test(requestedOutcome);
   const reasons: string[] = [];
 
   if (!summary) reasons.push("missing-summary");
@@ -80,7 +82,7 @@ export function evaluateAnswerQuality(
   if (contradictionDetected && providerVerified) reasons.push("contradictory-answer");
   if (declared.unresolved) reasons.push("provider-declared-unresolved");
   if (declared.criteriaSatisfied === false) reasons.push("completion-criteria-unsatisfied");
-  if (strongResponseRequired && summaryTokens.length < 8 && declared.evidenceCount === 0) reasons.push("insufficient-detail");
+  if (strongResponseRequired && !briefSocialPrompt && summaryTokens.length < 8 && declared.evidenceCount === 0) reasons.push("insufficient-detail");
   if (strongResponseRequired && criterionTokens.length > 0 && matchedCriterionCount === 0 && declared.evidenceCount === 0) {
     reasons.push("nonresponsive-response");
   }
