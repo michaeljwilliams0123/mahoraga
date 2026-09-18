@@ -32,3 +32,10 @@ test("four-hour cycle stays deterministic with empty providers and no generation
   assert.equal(waiting.status, "waiting");
   assert.equal(waiting.providerId, "waiting-zero-credit-provider");
 });
+
+test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted Actions admission is unavailable", async () => {
+  const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");
+  assert.match(workflow, /candidate-cycle:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
+  assert.match(workflow, /producer-smoke:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
+  assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
+});
