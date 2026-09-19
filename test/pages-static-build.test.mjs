@@ -142,3 +142,11 @@ test("Pages runner policy defaults to GitHub-hosted but supports a temporary rep
   assert.equal(matches.length, 2);
   assert.match(workflow, /fromJSON\(vars\.MAHORAGA_PAGES_RUNNER_LABELS \|\| '\["ubuntu-latest"\]'\)/);
 });
+
+
+test("Pages pull-request proof repeats the static build with a synthetic valid API origin", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /Verify configurable API-origin build/);
+  assert.match(workflow, /if: github\.event_name == 'pull_request'/);
+  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN: https:\/\/api\.example\.test/);
+});
