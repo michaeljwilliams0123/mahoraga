@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
+import { inspectPagesStaticArtifact, isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
 
 async function exists(file) {
   try {
@@ -82,4 +82,45 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   assert.match(workflow, /actions\/configure-pages/);
   assert.match(workflow, /actions\/upload-pages-artifact/);
   assert.match(workflow, /actions\/deploy-pages/);
+});
+
+
+test("Pages artifact inspection accepts the real workspace shape and rejects server secrets or Railway redirect wiring", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-artifact-test-"));
+  const safe = path.join(root, "safe");
+  await mkdir(path.join(safe, "_next", "static", "chunks"), { recursive: true });
+  await writeFile(path.join(safe, "index.html"), '<!doctype html><html><body><div id="app">Mahoraga</div><script src="/mahoraga/_next/static/chunks/app.js"></script></body></html>');
+  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://api.example.test")');
+  const result = await inspectPagesStaticArtifact(safe);
+  assert.equal(result.indexHtml, path.join(safe, "index.html"));
+  assert.ok(result.textFiles >= 2);
+
+  const forbidden = [
+    "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
+    "MAHORAGA_CLOUD_SESSION_SECRET",
+    "MAHORAGA_PRIMARY_CODEX_TOKEN",
+    "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
+    "mahoraga-runtime-main-production.up.railway.app",
+    'location.replace("https://mahoraga-runtime',
+  ];
+  for (const [index, marker] of forbidden.entries()) {
+    const candidate = path.join(root, `bad-${index}`);
+    await mkdir(path.join(candidate, "_next", "static"), { recursive: true });
+    await writeFile(path.join(candidate, "index.html"), '<script src="/mahoraga/_next/static/app.js"></script>');
+    await writeFile(path.join(candidate, "_next", "static", "app.js"), marker);
+    await assert.rejects(() => inspectPagesStaticArtifact(candidate), /pages-static-artifact-forbidden/);
+  }
+});
+
+test("Pages artifact inspection rejects redirect-only or assetless entry points", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-entry-test-"));
+  const redirect = path.join(root, "redirect");
+  await mkdir(redirect, { recursive: true });
+  await writeFile(path.join(redirect, "index.html"), '<meta http-equiv="refresh" content="0; url=https://example.test"><script>location.replace("https://example.test")</script>');
+  await assert.rejects(() => inspectPagesStaticArtifact(redirect), /pages-static-artifact-entry-invalid/);
+
+  const assetless = path.join(root, "assetless");
+  await mkdir(assetless, { recursive: true });
+  await writeFile(path.join(assetless, "index.html"), '<!doctype html><p>Mahoraga</p>');
+  await assert.rejects(() => inspectPagesStaticArtifact(assetless), /pages-static-artifact-entry-invalid/);
 });
