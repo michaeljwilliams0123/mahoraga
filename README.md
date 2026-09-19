@@ -5,9 +5,13 @@
 
 **[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. Conversation and action execution remain on Mahoraga’s encrypted relay to the authoritative runtime; Railway remains the current server-capable runtime during migration.
 
+GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. It is the current canonical browser presentation, but browser hosting remains replaceable and never becomes execution authority.
+
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
 > **Canonical truth model:** GitHub `main` is the **private code authority** and source/evolution authority. A merged commit does not prove a deployment is current, and a healthy deployment does not prove every worker/provider is routable. Source truth, deployment truth, live-runtime truth, provider readiness, and execution authority are separate evidence domains and must stay separate.
+>
+> Deployment availability is observed separately from source verification; host reachability does not prove that exact-head source checks passed.
 >
 > **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; private source access does not itself grant Microsoft, relay, runtime, provider, or deployment authority.
 
