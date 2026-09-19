@@ -31,3 +31,9 @@ test("Pages workflow injects only the public API origin and no Railway launcher 
   assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
 });
+
+
+test("public health request does not send cross-origin credentials", async () => {
+  const workspace = await readApp("components/workspace.tsx");
+  assert.match(workspace, /fetch\(mahoragaApiUrl\("\/api\/health"\), \{ cache: "no-store" \}\)/);
+});
