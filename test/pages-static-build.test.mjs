@@ -134,3 +134,11 @@ test("Pages workflow builds and inspects pull requests without publishing them",
   assert.match(workflow, /deploy:[\s\S]*if: github\.event_name != 'pull_request'/);
   assert.match(workflow, /needs: build/);
 });
+
+
+test("Pages runner policy defaults to GitHub-hosted but supports a temporary repository-variable fallback", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const matches = workflow.match(/MAHORAGA_PAGES_RUNNER_LABELS/g) ?? [];
+  assert.equal(matches.length, 2);
+  assert.match(workflow, /fromJSON\(vars\.MAHORAGA_PAGES_RUNNER_LABELS \|\| '\["ubuntu-latest"\]'\)/);
+});
