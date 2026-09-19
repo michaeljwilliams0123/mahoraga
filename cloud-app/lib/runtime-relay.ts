@@ -1,7 +1,6 @@
 "use client";
 
 import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
-import { mahoragaApiUrl } from "./api-origin";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
@@ -151,7 +150,7 @@ export class RuntimeRelay {
   async attach() {
     this.cloudSessionDiagnostic = null;
     try {
-      const response = await fetch(mahoragaApiUrl("/api/runtime/session"), { credentials: "include", cache: "no-store" });
+      const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
       const value = await response.json().catch(() => ({})) as JsonObject;
       if (!response.ok || value.authenticated !== true || typeof value.csrf !== "string") {
         this.cloudSessionDiagnostic = sessionDiagnostic(value);
@@ -236,7 +235,7 @@ export class RuntimeRelay {
 
   async uploadArtifact(file: File) {
     if (!this.cloudSession) throw relayError("relay-attachments-local-only");
-    const response = await fetch(mahoragaApiUrl("/api/runtime/artifacts"), {
+    const response = await fetch("/api/runtime/artifacts", {
       method: "POST", credentials: "include", cache: "no-store",
       headers: {
         "content-type": file.type || "application/octet-stream",
@@ -330,7 +329,7 @@ export class RuntimeRelay {
 
   private async call<T>(type: string, payload: JsonObject) {
     if (this.cloudSession) {
-      const response = await fetch(mahoragaApiUrl("/api/runtime/action"), {
+      const response = await fetch("/api/runtime/action", {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "content-type": "application/json", "x-mahoraga-csrf": this.cloudSession.csrf,
           "x-mahoraga-request-nonce": crypto.randomUUID(), "x-mahoraga-request-timestamp": String(Date.now()) },

@@ -21,7 +21,7 @@ test("retired Vercel stays silent while GitHub Pages owns the browser UI", () =>
   assert.match(readme, /Vercel:\*\* historical\/retired from the active production-completion path/);
 });
 
-test("GitHub Pages is canonical browser UI while Railway remains runtime fallback only", () => {
+test("GitHub Pages is canonical browser presentation while Railway remains server-capable runtime", () => {
   const references = {
     versions: read("operator-deck/src/lib/fleet/versions.ts"),
     execute: read("operator-deck/src/lib/fleet/execute.server.ts"),
@@ -32,10 +32,11 @@ test("GitHub Pages is canonical browser UI while Railway remains runtime fallbac
 
   assert.match(references.versions, /APP_HOST = "GitHub Pages"/);
   assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/"/);
-  assert.match(references.versions, /GitHub Pages is the canonical browser UI/);
-  assert.match(references.versions, /Railway is migration fallback only until retirement/);
+  assert.match(references.versions, /GitHub Pages is the canonical browser presentation/);
+  assert.match(references.versions, /Railway remains the current server-capable runtime during migration/);
   assert.match(references.execute, /Conversation UI", value: "GitHub Pages workspace"/);
   assert.match(readme, /\[Open Mahoraga\]\(https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/\)/);
+  assert.match(readme, /encrypted relay/);
 
   assert.match(references.allowlist, /"mahoraga-runtime-main-production\.up\.railway\.app"/);
   assert.match(references.browserWorker, /canonical Railway workspace/);

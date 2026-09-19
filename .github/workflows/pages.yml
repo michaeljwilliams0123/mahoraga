@@ -51,20 +51,7 @@ jobs:
           MAHORAGA_DEPLOYMENT_PROVIDER: github-pages
           MAHORAGA_DEPLOYMENT_ENV: production
           MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
-          NEXT_PUBLIC_MAHORAGA_API_ORIGIN: ${{ vars.MAHORAGA_API_ORIGIN }}
-          MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
-          MAHORAGA_GIT_COMMIT_REF: main
-        run: node ../scripts/build-pages-static.mjs
-
-      - name: Verify configurable API-origin build
-        if: github.event_name == 'pull_request'
-        working-directory: cloud-app
-        env:
-          MAHORAGA_PAGES_EXPORT: "1"
-          MAHORAGA_DEPLOYMENT_PROVIDER: github-pages
-          MAHORAGA_DEPLOYMENT_ENV: production
-          MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
-          NEXT_PUBLIC_MAHORAGA_API_ORIGIN: https://api.example.test
+          NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health
           MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
           MAHORAGA_GIT_COMMIT_REF: main
         run: node ../scripts/build-pages-static.mjs

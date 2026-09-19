@@ -5,11 +5,10 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
 
-test("workspace automatically prefers authenticated configured API attach", async () => {
+test("workspace automatically prefers authenticated same-origin attach", async () => {
   const [workspace, relay] = await Promise.all([read("components/workspace.tsx"), read("lib/runtime-relay.ts")]);
   assert.match(workspace, /transport\.attach\(\).*transport\.resume\(\)/s);
-  assert.match(relay, /fetch\(mahoragaApiUrl\("\/api\/runtime\/session"\)/);
-  assert.doesNotMatch(relay, /fetch\("\/api\/runtime\/session"/);
+  assert.match(relay, /fetch\("\/api\/runtime\/session"/);
   assert.match(relay, /x-mahoraga-csrf/);
   assert.match(relay, /x-mahoraga-request-nonce/);
   assert.match(relay, /x-mahoraga-request-timestamp/);

@@ -1,17 +1,8 @@
 import type { NextConfig } from "next";
 import { resolve } from "node:path";
-import { mahoragaApiOrigin } from "./lib/api-origin";
 
 const pagesExport = process.env.MAHORAGA_PAGES_EXPORT === "1";
 const turbopackRoot = process.env.MAHORAGA_TURBOPACK_ROOT?.trim() || resolve(import.meta.dirname, "..");
-const publicApiOrigin = mahoragaApiOrigin();
-const connectSources = [
-  "'self'",
-  "https://ai-gateway.vercel.sh",
-  "https://mahoraga-relay.mahoraga-mjw0123.workers.dev",
-  "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev",
-  ...(publicApiOrigin ? [publicApiOrigin] : []),
-];
 
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -20,7 +11,7 @@ const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   {
     key: "Content-Security-Policy",
-    value: `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src ${connectSources.join(" ")}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`,
+    value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:; connect-src 'self' https://ai-gateway.vercel.sh https://mahoraga-relay.mahoraga-mjw0123.workers.dev wss://mahoraga-relay.mahoraga-mjw0123.workers.dev; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
   },
 ];
 

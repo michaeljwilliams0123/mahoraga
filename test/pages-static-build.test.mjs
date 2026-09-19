@@ -76,7 +76,8 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   assert.match(builder, /FORBIDDEN_STATIC_MARKERS/);
 
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN:\s*\$\{\{ vars\.MAHORAGA_API_ORIGIN \}\}/);
+  assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health/);
+  assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
   assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.match(workflow, /actions\/configure-pages/);
@@ -141,14 +142,6 @@ test("Pages runner policy defaults to GitHub-hosted but supports a temporary rep
   const matches = workflow.match(/MAHORAGA_PAGES_RUNNER_LABELS/g) ?? [];
   assert.equal(matches.length, 2);
   assert.match(workflow, /fromJSON\(vars\.MAHORAGA_PAGES_RUNNER_LABELS \|\| '\["ubuntu-latest"\]'\)/);
-});
-
-
-test("Pages pull-request proof repeats the static build with a synthetic valid API origin", async () => {
-  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /Verify configurable API-origin build/);
-  assert.match(workflow, /if: github\.event_name == 'pull_request'/);
-  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN: https:\/\/api\.example\.test/);
 });
 
 

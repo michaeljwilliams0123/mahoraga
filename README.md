@@ -3,7 +3,7 @@
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
 [![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser workspace. The always-on API/control plane is configured separately; Railway remains migration fallback/runtime compatibility only until retirement.
+**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. Conversation and action execution remain on Mahoraga’s encrypted relay to the authoritative runtime; Railway remains the current server-capable runtime during migration.
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
@@ -22,7 +22,7 @@ At that review point:
 - no bypass actors were configured;
 - GitHub remained the authoritative source ledger;
 - GitLab remained a secondary assurance plane;
-- GitHub Pages is now the intended canonical browser workspace; Railway `mahoraga-runtime-main` remains the migration fallback/runtime compatibility service until control-plane parity is proven;
+- GitHub Pages is now the intended canonical browser presentation; Railway `mahoraga-runtime-main` remains the server-capable execution/control service until a replacement runtime is proven through the encrypted relay;
 - merged source capability was ahead of fully observed live Railway capability, so deployment claims remained fail-closed.
 - canonical Railway promotion is now guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
 
@@ -233,13 +233,13 @@ If the owner identity/gateway is absent, session establishment must fail closed.
 
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
 - **Production server-capable target:** Railway `mahoraga-runtime-main`, once exact-source deployment and owner-session readiness are freshly proven.
-- **GitHub Pages:** GitHub Pages is an optional derived static export. It is not runtime authority and cannot expose server-only action/session routes.
+- **GitHub Pages:** canonical browser presentation built as a derived static export. It is not runtime authority, cannot expose server-only action/session routes, and reaches Mahoraga through the encrypted relay.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
 - **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.
 - **Netlify:** fallback hosting only; it does not change Mahoraga authority.
 
-GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages remains optional; neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact authoritative source SHA and passes the required pairing/health checks.
+GitHub `main` is the private code authority for the workspace. The exact-main GitHub Pages artifact is the canonical browser presentation once published, while runtime execution authority remains separate and must be reached through the authenticated encrypted relay. A runtime or replacement host is not authoritative until its exact source SHA and required pairing/health evidence are freshly proven.
 
 The UI should expose evidence without inventing it. Current open UI follow-ups intentionally separate real runtime receipts from simulations:
 

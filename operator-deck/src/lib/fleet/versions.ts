@@ -1,7 +1,7 @@
 export const LANGUAGE_LOCK = "TypeScript";
 export const APP_HOST = "GitHub Pages";
 export const WORKSPACE_NOTE =
-  "GitHub Pages is the canonical browser UI. GitHub remains source/build/release authority. The always-on API/control plane is provider-neutral; Railway is migration fallback only until retirement.";
+  "GitHub Pages is the canonical browser presentation. GitHub remains source/build/release authority. Conversation and action execution use the encrypted relay; Railway remains the current server-capable runtime during migration.";
 export const CLOUD_APP_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const ROLLBACK_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
@@ -44,7 +44,7 @@ export const VERSION_SURFACES: VersionSurface[] = [
     label: "Conversation workspace",
     version: CANDIDATE_VERSION,
     role: "GitHub candidate plus ChatGPT-style workspace with self.evolve control plane.",
-    host: `${APP_HOST} canonical browser UI · cloud-app/ static export`,
+    host: `${APP_HOST} canonical browser presentation · cloud-app/ static export`,
     language: "TypeScript (Next.js cloud-app)",
     status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected. Owner directives may target self.evolve.",
     href: CLOUD_APP_URL,
