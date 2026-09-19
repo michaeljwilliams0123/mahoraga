@@ -185,6 +185,23 @@ export function CockpitView({
           </dl>
         </section>
 
+        <section className="eclipse-panel" aria-labelledby="evolution-heading">
+          <div className="eclipse-panel-heading">
+            <div>
+              <span>Adaptive evolution</span>
+              <h3 id="evolution-heading">Verified convergence path</h3>
+            </div>
+            <ShieldCheck size={18} />
+          </div>
+          <ol className="eclipse-flow">
+            <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
+            <li><span>2</span><div><strong>Verify</strong><small>Exact-head CI plus rollback checkpoint</small></div></li>
+            <li><span>3</span><div><strong>Canary</strong><small>Prove candidate and runtime readiness</small></div></li>
+            <li><span>4</span><div><strong>Pin</strong><small>Reconcile Railway expected SHA independently of the running process</small></div></li>
+            <li><span>5</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
+          </ol>
+        </section>
+
         <WorkspaceRoutePanel />
       </div>
 
