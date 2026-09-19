@@ -131,7 +131,6 @@ test("Pages workflow builds and inspects pull requests without publishing them",
   assert.match(workflow, /pull_request:/);
   assert.match(workflow, /node-version: "24"/);
   assert.match(workflow, /Build and inspect static workspace/);
-  assert.match(workflow, /deploy:
-[\s\S]*if: github\.event_name != 'pull_request'/);
+  assert.match(workflow, /deploy:[\s\S]*if: github\.event_name != 'pull_request'/);
   assert.match(workflow, /needs: build/);
 });
