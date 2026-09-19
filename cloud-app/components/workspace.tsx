@@ -106,7 +106,7 @@ export function Workspace() {
 
   useEffect(() => {
     try {
-      fetch(mahoragaApiUrl("/api/health"), { cache: "no-store", credentials: "include" })
+      fetch(mahoragaApiUrl("/api/health"), { cache: "no-store" })
         .then(async (response) => {
           if (!response.ok) throw new Error("health-failed");
           setHealth((await response.json()) as Health);
