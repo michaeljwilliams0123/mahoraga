@@ -150,3 +150,15 @@ test("Pages pull-request proof repeats the static build with a synthetic valid A
   assert.match(workflow, /if: github\.event_name == 'pull_request'/);
   assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN: https:\/\/api\.example\.test/);
 });
+
+
+test("Pages CI runs cloud-app typecheck and full tests before export", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const typecheck = workflow.indexOf("npm run typecheck");
+  const tests = workflow.indexOf("node --test test/*.test.mjs");
+  const build = workflow.indexOf("Build and inspect static workspace");
+  assert.ok(typecheck >= 0);
+  assert.ok(tests >= 0);
+  assert.ok(typecheck < build);
+  assert.ok(tests < build);
+});
