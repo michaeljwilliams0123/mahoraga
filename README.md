@@ -13,18 +13,17 @@
 
 ## Current review baseline
 
-This README was reconciled against protected `main` on **2026-09-15** through PR **#533** at `a3cdb03c1d285eb21146affb3412946ece95f073`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there. The owner-reference local base on `SD009WC7` was freshly cloned from that exact authoritative `main` SHA.
+This README was reconciled against protected `main` on **2026-09-18** after owner-authorized squash of the residual PR stack through `#564` at `bff05087ccf54cbe9d0911c23421c35d97725425`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there. Earlier September 15 / `#533` / `a3cdb03c` text is historical provenance only.
 
-At that review point:
+At this review point:
 
-- protected `main` required exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` checks;
-- squash was the only allowed protected-main merge method;
-- no bypass actors were configured;
-- GitHub remained the authoritative source ledger;
-- GitLab remained a secondary assurance plane;
-- Railway `mahoraga-runtime-main` remained the intended canonical cloud runtime/workspace service;
-- merged source capability was ahead of fully observed live Railway capability, so deployment claims remained fail-closed.
-- canonical Railway promotion is now guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
+- protected `main` still requires exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` checks and squash-only merges;
+- the 2026-09-18 stack was admitted by a temporary owner ruleset bypass, then the original ruleset was restored with **no** bypass actors;
+- GitHub remains the authoritative source ledger;
+- GitLab remains a secondary assurance plane;
+- Railway `mahoraga-runtime-main` remains the canonical cloud runtime/workspace service;
+- source on `main` is ahead of live Railway until an explicit exact-SHA promotion, so deployment claims remain fail-closed;
+- canonical Railway promotion is guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
 
 ## Capability-first architecture
 
@@ -64,7 +63,7 @@ This separation is one of Mahoraga's core invariants. UI surfaces must show **un
 | Area | Current source state |
 | --- | --- |
 | Product identity | `Mahoraga` (unversioned); semantic versions are provenance/build metadata |
-| Runtime / control plane | Node 24 ESM `.mjs` across `src/`, `scripts/`, `test/`, and `relay/` |
+| Runtime / control plane | Node 24; TypeScript is the canonical control-plane direction after `#586`, with remaining `.mjs` treated as migration debt |
 | Browser workspace | TypeScript under [`cloud-app/`](cloud-app/); canonical owner-facing browser source |
 | Operator helpers | [`operator-deck/`](operator-deck/) is a reference/control surface, not a second product/runtime |
 | Durable operational state | SQLite WAL task/event state, leases, crash recovery, persistent objectives/conversations, typed receipts, encrypted content vault |
