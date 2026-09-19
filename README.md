@@ -3,7 +3,7 @@
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
 [![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-**[Open Mahoraga](https://mahoraga-runtime-main-production.up.railway.app/)** — canonical server-capable owner workspace. GitHub Pages is a static launch surface only.
+**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser workspace. The always-on API/control plane is configured separately; Railway remains migration fallback/runtime compatibility only until retirement.
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
@@ -22,7 +22,7 @@ At that review point:
 - no bypass actors were configured;
 - GitHub remained the authoritative source ledger;
 - GitLab remained a secondary assurance plane;
-- Railway `mahoraga-runtime-main` remained the intended canonical cloud runtime/workspace service;
+- GitHub Pages is now the intended canonical browser workspace; Railway `mahoraga-runtime-main` remains the migration fallback/runtime compatibility service until control-plane parity is proven;
 - merged source capability was ahead of fully observed live Railway capability, so deployment claims remained fail-closed.
 - canonical Railway promotion is now guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
 
