@@ -1,11 +1,35 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "triggerId": "destiny-event-dispatch-v1",
   "repository": "michaeljwilliams0123/mahoraga",
   "owner": "michaeljwilliams0123",
   "readinessMaxAgeMs": 300000,
-  "zeroCreditRequired": true,
+  "executionCapabilities": {
+    "meteredWorkspace": true,
+    "includedWorkspace": true
+  },
+  "routePolicies": {
+    "destiny-workspace": [
+      "destiny-workspace"
+    ],
+    "mike-primary": [
+      "mike-primary"
+    ],
+    "balanced": [
+      "destiny-workspace",
+      "mike-primary"
+    ],
+    "overflow": [
+      "mike-primary",
+      "destiny-workspace"
+    ]
+  },
   "receiptTrust": {
-    "mode": "unconfigured"
+    "mode": "env-signed-receipt",
+    "algorithm": "ed25519",
+    "publicKeySpkiEnv": "DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_SPKI",
+    "publicKeyFingerprintEnv": "DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_FINGERPRINT",
+    "keyIdEnv": "DESTINY_WORKSPACE_RECEIPT_KEY_ID",
+    "workspaceTriggerIdEnv": "DESTINY_WORKSPACE_AGENT_TRIGGER_ID"
   }
 }

@@ -90,18 +90,28 @@ export function ownerAuthoredCommentCannotProveExecution(owner, actorLogin) {
 
 export function validateDestinyTriggerTrustManifest(input) {
   const manifest = requireObject(input, "destiny-trigger-manifest-invalid");
-  if (manifest.schemaVersion !== 1) throw new TypeError("destiny-trigger-manifest-invalid");
+  if (manifest.schemaVersion !== 1 && manifest.schemaVersion !== 2) throw new TypeError("destiny-trigger-manifest-invalid");
   if (typeof manifest.triggerId !== "string" || !/^[a-z0-9][a-z0-9-]{2,63}$/.test(manifest.triggerId)) throw new TypeError("destiny-trigger-manifest-invalid");
   if (typeof manifest.repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(manifest.repository)) throw new TypeError("destiny-trigger-manifest-invalid");
   if (typeof manifest.owner !== "string" || !/^[A-Za-z0-9_.-]+$/.test(manifest.owner)) throw new TypeError("destiny-trigger-manifest-invalid");
   if (!Number.isSafeInteger(manifest.readinessMaxAgeMs) || manifest.readinessMaxAgeMs < 1000 || manifest.readinessMaxAgeMs > 3600000) throw new TypeError("destiny-trigger-manifest-invalid");
-  if (manifest.zeroCreditRequired !== true) throw new TypeError("destiny-trigger-zero-credit-required");
+  if (manifest.schemaVersion === 1 && manifest.zeroCreditRequired !== true) throw new TypeError("destiny-trigger-zero-credit-required");
+  if (manifest.schemaVersion === 2) {
+    const capabilities = requireObject(manifest.executionCapabilities, "destiny-trigger-manifest-invalid");
+    if (typeof capabilities.meteredWorkspace !== "boolean" || typeof capabilities.includedWorkspace !== "boolean") throw new TypeError("destiny-trigger-manifest-invalid");
+    const policies = requireObject(manifest.routePolicies, "destiny-trigger-manifest-invalid");
+    for (const id of ["destiny-workspace", "mike-primary", "balanced", "overflow"]) if (!Array.isArray(policies[id]) || policies[id].length < 1) throw new TypeError("destiny-trigger-manifest-invalid");
+  }
   const trust = requireObject(manifest.receiptTrust, "destiny-trigger-manifest-invalid");
   if (trust.mode === "unconfigured") {
     if (Object.keys(trust).length !== 1) throw new TypeError("destiny-trigger-manifest-invalid");
   } else if (trust.mode === "dedicated-actor") {
     if (typeof trust.actorLogin !== "string" || trust.actorLogin.length < 1) throw new TypeError("destiny-trigger-manifest-invalid");
     if (trust.actorLogin === manifest.owner) throw new TypeError("destiny-trigger-actor-not-independent");
+  } else if (trust.mode === "env-signed-receipt") {
+    const expected = ["algorithm","keyIdEnv","mode","publicKeyFingerprintEnv","publicKeySpkiEnv","workspaceTriggerIdEnv"].sort().join(",");
+    if (trust.algorithm !== "ed25519" || Object.keys(trust).sort().join(",") !== expected) throw new TypeError("destiny-trigger-manifest-invalid");
+    for (const key of ["keyIdEnv","publicKeyFingerprintEnv","publicKeySpkiEnv","workspaceTriggerIdEnv"]) if (typeof trust[key] !== "string" || !/^[A-Z][A-Z0-9_]{2,127}$/.test(trust[key])) throw new TypeError("destiny-trigger-manifest-invalid");
   } else if (trust.mode === "signed-receipt") {
     validateSignedReceiptTrust(trust, manifest.owner);
   } else {
@@ -131,7 +141,7 @@ export function evaluateDestinyTriggerReadiness(manifestInput, observationInput,
   const manifest = validateDestinyTriggerTrustManifest(manifestInput);
   const observation = observationInput == null ? null : requireObject(observationInput, "destiny-trigger-readiness-invalid");
   if (observation && (observation.schemaVersion !== 1 || !READY_STATES.has(observation.status) || !validDate(observation.observedAt))) throw new TypeError("destiny-trigger-readiness-invalid");
-  if (manifest.receiptTrust.mode === "unconfigured") return frozen({ ready: false, reason: "destiny-trigger-identity-unconfigured", status: "not-configured" });
+  if (manifest.receiptTrust.mode === "unconfigured" || manifest.receiptTrust.mode === "env-signed-receipt") return frozen({ ready: false, reason: "destiny-trigger-identity-unconfigured", status: "not-configured" });
   if (!observation) throw new TypeError("destiny-trigger-readiness-invalid");
   if (observation.triggerId !== manifest.triggerId) return frozen({ ready: false, reason: "destiny-trigger-id-mismatch", status: observation.status });
   if (observation.repository !== manifest.repository) return frozen({ ready: false, reason: "destiny-trigger-repository-mismatch", status: observation.status });
@@ -170,7 +180,7 @@ export function evaluateDestinyTriggerReadiness(manifestInput, observationInput,
 
 export function validateDestinyTriggerReceipt(manifestInput, receiptInput) {
   const manifest = validateDestinyTriggerTrustManifest(manifestInput);
-  if (manifest.receiptTrust.mode === "unconfigured") throw new TypeError("destiny-trigger-identity-unconfigured");
+  if (manifest.receiptTrust.mode === "unconfigured" || manifest.receiptTrust.mode === "env-signed-receipt") throw new TypeError("destiny-trigger-identity-unconfigured");
   const receipt = requireObject(receiptInput, "destiny-trigger-receipt-invalid");
   if (receipt.schemaVersion !== 1 || !RECEIPT_KINDS.has(receipt.kind)) throw new TypeError("destiny-trigger-receipt-invalid");
   if (receipt.repository !== manifest.repository) throw new TypeError("destiny-trigger-receipt-repository-mismatch");

@@ -1,0 +1,42 @@
+name: Workspace Dispatch Fabric
+on:
+  workflow_dispatch:
+    inputs:
+      assignment_ids:
+        required: true
+        type: string
+      route_policy:
+        required: false
+        default: balanced
+        type: choice
+        options: [destiny-workspace, mike-primary, balanced, overflow]
+      max_parallel:
+        required: false
+        default: "2"
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: workspace-fabric-${{ github.ref }}-${{ inputs.assignment_ids }}
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with: {node-version: "24"}
+      - run: node --test --test-isolation=none test/workspace-route-policy.test.mjs test/workspace-dispatch-fabric.test.mjs test/workspace-agent-receiver.test.mjs test/destiny-trigger-trust.test.mjs
+      - name: Persist exact-head plan
+        env:
+          IDS: ${{ inputs.assignment_ids }}
+          POLICY: ${{ inputs.route_policy }}
+          CAP: ${{ inputs.max_parallel }}
+        run: node -e 'const fs=require("node:fs"),ids=process.env.IDS.split(",").map(x=>x.trim()).filter(Boolean),cap=Number(process.env.CAP);if(!ids.length||ids.length>8||!Number.isInteger(cap)||cap<1||cap>8)throw Error("fabric-input-invalid");fs.writeFileSync(process.env.RUNNER_TEMP+"/fabric-plan.json",JSON.stringify({ids,policy:process.env.POLICY,maxParallel:cap,exactHead:process.env.GITHUB_SHA},null,2))'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: workspace-fabric-plan-${{ github.run_id }}
+          path: ${{ runner.temp }}/fabric-plan.json
+          retention-days: 30

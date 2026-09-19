@@ -13,6 +13,12 @@ on:
         description: Existing bounded secondary assignment ID
         required: true
         type: string
+      route_policy:
+        description: destiny-workspace, mike-primary, balanced, or overflow
+        required: false
+        default: balanced
+        type: choice
+        options: [destiny-workspace, mike-primary, balanced, overflow]
 
 permissions:
   contents: read
@@ -47,8 +53,15 @@ jobs:
       - name: Validate and receive assignment
         shell: bash
         env:
-          AGENT_ACCESS_TOKEN: ${{ secrets.AGENT_ACCESS_TOKEN }}
-          WORKSPACE_AGENT_TRIGGER_ID: ${{ secrets.WORKSPACE_AGENT_TRIGGER_ID }}
+          DESTINY_WORKSPACE_AGENT_ACCESS_TOKEN: ${{ secrets.DESTINY_WORKSPACE_AGENT_ACCESS_TOKEN }}
+          DESTINY_WORKSPACE_AGENT_TRIGGER_ID: ${{ secrets.DESTINY_WORKSPACE_AGENT_TRIGGER_ID }}
+          DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_SPKI: ${{ secrets.DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_SPKI }}
+          DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_FINGERPRINT: ${{ vars.DESTINY_WORKSPACE_RECEIPT_PUBLIC_KEY_FINGERPRINT }}
+          DESTINY_WORKSPACE_RECEIPT_KEY_ID: ${{ vars.DESTINY_WORKSPACE_RECEIPT_KEY_ID }}
+          MIKE_PRIMARY_AGENT_ACCESS_TOKEN: ${{ secrets.MIKE_PRIMARY_AGENT_ACCESS_TOKEN }}
+          MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID: ${{ secrets.MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID }}
+          MIKE_PRIMARY_METERED: ${{ vars.MIKE_PRIMARY_METERED }}
+          ROUTE_POLICY: ${{ inputs.route_policy }}
         run: |
           set -euo pipefail
           node scripts/workspace-agent-receiver.mjs receive --event-file "$GITHUB_EVENT_PATH" \

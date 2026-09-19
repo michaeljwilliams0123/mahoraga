@@ -75,6 +75,7 @@ jobs:
     steps:
       - name: Check Pages site availability
         id: pages_site
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
