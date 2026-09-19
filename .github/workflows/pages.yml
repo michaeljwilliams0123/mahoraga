@@ -51,7 +51,7 @@ jobs:
           MAHORAGA_DEPLOYMENT_PROVIDER: github-pages
           MAHORAGA_DEPLOYMENT_ENV: production
           MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
-          NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health
+          NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health.json
           MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
           MAHORAGA_GIT_COMMIT_REF: main
         run: node ../scripts/build-pages-static.mjs

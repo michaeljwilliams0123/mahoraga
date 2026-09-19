@@ -1,13 +1,9 @@
 import { spawn } from "node:child_process";
-import { cp, lstat, mkdir, readFile, readdir, rm, symlink } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-const SERVER_ONLY_ROUTE_DIRECTORIES = Object.freeze([
-  path.join("app", "api", "live"),
-  path.join("app", "api", "ready"),
-  path.join("app", "api", "runtime"),
-]);
+const SERVER_ONLY_ROUTE_DIRECTORIES = Object.freeze([path.join("app", "api")]);
 
 function relativePath(root, candidate) {
   return path.relative(root, candidate);
@@ -29,6 +25,33 @@ export async function preparePagesStaticWorkspace({ source, destination }) {
     recursive: true,
     filter: (candidate) => shouldCopyPagesFile(source, candidate),
   });
+}
+
+export async function writePagesStaticHealth(destination, env = process.env) {
+  const target = path.join(destination, "public", "api", "health.json");
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, `${JSON.stringify({
+    ok: true,
+    product: "Mahoraga",
+    build: { version: "7.0.0-alpha.2" },
+    deployment: {
+      provider: env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim() || "github-pages",
+      environment: env.MAHORAGA_DEPLOYMENT_ENV?.trim() || "production",
+      url: env.MAHORAGA_DEPLOYMENT_URL?.trim() || null,
+      commitSha: env.MAHORAGA_GIT_COMMIT_SHA?.trim() || null,
+      expectedCommitSha: null,
+      gitRef: env.MAHORAGA_GIT_COMMIT_REF?.trim() || null,
+      promotion: "exact-main-pages",
+    },
+    runtime: {
+      databaseTarget: { basename: null, source: "paired-core-required" },
+      provenance: { state: "unknown", expectedSourceCommit: null, source: "paired-core-required" },
+    },
+    capabilities: { runtimeRelay: true, directConversationExecution: false, directProviderSelection: false },
+    boundaries: { executionPlane: "client-shell-with-owner-paired-core", localExtensionRequired: false, localDeviceMutationAllowed: false, relaySeesPlaintext: false },
+    routing: { authority: "paired-mahoraga-core", automaticPaidFallback: false, browserMaySelectProvider: false },
+  })}\n`, "utf8");
+  return target;
 }
 
 function run(command, args, options) {
@@ -97,6 +120,7 @@ export async function buildPagesStaticExport({ source = path.resolve(import.meta
   try {
     await rm(stagingRoot, { recursive: true, force: true });
     await preparePagesStaticWorkspace({ source, destination: stagedApp });
+    await writePagesStaticHealth(stagedApp);
     await cp(path.resolve(source, "..", "operator-deck"), path.join(stagingRoot, "operator-deck"), { recursive: true, filter: (candidate) => !hasPathPrefix(relativePath(path.resolve(source, "..", "operator-deck"), candidate), "node_modules") });
     await linkPagesDependencies({ source, destination: stagedApp });
     await run(process.execPath, [path.join(stagedApp, "node_modules", "next", "dist", "bin", "next"), "build"], {

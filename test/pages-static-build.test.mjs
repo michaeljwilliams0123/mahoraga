@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { inspectPagesStaticArtifact, isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
+import { inspectPagesStaticArtifact, isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace, writePagesStaticHealth } from "../scripts/build-pages-static.mjs";
 
 async function exists(file) {
   try {
@@ -16,7 +16,7 @@ async function exists(file) {
   }
 }
 
-test("Pages staging retains static health metadata and excludes server-only runtime APIs", async () => {
+test("Pages staging excludes server APIs and writes bounded static health metadata", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-static-test-"));
   const source = path.join(root, "source");
   const destination = path.join(root, "destination");
@@ -39,12 +39,21 @@ test("Pages staging retains static health metadata and excludes server-only runt
   ]);
 
   await preparePagesStaticWorkspace({ source, destination });
+  await writePagesStaticHealth(destination, {
+    MAHORAGA_DEPLOYMENT_PROVIDER: "github-pages",
+    MAHORAGA_GIT_COMMIT_SHA: "a".repeat(40),
+  });
 
   assert.equal(await exists(path.join(destination, "app", "page.tsx")), true);
-  assert.equal(await exists(path.join(destination, "app", "api", "health", "route.ts")), true);
+  assert.equal(await exists(path.join(destination, "app", "api")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "live")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "ready")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "runtime")), false);
+  const health = JSON.parse(await readFile(path.join(destination, "public", "api", "health.json"), "utf8"));
+  assert.equal(health.deployment.provider, "github-pages");
+  assert.equal(health.deployment.commitSha, "a".repeat(40));
+  assert.equal(health.routing.authority, "paired-mahoraga-core");
+  assert.equal(JSON.stringify(health).includes("secret"), false);
 });
 
 test("Pages static build recognizes a relative Windows command-line path", () => {
@@ -76,7 +85,7 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   assert.match(builder, /FORBIDDEN_STATIC_MARKERS/);
 
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health/);
+  assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health\.json/);
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
   assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
