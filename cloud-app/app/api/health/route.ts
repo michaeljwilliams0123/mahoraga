@@ -1,6 +1,17 @@
 import path from "node:path";
 
-export const dynamic = "force-static";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function railwayRuntimePresent() {
+  return Boolean(
+    process.env.RAILWAY_ENVIRONMENT
+      || process.env.RAILWAY_PROJECT_ID
+      || process.env.RAILWAY_GIT_COMMIT_SHA
+      || process.env.RAILWAY_PUBLIC_DOMAIN
+      || process.env.RAILWAY_ENVIRONMENT_NAME,
+  );
+}
 
 function deploymentUrl() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_URL?.trim();
@@ -20,9 +31,18 @@ function runtimeDatabaseTarget() {
 function deploymentProvider() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim();
   if (explicit) return explicit;
-  if (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID) return "railway";
+  if (railwayRuntimePresent()) return "railway";
   if (process.env.NETLIFY === "true") return "netlify";
-  return "local";
+  return "unknown";
+}
+
+function deploymentEnvironment() {
+  const explicit = process.env.MAHORAGA_DEPLOYMENT_ENV?.trim();
+  if (explicit) return explicit;
+  const railway = process.env.RAILWAY_ENVIRONMENT_NAME?.trim();
+  if (railway) return railway;
+  if (railwayRuntimePresent()) return "production";
+  return "unknown";
 }
 
 export async function GET() {
@@ -33,7 +53,7 @@ export async function GET() {
       build: { version: "7.0.0-alpha.2" },
       deployment: {
         provider: deploymentProvider(),
-        environment: process.env.MAHORAGA_DEPLOYMENT_ENV ?? process.env.RAILWAY_ENVIRONMENT_NAME ?? process.env.CONTEXT ?? "local",
+        environment: deploymentEnvironment(),
         url: deploymentUrl(),
         commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? null,
         expectedCommitSha: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? null,
