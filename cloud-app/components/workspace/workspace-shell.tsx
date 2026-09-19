@@ -1,4 +1,4 @@
-﻿import { BrainCircuit, ExternalLink, Plus, ShieldCheck, X } from "lucide-react";
+import { BrainCircuit, ExternalLink, Plus, ShieldCheck, X } from "lucide-react";
 import { WorkspaceNav } from "./workspace-nav";
 import type { WorkspaceShellProps } from "./workspace-types";
 
@@ -44,7 +44,7 @@ export function WorkspaceShell({
 
         <div className="privacy-card">
           <ShieldCheck size={16} />
-          <span>Execution stays with the paired core. This browser never stores GitHub credentials.</span>
+          <span>GitHub Pages is the published static workspace. The encrypted relay remains the execution path. This browser never stores GitHub credentials.</span>
         </div>
         <a className="repo-link" href="https://github.com/michaeljwilliams0123/mahoraga" target="_blank" rel="noreferrer">Open GitHub <ExternalLink size={13} /></a>
       </aside>
