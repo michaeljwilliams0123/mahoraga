@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 }
 
 async function dispatch(type: string, payload: Record<string, unknown>) {
-  const allowed = new Set(["capabilities", "chat", "tasks", "messages", "message-content", "task-action", "operations-snapshot", "operations-action"]);
+  const allowed = new Set(["capabilities", "chat", "tasks", "messages", "message-content", "task-action", "composio-github-repository", "operations-snapshot", "operations-action"]);
   if (!allowed.has(type)) throw Object.assign(new Error("cloud-action-not-allowed"), { status: 400 });
   return json(await coreRequest(type, payload));
 }

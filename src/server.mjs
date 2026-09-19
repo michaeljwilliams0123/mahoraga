@@ -28,6 +28,7 @@ import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
+import { readGithubRepositoryViaComposio } from "./composio-tool-client.mjs";
 import { ingestVerifiedStudioLearning } from "./copilot-studio-learning-adapter.mjs";
 
 export const DEFAULT_WORKSPACE_URL = null;
@@ -127,6 +128,7 @@ export function createControlServer({
         if (body?.type === "messages") return json(response, 200, { messages: relayHandlers.messages(input.conversationId) });
         if (body?.type === "message-content") return json(response, 200, relayHandlers.messageContent(input, context));
         if (body?.type === "task-action") return json(response, 200, relayHandlers.taskAction(input));
+        if (body?.type === "composio-github-repository") return json(response, 200, await relayHandlers.composioGithubRepository(input, context));
         if (body?.type === "operations-snapshot") return json(response, 200, await relayHandlers.operationsSnapshot(input, context));
         if (body?.type === "operations-action") return json(response, 200, await relayHandlers.operationsAction(input, context));
         return json(response, 400, { error: "cloud-core-action-not-allowed" });
@@ -597,6 +599,16 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       if (!existing || existing.conversationId !== conversationId) throw relayError("task-not-found");
       const task = body.action === "retry" ? database.retryTask(taskId) : database.cancelTask(taskId);
       return { task };
+    },
+    async composioGithubRepository(input, _context) {
+      try {
+        const repository = await readGithubRepositoryViaComposio({ owner: input?.owner, repo: input?.repo });
+        return { provider: "composio", tool: "GITHUB_GET_A_REPOSITORY", repository };
+      } catch (error) {
+        const code = typeof error?.code === "string" && /^composio-[a-z0-9-]+$/.test(error.code) ? error.code : "composio-tool-failed";
+        const status = Number.isInteger(error?.status) ? error.status : 502;
+        throw relayError(code, { status, value: { error: code } });
+      }
     },
     async operationsSnapshot(_input, _context) {
       let headSha = null;

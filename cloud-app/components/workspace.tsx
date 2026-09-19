@@ -447,7 +447,7 @@ export function Workspace() {
             <span className={coreReady ? "brain-status ready" : "brain-status"}>{coreReady ? "Brain connected" : "Unpaired"}</span>
           </header>
           <div className="advanced-stack">
-            <ConnectionsView coreReady={coreReady} health={health} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onDisconnect={revokeRuntime} />
+            <ConnectionsView coreReady={coreReady} health={health} runtimeCapabilities={runtimeCapabilities} relay={pairedRelay} onRequestPairing={() => navigate("chat")} onDisconnect={revokeRuntime} />
             <OperationsView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} />
             <details className="legacy-detail">
               <summary>Deep control center</summary>

@@ -70,6 +70,8 @@ test("health route publishes active deployment identity without retired Vercel f
     assert.match(health, new RegExp(portable));
   }
   assert.match(health, /provider:/);
+  assert.match(health, /force-dynamic/);
+  assert.doesNotMatch(health, /force-static/);
   assert.doesNotMatch(health, /VERCEL_/);
   assert.doesNotMatch(health, /process\.env\.VERCEL/);
 });
@@ -110,8 +112,8 @@ test("repository declares one canonical workspace source without reviving legacy
 
   const rootReadme = sources[0];
   assert.match(rootReadme, /Deployment availability is observed[\s\S]*separately from source verification/);
-  assert.match(rootReadme, /runtime-configured `MAHORAGA_WORKSPACE_URL` \/ `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin/i);
-  assert.match(rootReadme, /neither its historical URL nor any replacement host is canonical until/i);
+  assert.match(rootReadme, /exact-main GitHub Pages artifact is the canonical browser presentation once published/i);
+  assert.match(rootReadme, /runtime execution authority remains separate[\s\S]*authenticated encrypted relay/i);
   assert.match(rootReadme, /GitHub `main` is the private code authority/i);
 });
 

@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { DEFAULT_CANONICAL_WORKSPACE_URL, isDirectExecution, linkPagesDependencies, pagesLauncherHtml, pagesStaticStagingRoot, preparePagesStaticWorkspace } from "../scripts/build-pages-static.mjs";
+import { inspectPagesStaticArtifact, isDirectExecution, linkPagesDependencies, pagesStaticStagingRoot, preparePagesStaticWorkspace, writePagesStaticHealth } from "../scripts/build-pages-static.mjs";
 
 async function exists(file) {
   try {
@@ -16,7 +16,7 @@ async function exists(file) {
   }
 }
 
-test("Pages staging retains static health metadata and excludes server-only runtime APIs", async () => {
+test("Pages staging excludes server APIs and writes bounded static health metadata", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-static-test-"));
   const source = path.join(root, "source");
   const destination = path.join(root, "destination");
@@ -39,12 +39,21 @@ test("Pages staging retains static health metadata and excludes server-only runt
   ]);
 
   await preparePagesStaticWorkspace({ source, destination });
+  await writePagesStaticHealth(destination, {
+    MAHORAGA_DEPLOYMENT_PROVIDER: "github-pages",
+    MAHORAGA_GIT_COMMIT_SHA: "a".repeat(40),
+  });
 
   assert.equal(await exists(path.join(destination, "app", "page.tsx")), true);
-  assert.equal(await exists(path.join(destination, "app", "api", "health", "route.ts")), true);
+  assert.equal(await exists(path.join(destination, "app", "api")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "live")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "ready")), false);
   assert.equal(await exists(path.join(destination, "app", "api", "runtime")), false);
+  const health = JSON.parse(await readFile(path.join(destination, "public", "api", "health.json"), "utf8"));
+  assert.equal(health.deployment.provider, "github-pages");
+  assert.equal(health.deployment.commitSha, "a".repeat(40));
+  assert.equal(health.routing.authority, "paired-mahoraga-core");
+  assert.equal(JSON.stringify(health).includes("secret"), false);
 });
 
 test("Pages static build recognizes a relative Windows command-line path", () => {
@@ -69,15 +78,101 @@ test("Pages staging stays inside the repository root without copying the UI into
   assert.equal(path.relative(source, destination).startsWith(".."), true);
 });
 
+test("Pages publishes the real workspace and has no Railway launcher contract", async () => {
+  const builder = await readFile(new URL("../scripts/build-pages-static.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(builder, /pagesLauncherHtml/);
+  assert.doesNotMatch(builder, /DEFAULT_CANONICAL_WORKSPACE_URL/);
+  assert.match(builder, /FORBIDDEN_STATIC_MARKERS/);
 
-test("Pages root launches the canonical Railway workspace instead of acting as execution UI", async () => {
-  const html = pagesLauncherHtml();
-  assert.match(html, new RegExp(DEFAULT_CANONICAL_WORKSPACE_URL.replace(/[.*+?^$\{\}()|[\]\\]/g, "\\$&")));
-  assert.doesNotMatch(html, /github\.io\/mahoraga/);
-  assert.throws(() => pagesLauncherHtml("http://example.test/"), /canonical-workspace-url-invalid/);
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.match(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
-  const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
-  assert.match(readme, /Open Mahoraga/);
-  assert.match(readme, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health\.json/);
+  assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
+  assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
+  assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.match(workflow, /actions\/configure-pages/);
+  assert.match(workflow, /actions\/upload-pages-artifact/);
+  assert.match(workflow, /actions\/deploy-pages/);
+});
+
+
+test("Pages artifact inspection accepts the real workspace shape and rejects server secrets or Railway redirect wiring", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-artifact-test-"));
+  const safe = path.join(root, "safe");
+  await mkdir(path.join(safe, "_next", "static", "chunks"), { recursive: true });
+  await writeFile(path.join(safe, "index.html"), '<!doctype html><html><body><div id="app">Mahoraga</div><script src="/mahoraga/_next/static/chunks/app.js"></script></body></html>');
+  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://api.example.test")');
+  const result = await inspectPagesStaticArtifact(safe);
+  assert.equal(result.indexHtml, path.join(safe, "index.html"));
+  assert.ok(result.textFiles >= 2);
+
+  const forbidden = [
+    "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
+    "MAHORAGA_CLOUD_SESSION_SECRET",
+    "MAHORAGA_PRIMARY_CODEX_TOKEN",
+    "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
+    "mahoraga-runtime-main-production.up.railway.app",
+    'location.replace("https://mahoraga-runtime',
+  ];
+  for (const [index, marker] of forbidden.entries()) {
+    const candidate = path.join(root, `bad-${index}`);
+    await mkdir(path.join(candidate, "_next", "static"), { recursive: true });
+    await writeFile(path.join(candidate, "index.html"), '<script src="/mahoraga/_next/static/app.js"></script>');
+    await writeFile(path.join(candidate, "_next", "static", "app.js"), marker);
+    await assert.rejects(() => inspectPagesStaticArtifact(candidate), /pages-static-artifact-forbidden/);
+  }
+});
+
+test("Pages artifact inspection rejects redirect-only or assetless entry points", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mahoraga-pages-entry-test-"));
+  const redirect = path.join(root, "redirect");
+  await mkdir(redirect, { recursive: true });
+  await writeFile(path.join(redirect, "index.html"), '<meta http-equiv="refresh" content="0; url=https://example.test"><script>location.replace("https://example.test")</script>');
+  await assert.rejects(() => inspectPagesStaticArtifact(redirect), /pages-static-artifact-entry-invalid/);
+
+  const assetless = path.join(root, "assetless");
+  await mkdir(assetless, { recursive: true });
+  await writeFile(path.join(assetless, "index.html"), '<!doctype html><p>Mahoraga</p>');
+  await assert.rejects(() => inspectPagesStaticArtifact(assetless), /pages-static-artifact-entry-invalid/);
+});
+
+
+test("Pages workflow builds and inspects pull requests without publishing them", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /node-version: "24"/);
+  assert.match(workflow, /Build and inspect static workspace/);
+  assert.match(workflow, /deploy:[\s\S]*if: github\.event_name != 'pull_request'/);
+  assert.match(workflow, /needs: build/);
+});
+
+
+test("Pages runner policy defaults to GitHub-hosted but supports a temporary repository-variable fallback", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const matches = workflow.match(/MAHORAGA_PAGES_RUNNER_LABELS/g) ?? [];
+  assert.equal(matches.length, 2);
+  assert.match(workflow, /fromJSON\(vars\.MAHORAGA_PAGES_RUNNER_LABELS \|\| '\["ubuntu-latest"\]'\)/);
+});
+
+
+test("Pages CI runs cloud-app typecheck and full tests before export", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const typecheck = workflow.indexOf("npm run typecheck");
+  const tests = workflow.indexOf("node --test test/*.test.mjs");
+  const build = workflow.indexOf("- name: Build and inspect static workspace");
+  assert.ok(typecheck >= 0);
+  assert.ok(tests >= 0);
+  assert.ok(typecheck < build);
+  assert.ok(tests < build);
+});
+
+
+test("Pages workflow declares the repository-required top-level permission boundary", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.ok(workflow.includes("permissions:\n  contents: read\n"));
+});
+
+test("Pages workflow avoids self-hosted cache finalization after artifact upload", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(workflow, /cache:\s*npm/);
+  assert.doesNotMatch(workflow, /cache-dependency-path:/);
 });

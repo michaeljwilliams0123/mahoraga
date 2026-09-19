@@ -1,7 +1,8 @@
 "use client";
 
 import { Link2, ShieldCheck, Unplug } from "lucide-react";
-import type { RuntimeCapability } from "@/lib/runtime-relay";
+import { useState } from "react";
+import type { RuntimeCapability, RuntimeComposioRepositoryProbe } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
 
 type DisplayCapability = RuntimeCapability & { providerReasonCode?: string | null };
@@ -15,11 +16,29 @@ export function ConnectionsView({
   coreReady,
   health,
   runtimeCapabilities,
+  relay,
   onRequestPairing,
   onDisconnect,
 }: ConnectionsViewProps) {
   const displayCapabilities = runtimeCapabilities as DisplayCapability[];
   const routableCount = displayCapabilities.filter((capability) => capability.routable).length;
+  const [composioProbe, setComposioProbe] = useState<RuntimeComposioRepositoryProbe | null>(null);
+  const [composioBusy, setComposioBusy] = useState(false);
+  const [composioError, setComposioError] = useState<string | null>(null);
+
+  async function probeComposio() {
+    if (!relay || composioBusy) return;
+    setComposioBusy(true);
+    setComposioError(null);
+    try {
+      setComposioProbe(await relay.composioGithubRepository("michaeljwilliams0123", "mahoraga"));
+    } catch (error) {
+      setComposioProbe(null);
+      setComposioError(error instanceof Error ? error.message : "composio-probe-failed");
+    } finally {
+      setComposioBusy(false);
+    }
+  }
 
   return (
     <section className="connection-panel" aria-label="Connections">
@@ -77,7 +96,33 @@ export function ConnectionsView({
         </div>
       )}
 
+      {coreReady && (
+        <div className="capability-list" style={{ marginTop: 16 }}>
+          <div>
+            <strong>Composio → GitHub</strong>
+            <span>
+              {composioProbe?.repository.fullName
+                ? `verified · ${composioProbe.repository.fullName} · ${composioProbe.repository.defaultBranch ?? "unknown branch"}`
+                : composioError
+                  ? `not ready · ${composioError}`
+                  : "bounded read probe available"}
+            </span>
+          </div>
+          {composioProbe && (
+            <div>
+              <strong>Composio authority</strong>
+              <span>{composioProbe.repository.permissions.push ? "GitHub write authority observed; probe remains read-only" : "GitHub read authority observed"}</span>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="pairing-actions" style={{ marginTop: 16 }}>
+        {coreReady && (
+          <button type="button" disabled={composioBusy || !relay} onClick={() => void probeComposio()}>
+            <Link2 size={16} /> {composioBusy ? "Probing Composio…" : "Probe Composio GitHub"}
+          </button>
+        )}
         {!coreReady ? (
           <button type="button" onClick={onRequestPairing}>
             <Link2 size={16} /> Pair runtime

@@ -58,7 +58,8 @@
     "cloudflare:owner-gateway:secret:assertion": "npx --yes wrangler@4.132.0 secret put MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET --config deploy/cloudflare-owner-gateway/wrangler.toml",
     "simulate:communication": "node scripts/communication-simulator.mjs",
     "typecheck": "tsc --noEmit",
-    "language:verify": "node scripts/language-policy.ts"
+    "language:verify": "node scripts/language-policy.ts",
+    "verify:fast": "npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none --test-concurrency=1 test/verification-workflow.test.mjs test/github-live-protection.test.mjs test/release-baseline.test.mjs test/repository-head.test.mjs test/autonomous-integration.test.mjs test/return-reconciler.test.mjs test/composio-tool-client.test.mjs cloud-app/test/composio-integration-contract.test.mjs test/workspace-agent-receiver.test.mjs test/destiny-trigger-trust.test.mjs"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",
