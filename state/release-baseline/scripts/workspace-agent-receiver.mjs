@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import { ROOT, loadManifest } from "../src/config.mjs";
 import { validateAssignmentRecord, validateResultRecord } from "../src/coordination-records.mjs";
 import { executeWorkspaceAgentCapability } from "../src/workspace-agent-worker.mjs";
+import { routeExecutionEnv, selectWorkspaceRoute } from "../src/workspace-route-policy.mjs";
 
 const execFileAsync = promisify(execFile);
 const CANONICAL_REPOSITORY = "michaeljwilliams0123/mahoraga";
@@ -72,10 +73,13 @@ export async function receiveWorkspaceAgentEvent({
     return Object.freeze({ schemaVersion: 1, state: "already-complete", assignmentId: assignment.assignmentId, modelExecution: false });
   }
 
+  const routePolicy = eventRoutePolicy(eventName, event, env);
+  const selected = selectWorkspaceRoute({ policy: routePolicy, env });
+  const executionEnv = routeExecutionEnv(selected.routeId, env);
   const manifest = await loadManifest();
   const worker = manifest.workers.find((item) => item.id === "workspace-agent-cloud");
   if (!worker) throw new Error("workspace-agent-receiver-worker-missing");
-  const health = await executeWorkspaceAgentCapability("workspace-agent.health", {}, worker, { env, fetch });
+  const health = await executeWorkspaceAgentCapability("workspace-agent.health", {}, worker, { env: executionEnv, fetch });
   if (!health.verified) {
     return Object.freeze({
       schemaVersion: 1,
@@ -85,12 +89,14 @@ export async function receiveWorkspaceAgentEvent({
     });
   }
 
-  const outcome = await executeWorkspaceAgentCapability("workspace-agent.trigger", assignmentTask(assignment), worker, { env, fetch });
+  const outcome = await executeWorkspaceAgentCapability("workspace-agent.trigger", assignmentTask(assignment), worker, { env: executionEnv, fetch });
   return Object.freeze({
     schemaVersion: 1,
     state: "accepted",
     assignmentId: assignment.assignmentId,
     modelExecution: true,
+    routePolicy,
+    selectedRoute: selected.routeId,
     providerRunId: outcome.providerReceipt.runId,
     returnBranch: outcome.providerReceipt.returnBranch,
   });
