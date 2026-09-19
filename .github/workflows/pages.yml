@@ -33,6 +33,14 @@ jobs:
         working-directory: cloud-app
         run: npm ci
 
+      - name: Typecheck workspace
+        working-directory: cloud-app
+        run: npm run typecheck
+
+      - name: Test workspace
+        working-directory: cloud-app
+        run: node --test test/*.test.mjs
+
       - name: Build and inspect static workspace
         working-directory: cloud-app
         env:
