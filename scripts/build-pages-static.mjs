@@ -1,24 +1,9 @@
 import { spawn } from "node:child_process";
-import { cp, lstat, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const DEFAULT_CANONICAL_WORKSPACE_URL = "https://mahoraga-runtime-main-production.up.railway.app/";
-
-export function pagesLauncherHtml(value = process.env.MAHORAGA_CANONICAL_WORKSPACE_URL ?? DEFAULT_CANONICAL_WORKSPACE_URL) {
-  let target;
-  try { target = new URL(value); } catch { throw new Error("canonical-workspace-url-invalid"); }
-  if (target.protocol !== "https:" || target.username || target.password) throw new Error("canonical-workspace-url-invalid");
-  const href = target.href;
-  const escaped = href.replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=${escaped}"><title>Open Mahoraga</title></head><body><p>Opening Mahoraga… <a href="${escaped}">Continue</a></p><script>location.replace(${JSON.stringify(href)})</script></body></html>`;
-}
-
-const SERVER_ONLY_ROUTE_DIRECTORIES = Object.freeze([
-  path.join("app", "api", "live"),
-  path.join("app", "api", "ready"),
-  path.join("app", "api", "runtime"),
-]);
+const SERVER_ONLY_ROUTE_DIRECTORIES = Object.freeze([path.join("app", "api")]);
 
 function relativePath(root, candidate) {
   return path.relative(root, candidate);
@@ -42,6 +27,33 @@ export async function preparePagesStaticWorkspace({ source, destination }) {
   });
 }
 
+export async function writePagesStaticHealth(destination, env = process.env) {
+  const target = path.join(destination, "public", "api", "health.json");
+  await mkdir(path.dirname(target), { recursive: true });
+  await writeFile(target, `${JSON.stringify({
+    ok: true,
+    product: "Mahoraga",
+    build: { version: "7.0.0-alpha.2" },
+    deployment: {
+      provider: env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim() || "github-pages",
+      environment: env.MAHORAGA_DEPLOYMENT_ENV?.trim() || "production",
+      url: env.MAHORAGA_DEPLOYMENT_URL?.trim() || null,
+      commitSha: env.MAHORAGA_GIT_COMMIT_SHA?.trim() || null,
+      expectedCommitSha: null,
+      gitRef: env.MAHORAGA_GIT_COMMIT_REF?.trim() || null,
+      promotion: "exact-main-pages",
+    },
+    runtime: {
+      databaseTarget: { basename: null, source: "paired-core-required" },
+      provenance: { state: "unknown", expectedSourceCommit: null, source: "paired-core-required" },
+    },
+    capabilities: { runtimeRelay: true, directConversationExecution: false, directProviderSelection: false },
+    boundaries: { executionPlane: "client-shell-with-owner-paired-core", localExtensionRequired: false, localDeviceMutationAllowed: false, relaySeesPlaintext: false },
+    routing: { authority: "paired-mahoraga-core", automaticPaidFallback: false, browserMaySelectProvider: false },
+  })}\n`, "utf8");
+  return target;
+}
+
 function run(command, args, options) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { ...options, stdio: "inherit", windowsHide: true });
@@ -63,6 +75,44 @@ export async function linkPagesDependencies({ source, destination }) {
   await symlink(sourceDependencies, path.join(destination, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 }
 
+const FORBIDDEN_STATIC_MARKERS = Object.freeze([
+  "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
+  "MAHORAGA_CLOUD_SESSION_SECRET",
+  "MAHORAGA_PRIMARY_CODEX_TOKEN",
+  "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
+  "mahoraga-runtime-main-production.up.railway.app",
+  'location.replace("https://mahoraga-runtime',
+]);
+const TEXT_ASSET_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".map", ".mjs", ".svg", ".txt", ".xml"]);
+
+async function pagesTextFiles(root) {
+  const files = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const candidate = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...await pagesTextFiles(candidate));
+    else if (entry.isFile() && TEXT_ASSET_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(candidate);
+  }
+  return files;
+}
+
+export async function inspectPagesStaticArtifact(root) {
+  const indexHtml = path.join(root, "index.html");
+  let index;
+  try { index = await readFile(indexHtml, "utf8"); }
+  catch { throw new Error("pages-static-artifact-entry-invalid"); }
+  if (!index.includes("/mahoraga/_next/static/") || /http-equiv=["']refresh["']/i.test(index) || /location\.replace\(/.test(index)) {
+    throw new Error("pages-static-artifact-entry-invalid");
+  }
+  const files = await pagesTextFiles(root);
+  for (const file of files) {
+    const content = file === indexHtml ? index : await readFile(file, "utf8");
+    for (const marker of FORBIDDEN_STATIC_MARKERS) {
+      if (content.includes(marker)) throw new Error(`pages-static-artifact-forbidden:${marker}`);
+    }
+  }
+  return { indexHtml, textFiles: files.length };
+}
+
 export async function buildPagesStaticExport({ source = path.resolve(import.meta.dirname, "..", "cloud-app") } = {}) {
   const stagingRoot = pagesStaticStagingRoot(source);
   const stagedApp = path.join(stagingRoot, "cloud-app");
@@ -70,6 +120,7 @@ export async function buildPagesStaticExport({ source = path.resolve(import.meta
   try {
     await rm(stagingRoot, { recursive: true, force: true });
     await preparePagesStaticWorkspace({ source, destination: stagedApp });
+    await writePagesStaticHealth(stagedApp);
     await cp(path.resolve(source, "..", "operator-deck"), path.join(stagingRoot, "operator-deck"), { recursive: true, filter: (candidate) => !hasPathPrefix(relativePath(path.resolve(source, "..", "operator-deck"), candidate), "node_modules") });
     await linkPagesDependencies({ source, destination: stagedApp });
     await run(process.execPath, [path.join(stagedApp, "node_modules", "next", "dist", "bin", "next"), "build"], {
@@ -79,7 +130,7 @@ export async function buildPagesStaticExport({ source = path.resolve(import.meta
     await rm(output, { recursive: true, force: true });
     await mkdir(output, { recursive: true });
     await cp(path.join(stagedApp, "out"), output, { recursive: true });
-    await writeFile(path.join(output, "index.html"), pagesLauncherHtml(), "utf8");
+    await inspectPagesStaticArtifact(output);
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
   }

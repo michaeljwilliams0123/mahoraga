@@ -7,7 +7,7 @@ const cloudVercel = new URL("../cloud-app/vercel.json", import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const readme = read("README.md");
 
-test("Railway-only production keeps Vercel as a silent non-deploying tombstone", () => {
+test("retired Vercel stays silent while GitHub Pages owns the browser UI", () => {
   assert.equal(existsSync(rootVercel), false);
   assert.equal(existsSync(cloudVercel), true);
 
@@ -21,20 +21,28 @@ test("Railway-only production keeps Vercel as a silent non-deploying tombstone",
   assert.match(readme, /Vercel:\*\* historical\/retired from the active production-completion path/);
 });
 
-test("active runtime and operator references use the canonical Railway origin", () => {
+test("GitHub Pages is canonical browser presentation while Railway remains server-capable runtime", () => {
   const references = {
     versions: read("operator-deck/src/lib/fleet/versions.ts"),
-    allowlist: read("operator-deck/src/lib/fleet/allowlist.ts"),
     execute: read("operator-deck/src/lib/fleet/execute.server.ts"),
+    allowlist: read("operator-deck/src/lib/fleet/allowlist.ts"),
     browserWorker: read("src/browser-worker.mjs"),
     manifest: read("mahoraga.manifest.json"),
   };
-  assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/mahoraga-runtime-main-production\.up\.railway\.app\/"/);
+
+  assert.match(references.versions, /APP_HOST = "GitHub Pages"/);
+  assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/"/);
+  assert.match(references.versions, /GitHub Pages is the canonical browser presentation/);
+  assert.match(references.versions, /Railway remains the current server-capable runtime during migration/);
+  assert.match(references.execute, /Conversation UI", value: "GitHub Pages workspace"/);
+  assert.match(readme, /\[Open Mahoraga\]\(https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/\)/);
+  assert.match(readme, /encrypted relay/);
+
   assert.match(references.allowlist, /"mahoraga-runtime-main-production\.up\.railway\.app"/);
-  assert.match(references.execute, /Conversation UI", value: "Railway cloud-app"/);
   assert.match(references.browserWorker, /canonical Railway workspace/);
   assert.match(references.manifest, /canonical Railway workspace/);
-  for (const [path, source] of Object.entries(references)) {
-    assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app|unified Vercel workspace/, path);
+
+  for (const [sourcePath, source] of Object.entries(references)) {
+    assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app|unified Vercel workspace/, sourcePath);
   }
 });

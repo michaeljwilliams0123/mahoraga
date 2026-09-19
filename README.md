@@ -3,11 +3,15 @@
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
 [![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-**[Open Mahoraga](https://mahoraga-runtime-main-production.up.railway.app/)** — canonical server-capable owner workspace. GitHub Pages is a static launch surface only.
+**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. Conversation and action execution remain on Mahoraga’s encrypted relay to the authoritative runtime; Railway remains the current server-capable runtime during migration.
+
+GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. It is the current canonical browser presentation, but browser hosting remains replaceable and never becomes execution authority.
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
 > **Canonical truth model:** GitHub `main` is the **private code authority** and source/evolution authority. A merged commit does not prove a deployment is current, and a healthy deployment does not prove every worker/provider is routable. Source truth, deployment truth, live-runtime truth, provider readiness, and execution authority are separate evidence domains and must stay separate.
+>
+> Deployment availability is observed separately from source verification; host reachability does not prove that exact-head source checks passed.
 >
 > **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; private source access does not itself grant Microsoft, relay, runtime, provider, or deployment authority.
 
@@ -21,10 +25,9 @@ At this review point:
 - the 2026-09-18 stack was admitted by a temporary owner ruleset bypass, then the original ruleset was restored with **no** bypass actors;
 - GitHub remains the authoritative source ledger;
 - GitLab remains a secondary assurance plane;
-- Railway `mahoraga-runtime-main` remains the canonical cloud runtime/workspace service;
-- source on `main` is ahead of live Railway until an explicit exact-SHA promotion, so deployment claims remain fail-closed;
-- canonical Railway promotion is guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are intended to be explicit, verified promotion events rather than implicit reactions to every push.
-
+- GitHub Pages is the canonical browser presentation; conversation and action execution continue through Mahoraga’s encrypted relay to the authoritative runtime, with Railway `mahoraga-runtime-main` remaining the current server-capable execution/control service during migration;
+- source on `main` can be ahead of live Railway until an explicit exact-SHA promotion, so deployment claims remain fail-closed;
+- canonical Railway promotion is guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are explicit, verified promotion events rather than implicit reactions to every push.
 ## Capability-first architecture
 
 Mahoraga plans against **capabilities, evidence, authority, and cost**, not vendor names. A user asks for an outcome; Mahoraga compiles the objective into required capabilities, observes current state, derives authority, ranks lawful routes, executes through the best admitted path, verifies results, persists receipts/state, and recovers or reroutes when a recoverable path drifts.
@@ -232,13 +235,13 @@ If the owner identity/gateway is absent, session establishment must fail closed.
 
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
 - **Production server-capable target:** Railway `mahoraga-runtime-main`, once exact-source deployment and owner-session readiness are freshly proven.
-- **GitHub Pages:** GitHub Pages is an optional derived static export. It is not runtime authority and cannot expose server-only action/session routes.
+- **GitHub Pages:** canonical browser presentation built as a derived static export. It is not runtime authority, cannot expose server-only action/session routes, and reaches Mahoraga through the encrypted relay.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
 - **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.
 - **Netlify:** fallback hosting only; it does not change Mahoraga authority.
 
-GitHub `main` is the private code authority for the workspace. Deployment availability is observed separately from source verification. The runtime-configured `MAHORAGA_WORKSPACE_URL` / `MAHORAGA_WORKSPACE_ORIGIN` defines the canonical production origin after exact-head deployment and pairing verification. GitHub Pages remains optional; neither its historical URL nor any replacement host is canonical until the configured production origin is proven on the exact authoritative source SHA and passes the required pairing/health checks.
+GitHub `main` is the private code authority for the workspace. The exact-main GitHub Pages artifact is the canonical browser presentation once published, while runtime execution authority remains separate and must be reached through the authenticated encrypted relay. A runtime or replacement host is not authoritative until its exact source SHA and required pairing/health evidence are freshly proven.
 
 The UI should expose evidence without inventing it. Current open UI follow-ups intentionally separate real runtime receipts from simulations:
 
