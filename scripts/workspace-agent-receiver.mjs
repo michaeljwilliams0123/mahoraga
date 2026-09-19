@@ -57,6 +57,17 @@ export async function selectWorkspaceAgentAssignments({
   return Promise.all(unique.map((id) => readAssignment(root, id)));
 }
 
+function eventRoutePolicy(eventName, event, env) {
+  const requested = eventName === "workflow_dispatch" ? event?.inputs?.route_policy : undefined;
+  const policy = requested || env.ROUTE_POLICY || "balanced";
+  if (!Object.hasOwn({ "destiny-workspace": true, "mike-primary": true, balanced: true, overflow: true }, policy)) {
+    const error = new TypeError("workspace-agent-receiver-route-policy-invalid");
+    error.code = "workspace-agent-receiver-route-policy-invalid";
+    throw error;
+  }
+  return policy;
+}
+
 export async function receiveWorkspaceAgentEvent({
   eventName,
   event,
@@ -74,7 +85,18 @@ export async function receiveWorkspaceAgentEvent({
   }
 
   const routePolicy = eventRoutePolicy(eventName, event, env);
-  const selected = selectWorkspaceRoute({ policy: routePolicy, env });
+  let selected;
+  try {
+    selected = selectWorkspaceRoute({ policy: routePolicy, env });
+  } catch (error) {
+    if (error?.code !== "workspace-route-unavailable") throw error;
+    return Object.freeze({
+      schemaVersion: 1,
+      state: "unconfigured",
+      assignmentId: assignment.assignmentId,
+      modelExecution: false,
+    });
+  }
   const executionEnv = routeExecutionEnv(selected.routeId, env);
   const manifest = await loadManifest();
   const worker = manifest.workers.find((item) => item.id === "workspace-agent-cloud");

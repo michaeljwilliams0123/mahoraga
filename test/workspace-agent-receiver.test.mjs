@@ -75,7 +75,7 @@ test("configured receiver makes one idempotent Workspace Agent request", async (
   const result = await receiveWorkspaceAgentEvent({
     eventName: "issue_comment",
     event: ownerCommand(),
-    env: { AGENT_ACCESS_TOKEN: "wat_test_token_value_long_enough", WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123" },
+    env: { ROUTE_POLICY: "mike-primary", MIKE_PRIMARY_AGENT_ACCESS_TOKEN: "wat_test_token_value_long_enough", MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123" },
     fetch: async (url, options) => {
       calls.push({ url, options });
       return new Response(JSON.stringify({
@@ -97,7 +97,7 @@ test("completed assignment cannot execute again", async () => {
   const result = await receiveWorkspaceAgentEvent({
     eventName: "issue_comment",
     event: ownerCommand(completed),
-    env: { AGENT_ACCESS_TOKEN: "wat_test_token_value_long_enough", WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123" },
+    env: { ROUTE_POLICY: "mike-primary", MIKE_PRIMARY_AGENT_ACCESS_TOKEN: "wat_test_token_value_long_enough", MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID: "agtch_test123" },
     fetch: async () => { called = true; throw new Error("network-must-not-run"); },
   });
   assert.equal(called, false);
@@ -117,8 +117,12 @@ test("GitHub receiver is read-only, owner-bound, pinned, and secret-backed", asy
   assert.doesNotMatch(source, /contents: write|pull-requests: write|pull_request_target/);
   assert.match(source, /actions\/checkout@[a-f0-9]{40}/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40}/);
-  assert.match(source, /AGENT_ACCESS_TOKEN: \$\{\{ secrets\.AGENT_ACCESS_TOKEN \}\}/);
-  assert.match(source, /WORKSPACE_AGENT_TRIGGER_ID: \$\{\{ secrets\.WORKSPACE_AGENT_TRIGGER_ID \}\}/);
+  assert.match(source, /DESTINY_WORKSPACE_AGENT_ACCESS_TOKEN: \$\{\{ secrets\.DESTINY_WORKSPACE_AGENT_ACCESS_TOKEN \}\}/);
+  assert.match(source, /DESTINY_WORKSPACE_AGENT_TRIGGER_ID: \$\{\{ secrets\.DESTINY_WORKSPACE_AGENT_TRIGGER_ID \}\}/);
+  assert.match(source, /MIKE_PRIMARY_AGENT_ACCESS_TOKEN: \$\{\{ secrets\.MIKE_PRIMARY_AGENT_ACCESS_TOKEN \}\}/);
+  assert.match(source, /MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID: \$\{\{ secrets\.MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID \}\}/);
+  assert.match(source, /ROUTE_POLICY: \$\{\{ inputs\.route_policy \}\}/);
+  assert.doesNotMatch(source, /secrets\.AGENT_ACCESS_TOKEN|secrets\.WORKSPACE_AGENT_TRIGGER_ID/);
   assert.match(gateway, /steps\.gateway\.outputs\.mode == 'desktop'/);
   assert.match(gateway, /actions\.createWorkflowDispatch/);
   assert.match(gateway, /workflow_id: "workspace-agent-receiver\.yml"/);
