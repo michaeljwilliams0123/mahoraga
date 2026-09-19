@@ -176,3 +176,8 @@ test("Pages workflow avoids self-hosted cache finalization after artifact upload
   assert.doesNotMatch(workflow, /cache:\s*npm/);
   assert.doesNotMatch(workflow, /cache-dependency-path:/);
 });
+
+test("Pages availability probe explicitly uses Bash on every trusted runner", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /- name: Check Pages site availability[\s\S]*?id: pages_site\n\s+shell: bash/);
+});
