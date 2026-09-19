@@ -23,7 +23,7 @@ jobs:
       matrix:
         include:
           - check_name: ubuntu-latest
-            runner_labels: '"ubuntu-latest"'
+            runner_labels: '["self-hosted","linux","x64"]'
           - check_name: windows-latest
             runner_labels: '["self-hosted","windows","x64"]'
 
