@@ -1,8 +1,8 @@
 export const LANGUAGE_LOCK = "TypeScript";
-export const APP_HOST = "Railway";
+export const APP_HOST = "GitHub Pages";
 export const WORKSPACE_NOTE =
-  "Google Workspace is identity, mail, and docs. It is not the app host. Production browser UIs ship Railway-only; active Vercel deploy config is retired.";
-export const CLOUD_APP_URL = "https://mahoraga-runtime-main-production.up.railway.app/";
+  "GitHub Pages is the canonical browser UI. GitHub remains source/build/release authority. The always-on API/control plane is provider-neutral; Railway is migration fallback only until retirement.";
+export const CLOUD_APP_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const ROLLBACK_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
 export const CANDIDATE_VERSION = "7.0.0-alpha.2";
@@ -44,7 +44,7 @@ export const VERSION_SURFACES: VersionSurface[] = [
     label: "Conversation workspace",
     version: CANDIDATE_VERSION,
     role: "GitHub candidate plus ChatGPT-style workspace with self.evolve control plane.",
-    host: `${APP_HOST}-only production · cloud-app/ (no active vercel.json)`,
+    host: `${APP_HOST} canonical browser UI · cloud-app/ static export`,
     language: "TypeScript (Next.js cloud-app)",
     status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected. Owner directives may target self.evolve.",
     href: CLOUD_APP_URL,
