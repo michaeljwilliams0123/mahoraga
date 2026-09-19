@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { verifyBaselineFiles } from "../scripts/create-release-baseline.mjs";
+import { ESSENTIAL_FILES } from "../src/repair.mjs";
 
 async function withBaselineFixture(callback) {
   const root = await mkdtemp(path.join(os.tmpdir(), "mahoraga-baseline-"));
@@ -44,4 +45,8 @@ test("release baseline verification reports missing baseline files", async () =>
       { relative: "package.json", reason: "baseline-missing-or-empty" },
     ]);
   });
+});
+
+test("release baseline includes the Composio client imported by the core server", () => {
+  assert.ok(ESSENTIAL_FILES.includes("src/composio-tool-client.mjs"));
 });

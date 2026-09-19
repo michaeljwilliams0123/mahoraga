@@ -123,6 +123,7 @@ export const ESSENTIAL_FILES = [
   "src/relay-runtime.mjs",
   "src/openclaw-adapter.mjs",
   "src/mcp-host-manager.mjs",
+  "src/composio-tool-client.mjs",
   "src/evidence-compiler.mjs",
   "src/internet-egress.mjs",
   "src/bounded-execution.mjs",
