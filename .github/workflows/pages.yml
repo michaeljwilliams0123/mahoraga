@@ -14,7 +14,7 @@ concurrency:
 jobs:
   build:
     name: Build and inspect static workspace
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -54,7 +54,7 @@ jobs:
     name: Publish exact-main static workspace
     if: github.event_name != 'pull_request'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     permissions:
       contents: read
