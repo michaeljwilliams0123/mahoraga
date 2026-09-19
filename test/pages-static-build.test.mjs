@@ -162,3 +162,10 @@ test("Pages CI runs cloud-app typecheck and full tests before export", async () 
   assert.ok(typecheck < build);
   assert.ok(tests < build);
 });
+
+
+test("Pages workflow declares the repository-required top-level permission boundary", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /^permissions:\s*
+\s+contents:\s+read\s*$/m);
+});
