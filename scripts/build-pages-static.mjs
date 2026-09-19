@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { cp, lstat, mkdir, rm, symlink } from "node:fs/promises";
+import { cp, lstat, mkdir, readFile, readdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -52,6 +52,44 @@ export async function linkPagesDependencies({ source, destination }) {
   await symlink(sourceDependencies, path.join(destination, "node_modules"), process.platform === "win32" ? "junction" : "dir");
 }
 
+const FORBIDDEN_STATIC_MARKERS = Object.freeze([
+  "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
+  "MAHORAGA_CLOUD_SESSION_SECRET",
+  "MAHORAGA_PRIMARY_CODEX_TOKEN",
+  "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
+  "mahoraga-runtime-main-production.up.railway.app",
+  'location.replace("https://mahoraga-runtime',
+]);
+const TEXT_ASSET_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".map", ".mjs", ".svg", ".txt", ".xml"]);
+
+async function pagesTextFiles(root) {
+  const files = [];
+  for (const entry of await readdir(root, { withFileTypes: true })) {
+    const candidate = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...await pagesTextFiles(candidate));
+    else if (entry.isFile() && TEXT_ASSET_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) files.push(candidate);
+  }
+  return files;
+}
+
+export async function inspectPagesStaticArtifact(root) {
+  const indexHtml = path.join(root, "index.html");
+  let index;
+  try { index = await readFile(indexHtml, "utf8"); }
+  catch { throw new Error("pages-static-artifact-entry-invalid"); }
+  if (!index.includes("/mahoraga/_next/static/") || /http-equiv=["']refresh["']/i.test(index) || /location\.replace\(/.test(index)) {
+    throw new Error("pages-static-artifact-entry-invalid");
+  }
+  const files = await pagesTextFiles(root);
+  for (const file of files) {
+    const content = file === indexHtml ? index : await readFile(file, "utf8");
+    for (const marker of FORBIDDEN_STATIC_MARKERS) {
+      if (content.includes(marker)) throw new Error(`pages-static-artifact-forbidden:${marker}`);
+    }
+  }
+  return { indexHtml, textFiles: files.length };
+}
+
 export async function buildPagesStaticExport({ source = path.resolve(import.meta.dirname, "..", "cloud-app") } = {}) {
   const stagingRoot = pagesStaticStagingRoot(source);
   const stagedApp = path.join(stagingRoot, "cloud-app");
@@ -68,6 +106,7 @@ export async function buildPagesStaticExport({ source = path.resolve(import.meta
     await rm(output, { recursive: true, force: true });
     await mkdir(output, { recursive: true });
     await cp(path.join(stagedApp, "out"), output, { recursive: true });
+    await inspectPagesStaticArtifact(output);
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
   }
