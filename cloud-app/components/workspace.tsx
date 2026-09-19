@@ -3,6 +3,7 @@
 import { Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
+import { mahoragaApiUrl } from "@/lib/api-origin";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
@@ -104,12 +105,16 @@ export function Workspace() {
   const brainLabel = `Mahoraga: ${brainState}`;
 
   useEffect(() => {
-    fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("health-failed");
-        setHealth((await response.json()) as Health);
-      })
-      .catch(() => setHealthError(true));
+    try {
+      fetch(mahoragaApiUrl("/api/health"), { cache: "no-store", credentials: "include" })
+        .then(async (response) => {
+          if (!response.ok) throw new Error("health-failed");
+          setHealth((await response.json()) as Health);
+        })
+        .catch(() => setHealthError(true));
+    } catch {
+      setHealthError(true);
+    }
     setVoiceSupported(voiceSupport().dictation);
   }, []);
 
@@ -156,7 +161,7 @@ export function Workspace() {
     setOwnerLoginBusy(true);
     setRuntimeError(null);
     try {
-      const response = await fetch("/api/runtime/login", {
+      const response = await fetch(mahoragaApiUrl("/api/runtime/login"), {
         method: "POST",
         credentials: "include",
         cache: "no-store",
