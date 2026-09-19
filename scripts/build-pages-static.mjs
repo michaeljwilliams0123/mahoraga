@@ -1,18 +1,7 @@
 import { spawn } from "node:child_process";
-import { cp, lstat, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, lstat, mkdir, rm, symlink } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-
-export const DEFAULT_CANONICAL_WORKSPACE_URL = "https://mahoraga-runtime-main-production.up.railway.app/";
-
-export function pagesLauncherHtml(value = process.env.MAHORAGA_CANONICAL_WORKSPACE_URL ?? DEFAULT_CANONICAL_WORKSPACE_URL) {
-  let target;
-  try { target = new URL(value); } catch { throw new Error("canonical-workspace-url-invalid"); }
-  if (target.protocol !== "https:" || target.username || target.password) throw new Error("canonical-workspace-url-invalid");
-  const href = target.href;
-  const escaped = href.replaceAll("&", "&amp;").replaceAll("\"", "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0; url=${escaped}"><title>Open Mahoraga</title></head><body><p>Opening Mahoraga… <a href="${escaped}">Continue</a></p><script>location.replace(${JSON.stringify(href)})</script></body></html>`;
-}
 
 const SERVER_ONLY_ROUTE_DIRECTORIES = Object.freeze([
   path.join("app", "api", "live"),
@@ -79,7 +68,6 @@ export async function buildPagesStaticExport({ source = path.resolve(import.meta
     await rm(output, { recursive: true, force: true });
     await mkdir(output, { recursive: true });
     await cp(path.join(stagedApp, "out"), output, { recursive: true });
-    await writeFile(path.join(output, "index.html"), pagesLauncherHtml(), "utf8");
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
   }
