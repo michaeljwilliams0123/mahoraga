@@ -44,6 +44,17 @@ export type RuntimeCapability = {
   lastObservedAt?: string | null;
   lastVerifiedAt?: string | null;
 };
+export type RuntimeComposioRepositoryProbe = {
+  provider: "composio";
+  tool: "GITHUB_GET_A_REPOSITORY";
+  repository: {
+    fullName: string | null;
+    private: boolean;
+    defaultBranch: string | null;
+    pushedAt: string | null;
+    permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean; triage: boolean };
+  };
+};
 export type RuntimeTask = {
   id: string;
   conversationId: string;
@@ -280,6 +291,9 @@ export class RuntimeRelay {
   async capabilities() {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
     return Array.isArray(value.capabilities) ? value.capabilities : [];
+  }
+  async composioGithubRepository(owner: string, repo: string) {
+    return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
   }
   async operationsSnapshot() {
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});

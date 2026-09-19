@@ -57,7 +57,7 @@ jobs:
       - name: Verify authoritative repository
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npm run verify -- --test-concurrency=1
+        run: npm run verify:fast
 
       - name: Validate static self-upgrade policy
         run: npm run self-upgrade:validate

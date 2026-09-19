@@ -99,6 +99,6 @@ export type WorkspaceShellProps = {
 
 export type OperationsViewProps = { coreReady: boolean; relay: RuntimeRelay | null; onRequestPairing: () => void };
 export type CockpitViewProps = { coreReady: boolean; health: Health | null; healthError: boolean; runtimeCapabilities: RuntimeCapability[]; onRequestPairing: () => void; onOpenOperations: () => void; onOpenConnections: () => void };
-export type ConnectionsViewProps = { coreReady: boolean; health: Health | null; runtimeCapabilities: RuntimeCapability[]; onRequestPairing: () => void; onDisconnect: () => void | Promise<void> };
+export type ConnectionsViewProps = { coreReady: boolean; health: Health | null; runtimeCapabilities: RuntimeCapability[]; relay: RuntimeRelay | null; onRequestPairing: () => void; onDisconnect: () => void | Promise<void> };
 export type WorkViewProps = { coreReady: boolean; relay: RuntimeRelay | null; onRequestPairing: () => void; onRunQuickAction: (action: QuickActionId) => void | Promise<void> };
 export type FilesViewProps = { files: File[]; totalBytes: number; fileInput: RefObject<HTMLInputElement | null>; addFiles: (files: File[]) => void; setFiles: Dispatch<SetStateAction<File[]>>; onBackToChat: () => void };
