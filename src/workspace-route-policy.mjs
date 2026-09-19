@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { fingerprintPublicKeySpki } from "./destiny-trigger-trust.mjs";
 export const WORKSPACE_ROUTE_POLICIES=Object.freeze({"destiny-workspace":Object.freeze(["destiny-workspace"]),"mike-primary":Object.freeze(["mike-primary"]),balanced:Object.freeze(["destiny-workspace","mike-primary"]),overflow:Object.freeze(["mike-primary","destiny-workspace"])});
-const PRIVATE=/(?:sk-|github_pat_|gh[pousr]_|BEGIN [A-Z ]*PRIVATE KEY|Bearer\\s|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)/i;
+const PRIVATE=/(?:sk-[A-Za-z0-9_-]{16,}|github_pat_|gh[pousr]_[A-Za-z0-9]{16,}|BEGIN [A-Z ]*PRIVATE KEY|Bearer\\s|api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)/i;
 export function selectWorkspaceRoute({policy="balanced",env=process.env,exhaustedRoutes=[]}={}){
  const order=WORKSPACE_ROUTE_POLICIES[policy];if(!order)fail("workspace-route-policy-invalid");
  const exhausted=new Set(exhaustedRoutes);const routes={"destiny-workspace":destiny(env),"mike-primary":mike(env)};
