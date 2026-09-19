@@ -45,6 +45,19 @@ jobs:
           MAHORAGA_GIT_COMMIT_REF: main
         run: node ../scripts/build-pages-static.mjs
 
+      - name: Verify configurable API-origin build
+        if: github.event_name == 'pull_request'
+        working-directory: cloud-app
+        env:
+          MAHORAGA_PAGES_EXPORT: "1"
+          MAHORAGA_DEPLOYMENT_PROVIDER: github-pages
+          MAHORAGA_DEPLOYMENT_ENV: production
+          MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
+          NEXT_PUBLIC_MAHORAGA_API_ORIGIN: https://api.example.test
+          MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
+          MAHORAGA_GIT_COMMIT_REF: main
+        run: node ../scripts/build-pages-static.mjs
+
       - name: Upload workspace artifact
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
