@@ -124,3 +124,14 @@ test("Pages artifact inspection rejects redirect-only or assetless entry points"
   await writeFile(path.join(assetless, "index.html"), '<!doctype html><p>Mahoraga</p>');
   await assert.rejects(() => inspectPagesStaticArtifact(assetless), /pages-static-artifact-entry-invalid/);
 });
+
+
+test("Pages workflow builds and inspects pull requests without publishing them", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /node-version: "24"/);
+  assert.match(workflow, /Build and inspect static workspace/);
+  assert.match(workflow, /deploy:
+[\s\S]*if: github\.event_name != 'pull_request'/);
+  assert.match(workflow, /needs: build/);
+});
