@@ -170,3 +170,9 @@ test("Pages workflow declares the repository-required top-level permission bound
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   assert.ok(workflow.includes("permissions:\n  contents: read\n"));
 });
+
+test("Pages workflow avoids self-hosted cache finalization after artifact upload", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  assert.doesNotMatch(workflow, /cache:\s*npm/);
+  assert.doesNotMatch(workflow, /cache-dependency-path:/);
+});
