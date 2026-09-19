@@ -73,7 +73,7 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   const builder = await readFile(new URL("../scripts/build-pages-static.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(builder, /pagesLauncherHtml/);
   assert.doesNotMatch(builder, /DEFAULT_CANONICAL_WORKSPACE_URL/);
-  assert.doesNotMatch(builder, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.match(builder, /FORBIDDEN_STATIC_MARKERS/);
 
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN:\s*\$\{\{ vars\.MAHORAGA_API_ORIGIN \}\}/);
