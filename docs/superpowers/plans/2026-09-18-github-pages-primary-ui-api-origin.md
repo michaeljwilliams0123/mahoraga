@@ -154,7 +154,7 @@ const accepted = [
 const rejected = [
   "http://api.example.test",
   "javascript:alert(1)",
-  "https://user:pass@api.example.test",
+  "https://user:pass@example.com",
   "https://api.example.test/path",
   "https://api.example.test/?q=1",
   "https://api.example.test/#fragment",
