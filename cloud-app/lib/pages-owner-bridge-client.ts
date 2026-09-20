@@ -17,8 +17,9 @@ export class PagesOwnerBridgeClient {
   private frameReady: Promise<void> | null = null;
   private pending = new Map<string, Pending>();
   private listening = false;
+  private readonly bridgeOrigin: string;
 
-  constructor(private readonly bridgeOrigin: string) {}
+  constructor(bridgeOrigin: string) { this.bridgeOrigin = bridgeOrigin; }
 
   async attach(): Promise<"authenticated" | "owner-auth-required"> {
     await this.ensureFrame();
