@@ -3,6 +3,7 @@
 import { Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
+import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
@@ -14,8 +15,6 @@ import { WorkView } from "./workspace/work-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
 import type { BrainState, ChatCreditPolicy, Health, QuickAction, QuickActionId, RelayState, Starter, TaskMode, WorkspaceMessage, WorkspaceView } from "./workspace/workspace-types";
 
-const ACTIVE_TASK_STATES = new Set(["queued", "claimed", "running", "verifying", "waiting", "waiting_for_user"]);
-const TERMINAL_TASK_STATES = new Set(["succeeded", "failed", "cancelled", "rejected"]);
 const VIEW_HASH: Record<WorkspaceView, string> = { chat: "workspace", work: "work", files: "files", advanced: "advanced" };
 const HASH_VIEW = new Map(Object.entries(VIEW_HASH).map(([view, hash]) => [hash, view as WorkspaceView]));
 
@@ -56,6 +55,8 @@ function runtimeErrorMessage(code: string) {
     "cloud-owner-login-rate-limited": "Too many PIN attempts. Wait a few minutes and try again.",
     "cloud-owner-login-not-configured": "Direct owner sign-in has not been configured yet.",
     "cloud-owner-login-secret-invalid": "The direct owner sign-in configuration is invalid.",
+    "routing-changed": "Mahoraga paused because the available execution route changed. The task is no longer running; retry to re-evaluate the current routes.",
+    "runtime-task-state-unknown": "Mahoraga reported an unsupported task state. Work stopped fail-closed instead of spinning indefinitely.",
   };
   return messages[code] ?? code.replaceAll("-", " ");
 }
@@ -331,27 +332,46 @@ export function Workspace() {
     await submitCore(saved.text, saved.mode, null, "licensed-approved");
   }
   async function pollRuntime(transport: RuntimeRelay, conversationId: string, expectsWork: boolean, pollGeneration: number) {
-    let sawTerminal = false;
+    let sawSettled = false;
     let sawResponse = false;
-    let terminalWithoutResponsePolls = 0;
+    let settledWithoutResponsePolls = 0;
+    let trackedTaskId = activeRuntimeTask.current?.id ?? null;
     for (let attempt = 0; attempt < 160; attempt += 1) {
       if (runtimePollGeneration.current !== pollGeneration) return;
       const [runtimeMessages, tasks] = await Promise.all([transport.messages(conversationId), transport.tasks(conversationId)]);
       if (await syncRuntimeMessages(transport, conversationId, runtimeMessages)) sawResponse = true;
-      activeRuntimeTask.current = tasks.find((task) => ACTIVE_TASK_STATES.has(task.status)) ?? null;
-      const terminalTask = tasks.find((task) => TERMINAL_TASK_STATES.has(task.status)) ?? null;
-      sawTerminal ||= terminalTask !== null;
-      if (!activeRuntimeTask.current && sawTerminal && !sawResponse) {
-        terminalWithoutResponsePolls += 1;
-        if (terminalWithoutResponsePolls >= 3) {
-          if (terminalTask?.errorCode) setRuntimeError(runtimeErrorMessage(terminalTask.errorCode));
+      const activeTask = tasks.find((task) => runtimeTaskPhase(task.status) === "active") ?? null;
+      const settledTask = tasks.find((task) => runtimeTaskPhase(task.status) === "settled") ?? null;
+      const trackedTask = trackedTaskId
+        ? tasks.find((task) => task.id === trackedTaskId) ?? activeTask ?? settledTask
+        : activeTask ?? settledTask;
+      if (!trackedTaskId && trackedTask) trackedTaskId = trackedTask.id;
+      const trackedPhase = trackedTask ? runtimeTaskPhase(trackedTask.status) : null;
+      if (trackedTask && trackedPhase === "unknown") {
+        activeRuntimeTask.current = null;
+        setRuntimeError(runtimeErrorMessage("runtime-task-state-unknown"));
+        return;
+      }
+      activeRuntimeTask.current = trackedPhase === "active" ? trackedTask : null;
+      const trackedSettledTask = trackedPhase === "settled" ? trackedTask : null;
+      sawSettled ||= trackedSettledTask !== null;
+      if (!activeRuntimeTask.current && trackedSettledTask?.errorCode) {
+        setRuntimeError(runtimeErrorMessage(trackedSettledTask.errorCode));
+        return;
+      }
+      if (!activeRuntimeTask.current && sawSettled && !sawResponse) {
+        settledWithoutResponsePolls += 1;
+        if (settledWithoutResponsePolls >= 3) {
+          if (trackedSettledTask?.errorCode) setRuntimeError(runtimeErrorMessage(trackedSettledTask.errorCode));
+          else if (trackedSettledTask?.status === "waiting_for_user") setRuntimeError("Mahoraga is waiting for your input. Review the latest message and reply to continue.");
+          else if (trackedSettledTask?.status === "waiting") setRuntimeError("Mahoraga paused this task. Retry when you want it to re-evaluate the available routes.");
           else setRuntimeError(runtimeErrorMessage("runtime-response-missing"));
           return;
         }
       } else {
-        terminalWithoutResponsePolls = 0;
+        settledWithoutResponsePolls = 0;
       }
-      if (!activeRuntimeTask.current && sawResponse && (sawTerminal || !expectsWork)) return;
+      if (!activeRuntimeTask.current && sawResponse && (sawSettled || !expectsWork)) return;
       await new Promise((resolve) => setTimeout(resolve, 750));
     }
     appendMessage("assistant", "Mahoraga accepted this work and is still processing it. The result remains bound to this core conversation.");
