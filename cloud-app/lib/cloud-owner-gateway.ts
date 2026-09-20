@@ -9,7 +9,8 @@ const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 const REPLAY_WINDOW_MS = 2 * 60 * 1000;
 const CORE_GATEWAY_URL = "http://127.0.0.1:4782/api/cloud/runtime";
 const CORE_ARTIFACT_URL = "http://127.0.0.1:4782/api/artifacts";
-const REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
+const DEFAULT_REPLAY_ROOT = process.platform === "linux" ? "/var/lib/mahoraga" : path.resolve("state", "cloud");
+function replayRoot(env: NodeJS.ProcessEnv = process.env) { return env.MAHORAGA_PAGES_BRIDGE_REPLAY_ROOT?.trim() || DEFAULT_REPLAY_ROOT; }
 export const CLOUD_OWNER_HEADER = "x-mahoraga-owner" as const;
 
 export type OwnerSession = { ownerId: string; sessionId: string; csrf: string; cookie?: string };
@@ -50,11 +51,11 @@ export function establishOwnerSession(request: Request): OwnerSession {
   const assertion = `${assertedOwner}\n${assertedAt}\n${assertionNonce}`;
   if (!safeEqual(assertedOwner, ownerId) || !Number.isSafeInteger(assertedAt) || Math.abs(Date.now() - assertedAt) > REPLAY_WINDOW_MS || !/^[a-f0-9-]{36}$/i.test(assertionNonce)
     || !safeEqual(assertionSignature, sign(assertionSecret, assertion))) throw gatewayError("cloud-owner-auth-required", 401);
-  persistNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
+  reserveCloudReplayNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
   return issueOwnerSession(ownerId, secret);
 }
 
-export function establishOwnerLoginSession(request: Request, suppliedPin: unknown): OwnerSession {
+export function verifyOwnerLoginAttempt(request: Request, suppliedPin: unknown) {
   if (!hasTrustedRequestOrigin(request)) throw gatewayError("cloud-same-origin-required", 403);
   const existingRetryAfter = ownerLoginRequestRetryAfter(request);
   if (existingRetryAfter > 0) throw gatewayError("cloud-owner-login-rate-limited", 429, existingRetryAfter);
@@ -67,7 +68,12 @@ export function establishOwnerLoginSession(request: Request, suppliedPin: unknow
     throw gatewayError(login.code, login.code === "cloud-owner-login-required" ? 401 : 503);
   }
   clearOwnerLoginFailures(request);
-  return issueOwnerSession(required("MAHORAGA_CLOUD_OWNER_ID"), requiredSecret());
+  return { ownerId: required("MAHORAGA_CLOUD_OWNER_ID") };
+}
+
+export function establishOwnerLoginSession(request: Request, suppliedPin: unknown): OwnerSession {
+  const verified = verifyOwnerLoginAttempt(request, suppliedPin);
+  return issueOwnerSession(verified.ownerId, requiredSecret());
 }
 
 function issueOwnerSession(ownerId: string, secret: string): OwnerSession {
@@ -84,7 +90,7 @@ export function authorizeOwnerMutation(request: Request): OwnerSession {
   const nonce = request.headers.get("x-mahoraga-request-nonce") ?? "";
   const timestamp = Number(request.headers.get("x-mahoraga-request-timestamp"));
   if (!/^[a-f0-9-]{36}$/i.test(nonce) || !Number.isSafeInteger(timestamp) || Math.abs(Date.now() - timestamp) > REPLAY_WINDOW_MS) throw gatewayError("cloud-replay-envelope-invalid", 403);
-  persistNonce(`request:${nonce}`, session.sessionId, timestamp + REPLAY_WINDOW_MS, "cloud-replay-detected");
+  reserveCloudReplayNonce(`request:${nonce}`, session.sessionId, timestamp + REPLAY_WINDOW_MS, "cloud-replay-detected");
   return session;
 }
 
@@ -109,14 +115,15 @@ export function gatewayFailure(error: unknown) {
   };
 }
 
-function replayDatabase() {
-  mkdirSync(REPLAY_ROOT, { recursive: true });
-  const db = new DatabaseSync(path.join(REPLAY_ROOT, "cloud-gateway.sqlite"));
+function replayDatabase(env: NodeJS.ProcessEnv = process.env) {
+  const root = replayRoot(env);
+  mkdirSync(root, { recursive: true });
+  const db = new DatabaseSync(path.join(root, "cloud-gateway.sqlite"));
   db.exec("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS request_nonces(nonce TEXT PRIMARY KEY,session_id TEXT NOT NULL,expires_at INTEGER NOT NULL); CREATE TABLE IF NOT EXISTS owner_login_attempts(key TEXT PRIMARY KEY,failures INTEGER NOT NULL,window_started_at INTEGER NOT NULL,locked_until INTEGER NOT NULL);");
   return db;
 }
-function persistNonce(nonce: string, sessionId: string, expiresAt: number, replayCode: string) {
-  const db = replayDatabase();
+export function reserveCloudReplayNonce(nonce: string, sessionId: string, expiresAt: number, replayCode: string, env: NodeJS.ProcessEnv = process.env) {
+  const db = replayDatabase(env);
   try {
     db.prepare("DELETE FROM request_nonces WHERE expires_at<?").run(Date.now());
     try { db.prepare("INSERT INTO request_nonces(nonce,session_id,expires_at) VALUES(?,?,?)").run(nonce, sessionId, expiresAt); }

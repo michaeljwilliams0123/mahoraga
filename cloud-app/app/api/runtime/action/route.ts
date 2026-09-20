@@ -1,4 +1,5 @@
-import { authorizeOwnerMutation, coreRequest, gatewayFailure } from "@/lib/cloud-owner-gateway";
+import { authorizeOwnerMutation, gatewayFailure } from "@/lib/cloud-owner-gateway";
+import { dispatchCloudRuntimeAction } from "@/lib/cloud-runtime-action";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -7,14 +8,9 @@ export async function POST(request: Request) {
   try {
     authorizeOwnerMutation(request);
     const value = await request.json();
-    const result = await dispatch(String(value?.type ?? ""), value?.payload ?? {});
+    const payload = isRecord(value?.payload) ? value.payload : {};
+    const result = await dispatchCloudRuntimeAction(String(value?.type ?? ""), payload);
     return Response.json(result.body, { status: result.status, headers: { "cache-control": "no-store" } });
-  } catch (error) { const failure = gatewayFailure(error); return Response.json({ error: failure.code }, { status: failure.status }); }
+  } catch (error) { const failure = gatewayFailure(error); return Response.json({ error: failure.code }, { status: failure.status, headers: { "cache-control": "no-store" } }); }
 }
-
-async function dispatch(type: string, payload: Record<string, unknown>) {
-  const allowed = new Set(["capabilities", "chat", "tasks", "messages", "message-content", "task-action", "composio-github-repository", "operations-snapshot", "operations-action"]);
-  if (!allowed.has(type)) throw Object.assign(new Error("cloud-action-not-allowed"), { status: 400 });
-  return json(await coreRequest(type, payload));
-}
-async function json(response: Response) { return { status: response.status, body: await response.json().catch(() => ({ error: "cloud-core-response-invalid" })) }; }
+function isRecord(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === "object" && !Array.isArray(value); }

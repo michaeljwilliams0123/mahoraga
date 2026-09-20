@@ -51,7 +51,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Railway exact-SHA cloud health is observational only — no fake rollback API.",
+      summary: "GitHub Pages is the published static workspace. Railway exact-SHA health is observational runtime only — no fake rollback API.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -72,6 +72,8 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       : "Core not paired — Cockpit stays fail-closed for mutations.",
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
+      { label: "presentation", value: "GitHub Pages static workspace" },
+      { label: "execution", value: "encrypted relay" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
       { label: "browserMaySelectProvider", value: String(health?.browserMaySelectProvider ?? false) },
     ],
@@ -154,17 +156,22 @@ export function CommandCockpit({
             Mahoraga cloud cockpit. Build provenance is 7.0.0-alpha.2. PowerShell <code>$PID</code> collision fixed via <code>$ProcessId</code> (#460 / #388).
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. The active Windows runtime is reported from live core status; 3.6.0 is retained only as the legacy rollback predecessor.
           </p>
+          <p role="status">
+            Published static workspace: GitHub Pages. Execution path: existing encrypted relay to the Conversation Gateway. Railway remains the server-capable runtime during migration. No cross-origin authenticated API calls from github.io.
+          </p>
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
           </p>
           <p>
-            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550).
+            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550). github.io is presentation only and must not call authenticated APIs.
           </p>
           <p>
             Cloudflare Workers Builds now detects the owner gateway from repo root via root <code>wrangler.toml</code> pointing at <code>deploy/cloudflare-owner-gateway/worker.mjs</code> (#562). Production <code>npx wrangler deploy</code> and preview <code>npx wrangler versions upload</code> resolve the same live Worker. Nested config remains valid. No Worker logic or secret values changed.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>browser presentation</dt><dd>GitHub Pages</dd></div>
+            <div><dt>execution path</dt><dd>encrypted relay</dd></div>
             <div><dt>authoritative runtime</dt><dd>Mahoraga core (4782)</dd></div>
             <div><dt>surface</dt><dd>PR 461 / PR 543</dd></div>
             <div><dt>runtime fix</dt><dd>PR 460 ProcessId</dd></div>
@@ -208,12 +215,12 @@ export function CommandCockpit({
           </section>
 
           <section className="cockpit-gateways" aria-label="Integration gateways">
-            <article><header><strong>Railway exact-SHA</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Canonical deployment health is observational only. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
+            <article><header><strong>Railway exact-SHA runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Railway remains the server-capable runtime during migration. Pages is the published static workspace. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
-            <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>; trusted requests are rewritten only to the canonical Railway upstream. Observational status only—no browser mutation authority is added.</p></article>
+            <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>. github.io must not issue authenticated API calls. Observational status only—no browser mutation authority is added.</p></article>
             <article><header><strong>Cloudflare Workers Builds detect</strong><span className="cockpit-pill ok">ROOT_WRANGLER_#562</span></header><p>Root <code>wrangler.toml</code> points at the live owner gateway entry <code>deploy/cloudflare-owner-gateway/worker.mjs</code>. Workers Builds production/preview commands from repo root can resolve the Worker. Nested gateway wrangler remains valid for explicit operator commands. Observational status only.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>

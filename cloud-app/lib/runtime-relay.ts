@@ -1,6 +1,7 @@
 "use client";
 
 import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
+import { PagesOwnerBridgeClient, validatePublicBridgeOrigin } from "./pages-owner-bridge-client";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
@@ -150,16 +151,35 @@ export class RuntimeRelay {
   private pairing: { resolve: (value: JsonObject) => void; reject: (reason: Error) => void } | null = null;
   private revokeAcknowledgement: (() => void) | null = null;
   private cloudSession: { csrf: string } | null = null;
+  private bridgeClient: PagesOwnerBridgeClient | null = null;
+  private bridgeAuthenticated = false;
   private cloudSessionDiagnostic: CloudSessionDiagnostic | null = null;
 
   get connected() {
-    return this.cloudSession !== null || (this.socket?.readyState === WebSocket.OPEN && this.session !== null);
+    return this.bridgeAuthenticated || this.cloudSession !== null || (this.socket?.readyState === WebSocket.OPEN && this.session !== null);
   }
 
   get sessionDiagnostic() { return this.cloudSessionDiagnostic; }
 
   async attach() {
     this.cloudSessionDiagnostic = null;
+    const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
+    const currentOrigin = typeof window !== "undefined" ? window.location.origin : null;
+    if (bridgeOrigin && currentOrigin && bridgeOrigin !== currentOrigin) {
+      try {
+        const client = this.bridgeClient ?? new PagesOwnerBridgeClient(bridgeOrigin);
+        this.bridgeClient = client;
+        const state = await client.attach();
+        this.bridgeAuthenticated = state === "authenticated";
+        if (this.bridgeAuthenticated) return { sessionId: "pages-owner-bridge" };
+        this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
+        return null;
+      } catch {
+        this.bridgeAuthenticated = false;
+        this.cloudSessionDiagnostic = { code: "cloud-session-unreachable" };
+        return null;
+      }
+    }
     try {
       const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
       const value = await response.json().catch(() => ({})) as JsonObject;
@@ -173,6 +193,24 @@ export class RuntimeRelay {
       this.cloudSessionDiagnostic = { code: "cloud-session-unreachable" };
       return null;
     }
+  }
+
+  async loginOwnerPin(pin: string) {
+    if (this.bridgeClient) {
+      await this.bridgeClient.login(pin);
+      this.bridgeAuthenticated = true;
+      this.cloudSessionDiagnostic = null;
+      return;
+    }
+    const response = await fetch("/api/runtime/login", {
+      method: "POST", credentials: "include", cache: "no-store",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ownerPin: pin }),
+    });
+    const value = await response.json().catch(() => ({})) as JsonObject;
+    if (!response.ok) throw relayError(publicCode(value.error));
+    const attached = await this.attach();
+    if (!attached || !this.cloudSession) throw relayError(this.cloudSessionDiagnostic?.code ?? "cloud-owner-auth-required");
   }
 
   async pair(encodedOffer: string) {
@@ -245,6 +283,10 @@ export class RuntimeRelay {
   }
 
   async uploadArtifact(file: File) {
+    if (this.bridgeAuthenticated && this.bridgeClient) {
+      try { return await this.bridgeClient.uploadArtifact(file); }
+      catch (error) { this.handleBridgeError(error); throw error; }
+    }
     if (!this.cloudSession) throw relayError("relay-attachments-local-only");
     const response = await fetch("/api/runtime/artifacts", {
       method: "POST", credentials: "include", cache: "no-store",
@@ -265,8 +307,9 @@ export class RuntimeRelay {
   }
 
   async chat(input: JsonObject) {
-    if (!this.cloudSession && Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
-    return this.call<RuntimeChatResult>("chat", this.cloudSession ? input : { ...input, attachmentIds: [] });
+    const cloudAuthenticated = this.bridgeAuthenticated || this.cloudSession !== null;
+    if (!cloudAuthenticated && Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
+    return this.call<RuntimeChatResult>("chat", cloudAuthenticated ? input : { ...input, attachmentIds: [] });
   }
   async tasks(conversationId: string) {
     const value = await this.call<{ tasks?: RuntimeTask[] }>("tasks", { conversationId });
@@ -311,12 +354,23 @@ export class RuntimeRelay {
     this.expiresAt = null;
     this.pairing = null;
     this.revokeAcknowledgement = null;
+    const bridge = this.bridgeClient;
+    this.bridgeClient = null;
+    this.bridgeAuthenticated = false;
+    void bridge?.disconnect();
     this.cloudSession = null;
     this.cloudSessionDiagnostic = null;
     this.rejectPending("relay-disconnected");
   }
 
   async revoke() {
+    if (this.bridgeClient) {
+      const bridge = this.bridgeClient;
+      this.bridgeClient = null;
+      this.bridgeAuthenticated = false;
+      await bridge.disconnect();
+      if (!this.socket && !this.session && !this.cloudSession) return;
+    }
     if (this.cloudSession) { this.cloudSession = null; return; }
     const socket = this.socket;
     try {
@@ -342,6 +396,10 @@ export class RuntimeRelay {
   }
 
   private async call<T>(type: string, payload: JsonObject) {
+    if (this.bridgeAuthenticated && this.bridgeClient) {
+      try { return await this.bridgeClient.call<T>(type, payload); }
+      catch (error) { this.handleBridgeError(error); throw error; }
+    }
     if (this.cloudSession) {
       const response = await fetch("/api/runtime/action", {
         method: "POST", credentials: "include", cache: "no-store",
@@ -363,6 +421,13 @@ export class RuntimeRelay {
     });
     this.socket.send(JSON.stringify({ action: "forward", sessionId: this.session.sessionId, from: "remote", frame }));
     return result as Promise<T>;
+  }
+
+  private handleBridgeError(error: unknown) {
+    if (error instanceof Error && error.message === "cloud-owner-auth-required") {
+      this.bridgeAuthenticated = false;
+      this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
+    }
   }
 
   private async receive(event: MessageEvent) {

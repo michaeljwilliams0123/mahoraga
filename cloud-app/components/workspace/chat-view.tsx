@@ -162,7 +162,7 @@ export function ChatView(props: ChatViewProps) {
 
         {ownerLoginRequired && !coreReady && (
           <div className="connect-card owner-pin-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. Verified server-side and exchanged only for a secure session cookie.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Sign in to Mahoraga</strong><p>Enter your 4-digit owner PIN. Verified server-side and exchanged only for a secure owner session.</p></div></div>
             <div className="connect-controls owner-pin-controls">
               <div className="owner-pin-field">
                 <input

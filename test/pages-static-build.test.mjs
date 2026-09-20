@@ -88,7 +88,12 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health\.json/);
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
-  assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
+  assert.match(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
+  assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_PIN_HASH/);
+  assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_SESSION_SECRET/);
+  assert.doesNotMatch(workflow, /MAHORAGA_PRIMARY_CODEX_TOKEN/);
   assert.match(workflow, /actions\/configure-pages/);
   assert.match(workflow, /actions\/upload-pages-artifact/);
   assert.match(workflow, /actions\/deploy-pages/);
@@ -100,17 +105,18 @@ test("Pages artifact inspection accepts the real workspace shape and rejects ser
   const safe = path.join(root, "safe");
   await mkdir(path.join(safe, "_next", "static", "chunks"), { recursive: true });
   await writeFile(path.join(safe, "index.html"), '<!doctype html><html><body><div id="app">Mahoraga</div><script src="/mahoraga/_next/static/chunks/app.js"></script></body></html>');
-  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://api.example.test")');
+  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://mahoraga-runtime-main-production.up.railway.app")');
   const result = await inspectPagesStaticArtifact(safe);
   assert.equal(result.indexHtml, path.join(safe, "index.html"));
   assert.ok(result.textFiles >= 2);
 
   const forbidden = [
+    "MAHORAGA_CLOUD_OWNER_LOGIN_SECRET",
+    "MAHORAGA_CLOUD_OWNER_PIN_HASH",
     "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
     "MAHORAGA_CLOUD_SESSION_SECRET",
     "MAHORAGA_PRIMARY_CODEX_TOKEN",
     "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
-    "mahoraga-runtime-main-production.up.railway.app",
     'location.replace("https://mahoraga-runtime',
   ];
   for (const [index, marker] of forbidden.entries()) {

@@ -40,7 +40,7 @@ export function CockpitView({
   const deploymentUrl = health?.deployment?.url ?? "unavailable";
   const railwayExactSha = deploymentProvider === "railway" || promotionMode === "exact-sha-railway";
   const deploymentDetail = railwayExactSha
-    ? `Railway production · pin after merge · ${deploymentEnvironment}`
+    ? `Railway is the server-capable runtime during migration · pin after merge · ${deploymentEnvironment}`
     : deploymentProvider === "vercel"
       ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
@@ -61,13 +61,17 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>7.0.0-alpha.2 Railway workspace: deployment identity, exact-SHA pin, verified routes, and policy-gated evolution. Windows 3.6.0 stays untouched.</p>
+          <p>GitHub Pages publishes the static workspace. Execution stays on the encrypted relay to the Conversation Gateway / Railway runtime. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
           {coreReady ? "Core paired" : "Workspace published"}
         </span>
       </header>
+
+      <p className="eclipse-readiness-note" role="status">
+        Published static workspace: GitHub Pages (https://michaeljwilliams0123.github.io/mahoraga/). Execution path: existing encrypted relay. This origin does not make cross-origin authenticated API calls.
+      </p>
 
       {healthError && (
         <div className="inline-alert" role="alert">
@@ -80,7 +84,7 @@ export function CockpitView({
           <ShieldCheck size={18} />
           <div>
             <strong>The interface is online and ready to pair.</strong>
-            <p>Railway hosts the 7.0.0-alpha.2 conversation workspace; execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
+            <p>GitHub Pages hosts the published static workspace; the encrypted relay remains the execution path. Execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
           </div>
         </div>
       )}
@@ -94,7 +98,7 @@ export function CockpitView({
         />
         <StatusCard
           label="Deployment"
-          value={railwayExactSha ? "Railway exact-SHA production" : health?.ok ? "Published" : "Awaiting health"}
+          value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"}
           detail={deploymentDetail}
           tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"}
         />
@@ -160,7 +164,8 @@ export function CockpitView({
           <dl className="eclipse-metrics">
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
-            <div><dt>Host provider</dt><dd>{railwayExactSha ? "railway (authoritative production)" : deploymentProvider}</dd></div>
+            <div><dt>Browser presentation</dt><dd>GitHub Pages · https://michaeljwilliams0123.github.io/mahoraga/</dd></div>
+            <div><dt>Host provider</dt><dd>{railwayExactSha ? "railway (server-capable runtime)" : deploymentProvider}</dd></div>
             <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
