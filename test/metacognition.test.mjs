@@ -34,3 +34,12 @@ test('overconfident low-evidence state explicitly seeks evidence instead of proc
   assert.equal(assessment.action, 'seek-evidence');
   assert.equal(assessment.proceed, false);
 });
+test('standalone metacognition keeps the 32-item caller unknown limit', () => {
+  assert.throws(() => assessMetacognition({
+    evidenceCoverage: 0.95,
+    calibratedConfidence: 0.9,
+    knownUnknowns: Array.from({ length: 33 }, (_, index) => `caller-unknown-${index}`),
+    materialConflictCount: 0,
+    reversible: true,
+  }), (error) => error?.code === 'metacognition-invalid');
+});

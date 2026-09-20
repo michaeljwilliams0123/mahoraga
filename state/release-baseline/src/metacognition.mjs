@@ -1,10 +1,21 @@
 import { createHash } from 'node:crypto';
 
+const MAX_CALLER_UNKNOWNS = 32;
+const MAX_COLLECTIVE_AGGREGATE_UNKNOWNS = 416;
+
 export function assessMetacognition(input) {
+  return assess(input, MAX_CALLER_UNKNOWNS);
+}
+
+export function assessCollectiveMetacognition(input) {
+  return assess(input, MAX_COLLECTIVE_AGGREGATE_UNKNOWNS);
+}
+
+function assess(input, maximumKnownUnknowns) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('metacognition-invalid');
   const evidenceCoverage = score(input.evidenceCoverage, 'metacognition-invalid');
   const calibratedConfidence = score(input.calibratedConfidence, 'metacognition-invalid');
-  const knownUnknowns = textList(input.knownUnknowns ?? [], 32, 240, 'metacognition-invalid');
+  const knownUnknowns = textList(input.knownUnknowns ?? [], maximumKnownUnknowns, 240, 'metacognition-invalid');
   const materialConflictCount = integer(input.materialConflictCount, 0, 32, 'metacognition-invalid');
   if (typeof input.reversible !== 'boolean') fail('metacognition-invalid');
   const calibrationGap = Number(Math.abs(calibratedConfidence - evidenceCoverage).toFixed(6));

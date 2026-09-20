@@ -42,3 +42,16 @@ Transfer claims require domain-tagged empirical trials. A skill is promotable on
 ## Evolution
 
 Cognitive changes graduate through the existing Evolution Laboratory. Promotion must preserve authority, memory separation, individual diversity, evidence retention, zero-credit boundaries where requested, and exact-head verification. Candidate code cannot modify its own judge or silently drop material dissent.
+
+## 2026-09-20 metacognitive dissent-to-planning hardening
+
+The unified cognitive loop now treats Collective deliberation as evidence for the final metacognitive assessment rather than trusting caller-supplied conflict fields in isolation.
+
+- Collective `unknowns` are unioned with caller-reported known unknowns before final metacognitive assessment. The standalone caller contract remains capped at 32 items; the internal Collective aggregate is separately bounded at 416 items (32 caller + 12 positions x 32 unknowns).
+- `materialConflictCount` cannot be lower than the number of material-dissent positions observed by the Collective.
+- The public lifecycle receipt reflects `deliberate -> assess -> plan`, matching the final assessment dependency.
+- Material dissent remains the explicit decision-gate provenance only when material dissent records actually exist; metacognitive and ordinary Collective holds retain distinct provenance.
+- Planner diagnostic actions remain visible, but `automaticMutationAllowed` is forced false whenever final metacognition does not proceed or material dissent is present.
+- No planner action gains authority, no router/provider contract changes, and no hidden reasoning is persisted.
+
+This hardening preserves owner authority, cognitive-individual identity, private/institutional memory separation, zero-credit defaults, and existing exact-head promotion controls.

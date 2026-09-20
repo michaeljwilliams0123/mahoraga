@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { selectCollectiveParticipants, createCollectivePosition, synthesizeCollectiveDeliberation } from './collective-cognition.mjs';
-import { assessMetacognition } from './metacognition.mjs';
+import { assessMetacognition, assessCollectiveMetacognition } from './metacognition.mjs';
 import { simulateCounterfactual } from './cognitive-world-model.mjs';
 import { planWorldStateActions } from './objective-planner.mjs';
 
@@ -13,18 +13,26 @@ export function runCognitiveLoop(input) {
   });
   const positions = (input.positions ?? []).map(createCollectivePosition);
   assertParticipantIntegrity(participants, positions);
-  const metacognitive = assessMetacognition(input.metacognition);
   const deliberation = synthesizeCollectiveDeliberation({ positions });
-  const plan = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
+  const suppliedMetacognition = assessMetacognition(input.metacognition);
+  const metacognitive = assessCollectiveMetacognition({
+    evidenceCoverage: suppliedMetacognition.evidenceCoverage,
+    calibratedConfidence: suppliedMetacognition.calibratedConfidence,
+    knownUnknowns: [...new Set([...suppliedMetacognition.knownUnknowns, ...deliberation.unknowns])],
+    materialConflictCount: Math.max(suppliedMetacognition.materialConflictCount, deliberation.materialDissent.length),
+    reversible: suppliedMetacognition.reversible,
+  });
+  const planned = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
+  const plan = gateAutomaticMutation(planned, metacognitive.proceed && deliberation.materialDissent.length === 0);
   const prediction = simulateCounterfactual({ observedState: input.observedState, stateUncertainty: input.stateUncertainty, action: input.proposedAction });
   const predictionAdmissible = prediction.predictedUncertainty <= 0.7;
   const decision = metacognitive.proceed && deliberation.decision !== 'hold' && predictionAdmissible ? deliberation.decision : 'hold';
-  const decisionGate = !metacognitive.proceed ? 'metacognition-hold' : deliberation.decision === 'hold' ? 'material-dissent' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
+  const decisionGate = deliberation.materialDissent.length > 0 ? 'material-dissent' : !metacognitive.proceed ? 'metacognition-hold' : deliberation.decision === 'hold' ? 'collective-hold' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
   const evidenceRefs = [...new Set(positions.flatMap((item) => item.evidenceRefs))].sort();
   const core = {
     schemaVersion: 1,
     kind: 'cognitive-loop-receipt',
-    phases: ['perceive', 'remember', 'assess', 'deliberate', 'plan', 'predict', 'decide', 'store'],
+    phases: ['perceive', 'remember', 'deliberate', 'assess', 'plan', 'predict', 'decide', 'store'],
     participantIds: participants.map((item) => item.individualId),
     evidenceRefs,
     metacognition: publicAssessment(metacognitive),
@@ -37,6 +45,10 @@ export function runCognitiveLoop(input) {
     storedLesson: { decision, evidenceRefs, promotable: decision !== 'hold' },
   };
   return deepFreeze({ ...core, fingerprint: digest(core) });
+}
+function gateAutomaticMutation(plan, allowed) {
+  if (allowed || plan.automaticMutationAllowed !== true) return plan;
+  return deepFreeze({ ...plan, automaticMutationAllowed: false });
 }
 function assertParticipantIntegrity(participants, positions) {
   const participantIds = participants.map((item) => item.individualId).sort();
