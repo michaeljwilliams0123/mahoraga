@@ -469,11 +469,13 @@ export async function runPromotionCli({ env = process.env, argv = process.argv.s
   for (const name of ["GITHUB_TOKEN", "RAILWAY_PROJECT_TOKEN", "GITHUB_ACTOR", "GITHUB_REPOSITORY", "GITHUB_REF", "GITHUB_SHA"]) {
     if (typeof env[name] !== "string" || env[name].length === 0) throw coded(`promotion-env-${name.toLowerCase()}-required`);
   }
+  const promotionRef = env.MAHORAGA_PROMOTION_REF ?? env.GITHUB_REF;
+  const promotionSha = env.MAHORAGA_PROMOTION_SHA ?? env.GITHUB_SHA;
   return promoteExactMain({
     actor: env.GITHUB_ACTOR,
     repository: env.GITHUB_REPOSITORY,
-    ref: env.GITHUB_REF,
-    checkoutSha: env.GITHUB_SHA,
+    ref: promotionRef,
+    checkoutSha: promotionSha,
     githubToken: env.GITHUB_TOKEN,
     railwayToken: env.RAILWAY_PROJECT_TOKEN,
   });
