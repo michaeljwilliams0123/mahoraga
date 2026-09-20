@@ -76,11 +76,12 @@ export async function linkPagesDependencies({ source, destination }) {
 }
 
 const FORBIDDEN_STATIC_MARKERS = Object.freeze([
+  "MAHORAGA_CLOUD_OWNER_LOGIN_SECRET",
+  "MAHORAGA_CLOUD_OWNER_PIN_HASH",
   "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET",
   "MAHORAGA_CLOUD_SESSION_SECRET",
   "MAHORAGA_PRIMARY_CODEX_TOKEN",
   "MAHORAGA_CONTENT_VAULT_MASTER_KEY",
-  "mahoraga-runtime-main-production.up.railway.app",
   'location.replace("https://mahoraga-runtime',
 ]);
 const TEXT_ASSET_EXTENSIONS = new Set([".css", ".html", ".js", ".json", ".map", ".mjs", ".svg", ".txt", ".xml"]);
