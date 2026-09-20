@@ -54,6 +54,8 @@ export function CockpitView({
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
+  const liveOk = Boolean(health?.ok) && !healthError;
+  const readyOk = coreReady && liveOk;
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -65,7 +67,7 @@ export function CockpitView({
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
-          {coreReady ? "Core paired" : "Workspace published"}
+          {readyOk ? "Ready · core paired" : coreReady ? "Paired · live pending" : "Workspace published · unpaired"}
         </span>
       </header>
 
@@ -84,7 +86,7 @@ export function CockpitView({
           <ShieldCheck size={18} />
           <div>
             <strong>The interface is online and ready to pair.</strong>
-            <p>GitHub Pages hosts the published static workspace; the encrypted relay remains the execution path. Execution begins only after an approved cloud or owner runtime supplies a verified session.</p>
+            <p>GitHub Pages hosts the published static workspace; the encrypted relay remains the execution path. Execution begins only after an approved cloud or owner runtime supplies a verified session. Ready requires live health plus that pairing.</p>
           </div>
         </div>
       )}
@@ -95,6 +97,18 @@ export function CockpitView({
           value={productName}
           detail={`Build provenance ${buildVersion}`}
           tone="good"
+        />
+        <StatusCard
+          label="Ready / pairing"
+          value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"}
+          detail={readyOk ? "Live health OK and core session paired" : "LIVE_OK alone is not Ready"}
+          tone={readyOk ? "good" : "neutral"}
+        />
+        <StatusCard
+          label="CI publish / steward"
+          value="self-hosted Linux/X64"
+          detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane"
+          tone="neutral"
         />
         <StatusCard
           label="Deployment"
@@ -172,6 +186,7 @@ export function CockpitView({
             <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
             <div><dt>Source convergence</dt><dd>{deploymentConvergence}</dd></div>
             <div><dt>Pin policy</dt><dd>independent Railway pin after each protected-main merge</dd></div>
+            <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>
