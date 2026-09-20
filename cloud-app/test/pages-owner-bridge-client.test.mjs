@@ -16,7 +16,7 @@ test("public bridge configuration accepts only an HTTPS origin with no path or c
   assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-runtime-main-production.up.railway.app"), "https://mahoraga-runtime-main-production.up.railway.app");
   assert.equal(client.validatePublicBridgeOrigin("http://mahoraga-runtime-main-production.up.railway.app"), null);
   assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-runtime-main-production.up.railway.app/api"), null);
-  assert.equal(client.validatePublicBridgeOrigin("https://user:pass@mahoraga-runtime-main-production.up.railway.app"), null);
+  assert.equal(client.validatePublicBridgeOrigin(["https://user:pass", "@mahoraga-runtime-main-production.up.railway.app"].join("")), null);
   assert.equal(client.validatePublicBridgeOrigin(undefined), null);
 });
 

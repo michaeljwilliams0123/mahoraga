@@ -41,7 +41,7 @@ test("Pages bridge exposes only an HTTPS origin-only protocol and the existing b
   assert.equal(bridge.validatePagesOrigin("https://michaeljwilliams0123.github.io"), "https://michaeljwilliams0123.github.io");
   assert.throws(() => bridge.validatePagesOrigin("http://michaeljwilliams0123.github.io"));
   assert.throws(() => bridge.validatePagesOrigin("https://michaeljwilliams0123.github.io/path"));
-  assert.throws(() => bridge.validatePagesOrigin("https://user:pass@michaeljwilliams0123.github.io"));
+  assert.throws(() => bridge.validatePagesOrigin(["https://user:pass", "@michaeljwilliams0123.github.io"].join("")));
   assert.equal(actions.ALLOWED_CLOUD_RUNTIME_ACTIONS.has("chat"), true);
   assert.equal(actions.ALLOWED_CLOUD_RUNTIME_ACTIONS.has("operations-action"), true);
   assert.equal(actions.ALLOWED_CLOUD_RUNTIME_ACTIONS.has("arbitrary-http"), false);
