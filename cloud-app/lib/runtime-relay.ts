@@ -369,7 +369,7 @@ export class RuntimeRelay {
       this.bridgeClient = null;
       this.bridgeAuthenticated = false;
       await bridge.disconnect();
-      return;
+      if (!this.socket && !this.session && !this.cloudSession) return;
     }
     if (this.cloudSession) { this.cloudSession = null; return; }
     const socket = this.socket;
