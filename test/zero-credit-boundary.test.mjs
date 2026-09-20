@@ -39,3 +39,15 @@ test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted A
   assert.match(workflow, /producer-smoke:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
   assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
 });
+
+
+test("release and Steward workflows use the proven self-hosted Linux lane", async () => {
+  for (const relative of [
+    ".github/workflows/release.yml",
+    ".github/workflows/steward-two-hour-learning.yml",
+  ]) {
+    const workflow = await readFile(path.join(root, relative), "utf8");
+    assert.match(workflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+    assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
+  }
+});
