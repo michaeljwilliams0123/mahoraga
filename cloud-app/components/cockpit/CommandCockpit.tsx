@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   COCKPIT_PANEL_IDS,
   HARD_DENIES,
@@ -95,6 +95,16 @@ export function CommandCockpit({
     `// Pressure-test AST sandbox (local only)\nexport const optimize = (node: { rewriteLoops: () => unknown }) => {\n  return node.rewriteLoops();\n};\n`,
   );
   const [copied, setCopied] = useState<string | null>(null);
+  const [readinessOk, setReadinessOk] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setReadinessOk(false);
+    void fetch("/api/ready")
+      .then((response) => { if (active) setReadinessOk(response.ok); })
+      .catch(() => { if (active) setReadinessOk(false); });
+    return () => { active = false; };
+  }, [coreReady]);
 
   const healthCard = useMemo(() => {
     if (!healthJson) return null;
@@ -103,7 +113,7 @@ export function CommandCockpit({
   }, [healthJson]);
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
-  const readyOk = coreReady && liveOk;
+  const readyOk = coreReady && readinessOk;
 
   const panels = useMemo(() => {
     const next = {} as Record<CockpitPanelId, CockpitPanelModel>;

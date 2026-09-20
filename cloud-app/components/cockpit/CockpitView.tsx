@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import type { CockpitViewProps } from "../workspace/workspace-types";
@@ -55,7 +56,18 @@ export function CockpitView({
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const liveOk = Boolean(health?.ok) && !healthError;
-  const readyOk = coreReady && liveOk;
+  const [readinessOk, setReadinessOk] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setReadinessOk(false);
+    void fetch("/api/ready")
+      .then((response) => { if (active) setReadinessOk(response.ok); })
+      .catch(() => { if (active) setReadinessOk(false); });
+    return () => { active = false; };
+  }, [coreReady]);
+
+  const readyOk = coreReady && readinessOk;
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">

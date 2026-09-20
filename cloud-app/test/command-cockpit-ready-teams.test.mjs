@@ -60,6 +60,13 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /self-hosted Linux\/X64/);
     assert.match(cockpit, /CI publish and steward jobs use the self-hosted Linux\/X64 lane/);
     assert.match(cockpitView, /self-hosted Linux\/X64/);
-    assert.doesNotMatch(cockpit, /7\.0\.0-alpha\.2 on Windows/);
+    assert.doesNotMatch(cockpit, /(?<!does not )activate 7\.0\.0-alpha\.2 on Windows/i);
+  });
+
+  it("derives Ready from fail-closed /api/ready evidence rather than static health metadata", () => {
+    assert.match(cockpitView, /fetch\("\/api\/ready"/);
+    assert.match(cockpitView, /response\.ok/);
+    assert.match(cockpitView, /const readyOk = coreReady && readinessOk/);
+    assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
   });
 });
