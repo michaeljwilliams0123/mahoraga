@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   COCKPIT_PANEL_IDS,
   HARD_DENIES,
@@ -59,6 +59,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
+        { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
       ],
       actionable: false,
     };
@@ -69,9 +70,10 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
     tone: coreReady ? "ok" : "warn",
     summary: coreReady
       ? "Paired core expected. Mutating Operations stay relay-mediated."
-      : "Core not paired — Cockpit stays fail-closed for mutations.",
+      : "Core not paired — Cockpit stays fail-closed for mutations. Use Pair runtime when an approved session is available.",
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
+      { label: "pairing", value: coreReady ? "session verified" : "awaiting pair" },
       { label: "presentation", value: "GitHub Pages static workspace" },
       { label: "execution", value: "encrypted relay" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
@@ -93,6 +95,16 @@ export function CommandCockpit({
     `// Pressure-test AST sandbox (local only)\nexport const optimize = (node: { rewriteLoops: () => unknown }) => {\n  return node.rewriteLoops();\n};\n`,
   );
   const [copied, setCopied] = useState<string | null>(null);
+  const [readinessOk, setReadinessOk] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setReadinessOk(false);
+    void fetch("/api/ready")
+      .then((response) => { if (active) setReadinessOk(response.ok); })
+      .catch(() => { if (active) setReadinessOk(false); });
+    return () => { active = false; };
+  }, [coreReady]);
 
   const healthCard = useMemo(() => {
     if (!healthJson) return null;
@@ -101,7 +113,7 @@ export function CommandCockpit({
   }, [healthJson]);
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
-  const readyOk = coreReady && liveOk;
+  const readyOk = coreReady && readinessOk;
 
   const panels = useMemo(() => {
     const next = {} as Record<CockpitPanelId, CockpitPanelModel>;
@@ -138,6 +150,7 @@ export function CommandCockpit({
               {readyOk ? "READY_ONLINE" : "READY_OFFLINE"}
             </span>
             <span className={`cockpit-pill ${coreReady ? "ok" : "warn"}`}>{coreReady ? "CORE_PAIRED" : "CORE_UNPAIRED"}</span>
+            <span className={`cockpit-pill ${coreReady ? "ok" : "steel"}`}>PAIRING_CLEAR</span>
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
@@ -147,6 +160,7 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
+            <span className="cockpit-pill steel">CI_LINUX_X64</span>
           </div>
         </header>
 
@@ -162,11 +176,17 @@ export function CommandCockpit({
           <p>
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
           </p>
+          <p role="status">
+            Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
+          </p>
           <p>
             7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550). github.io is presentation only and must not call authenticated APIs.
           </p>
           <p>
             Cloudflare Workers Builds now detects the owner gateway from repo root via root <code>wrangler.toml</code> pointing at <code>deploy/cloudflare-owner-gateway/worker.mjs</code> (#562). Production <code>npx wrangler deploy</code> and preview <code>npx wrangler versions upload</code> resolve the same live Worker. Nested config remains valid. No Worker logic or secret values changed.
+          </p>
+          <p>
+            CI publish and steward jobs use the self-hosted Linux/X64 lane. Informational copy only. This does not activate 7.0.0-alpha.2 on Windows and does not change cognition or paid fallback.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
@@ -180,9 +200,21 @@ export function CommandCockpit({
             <div><dt>artifact bridge</dt><dd>PR 505 same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay</dd></div>
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
+            <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
+        </aside>
+
+        <aside className={`cockpit-panel ${coreReady ? "tone-ok" : "tone-neutral"}`} aria-label="Ready and pairing state">
+          <h3>READY / PAIRING</h3>
+          <p>
+            {readyOk
+              ? "Ready: live health is OK and the core session is paired. Mutations remain relay-mediated."
+              : coreReady
+                ? "Paired, waiting on live health. Ready stays offline until /api/live is OK."
+                : "Unpaired. Workspace is published; Pair runtime when an approved owner session is available."}
+          </p>
         </aside>
 
         <aside className="cockpit-panel tone-neutral" aria-label="Attended Teams send status">
@@ -222,6 +254,7 @@ export function CommandCockpit({
             <article><header><strong>Shared core bearer</strong><span className={`cockpit-pill ${readyOk ? "ok" : "steel"}`}>{readyOk ? "READY_ONLINE" : "INJECT_IF_BLANK"}</span></header><p>Parent supervisor injects a shared core bearer only when the configured token is blank. This UI never displays the bearer.</p></article>
             <article><header><strong>Cloudflare owner gateway same-origin mutation boundary</strong><span className="cockpit-pill ok">FAIL_CLOSED_#550</span></header><p>Mutations require the gateway origin. Cross-origin requests return <code>403 gateway-same-origin-required</code>. github.io must not issue authenticated API calls. Observational status only—no browser mutation authority is added.</p></article>
             <article><header><strong>Cloudflare Workers Builds detect</strong><span className="cockpit-pill ok">ROOT_WRANGLER_#562</span></header><p>Root <code>wrangler.toml</code> points at the live owner gateway entry <code>deploy/cloudflare-owner-gateway/worker.mjs</code>. Workers Builds production/preview commands from repo root can resolve the Worker. Nested gateway wrangler remains valid for explicit operator commands. Observational status only.</p></article>
+            <article><header><strong>CI publish / steward</strong><span className="cockpit-pill steel">LINUX_X64</span></header><p>CI publish and steward jobs use the self-hosted Linux/X64 lane. Informational copy only. No Windows activation of 7.0.0-alpha.2.</p></article>
             <article><header><strong>Attended Teams</strong><span className="cockpit-pill steel">OBS_ONLY</span></header><p>Recipient-bound attended canary semantics. Cloud cockpit does not send.</p></article>
           </section>
         </div>

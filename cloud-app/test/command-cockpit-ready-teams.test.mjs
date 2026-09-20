@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+const cockpitView = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
 
 describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
   it("distinguishes live health from ready state after shared bearer injection", () => {
@@ -14,6 +15,8 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /READY_OFFLINE/);
     assert.match(cockpit, /parent supervisor injects a shared core bearer only when the configured token is blank/);
     assert.match(cockpit, /Bearer value is never shown/);
+    assert.match(cockpit, /PAIRING_CLEAR/);
+    assert.match(cockpit, /Ready is live health plus paired core/);
     assert.doesNotMatch(cockpit, /MAHORAGA_PRIMARY_CODEX_TOKEN\s*=/);
   });
 
@@ -50,5 +53,20 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);
     assert.match(cockpit, /7\.0\.0-alpha\.2/);
+  });
+
+  it("surfaces informational CI publish/steward self-hosted Linux/X64 copy", () => {
+    assert.match(cockpit, /CI_LINUX_X64/);
+    assert.match(cockpit, /self-hosted Linux\/X64/);
+    assert.match(cockpit, /CI publish and steward jobs use the self-hosted Linux\/X64 lane/);
+    assert.match(cockpitView, /self-hosted Linux\/X64/);
+    assert.doesNotMatch(cockpit, /(?<!does not )activate 7\.0\.0-alpha\.2 on Windows/i);
+  });
+
+  it("derives Ready from fail-closed /api/ready evidence rather than static health metadata", () => {
+    assert.match(cockpitView, /fetch\("\/api\/ready"/);
+    assert.match(cockpitView, /response\.ok/);
+    assert.match(cockpitView, /const readyOk = coreReady && readinessOk/);
+    assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
   });
 });
