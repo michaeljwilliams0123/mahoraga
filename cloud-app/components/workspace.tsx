@@ -51,6 +51,7 @@ function runtimeErrorMessage(code: string) {
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
     "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Execution remains fail-closed while the cloud session recovers.",
     "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Legacy rollback remains available under Advanced; normal execution stays blocked.",
+    "cloud-owner-auth-required": "Enter your 4-digit owner PIN to connect Mahoraga.",
     "cloud-owner-login-required": "The 4-digit owner PIN was not accepted.",
     "cloud-owner-login-rate-limited": "Too many PIN attempts. Wait a few minutes and try again.",
     "cloud-owner-login-not-configured": "Direct owner sign-in has not been configured yet.",
@@ -126,11 +127,22 @@ export function Workspace() {
     const transport = new RuntimeRelay();
     let active = true;
     setRelayState("resuming");
-    void transport.attach().then((attached) => attached ?? transport.resume()).then(async (resumed) => {
+    void (async () => {
+      const attached = await transport.attach();
+      if (!active) { transport.disconnect(); return; }
+      if (!attached && transport.sessionDiagnostic?.code === "cloud-owner-auth-required") {
+        relay.current = transport;
+        setPairedRelay(transport);
+        setOwnerLoginRequired(true);
+        setRuntimeError(runtimeErrorMessage("cloud-owner-auth-required"));
+        setRelayState("unpaired");
+        return;
+      }
+      const resumed = attached ?? await transport.resume();
       if (!active) { transport.disconnect(); return; }
       if (!resumed) {
         const code = transport.sessionDiagnostic?.code ?? "cloud-session-unavailable";
-        setOwnerLoginRequired(code === "cloud-owner-auth-required");
+        setOwnerLoginRequired(false);
         setRuntimeError(runtimeErrorMessage(code));
         setRelayState("unpaired");
         return;
@@ -140,8 +152,9 @@ export function Workspace() {
       relay.current = transport;
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);
+      setOwnerLoginRequired(false);
       setRelayState("connected");
-    }).catch(() => {
+    })().catch(() => {
       transport.disconnect();
       if (active) setRelayState("unpaired");
     });
@@ -157,17 +170,15 @@ export function Workspace() {
     setOwnerLoginBusy(true);
     setRuntimeError(null);
     try {
-      const response = await fetch("/api/runtime/login", {
-        method: "POST",
-        credentials: "include",
-        cache: "no-store",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ownerPin: ownerLoginPin }),
-      });
-      const body = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(typeof body.error === "string" ? body.error : "cloud-owner-login-required");
+      const transport = relay.current;
+      if (!transport) throw new Error("cloud-session-unavailable");
+      await transport.loginOwnerPin(ownerLoginPin);
+      const capabilities = await transport.capabilities();
+      setPairedRelay(transport);
+      setRuntimeCapabilities(capabilities);
+      setRelayState("connected");
+      setOwnerLoginRequired(false);
       setOwnerLoginPin("");
-      window.location.reload();
     } catch (caught) {
       setRuntimeError(runtimeErrorMessage(caught instanceof Error ? caught.message : "cloud-owner-login-required"));
     } finally {

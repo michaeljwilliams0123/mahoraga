@@ -22,7 +22,7 @@ test("the direct Railway owner PIN login mints only a server-side session cookie
   assert.doesNotMatch(route, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET|MAHORAGA_CLOUD_SESSION_SECRET|MAHORAGA_PRIMARY_CODEX_TOKEN/);
 });
 
-test("the Railway workspace offers a same-origin owner sign-in without exposing the secret", async () => {
+test("the workspace delegates owner PIN sign-in to the selected authenticated transport", async () => {
   const [workspace, chat, types, relay] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/chat-view.tsx"),
@@ -31,14 +31,15 @@ test("the Railway workspace offers a same-origin owner sign-in without exposing 
   ]);
 
   assert.match(workspace, /loginDirectOwner/);
-  assert.match(workspace, /\/api\/runtime\/login/);
-  assert.match(workspace, /body: JSON\.stringify\(\{ ownerPin: ownerLoginPin \}\)/);
+  assert.match(workspace, /transport\.loginOwnerPin\(ownerLoginPin\)/);
+  assert.doesNotMatch(workspace, /fetch\("\/api\/runtime\/login"/);
   assert.match(chat, /Sign in to Mahoraga/);
   assert.match(chat, /ownerLoginPin/);
   assert.match(chat, /inputMode="numeric"/);
   assert.match(chat, /maxLength=\{4\}/);
   assert.match(types, /onOwnerLogin/);
   assert.match(relay, /cloud-owner-auth-required/);
+  assert.match(relay, /fetch\("\/api\/runtime\/login"/);
   assert.doesNotMatch(`${workspace}\n${chat}\n${types}`, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
 });
 
