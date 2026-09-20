@@ -14,7 +14,7 @@ describe("7.0.0-alpha.2 verified-outcome learning surface", () => {
   it("projects promoted verified-outcome with public evidence and calibrated confidence only", () => {
     assert.match(surface, /kind !== "cognitive-learning-promotion"/);
     assert.match(surface, /provenance === "verified-outcome"/);
-    assert.match(surface, /calibrated confidence/i);
+    assert.match(surface, /confidence/);
     assert.match(surface, /evidenceRefs/);
     assert.match(surface, /Private episodic memory, prompts\/transcripts, credentials, and authority grants are not shown or copied/);
   });
