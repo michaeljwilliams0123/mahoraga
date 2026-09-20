@@ -1,4 +1,5 @@
 import { classifyTaskIntent } from "./task-intent.mjs";
+import { recognizeSimpleArithmetic } from "./simple-arithmetic.mjs";
 
 const RECOVERABLE_ROUTE_REASONS = new Set([
   "canary-stale", "canary-never-run", "canary-failed", "provider-unavailable", "provider-degraded", "provider-unknown",
@@ -30,6 +31,11 @@ export function planConversationCapabilities({ content = "", attachmentCount = 0
   const base = classifyTaskIntent({ content: text, attachmentCount, availableCapabilities: capabilities });
   const planned = [];
   const add = (capability) => { if (capability && canPlan(routes, capability) && !planned.includes(capability)) planned.push(capability); };
+
+  if (recognizeSimpleArithmetic(text)) {
+    add("assistant.calculate");
+    if (planned.length > 0) return finalizePlan(planned, routes, "deterministic-simple-answer");
+  }
 
   if (HISTORY_RECALL.test(text)) {
     add("assistant.respond");
@@ -161,11 +167,11 @@ function normalizePriorTasks(value) {
 }
 
 function readableCapability(capability) {
-  return /\.(?:respond|reason|inspect|status|health|observe|scan|validate)$/.test(capability);
+  return /\.(?:respond|calculate|reason|inspect|status|health|observe|scan|validate)$/.test(capability);
 }
 
 function intentKind(capability) {
-  if (capability === "assistant.respond") return "answer";
+  if (capability === "assistant.respond" || capability === "assistant.calculate") return "answer";
   if (capability?.startsWith("m365.") || capability?.startsWith("studio.")) return "microsoft-work";
   if (capability?.startsWith("repository.")) return "repository-inspect";
   if (capability?.startsWith("artifact.")) return "attachment";

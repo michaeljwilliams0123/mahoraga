@@ -35,6 +35,7 @@ import {
 } from "./native-cloud-model.mjs";
 import { normalizeAssistantCompletion } from "./assistant-result.ts";
 import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
+import { executeSimpleArithmetic } from "./simple-arithmetic.mjs";
 
 const workerId = process.argv[2];
 if (!workerId || !process.send) process.exit(2);
@@ -181,6 +182,7 @@ async function execute(capability, task, admission = null) {
   if (capability.startsWith("chrome.")) return executeSignedChromeCapability(capability, task, worker);
   switch (capability) {
     case "assistant.health": return probeQuestionModel();
+    case "assistant.calculate": return executeSimpleArithmetic(task);
     case "assistant.respond": return executeQuestionModel({ task, executionState: questionModelExecutionState });
     case "provider.gap": return { verified: true, outcome: "provider-unavailable", provider: "microsoft365", summary: "Mahoraga kept this enterprise request local and recorded a provider gap. The Microsoft 365 execution provider is not enabled; attach a local copy for private inspection or activate an approved Microsoft provider before retrying the link." };
     case "artifact.inspect": return inspectTaskArtifacts(task, { store: await artifactStoreForWorker() });

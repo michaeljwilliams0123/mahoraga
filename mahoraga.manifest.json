@@ -295,6 +295,7 @@
         "local-only"
       ],
       "capabilities": [
+        "assistant.calculate",
         "provider.gap",
         "artifact.inspect",
         "system.health",
@@ -311,6 +312,7 @@
       "concurrency": 1,
       "healthProbe": "system.health",
       "capabilityCanaries": {
+        "assistant.calculate": "direct",
         "provider.gap": "direct",
         "artifact.inspect": "direct",
         "system.health": "health",
