@@ -103,17 +103,12 @@ jobs:
             dist/mahoraga-update.json
 
       - name: Publish staged GitHub release
-        shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
           CHANNEL: ${{ github.event_name == 'workflow_run' && 'beta' || inputs.channel }}
           TAG: ${{ steps.package.outputs.tag }}
           VERSION: ${{ steps.package.outputs.version }}
           ARTIFACT: ${{ steps.package.outputs.artifact }}
           RELAY_ARTIFACT: ${{ steps.package.outputs.relay_artifact }}
           COMMIT: ${{ steps.package.outputs.commit }}
-        run: |
-          set -euo pipefail
-          flags=(--target "$COMMIT" --title "Mahoraga ${VERSION}" --notes "Verified ${CHANNEL} update. Eligible for verified local rollout with mandatory rollback evidence.")
-          if [ "$CHANNEL" = "beta" ]; then flags+=(--prerelease --latest=false); else flags+=(--latest); fi
-          gh release create "$TAG" "$ARTIFACT" "$RELAY_ARTIFACT" dist/mahoraga-update.json "${flags[@]}"
+        run: node scripts/publish-github-release.mjs
