@@ -163,7 +163,7 @@ export function CommandCockpit({
             Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
           </p>
           <p>
-            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; github.io is presentation only and must not call authenticated APIs (#550).
+            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550). github.io is presentation only and must not call authenticated APIs.
           </p>
           <p>
             Cloudflare Workers Builds now detects the owner gateway from repo root via root <code>wrangler.toml</code> pointing at <code>deploy/cloudflare-owner-gateway/worker.mjs</code> (#562). Production <code>npx wrangler deploy</code> and preview <code>npx wrangler versions upload</code> resolve the same live Worker. Nested config remains valid. No Worker logic or secret values changed.
