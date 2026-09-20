@@ -44,11 +44,11 @@ export function renderPagesOwnerBridgeFrame(pagesOrigin: string) {
     if (value.type === "bridge.artifact") return exactKeys(value, ["protocolVersion", "requestId", "type", "file"]) && value.file instanceof Blob && typeof value.file.name === "string";
     return false;
   }
-  function reply(requestId, ok, result, error) {
-    const response = { protocolVersion: PROTOCOL_VERSION, requestId, ok };
-    if (ok && result !== undefined) response.result = result;
-    if (!ok && typeof error === "string") response.error = error;
-    window.parent.postMessage(response, PAGES_ORIGIN);
+  function sendReply(requestId, ok, result, error) {
+    const reply = { protocolVersion: PROTOCOL_VERSION, requestId, ok };
+    if (ok && result !== undefined) reply.result = result;
+    if (!ok && typeof error === "string") reply.error = error;
+    window.parent.postMessage(reply, PAGES_ORIGIN);
   }
   function authHeaders(contentType) {
     if (!authenticated()) throw new Error("cloud-owner-auth-required");
@@ -72,12 +72,12 @@ export function renderPagesOwnerBridgeFrame(pagesOrigin: string) {
     if (!isExactBridgeRequest(request)) return;
     try {
       if (request.type === "bridge.status") {
-        reply(request.requestId, true, { authenticated: authenticated() });
+        sendReply(request.requestId, true, { authenticated: authenticated() });
         return;
       }
       if (request.type === "bridge.disconnect") {
         clearBridgeSession();
-        reply(request.requestId, true, { authenticated: false });
+        sendReply(request.requestId, true, { authenticated: false });
         return;
       }
       if (request.type === "bridge.login") {
@@ -91,7 +91,7 @@ export function renderPagesOwnerBridgeFrame(pagesOrigin: string) {
         bridgeSession = value.bridgeSession;
         bridgeCsrf = value.csrf;
         bridgeExpiresAt = value.expiresAt;
-        reply(request.requestId, true, { authenticated: true });
+        sendReply(request.requestId, true, { authenticated: true });
         return;
       }
       if (request.type === "bridge.action") {
@@ -101,7 +101,7 @@ export function renderPagesOwnerBridgeFrame(pagesOrigin: string) {
           headers: authHeaders("application/json"),
           body: JSON.stringify({ type: request.action, payload: request.payload }),
         }));
-        reply(request.requestId, true, value);
+        sendReply(request.requestId, true, value);
         return;
       }
       if (request.type === "bridge.artifact") {
@@ -110,12 +110,12 @@ export function renderPagesOwnerBridgeFrame(pagesOrigin: string) {
         headers["x-mahoraga-file-name"] = encodeURIComponent(file.name);
         headers["x-mahoraga-file-source"] = "picker";
         const value = await jsonResponse(await fetch("/api/runtime/pages-bridge/artifacts", { method: "POST", cache: "no-store", headers, body: file }));
-        reply(request.requestId, true, value);
+        sendReply(request.requestId, true, value);
       }
     } catch (caught) {
       const code = caught instanceof Error && /^[a-z0-9.-]+$/.test(caught.message) ? caught.message : "cloud-gateway-unavailable";
       if (code === "cloud-owner-auth-required") clearBridgeSession();
-      reply(request.requestId, false, undefined, code);
+      sendReply(request.requestId, false, undefined, code);
     }
   });
 })();
