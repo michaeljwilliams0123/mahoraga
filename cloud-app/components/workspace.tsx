@@ -355,6 +355,10 @@ export function Workspace() {
       activeRuntimeTask.current = trackedPhase === "active" ? trackedTask : null;
       const trackedSettledTask = trackedPhase === "settled" ? trackedTask : null;
       sawSettled ||= trackedSettledTask !== null;
+      if (!activeRuntimeTask.current && trackedSettledTask?.errorCode) {
+        setRuntimeError(runtimeErrorMessage(trackedSettledTask.errorCode));
+        return;
+      }
       if (!activeRuntimeTask.current && sawSettled && !sawResponse) {
         settledWithoutResponsePolls += 1;
         if (settledWithoutResponsePolls >= 3) {
