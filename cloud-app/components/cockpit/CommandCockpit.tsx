@@ -10,6 +10,7 @@ import {
   type HealthRouteJson,
   type ObservationalHealthCard,
 } from "@/lib/cockpit";
+import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 import { AstSandbox } from "./AstSandbox";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { TelemetrySparkline } from "./TelemetrySparkline";
@@ -114,6 +115,9 @@ export function CommandCockpit({
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
   const readyOk = coreReady && readinessOk;
+  const learning = projectCognitiveLearningSurface(
+    (healthJson as HealthRouteJson & { cognitiveLearning?: CognitiveLearningPromotionReceipt } | null)?.cognitiveLearning,
+  );
 
   const panels = useMemo(() => {
     const next = {} as Record<CockpitPanelId, CockpitPanelModel>;
@@ -153,6 +157,9 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${coreReady ? "ok" : "steel"}`}>PAIRING_CLEAR</span>
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
+            </span>
+            <span className={`cockpit-pill ${learning.status === "promoted" ? "ok" : learning.status === "refused" ? "warn" : "steel"}`}>
+              {learning.status === "promoted" ? "LEARN_VERIFIED_OUTCOME" : learning.status === "refused" ? "LEARN_REFUSED" : "LEARN_PENDING"}
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
@@ -215,6 +222,19 @@ export function CommandCockpit({
                 ? "Paired, waiting on live health. Ready stays offline until /api/live is OK."
                 : "Unpaired. Workspace is published; Pair runtime when an approved owner session is available."}
           </p>
+        </aside>
+
+        <aside className={`cockpit-panel ${learning.status === "promoted" ? "tone-ok" : learning.status === "refused" ? "tone-warn" : "tone-neutral"}`} aria-label="Institutional learning">
+          <h3>INSTITUTIONAL LEARNING</h3>
+          <p>{learning.headline}</p>
+          <p role="status">{learning.reasonLabel}</p>
+          <dl>
+            <div><dt>status</dt><dd>{learning.status}</dd></div>
+            <div><dt>provenance</dt><dd>{learning.provenance ?? "none"}</dd></div>
+            <div><dt>calibrated confidence</dt><dd>{learning.confidence ?? "n/a"}</dd></div>
+            <div><dt>public evidence refs</dt><dd>{learning.evidenceRefs.length ? learning.evidenceRefs.join(", ") : "none"}</dd></div>
+          </dl>
+          <p className="cockpit-muted">{learning.privacyNote} Private episodic memory, prompts/transcripts, credentials, and authority grants stay off this surface.</p>
         </aside>
 
         <aside className="cockpit-panel tone-neutral" aria-label="Attended Teams send status">
