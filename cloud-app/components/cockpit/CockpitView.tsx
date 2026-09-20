@@ -3,6 +3,7 @@
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import type { CockpitViewProps } from "../workspace/workspace-types";
+import { WorkspaceRoutePanel } from "./WorkspaceRoutePanel";
 
 function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : "unavailable";
@@ -54,6 +55,8 @@ export function CockpitView({
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
+  const routingAuthority = health?.routing?.authority ?? "unverified";
+  const policyEvidence = Boolean(health?.routing?.authority);
 
   return (
     <section className="connection-panel eclipse-console" aria-label="Control Center">
@@ -145,6 +148,12 @@ export function CockpitView({
           tone={routable.length > 0 ? "good" : "neutral"}
         />
         <StatusCard
+          label="Workspace policies"
+          value={policyEvidence ? routingAuthority : "Catalog only"}
+          detail="destiny-workspace · mike-primary · balanced · overflow · evidence from health.routing"
+          tone={policyEvidence ? "good" : "neutral"}
+        />
+        <StatusCard
           label="Evolution lane"
           value="Verified convergence"
           detail="Stage → verify → canary → pin → converge"
@@ -199,6 +208,8 @@ export function CockpitView({
             <li><span>5</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
           </ol>
         </section>
+
+        <WorkspaceRoutePanel health={health} />
       </div>
 
       <section className="eclipse-panel eclipse-admission" aria-label="Learning and admission policy">
