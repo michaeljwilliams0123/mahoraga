@@ -69,3 +69,17 @@ Material dissent remains preserved, but the cognitive loop now distinguishes dis
 - Existing `storedLesson.promotable` remains the institutional-memory promotion gate, so held or escalated decisions are not promoted.
 
 Review hardening: when multiple alternative conclusions exist, alternatives satisfying both independence thresholds are ranked before any unqualified group, so one participant with many evidence roots cannot suppress a genuinely qualified alternative. Dissent-cycle continuity is claim-specific: participant identity, conclusion, dissent tags, and evidence references must all match before unresolved-cycle history can carry forward.
+
+
+## 2026-09-20 verified cognition-to-learning bridge
+
+The cognitive lifecycle now has a bounded, explicit bridge from verified execution outcomes into institutional memory instead of treating a deliberation result itself as learned truth.
+
+- `cognitive.learn` accepts an immutable cognitive-cycle receipt plus a verification receipt bound to the cycle fingerprint.
+- Verification mismatch fails closed; unverified results and any held/non-admitted cognitive decision produce no institutional-memory record.
+- Only an admitted, already-promotable cycle can become a `verified-outcome` institutional memory record.
+- The promoted record contains bounded public evidence references and calibrated confidence; it does not copy private episodic memory, prompts/transcripts, credentials, or authority grants.
+- Promotion is deterministic and zero-credit. It adds no provider, supervisor, lease, tunnel, deployment path, or candidate self-approval.
+- The existing institutional-memory schema remains the durable learning boundary, preserving reconciliation, supersession, freshness, provenance, and private/institutional separation.
+
+This closes a lifecycle gap at verification -> durable state/memory -> learning while leaving evolution/promotion authority unchanged. A future tranche may consume these verified records for bounded transfer/generalization, but must retain independent verification and existing promotion gates.

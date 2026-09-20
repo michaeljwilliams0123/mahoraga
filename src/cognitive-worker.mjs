@@ -4,6 +4,7 @@ import { synthesizeCollectiveDeliberation } from './collective-cognition.mjs';
 import { simulateCounterfactual } from './cognitive-world-model.mjs';
 import { evaluateTransferGeneralization } from './transfer-generalization.mjs';
 import { runCognitiveLoop } from './cognitive-loop.mjs';
+import { promoteVerifiedCognitiveLearning } from './cognitive-learning-bridge.mjs';
 
 export async function executeCognitiveCapability(capability, task = {}) {
   const input = task.capabilityInput ?? task;
@@ -29,6 +30,10 @@ export async function executeCognitiveCapability(capability, task = {}) {
     case 'cognitive.cycle': {
       const cycle = runCognitiveLoop(required(input, 'cognitiveInput'));
       return empirical(task, input, { verified: true, summary: `Cognitive cycle completed with decision ${cycle.decision}.`, cycle });
+    }
+    case 'cognitive.learn': {
+      const learning = promoteVerifiedCognitiveLearning(required(input, 'learningInput'));
+      return empirical(task, input, { verified: true, summary: learning.promotable ? 'Verified cognitive outcome promoted to institutional memory.' : 'Cognitive learning held: ' + learning.reason + '.', learning });
     }
     default: throw new Error('unsupported-capability');
   }

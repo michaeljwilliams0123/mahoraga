@@ -254,7 +254,8 @@
         "cognitive.deliberate",
         "cognitive.predict",
         "cognitive.transfer",
-        "cognitive.cycle"
+        "cognitive.cycle",
+        "cognitive.learn"
       ],
       "acceptedTaskTypes": [
         "cognitive"
@@ -268,7 +269,8 @@
         "cognitive.deliberate": "provider-derived",
         "cognitive.predict": "provider-derived",
         "cognitive.transfer": "provider-derived",
-        "cognitive.cycle": "provider-derived"
+        "cognitive.cycle": "provider-derived",
+        "cognitive.learn": "provider-derived"
       },
       "executionPlane": "local",
       "routing": {
