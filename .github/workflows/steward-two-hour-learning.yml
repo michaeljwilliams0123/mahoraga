@@ -16,7 +16,8 @@ concurrency:
 jobs:
   learn:
     if: github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123'
-    runs-on: ubuntu-latest
+    # Deterministic repository work must not depend on hosted Actions billing admission.
+    runs-on: [self-hosted, linux, x64]
     timeout-minutes: 20
     permissions:
       contents: write
