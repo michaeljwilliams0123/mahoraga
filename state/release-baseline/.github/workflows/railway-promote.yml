@@ -47,6 +47,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RAILWAY_PROJECT_TOKEN: ${{ secrets.RAILWAY_PROJECT_TOKEN }}
+          MAHORAGA_PROMOTION_ACTOR: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.actor.login || github.actor }}
           MAHORAGA_PROMOTION_REF: refs/heads/main
           MAHORAGA_PROMOTION_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: node scripts/railway-exact-sha-promotion.mjs promote
