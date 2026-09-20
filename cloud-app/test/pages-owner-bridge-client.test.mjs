@@ -48,4 +48,5 @@ test("RuntimeRelay prefers the Pages bridge, keeps PIN login on the transport, a
   assert.match(chat, /Verified server-side and exchanged only for a secure owner session\./);
   assert.match(chat, /Recovery connection/);
   assert.match(relay, /decodePairingOffer/);
+  assert.match(relay, /await bridge\.disconnect\(\);[\s\S]*if \(!this\.socket && !this\.session && !this\.cloudSession\) return;/);
 });
