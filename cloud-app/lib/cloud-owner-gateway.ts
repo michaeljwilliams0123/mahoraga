@@ -51,7 +51,7 @@ export function establishOwnerSession(request: Request): OwnerSession {
   const assertion = `${assertedOwner}\n${assertedAt}\n${assertionNonce}`;
   if (!safeEqual(assertedOwner, ownerId) || !Number.isSafeInteger(assertedAt) || Math.abs(Date.now() - assertedAt) > REPLAY_WINDOW_MS || !/^[a-f0-9-]{36}$/i.test(assertionNonce)
     || !safeEqual(assertionSignature, sign(assertionSecret, assertion))) throw gatewayError("cloud-owner-auth-required", 401);
-  persistNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
+  reserveCloudReplayNonce(`owner:${assertionNonce}`, `owner:${ownerId}`, assertedAt + REPLAY_WINDOW_MS, "cloud-owner-replay-detected");
   return issueOwnerSession(ownerId, secret);
 }
 
