@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
     externalDir: true,
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [{ source: "/((?!api/runtime/pages-bridge/frame).*)", headers: securityHeaders }];
   },
 };
 
