@@ -29,3 +29,9 @@ test("workspace polling consumes the shared lifecycle contract", () => {
   assert.match(workspace, /runtimeTaskPhase\(task\.status\) === "settled"/);
   assert.doesNotMatch(workspace, /ACTIVE_TASK_STATES|TERMINAL_TASK_STATES/);
 });
+
+test("routing changes settle immediately with retryable owner-facing copy", () => {
+  assert.match(workspace, /"routing-changed": "Mahoraga paused because the available execution route changed/);
+  assert.match(workspace, /trackedSettledTask\?\.errorCode/);
+  assert.match(workspace, /setRuntimeError\(runtimeErrorMessage\(trackedSettledTask\.errorCode\)\);\s*return;/);
+});
