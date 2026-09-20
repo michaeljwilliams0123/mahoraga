@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { selectCollectiveParticipants, createCollectivePosition, synthesizeCollectiveDeliberation } from './collective-cognition.mjs';
 import { assessMetacognition, assessCollectiveMetacognition } from './metacognition.mjs';
+import { resolveCollectiveDissent } from './collective-dissent-resolution.mjs';
 import { simulateCounterfactual } from './cognitive-world-model.mjs';
 import { planWorldStateActions } from './objective-planner.mjs';
 
@@ -14,20 +15,22 @@ export function runCognitiveLoop(input) {
   const positions = (input.positions ?? []).map(createCollectivePosition);
   assertParticipantIntegrity(participants, positions);
   const deliberation = synthesizeCollectiveDeliberation({ positions });
+  const dissentResolution = resolveCollectiveDissent({ positions, materialDissent: deliberation.materialDissent, evidenceLedger: input.evidenceLedger ?? [], dissentHistory: input.dissentHistory ?? [] });
   const suppliedMetacognition = assessMetacognition(input.metacognition);
   const metacognitive = assessCollectiveMetacognition({
     evidenceCoverage: suppliedMetacognition.evidenceCoverage,
     calibratedConfidence: suppliedMetacognition.calibratedConfidence,
     knownUnknowns: [...new Set([...suppliedMetacognition.knownUnknowns, ...deliberation.unknowns])],
-    materialConflictCount: Math.max(suppliedMetacognition.materialConflictCount, deliberation.materialDissent.length),
+    materialConflictCount: Math.max(suppliedMetacognition.materialConflictCount, dissentResolution.blockingCount),
     reversible: suppliedMetacognition.reversible,
   });
   const planned = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
-  const plan = gateAutomaticMutation(planned, metacognitive.proceed && deliberation.materialDissent.length === 0);
+  const plan = gateAutomaticMutation(planned, metacognitive.proceed && dissentResolution.blockingCount === 0);
+  const resolvedDeliberationDecision = deliberation.materialDissent.length > 0 && dissentResolution.blockingCount === 0 && dissentResolution.alternativeSupport.qualified ? dissentResolution.alternativeSupport.conclusion : deliberation.decision;
   const prediction = simulateCounterfactual({ observedState: input.observedState, stateUncertainty: input.stateUncertainty, action: input.proposedAction });
   const predictionAdmissible = prediction.predictedUncertainty <= 0.7;
-  const decision = metacognitive.proceed && deliberation.decision !== 'hold' && predictionAdmissible ? deliberation.decision : 'hold';
-  const decisionGate = deliberation.materialDissent.length > 0 ? 'material-dissent' : !metacognitive.proceed ? 'metacognition-hold' : deliberation.decision === 'hold' ? 'collective-hold' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
+  const decision = metacognitive.proceed && resolvedDeliberationDecision !== 'hold' && predictionAdmissible ? resolvedDeliberationDecision : 'hold';
+  const decisionGate = dissentResolution.escalationCount > 0 ? 'dissent-escalation' : dissentResolution.blockingCount > 0 ? 'material-dissent' : !metacognitive.proceed ? 'metacognition-hold' : resolvedDeliberationDecision === 'hold' ? 'collective-hold' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
   const evidenceRefs = [...new Set(positions.flatMap((item) => item.evidenceRefs))].sort();
   const core = {
     schemaVersion: 1,
@@ -37,6 +40,7 @@ export function runCognitiveLoop(input) {
     evidenceRefs,
     metacognition: publicAssessment(metacognitive),
     deliberation: publicDeliberation(deliberation),
+    dissentResolution,
     plan,
     prediction,
     decision,

@@ -133,6 +133,7 @@ export const ESSENTIAL_FILES = [
   "src/evolution-laboratory.mjs",
   "src/cognitive-individual.mjs",
   "src/collective-cognition.mjs",
+  "src/collective-dissent-resolution.mjs",
   "src/metacognition.mjs",
   "src/cognitive-world-model.mjs",
   "src/transfer-generalization.mjs",

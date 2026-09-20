@@ -55,3 +55,17 @@ The unified cognitive loop now treats Collective deliberation as evidence for th
 - No planner action gains authority, no router/provider contract changes, and no hidden reasoning is persisted.
 
 This hardening preserves owner authority, cognitive-individual identity, private/institutional memory separation, zero-credit defaults, and existing exact-head promotion controls.
+## 2026-09-20 evidence-qualified bounded dissent resolution
+
+Material dissent remains preserved, but the cognitive loop now distinguishes dissent that must block execution from dissent that must remain visible without becoming an unbounded veto.
+
+- A current, valid, unsuperseded dissent evidence reference remains blocking regardless of majority size or confidence.
+- Missing or merely aging dissent evidence fails closed and requests re-observation; omission cannot grant mutation authority.
+- Stale, historical, invalid, refuted, or superseded dissent becomes nonblocking only when a single alternative conclusion is supported by at least two participants and at least two current, valid, independent evidence lineages.
+- Correlated evidence is counted by lineage roots rather than votes, so duplicated or shared evidence cannot manufacture independence.
+- An unchanged current-valid dissent claim that survives three unresolved cycles after a discriminating observation favors the alternative remains blocking but changes gate provenance to `dissent-escalation`; Mahoraga does not silently override it.
+- The bounded dissent receipt retains participant identity, evidence refs, validity/freshness/lineage metadata, dissent tags, pre/post evidence-qualified confidence, unresolved-cycle count, prior observation state, and the next re-observe/escalate action.
+- Planner mutation remains governed by the existing planner/router authority. `automaticMutationAllowed` is suppressed whenever evidence-qualified blocking dissent remains; no new lease, provider, credential, memory plane, or supervisor is created.
+- Existing `storedLesson.promotable` remains the institutional-memory promotion gate, so held or escalated decisions are not promoted.
+
+Review hardening: when multiple alternative conclusions exist, alternatives satisfying both independence thresholds are ranked before any unqualified group, so one participant with many evidence roots cannot suppress a genuinely qualified alternative. Dissent-cycle continuity is claim-specific: participant identity, conclusion, dissent tags, and evidence references must all match before unresolved-cycle history can carry forward.
