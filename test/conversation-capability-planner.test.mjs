@@ -12,11 +12,19 @@ function route(capability, overrides = {}) {
 }
 
 const ROUTES = [
+  route("assistant.calculate"),
   route("assistant.respond", { costClass: "licensed-cloud", economicTier: 3 }),
   route("repository.inspect"), route("repository.verify"),
   route("m365.reason", { costClass: "licensed-cloud", economicTier: 3 }),
   route("codex.execute", { costClass: "licensed-cloud", economicTier: 3 }),
 ];
+
+test("simple arithmetic uses the deterministic local lane", () => {
+  const plan = planConversationCapabilities({ content: "What is 2+2?", capabilityRoutes: ROUTES });
+  assert.equal(plan.execution, "task");
+  assert.equal(plan.capability, "assistant.calculate");
+  assert.equal(plan.reasonCode, "deterministic-simple-answer");
+});
 
 test("free-form conversation uses an available answer capability instead of unsupported", () => {
   const plan = planConversationCapabilities({ content: "status?", capabilityRoutes: ROUTES });
