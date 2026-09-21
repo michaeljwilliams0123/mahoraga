@@ -1,7 +1,7 @@
 # Cloudflare runtime migration: verified handoff and design
 
 Date: 2026-09-21
-Status: proposed migration; account access blocked; no production cutover performed.
+Status: storage/execution boundary implemented on the draft branch; no production cutover performed.
 Source inspected: `7cb8aab1129875f798347afdb2844f963e986a65`.
 
 ## Owner outcome and constraints
@@ -191,6 +191,43 @@ node --test test/cloudflare-owner-gateway-security.test.mjs \
 
 Result: 14 passed, 0 failed. No product code changed in this handoff.
 Full repository verification and live Cloudflare acceptance were not performed.
+
+## Follow-up implementation receipt
+
+Cloudflare connector access was available on 2026-09-21 and a read-only Worker
+inventory succeeded without exposing credentials. The bounded implementation in
+`deploy/cloudflare-execution-runtime/` adds a TypeScript Worker entrypoint, a
+SQLite-backed `ExecutionDurableObject`, and the `StorageAdapter` boundary. It
+does not replace the Access-authenticated owner gateway, change lifecycle
+authority, deploy a Worker, modify Railway, or route production traffic.
+
+The public entrypoint enforces the full frozen SHA before obtaining a Durable
+Object stub. A valid emergency bypass is proxied directly to the configured
+Railway anchor and the bypass secret is removed from the forwarded request.
+Local execution uses atomic TTL leases, receipt replay, and synchronous Durable
+Object storage transactions. Cloudflare prohibits transaction-control SQL in
+`sql.exec`; therefore the adapter uses the platform-supported
+`state.storage.transactionSync`, which commits on return and rolls back on
+throw.
+
+Focused workerd-backed verification:
+
+```bash
+npm run typecheck:cloudflare
+npm run test:cloudflare
+```
+
+Result: 7 integration tests passed, covering SHA rejection before SQLite,
+idempotent replay, active lease contention, transaction rollback, Railway
+bypass proxying, and liveness/readiness/method routing. Live deployment and a
+real acceptance transaction remain separate gates.
+
+The full `npm run verify` gate reaches the repository-wide Node suite but is
+not green on this draft head: 1,470 passed, 6 failed, and 3 were skipped. The
+six failures are pre-existing contract drift in release-workflow and cloud UI
+tests; this tranche does not modify their source or test files. The Cloudflare
+typecheck, workerd integration lane, governance checks, and release-baseline
+verification all pass before those unrelated failures are reported.
 
 ## Official references checked
 
