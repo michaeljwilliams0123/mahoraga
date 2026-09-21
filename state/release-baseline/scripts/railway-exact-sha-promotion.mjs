@@ -359,6 +359,7 @@ function promotionDeps(overrides = {}) {
     now: () => new Date().toISOString(),
     resolveGitHubEvidence,
     resolveAutoDeployStatus,
+    disableAutoDeploy,
     resolvePreviousSuccessfulDeployment,
     probeProduction,
     upsertExpectedSha,
@@ -382,7 +383,11 @@ export async function promoteExactMain(input, overrides = {}) {
   if (!gate.ok) return baseReceipt({ state: "blocked", ok: false, targetSha: input.checkoutSha, observedAt: deps.now(), errorCode: gate.reason });
 
   try {
-    const autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    let autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    if (autoDeploy.enabled) {
+      await deps.disableAutoDeploy({ token: input.railwayToken });
+      autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    }
     if (autoDeploy.enabled) throw coded("railway-autodeploy-enabled");
   } catch (error) {
     const failure = normalizeRailwayError(error);
