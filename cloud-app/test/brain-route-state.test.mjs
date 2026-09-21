@@ -60,6 +60,12 @@ test("a healthy answer route wins over an earlier degraded route", () => {
   assert.equal(brainReadiness(state), "ready");
 });
 
+test("disabled healthy-looking route cannot make the brain ready", () => {
+  const state = deriveBrainRouteState(true, [{ capability: "assistant.respond", routable: true, enabled: false, provider: "disabled-route" }]);
+  assert.equal(state.kind, "capability-unavailable");
+  assert.equal(brainReadiness(state), "degraded");
+});
+
 test("disconnected transport remains offline regardless of stale capabilities", () => {
   const state = deriveBrainRouteState(false, [{
     capability: "assistant.respond",
