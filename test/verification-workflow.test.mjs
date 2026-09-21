@@ -58,6 +58,8 @@ test("fast Verify retains exact-head governance and focused regression coverage"
     "cloud-app/test/composio-integration-contract.test.mjs",
     "test/workspace-agent-receiver.test.mjs",
     "test/destiny-trigger-trust.test.mjs",
+    "test/mahoraga-core-types.test.ts",
+    "test/verification-pipeline.test.ts",
   ]) assert.match(fast, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(fast, /cli-runtime-database-target\.test\.mjs/);
   assert.match(pkg.scripts?.verify ?? "", /node --test --test-isolation=none/);
