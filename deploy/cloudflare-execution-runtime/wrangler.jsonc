@@ -1,0 +1,19 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "mahoraga-execution-runtime",
+  "main": "worker.ts",
+  "compatibility_date": "2026-09-21",
+  "durable_objects": {
+    "bindings": [
+      { "name": "EXECUTION_DO", "class_name": "ExecutionDurableObject" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ExecutionDurableObject"] }
+  ],
+  "vars": {
+    "TARGET_SHA": "7cb8aab1129875f798347afdb2844f963e986a65",
+    "RAILWAY_ANCHOR_URL": "https://mahoraga-runtime-main-production.up.railway.app/"
+  },
+  "observability": { "enabled": true }
+}

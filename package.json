@@ -45,8 +45,10 @@
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "baseline:verify": "node scripts/create-release-baseline.mjs --verify",
     "test": "node --test --test-isolation=none",
+    "test:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
+    "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare-execution-runtime/tsconfig.json",
     "test:alpha": "node --test --test-isolation=none",
-    "verify": "npm run typecheck && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none",
+    "verify": "npm run typecheck && npm run typecheck:cloudflare && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && npm run test:cloudflare && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
@@ -66,7 +68,10 @@
     "@microsoft/agents-copilotstudio-client": "1.7.2"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.2.1",
+    "@cloudflare/workers-types": "5.20260921.1",
     "@types/node": "26.4.0",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "vitest": "4.1.0"
   }
 }
