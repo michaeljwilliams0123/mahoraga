@@ -39,6 +39,27 @@ test("assistant.respond must be routable before the brain is ready", () => {
   assert.equal(brainReadiness(state), "ready");
 });
 
+test("a healthy answer route wins over an earlier degraded route", () => {
+  const state = deriveBrainRouteState(true, [
+    {
+      capability: "assistant.respond",
+      routable: false,
+      enabled: true,
+      provider: "licensed-question-model",
+      providerReasonCode: "provider-quota-backoff",
+    },
+    {
+      capability: "assistant.respond",
+      routable: true,
+      enabled: true,
+      provider: "zero-credit",
+    },
+  ]);
+  assert.equal(state.kind, "route-ready");
+  assert.equal(state.provider, "zero-credit");
+  assert.equal(brainReadiness(state), "ready");
+});
+
 test("disconnected transport remains offline regardless of stale capabilities", () => {
   const state = deriveBrainRouteState(false, [{
     capability: "assistant.respond",
