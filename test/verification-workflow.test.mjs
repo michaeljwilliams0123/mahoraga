@@ -15,13 +15,15 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   const source = await workflow();
   assert.match(source, /pull_request:/);
   assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
+  assert.match(source, /name:\s*Verify \(\$\{\{ matrix\.check_name \}\}\)/);
   assert.match(source, /check_name:\s*ubuntu-latest/);
-  assert.match(source, /runner_labels:\s*'\["self-hosted","linux","x64"\]'/);
+  assert.match(source, /runner_labels:\s*'"ubuntu-latest"'/);
   assert.match(source, /name:\s*Verify Ubuntu runner identity/);
   assert.match(source, /source \/etc\/os-release/);
   assert.match(source, /test "\$ID" = "ubuntu"/);
   assert.match(source, /check_name:\s*windows-latest/);
-  assert.match(source, /runner_labels:\s*'\["self-hosted","windows","x64"\]'/);
+  assert.match(source, /runner_labels:\s*'"windows-latest"'/);
+  assert.doesNotMatch(source, /self-hosted/);
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
@@ -56,6 +58,8 @@ test("fast Verify retains exact-head governance and focused regression coverage"
     "cloud-app/test/composio-integration-contract.test.mjs",
     "test/workspace-agent-receiver.test.mjs",
     "test/destiny-trigger-trust.test.mjs",
+    "test/mahoraga-core-types.test.ts",
+    "test/verification-pipeline.test.ts",
   ]) assert.match(fast, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(fast, /cli-runtime-database-target\.test\.mjs/);
   assert.match(pkg.scripts?.verify ?? "", /node --test --test-isolation=none/);

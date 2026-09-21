@@ -171,6 +171,27 @@ export async function resolveAutoDeployStatus({ token, fetchImpl = fetch }) {
   return { enabled: status.enabled, canEnable: status.canEnable, reason: status.reason ?? null };
 }
 
+export async function disableAutoDeploy({ token, fetchImpl = fetch }) {
+  const query = `mutation DisableAutoDeploy($input: ServiceInstanceAutoDeployUpdateInput!) {
+    serviceInstanceAutoDeployUpdate(input: $input) { enabled }
+  }`;
+  const data = await railwayRequest({
+    query,
+    variables: {
+      input: {
+        enabled: false,
+        projectId: PROMOTION.projectId,
+        environmentId: PROMOTION.environmentId,
+        serviceId: PROMOTION.serviceId,
+      },
+    },
+    token,
+    fetchImpl,
+  });
+  if (data?.serviceInstanceAutoDeployUpdate?.enabled !== false) throw coded("autodeploy-disable-invalid");
+  return { enabled: false };
+}
+
 export async function resolvePreviousSuccessfulDeployment({ token, fetchImpl = fetch }) {
   const query = `query RecentDeployments($input: DeploymentListInput!) {
     deployments(input: $input, first: 10) { edges { node { id status createdAt meta } } }
@@ -338,6 +359,7 @@ function promotionDeps(overrides = {}) {
     now: () => new Date().toISOString(),
     resolveGitHubEvidence,
     resolveAutoDeployStatus,
+    disableAutoDeploy,
     resolvePreviousSuccessfulDeployment,
     probeProduction,
     upsertExpectedSha,
@@ -361,7 +383,11 @@ export async function promoteExactMain(input, overrides = {}) {
   if (!gate.ok) return baseReceipt({ state: "blocked", ok: false, targetSha: input.checkoutSha, observedAt: deps.now(), errorCode: gate.reason });
 
   try {
-    const autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    let autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    if (autoDeploy.enabled) {
+      await deps.disableAutoDeploy({ token: input.railwayToken });
+      autoDeploy = await deps.resolveAutoDeployStatus({ token: input.railwayToken });
+    }
     if (autoDeploy.enabled) throw coded("railway-autodeploy-enabled");
   } catch (error) {
     const failure = normalizeRailwayError(error);
@@ -469,11 +495,14 @@ export async function runPromotionCli({ env = process.env, argv = process.argv.s
   for (const name of ["GITHUB_TOKEN", "RAILWAY_PROJECT_TOKEN", "GITHUB_ACTOR", "GITHUB_REPOSITORY", "GITHUB_REF", "GITHUB_SHA"]) {
     if (typeof env[name] !== "string" || env[name].length === 0) throw coded(`promotion-env-${name.toLowerCase()}-required`);
   }
+  const promotionActor = env.MAHORAGA_PROMOTION_ACTOR ?? env.GITHUB_ACTOR;
+  const promotionRef = env.MAHORAGA_PROMOTION_REF ?? env.GITHUB_REF;
+  const promotionSha = env.MAHORAGA_PROMOTION_SHA ?? env.GITHUB_SHA;
   return promoteExactMain({
-    actor: env.GITHUB_ACTOR,
+    actor: promotionActor,
     repository: env.GITHUB_REPOSITORY,
-    ref: env.GITHUB_REF,
-    checkoutSha: env.GITHUB_SHA,
+    ref: promotionRef,
+    checkoutSha: promotionSha,
     githubToken: env.GITHUB_TOKEN,
     railwayToken: env.RAILWAY_PROJECT_TOKEN,
   });

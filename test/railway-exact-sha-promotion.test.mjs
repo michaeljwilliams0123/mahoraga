@@ -51,14 +51,25 @@ test("promotion gate fails closed for missing, stale, pending, skipped, or faile
 test("workflow is manual owner-only, input-free, fixed, and zero-model", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "railway-promote.yml"), "utf8");
   assert.match(source, /workflow_dispatch:/);
+  assert.match(source, /workflow_run:\s*\n\s*workflows:\s*\["Verify Mahoraga"\]\s*\n\s*types:\s*\[completed\]/);
   assert.doesNotMatch(source, /\binputs\s*:/);
   assert.match(source, /github\.actor == github\.repository_owner/);
+  assert.match(source, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(source, /github\.event\.workflow_run\.event == 'push'/);
+  assert.match(source, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(source, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.match(source, /github\.event\.workflow_run\.actor\.login == github\.repository_owner/);
   assert.match(source, /contents:\s*read/);
   assert.match(source, /checks:\s*read/);
+  assert.match(source, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+  assert.doesNotMatch(source, /runs-on:\s*ubuntu-latest/i);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
+  assert.match(source, /MAHORAGA_PROMOTION_ACTOR:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
+  assert.match(source, /MAHORAGA_PROMOTION_REF:\s*refs\/heads\/main/);
+  assert.match(source, /MAHORAGA_PROMOTION_SHA:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
   assert.match(source, /node scripts\/railway-exact-sha-promotion\.mjs promote/);
-  assert.match(source, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
-  assert.doesNotMatch(source, /OPENAI|ANTHROPIC|MODEL|provider|schedule:|push:|pull_request:|workflow_run:/i);
+  assert.match(source, /ref:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
+  assert.doesNotMatch(source, /OPENAI|ANTHROPIC|MODEL|provider|schedule:|push:|pull_request:/i);
 });
 
 function response(payload, status = 200) {
@@ -135,6 +146,25 @@ test("Railway promotion preflight reads canonical autodeploy posture", async () 
     serviceId: PROMOTION.serviceId,
   });
 });
+test("Railway mutation disables native autodeploy for the fixed canonical target", async () => {
+  const { disableAutoDeploy, PROMOTION } = await controller();
+  let observed;
+  const fetchImpl = async (_url, options) => {
+    observed = JSON.parse(options.body);
+    return response({ data: { serviceInstanceAutoDeployUpdate: { enabled: false } } });
+  };
+  assert.deepEqual(await disableAutoDeploy({ token: "project-token", fetchImpl }), { enabled: false });
+  assert.match(observed.query, /serviceInstanceAutoDeployUpdate/);
+  assert.deepEqual(observed.variables, {
+    input: {
+      enabled: false,
+      projectId: PROMOTION.projectId,
+      environmentId: PROMOTION.environmentId,
+      serviceId: PROMOTION.serviceId,
+    },
+  });
+});
+
 test("previous successful deployment uses an unfiltered bounded list and selects SUCCESS locally", async () => {
   const { resolvePreviousSuccessfulDeployment } = await controller();
   const fetchImpl = async (_url, options) => {
@@ -187,6 +217,7 @@ function orchestrationDeps(overrides = {}) {
     now: () => "2026-09-14T22:00:00.000Z",
     resolveGitHubEvidence: async () => ({ currentMainSha: SHA_A, checkRuns: successfulChecks() }),
     resolveAutoDeployStatus: async () => ({ enabled: false, canEnable: true, reason: null }),
+    disableAutoDeploy: async () => { calls.push(["disable-autodeploy"]); return { enabled: false }; },
     resolvePreviousSuccessfulDeployment: async () => ({ deploymentId: "dep-old", commitSha: SHA_B }),
     probeProduction: async ({ expectedSha }) => ({ ok: expectedSha === SHA_B, reason: expectedSha === SHA_B ? null : "ready-sha-mismatch", live: { status: 200, modelInvocationsZero: true }, ready: { status: 200, gitShaMatch: expectedSha === SHA_B, modelInvocationsZero: true } }),
     upsertExpectedSha: async ({ sha }) => { calls.push(["upsert", sha]); return { updated: true, sha }; },
@@ -208,19 +239,41 @@ function orchestrationInput() {
   };
 }
 
-test("promotion fails closed before deployment reads when Railway autodeploy is enabled", async () => {
+test("promotion disables native autodeploy, verifies readback, and continues", async () => {
   const { promoteExactMain } = await controller();
+  const statuses = [
+    { enabled: true, canEnable: true, reason: null },
+    { enabled: false, canEnable: true, reason: null },
+  ];
+  const { deps, calls } = orchestrationDeps({
+    resolveAutoDeployStatus: async () => statuses.shift(),
+    probeProduction: async () => ({ ok: true, reason: null, live: { status: 200, modelInvocationsZero: true }, ready: { status: 200, gitShaMatch: true, modelInvocationsZero: true } }),
+  });
+  const receipt = await promoteExactMain(orchestrationInput(), deps);
+  assert.equal(receipt.state, "already-current");
+  assert.equal(receipt.ok, true);
+  assert.deepEqual(calls, [["disable-autodeploy"]]);
+  assert.equal(statuses.length, 0);
+});
+test("promotion fails closed when fresh post-mutation autodeploy read shows drift", async () => {
+  const { promoteExactMain } = await controller();
+  const statuses = [
+    { enabled: true, canEnable: true, reason: null },
+    { enabled: true, canEnable: true, reason: "concurrent-reenable" },
+  ];
   let deploymentRead = false;
-  const { deps } = orchestrationDeps({
-    resolveAutoDeployStatus: async () => ({ enabled: true, canEnable: true, reason: null }),
+  const { deps, calls } = orchestrationDeps({
+    resolveAutoDeployStatus: async () => statuses.shift(),
     resolvePreviousSuccessfulDeployment: async () => { deploymentRead = true; return { deploymentId: "dep-old", commitSha: SHA_B }; },
   });
   const receipt = await promoteExactMain(orchestrationInput(), deps);
   assert.equal(receipt.state, "failed");
   assert.equal(receipt.errorCode, "railway-autodeploy-enabled");
   assert.equal(receipt.errorStage, "autodeploy-preflight");
+  assert.deepEqual(calls, [["disable-autodeploy"]]);
   assert.equal(deploymentRead, false);
 });
+
 test("promotion receipt identifies an early Railway deployment-read failure stage", async () => {
   const { promoteExactMain } = await controller();
   const error = Object.assign(new Error("BAD_USER_INPUT"), { code: "BAD_USER_INPUT", status: 400 });

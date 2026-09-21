@@ -2,6 +2,9 @@ name: Promote Exact Main to Railway
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -15,16 +18,24 @@ jobs:
   promote:
     name: Promote exact verified main
     if: >-
-      github.actor == github.repository_owner &&
-      github.repository == 'michaeljwilliams0123/mahoraga' &&
-      github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+      (github.event_name == 'workflow_dispatch' &&
+       github.actor == github.repository_owner &&
+       github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == github.repository_owner)
+    # Deterministic promotion must not depend on hosted Actions billing admission.
+    runs-on: [self-hosted, linux, x64]
     timeout-minutes: 20
     steps:
-      - name: Check out authoritative main
+      - name: Check out authoritative verified main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -37,4 +48,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           RAILWAY_PROJECT_TOKEN: ${{ secrets.RAILWAY_PROJECT_TOKEN }}
+          MAHORAGA_PROMOTION_ACTOR: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.actor.login || github.actor }}
+          MAHORAGA_PROMOTION_REF: refs/heads/main
+          MAHORAGA_PROMOTION_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: node scripts/railway-exact-sha-promotion.mjs promote
