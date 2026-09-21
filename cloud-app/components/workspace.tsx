@@ -3,6 +3,7 @@
 import { Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
+import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
@@ -98,11 +99,22 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
+  const brainRouteState = useMemo(
+    () => deriveBrainRouteState(coreReady, runtimeCapabilities, runtimeError),
+    [coreReady, runtimeCapabilities, runtimeError],
+  );
+  const routeReadiness = brainReadiness(brainRouteState);
   const brainState: BrainState = new Set<RelayState>(["pairing", "resuming"]).has(relayState)
     ? "Connecting"
-    : coreReady
-      ? runtimeBusy ? "Awake" : licensedRetry || runtimeError ? "Degraded" : "Idle"
-      : relayState === "error" ? "Degraded" : "Ready";
+    : runtimeBusy
+      ? "Awake"
+      : licensedRetry || runtimeError || routeReadiness === "degraded"
+        ? "Degraded"
+        : routeReadiness === "ready"
+          ? "Idle"
+          : routeReadiness === "offline"
+            ? "Ready"
+            : "Connecting";
   const brainLabel = `Mahoraga: ${brainState}`;
 
   useEffect(() => {
