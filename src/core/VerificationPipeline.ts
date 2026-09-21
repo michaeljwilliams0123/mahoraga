@@ -10,10 +10,12 @@ import {
 function isStructurallyValidCandidate(source: string): boolean {
   const candidate = source.trim();
   if (candidate.length === 0 || candidate.includes("undefined_locus")) return false;
-  if (!/\bfunction\b/u.test(candidate)) return false;
+  if (!/^(?:async\s+)?function\b/u.test(candidate)) return false;
 
   try {
-    new Script(candidate, { filename: "mahoraga-canary-candidate.js" });
+    // Parenthesizing forces the whole candidate to parse as one function
+    // expression. Script construction parses only; it does not execute it.
+    new Script(`(${candidate}\n)`, { filename: "mahoraga-canary-candidate.js" });
     return true;
   } catch (error) {
     if (error instanceof SyntaxError) return false;
