@@ -10,7 +10,9 @@ import {
   type HealthRouteJson,
   type ObservationalHealthCard,
 } from "@/lib/cockpit";
+import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import { AstSandbox } from "./AstSandbox";
+import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -112,6 +114,10 @@ export function CommandCockpit({
     return mapped.ok ? mapped.value : null;
   }, [healthJson]);
 
+  const dissentReceipt = isCollectiveDissentReceipt((healthJson as { collectiveDissent?: unknown } | null)?.collectiveDissent)
+    ? (healthJson as { collectiveDissent: import("@/lib/dissent-receipt").CollectiveDissentReceipt }).collectiveDissent
+    : null;
+
   const liveOk = Boolean(healthCard?.ok) && !healthError;
   const readyOk = coreReady && readinessOk;
 
@@ -155,6 +161,7 @@ export function CommandCockpit({
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
+            <span className={`cockpit-pill ${dissentReceipt?.blockingCount ? "warn" : "steel"}`}>DISSENT_RECEIPT</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -205,6 +212,8 @@ export function CommandCockpit({
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
         </aside>
+
+        <DissentReceiptPanel receipt={dissentReceipt} />
 
         <aside className={`cockpit-panel ${coreReady ? "tone-ok" : "tone-neutral"}`} aria-label="Ready and pairing state">
           <h3>READY / PAIRING</h3>
