@@ -10,8 +10,10 @@ import {
   type HealthRouteJson,
   type ObservationalHealthCard,
 } from "@/lib/cockpit";
+import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 import { AstSandbox } from "./AstSandbox";
+import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -113,11 +115,16 @@ export function CommandCockpit({
     return mapped.ok ? mapped.value : null;
   }, [healthJson]);
 
-  const liveOk = Boolean(healthCard?.ok) && !healthError;
-  const readyOk = coreReady && readinessOk;
+  const dissentReceipt = isCollectiveDissentReceipt((healthJson as { collectiveDissent?: unknown } | null)?.collectiveDissent)
+    ? (healthJson as { collectiveDissent: import("@/lib/dissent-receipt").CollectiveDissentReceipt }).collectiveDissent
+    : null;
+
   const learning = projectCognitiveLearningSurface(
     (healthJson as HealthRouteJson & { cognitiveLearning?: CognitiveLearningPromotionReceipt } | null)?.cognitiveLearning,
   );
+
+  const liveOk = Boolean(healthCard?.ok) && !healthError;
+  const readyOk = coreReady && readinessOk;
 
   const panels = useMemo(() => {
     const next = {} as Record<CockpitPanelId, CockpitPanelModel>;
@@ -158,10 +165,11 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
+            <span className="cockpit-pill ok">CONVERGED_#460</span>
+            <span className={`cockpit-pill ${dissentReceipt?.blockingCount ? "warn" : "steel"}`}>DISSENT_RECEIPT</span>
             <span className={`cockpit-pill ${learning.status === "promoted" ? "ok" : learning.status === "refused" ? "warn" : "steel"}`}>
               {learning.status === "promoted" ? "LEARN_VERIFIED_OUTCOME" : learning.status === "refused" ? "LEARN_REFUSED" : "LEARN_PENDING"}
             </span>
-            <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -213,19 +221,10 @@ export function CommandCockpit({
           </dl>
         </aside>
 
-        <aside className={`cockpit-panel ${coreReady ? "tone-ok" : "tone-neutral"}`} aria-label="Ready and pairing state">
-          <h3>READY / PAIRING</h3>
-          <p>
-            {readyOk
-              ? "Ready: live health is OK and the core session is paired. Mutations remain relay-mediated."
-              : coreReady
-                ? "Paired, waiting on live health. Ready stays offline until /api/live is OK."
-                : "Unpaired. Workspace is published; Pair runtime when an approved owner session is available."}
-          </p>
-        </aside>
+        <DissentReceiptPanel receipt={dissentReceipt} />
 
         <aside className={`cockpit-panel ${learning.status === "promoted" ? "tone-ok" : learning.status === "refused" ? "tone-warn" : "tone-neutral"}`} aria-label="Institutional learning">
-          <h3>INSTITUTIONAL LEARNING</h3>
+          <h3>INSTITUTIONAL_LEARNING</h3>
           <p>{learning.headline}</p>
           <p role="status">{learning.reasonLabel}</p>
           <dl>
@@ -235,6 +234,17 @@ export function CommandCockpit({
             <div><dt>public evidence refs</dt><dd>{learning.evidenceRefs.length ? learning.evidenceRefs.join(", ") : "none"}</dd></div>
           </dl>
           <p className="cockpit-muted">{learning.privacyNote} Private episodic memory, prompts/transcripts, credentials, and authority grants stay off this surface.</p>
+        </aside>
+
+        <aside className={`cockpit-panel ${coreReady ? "tone-ok" : "tone-neutral"}`} aria-label="Ready and pairing state">
+          <h3>READY / PAIRING</h3>
+          <p>
+            {readyOk
+              ? "Ready: live health is OK and the core session is paired. Mutations remain relay-mediated."
+              : coreReady
+                ? "Paired, waiting on live health. Ready stays offline until /api/live is OK."
+                : "Unpaired. Workspace is published; Pair runtime when an approved owner session is available."}
+          </p>
         </aside>
 
         <aside className="cockpit-panel tone-neutral" aria-label="Attended Teams send status">
