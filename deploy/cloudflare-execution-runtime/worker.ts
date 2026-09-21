@@ -4,6 +4,9 @@ import { CloudflareDOSQLiteAdapter, type StorageReceipt } from "./storage";
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 15_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
+const SHA_PATTERN = /^[a-f0-9]{40}$/i;
+
+const targetShaValid = (value: unknown): value is string => typeof value === "string" && SHA_PATTERN.test(value);
 
 const json = (body: Record<string, unknown>, status = 200, headers?: HeadersInit): Response => {
   const responseHeaders = new Headers(JSON_HEADERS);
@@ -73,6 +76,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
 
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (!targetShaValid(this.env.TARGET_SHA)) return json({ status: "unready", error: "target-sha-invalid" }, 503);
     if (url.pathname === "/api/live") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
       return json({ status: "live", sha: this.env.TARGET_SHA });
@@ -157,6 +161,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    if (!targetShaValid(env.TARGET_SHA)) return json({ status: "unready", error: "target-sha-invalid" }, 503);
     if (url.pathname === "/api/execute" && request.method === "POST") {
       const actualSha = request.headers.get("x-target-sha");
       if (actualSha !== env.TARGET_SHA) {
