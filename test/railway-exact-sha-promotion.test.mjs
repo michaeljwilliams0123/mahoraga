@@ -61,6 +61,8 @@ test("workflow is manual owner-only, input-free, fixed, and zero-model", async (
   assert.match(source, /github\.event\.workflow_run\.actor\.login == github\.repository_owner/);
   assert.match(source, /contents:\s*read/);
   assert.match(source, /checks:\s*read/);
+  assert.match(source, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+  assert.doesNotMatch(source, /runs-on:\s*ubuntu-latest/i);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
   assert.match(source, /MAHORAGA_PROMOTION_ACTOR:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
   assert.match(source, /MAHORAGA_PROMOTION_REF:\s*refs\/heads\/main/);
