@@ -166,6 +166,9 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${healthCard?.ok ? "ok" : healthError ? "danger" : "steel"}`}>
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
+            <span className="cockpit-pill ok">SOURCE_TRUTH</span>
+            <span className="cockpit-pill steel">DEPLOYMENT_TRUTH</span>
+            <span className={`cockpit-pill ${liveOk ? "ok" : healthError ? "danger" : "steel"}`}>LIVE_RUNTIME_TRUTH</span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
             <span className={`cockpit-pill ${dissentReceipt?.blockingCount ? "warn" : "steel"}`}>DISSENT_RECEIPT</span>
             <span className={`cockpit-pill ${learning.status === "promoted" ? "ok" : learning.status === "refused" ? "warn" : "steel"}`}>
@@ -224,6 +227,18 @@ export function CommandCockpit({
             <div><dt>railway promote</dt><dd>PR 656 after Verify Mahoraga on main; verified run SHA; Wait for CI disabled</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
+          </dl>
+        </aside>
+
+        <aside className="cockpit-panel tone-neutral" aria-label="Edge convergence truth planes">
+          <h3>EDGE_CONVERGENCE_TRUTH</h3>
+          <p>Foundation #665 keeps source, deployment, and live-runtime claims separate. A green observation in one plane does not manufacture evidence in another.</p>
+          <dl>
+            <div><dt>Source Truth</dt><dd>protected GitHub main · required exact-head Verify (ubuntu-latest + windows-latest)</dd></div>
+            <div><dt>Deployment Truth</dt><dd>Railway exact-SHA promotion/pin state · verified main SHA only</dd></div>
+            <div><dt>Live-Runtime Truth</dt><dd>{liveOk ? "observed /api/live" : healthError ? "unavailable" : "pending"} · observational, not source authority</dd></div>
+            <div><dt>Ready</dt><dd>{readyOk ? "live + paired core" : "not proven"} · never inferred from LIVE_OK alone</dd></div>
+            <div><dt>authority</dt><dd>foundation/status only · no new provider, deploy, credential, or mutation authority</dd></div>
           </dl>
         </aside>
 
