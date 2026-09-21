@@ -1,5 +1,6 @@
 import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { RuntimeCapability, RuntimeRelay } from "@/lib/runtime-relay";
+import type { CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 
 export type TaskMode = "auto" | "ask" | "act";
 export type RelayState = "unpaired" | "resuming" | "pairing" | "connected" | "error";
@@ -28,6 +29,7 @@ export type Health = {
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
   studio?: { managementPlaneReady?: boolean; delegationRuntimeReady?: boolean };
+  cognitiveLearning?: CognitiveLearningPromotionReceipt | null;
 };
 
 export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: string }> = Object.freeze([
