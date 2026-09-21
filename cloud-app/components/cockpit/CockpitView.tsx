@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
+import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
@@ -57,6 +58,7 @@ export function CockpitView({
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
+  const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
   const [readinessOk, setReadinessOk] = useState(false);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
@@ -118,6 +120,12 @@ export function CockpitView({
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
         <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
         <StatusCard label="Model fabric" value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`} tone={routable.length > 0 ? "good" : "neutral"} />
+        <StatusCard
+          label="Institutional learning"
+          value={learning.status === "promoted" ? "verified-outcome" : learning.status === "refused" ? "refused" : "no receipt"}
+          detail={learning.status === "promoted" ? `${learning.headline} · confidence ${learning.confidence ?? "n/a"}` : learning.reasonLabel}
+          tone={learning.status === "promoted" ? "good" : learning.status === "refused" ? "warn" : "neutral"}
+        />
         <StatusCard label="Evolution lane" value="Verified convergence" detail="Stage → verify → canary → pin → converge" tone="good" />
       </div>
 
@@ -194,6 +202,10 @@ export function CockpitView({
         <div>
           <strong>Studio authority</strong>
           <p>non-authoritative evidence plane - Mahoraga remains canonical</p>
+        </div>
+        <div>
+          <strong>Institutional learning</strong>
+          <p>{learning.headline}. {learning.reasonLabel}. Provenance {learning.provenance ?? "none"}. Calibrated confidence {learning.confidence ?? "n/a"}. Public evidence refs: {learning.evidenceRefs.length ? learning.evidenceRefs.join(", ") : "none"}. {learning.privacyNote}</p>
         </div>
         <div>
           <strong>Adaptive review</strong>
