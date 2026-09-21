@@ -134,7 +134,10 @@ export function ChatView(props: ChatViewProps) {
               <article key={message.id} className={`message-row message-${message.role}`}>
                 <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={15} /> : "You"}</div>
                 <div className="message-body">
-                  <div className="message-author">{message.role === "assistant" ? "Mahoraga" : "You"}</div>
+                  <div className="message-author">
+                    {message.role === "assistant" ? "Mahoraga" : "You"}
+                    {message.role === "assistant" && message.instantLocal ? <span className="instant-local-cue">Instant · local</span> : null}
+                  </div>
                   <div className="message-text" style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
                 </div>
               </article>

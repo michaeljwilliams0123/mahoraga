@@ -30,7 +30,9 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /deployment\?\.provider/);
   assert.match(cockpit, /deployment\?\.commitSha/);
   assert.match(cockpit, /deployment\?\.expectedCommitSha/);
-  assert.match(cockpit, /Source convergence/);
+  assert.match(cockpit, /Source Truth/);
+  assert.match(cockpit, /Deployment Truth/);
+  assert.match(cockpit, /Live-Runtime Truth/);
   assert.match(cockpit, /Railway exact-SHA runtime/);
   assert.match(cockpit, /GitHub Pages hosts the published static workspace/);
   assert.match(cockpit, /encrypted relay remains the execution path/);

@@ -60,10 +60,12 @@ export type RuntimeTask = {
   id: string;
   conversationId: string;
   status: string;
+  capability?: string | null;
   errorCode?: string | null;
 };
 export type RuntimeMessage = {
   id: string;
+  taskId?: string | null;
   role: "assistant" | "system" | "user";
   content?: string | null;
   contentReference?: string | null;

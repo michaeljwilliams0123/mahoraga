@@ -124,7 +124,9 @@ describe("singular control center contract", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
-    assert.match(workspace, /relayState === "error" \? "Degraded" : "Ready"/);
+    assert.match(workspace, /deriveBrainRouteState\(coreReady, runtimeCapabilities, runtimeError\)/);
+    assert.match(workspace, /routeReadiness === "degraded"/);
+    assert.match(workspace, /routeReadiness === "ready"/);
     assert.match(chat, /Ready to pair/);
     assert.match(cockpit, /Workspace published/);
     assert.match(cockpit, /No execution authority claimed/);
@@ -139,7 +141,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /MAHORAGA_EXPECTED_GIT_SHA/);
     assert.match(cockpit, /Exact-head CI plus rollback checkpoint/);
     assert.match(cockpit, /Prove candidate and runtime readiness/);
-    assert.match(cockpit, /Reconcile Railway expected SHA independently of the running process/);
+    assert.match(cockpit, /Promote Railway to the verified Verify Mahoraga run SHA after main/);
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });

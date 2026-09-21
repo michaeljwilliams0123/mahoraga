@@ -32,8 +32,9 @@ describe("7.0.0-alpha.2 verified-outcome learning surface", () => {
   });
 
   it("renders the surface on existing CommandCockpit and CockpitView without a new SPA", () => {
-    assert.match(cockpit, /INSTITUTIONAL LEARNING/);
-    assert.match(cockpit, /verified-outcome/);
+    assert.match(cockpit, /INSTITUTIONAL_LEARNING/);
+    assert.match(cockpit, /LEARN_VERIFIED_OUTCOME/);
+    assert.match(cockpit, /learning\.provenance/);
     assert.match(cockpit, /Private episodic memory/);
     assert.match(cockpitView, /Institutional learning/);
     assert.match(cockpitView, /projectCognitiveLearningSurface/);
