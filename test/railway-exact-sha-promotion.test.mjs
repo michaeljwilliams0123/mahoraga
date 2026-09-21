@@ -215,6 +215,7 @@ function orchestrationDeps(overrides = {}) {
     now: () => "2026-09-14T22:00:00.000Z",
     resolveGitHubEvidence: async () => ({ currentMainSha: SHA_A, checkRuns: successfulChecks() }),
     resolveAutoDeployStatus: async () => ({ enabled: false, canEnable: true, reason: null }),
+    disableAutoDeploy: async () => { calls.push(["disable-autodeploy"]); return { enabled: false }; },
     resolvePreviousSuccessfulDeployment: async () => ({ deploymentId: "dep-old", commitSha: SHA_B }),
     probeProduction: async ({ expectedSha }) => ({ ok: expectedSha === SHA_B, reason: expectedSha === SHA_B ? null : "ready-sha-mismatch", live: { status: 200, modelInvocationsZero: true }, ready: { status: 200, gitShaMatch: expectedSha === SHA_B, modelInvocationsZero: true } }),
     upsertExpectedSha: async ({ sha }) => { calls.push(["upsert", sha]); return { updated: true, sha }; },
@@ -236,18 +237,21 @@ function orchestrationInput() {
   };
 }
 
-test("promotion fails closed before deployment reads when Railway autodeploy is enabled", async () => {
+test("promotion disables native autodeploy, verifies readback, and continues", async () => {
   const { promoteExactMain } = await controller();
-  let deploymentRead = false;
-  const { deps } = orchestrationDeps({
-    resolveAutoDeployStatus: async () => ({ enabled: true, canEnable: true, reason: null }),
-    resolvePreviousSuccessfulDeployment: async () => { deploymentRead = true; return { deploymentId: "dep-old", commitSha: SHA_B }; },
+  const statuses = [
+    { enabled: true, canEnable: true, reason: null },
+    { enabled: false, canEnable: true, reason: null },
+  ];
+  const { deps, calls } = orchestrationDeps({
+    resolveAutoDeployStatus: async () => statuses.shift(),
+    probeProduction: async () => ({ ok: true, reason: null, live: { status: 200, modelInvocationsZero: true }, ready: { status: 200, gitShaMatch: true, modelInvocationsZero: true } }),
   });
   const receipt = await promoteExactMain(orchestrationInput(), deps);
-  assert.equal(receipt.state, "failed");
-  assert.equal(receipt.errorCode, "railway-autodeploy-enabled");
-  assert.equal(receipt.errorStage, "autodeploy-preflight");
-  assert.equal(deploymentRead, false);
+  assert.equal(receipt.state, "already-current");
+  assert.equal(receipt.ok, true);
+  assert.deepEqual(calls, [["disable-autodeploy"]]);
+  assert.equal(statuses.length, 0);
 });
 test("promotion receipt identifies an early Railway deployment-read failure stage", async () => {
   const { promoteExactMain } = await controller();
