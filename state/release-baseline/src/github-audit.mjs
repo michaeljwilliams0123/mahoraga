@@ -256,7 +256,7 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
   add(
     "github-action-sha-pinning",
     mutableActions.length === 0,
-    "advisory",
+    "blocking",
     mutableActions.length ? `${mutableActions.length} GitHub-owned action reference(s) still use mutable tags.` : "Action references use immutable commit SHAs.",
     mutableActions.length ? { files: [...new Set(mutableActions.map(({ file }) => file))] } : undefined,
   );
