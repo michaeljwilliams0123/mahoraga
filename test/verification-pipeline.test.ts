@@ -14,12 +14,20 @@ test("verifier returns stable SHA-256 evidence without executing candidate sourc
   assert.match(first.computedSignature, /^[a-f0-9]{64}$/);
 });
 
-test("verifier marks empty and structurally malformed source unstable while retaining evidence", async () => {
-  for (const candidate of ["", "undefined_locus", "function stable("]) {
+test("verifier marks empty and syntactically malformed source unstable while retaining evidence", async () => {
+  for (const candidate of ["", "undefined_locus", "function stable(", "function stable() {} this is invalid"]) {
     const report = await VerificationPipeline.evaluatePreRollbackCanary(branded(candidate), 1000);
     assert.equal(report.isVerifiedStable, false);
     assert.match(report.computedSignature, /^[a-f0-9]{64}$/);
   }
+});
+
+test("verifier parses syntax instead of rejecting delimiter characters inside literals", async () => {
+  const report = await VerificationPipeline.evaluatePreRollbackCanary(
+    branded("function stable() { return '{ unmatched-looking literal'; }"),
+    1000,
+  );
+  assert.equal(report.isVerifiedStable, true);
 });
 
 test("verifier hashes Unicode source deterministically", async () => {
