@@ -1,31 +1,26 @@
 import { webcrypto } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { Script } from "node:vm";
 import {
   ErrorProfileCode,
   type BrandedASTNode,
   type CanaryProbeReport,
 } from "../types/mahoraga.ts";
 
-function isBalanced(source: string, open: string, close: string): boolean {
-  let depth = 0;
-  for (const character of source) {
-    if (character === open) depth += 1;
-    if (character === close) {
-      depth -= 1;
-      if (depth < 0) return false;
-    }
-  }
-  return depth === 0;
-}
-
 function isStructurallyValidCandidate(source: string): boolean {
   const candidate = source.trim();
   if (candidate.length === 0 || candidate.includes("undefined_locus")) return false;
-  if (!/\bfunction\b/u.test(candidate)) return false;
-  if (!candidate.includes("(") || !candidate.includes(")") || !candidate.includes("{") || !candidate.includes("}")) {
-    return false;
+  if (!/^(?:async\s+)?function\b/u.test(candidate)) return false;
+
+  try {
+    // Parenthesizing forces the whole candidate to parse as one function
+    // expression. Script construction parses only; it does not execute it.
+    new Script(`(${candidate}\n)`, { filename: "mahoraga-canary-candidate.js" });
+    return true;
+  } catch (error) {
+    if (error instanceof SyntaxError) return false;
+    throw error;
   }
-  return isBalanced(candidate, "(", ")") && isBalanced(candidate, "{", "}");
 }
 
 export class VerificationPipeline {
@@ -38,6 +33,7 @@ export class VerificationPipeline {
     }
 
     const profilingStart = performance.now();
+    const isVerifiedStable = isStructurallyValidCandidate(candidateSource);
     const textBytes = new TextEncoder().encode(candidateSource);
     const signatureBuffer = await webcrypto.subtle.digest("SHA-256", textBytes);
     const computedSignature = Array.from(new Uint8Array(signatureBuffer))
@@ -52,7 +48,7 @@ export class VerificationPipeline {
     }
 
     return {
-      isVerifiedStable: isStructurallyValidCandidate(candidateSource),
+      isVerifiedStable,
       computedSignature,
       meanExecutionDeltaMs,
     };
