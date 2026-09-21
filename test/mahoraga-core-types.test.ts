@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { ErrorProfileCode } from "../src/types/mahoraga.ts";
-import { brainReadiness, deriveBrainRouteState } from "../cloud-app/lib/brain-route-state.ts";
 
 test("Mahoraga convergence error codes remain stable", () => {
   assert.deepEqual(Object.values(ErrorProfileCode), [
@@ -13,12 +13,10 @@ test("Mahoraga convergence error codes remain stable", () => {
   ]);
 });
 
-test("protected verification covers mixed assistant route readiness", () => {
-  const state = deriveBrainRouteState(true, [
-    { capability: "assistant.respond", routable: false, provider: "licensed-question-model", providerReasonCode: "provider-quota-backoff" },
-    { capability: "assistant.respond", routable: true, enabled: true, provider: "zero-credit" },
-  ]);
-  assert.equal(state.kind, "route-ready");
-  assert.equal(state.provider, "zero-credit");
-  assert.equal(brainReadiness(state), "ready");
+test("protected verification executes the cloud brain-route regression", () => {
+  const result = spawnSync(process.execPath, ["--test", "cloud-app/test/brain-route-state.test.mjs"], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
 });
