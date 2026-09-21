@@ -137,7 +137,7 @@ export function CockpitView({
         <StatusCard
           label="Expected SHA pin"
           value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"}
-          detail="Promote after Verify Mahoraga on main using the verified run SHA, not Railway GitHub status. Wait for CI disabled."
+          detail="MAHORAGA_EXPECTED_GIT_SHA · promote after Verify Mahoraga on main using the verified run SHA, not Railway GitHub status. Wait for CI disabled."
           tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"}
         />
         <StatusCard
@@ -197,7 +197,7 @@ export function CockpitView({
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
             <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
             <div><dt>Source convergence</dt><dd>{deploymentConvergence}</dd></div>
-            <div><dt>Pin policy</dt><dd>after Verify Mahoraga on main; verified run SHA; not Railway GitHub status; Wait for CI disabled</dd></div>
+            <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · after Verify Mahoraga on main; verified run SHA; not Railway GitHub status; Wait for CI disabled</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
