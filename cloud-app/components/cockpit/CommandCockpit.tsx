@@ -10,7 +10,10 @@ import {
   type HealthRouteJson,
   type ObservationalHealthCard,
 } from "@/lib/cockpit";
+import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
+import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 import { AstSandbox } from "./AstSandbox";
+import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -60,6 +63,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
+        { label: "railwayPromote", value: "after Verify Mahoraga on main; verified run SHA (#656)" },
       ],
       actionable: false,
     };
@@ -112,6 +116,14 @@ export function CommandCockpit({
     return mapped.ok ? mapped.value : null;
   }, [healthJson]);
 
+  const dissentReceipt = isCollectiveDissentReceipt((healthJson as { collectiveDissent?: unknown } | null)?.collectiveDissent)
+    ? (healthJson as { collectiveDissent: import("@/lib/dissent-receipt").CollectiveDissentReceipt }).collectiveDissent
+    : null;
+
+  const learning = projectCognitiveLearningSurface(
+    (healthJson as HealthRouteJson & { cognitiveLearning?: CognitiveLearningPromotionReceipt } | null)?.cognitiveLearning,
+  );
+
   const liveOk = Boolean(healthCard?.ok) && !healthError;
   const readyOk = coreReady && readinessOk;
 
@@ -155,12 +167,17 @@ export function CommandCockpit({
               {healthError ? "HEALTH_ERROR" : healthCard?.ok ? "HEALTH_OK" : "HEALTH_PENDING"}
             </span>
             <span className="cockpit-pill ok">CONVERGED_#460</span>
+            <span className={`cockpit-pill ${dissentReceipt?.blockingCount ? "warn" : "steel"}`}>DISSENT_RECEIPT</span>
+            <span className={`cockpit-pill ${learning.status === "promoted" ? "ok" : learning.status === "refused" ? "warn" : "steel"}`}>
+              {learning.status === "promoted" ? "LEARN_VERIFIED_OUTCOME" : learning.status === "refused" ? "LEARN_REFUSED" : "LEARN_PENDING"}
+            </span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
+            <span className="cockpit-pill ok">RAILWAY_PROMOTE_#656</span>
           </div>
         </header>
 
@@ -188,6 +205,9 @@ export function CommandCockpit({
           <p>
             CI publish and steward jobs use the self-hosted Linux/X64 lane. Informational copy only. This does not activate 7.0.0-alpha.2 on Windows and does not change cognition or paid fallback.
           </p>
+          <p>
+            Railway exact-SHA promotion (#656) runs only after a successful owner-authored Verify Mahoraga on main. Checkout and promoter bind to the verified run SHA, not the Railway GitHub status context. Wait for CI stays disabled to avoid a pre-deploy circular dependency. Liveness/readiness provenance probe and rollback remain.
+          </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
             <div><dt>browser presentation</dt><dd>GitHub Pages</dd></div>
@@ -201,9 +221,25 @@ export function CommandCockpit({
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
+            <div><dt>railway promote</dt><dd>PR 656 after Verify Mahoraga on main; verified run SHA; Wait for CI disabled</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
+        </aside>
+
+        <DissentReceiptPanel receipt={dissentReceipt} />
+
+        <aside className={`cockpit-panel ${learning.status === "promoted" ? "tone-ok" : learning.status === "refused" ? "tone-warn" : "tone-neutral"}`} aria-label="Institutional learning">
+          <h3>INSTITUTIONAL_LEARNING</h3>
+          <p>{learning.headline}</p>
+          <p role="status">{learning.reasonLabel}</p>
+          <dl>
+            <div><dt>status</dt><dd>{learning.status}</dd></div>
+            <div><dt>provenance</dt><dd>{learning.provenance ?? "none"}</dd></div>
+            <div><dt>calibrated confidence</dt><dd>{learning.confidence ?? "n/a"}</dd></div>
+            <div><dt>public evidence refs</dt><dd>{learning.evidenceRefs.length ? learning.evidenceRefs.join(", ") : "none"}</dd></div>
+          </dl>
+          <p className="cockpit-muted">{learning.privacyNote} Private episodic memory, prompts/transcripts, credentials, and authority grants stay off this surface.</p>
         </aside>
 
         <aside className={`cockpit-panel ${coreReady ? "tone-ok" : "tone-neutral"}`} aria-label="Ready and pairing state">
@@ -247,7 +283,7 @@ export function CommandCockpit({
           </section>
 
           <section className="cockpit-gateways" aria-label="Integration gateways">
-            <article><header><strong>Railway exact-SHA runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Railway remains the server-capable runtime during migration. Pages is the published static workspace. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
+            <article><header><strong>Railway exact-SHA runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Promotion happens after GitHub Verify Mahoraga on main using the verified run SHA, not the Railway GitHub status context. Wait for CI stays disabled (no pre-deploy circular dependency). Liveness/readiness provenance probe and rollback remain. Pages is the published static workspace. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>
