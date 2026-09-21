@@ -14,8 +14,8 @@ test("verifier returns stable SHA-256 evidence without executing candidate sourc
   assert.match(first.computedSignature, /^[a-f0-9]{64}$/);
 });
 
-test("verifier marks empty and syntactically malformed source unstable while retaining evidence", async () => {
-  for (const candidate of ["", "undefined_locus", "function stable(", "function stable() {} this is invalid"]) {
+test("verifier rejects empty, non-function, and syntactically malformed source while retaining evidence", async () => {
+  for (const candidate of ["", "undefined_locus", "// function", "function stable(", "function stable() {} this is invalid"]) {
     const report = await VerificationPipeline.evaluatePreRollbackCanary(branded(candidate), 1000);
     assert.equal(report.isVerifiedStable, false);
     assert.match(report.computedSignature, /^[a-f0-9]{64}$/);
