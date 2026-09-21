@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
+import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
+import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps } from "../workspace/workspace-types";
+import { DissentReceiptPanel } from "./DissentReceiptPanel";
 
 function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : "unavailable";
@@ -55,8 +58,10 @@ export function CockpitView({
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
+  const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
   const [readinessOk, setReadinessOk] = useState(false);
+  const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
   useEffect(() => {
     let active = true;
@@ -104,79 +109,27 @@ export function CockpitView({
       )}
 
       <div className="eclipse-status-grid">
+        <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
+        <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"} detail={readyOk ? "Live health OK and core session paired" : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
+        <StatusCard label="Deployment" value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"} />
+        <StatusCard label="Source convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
+        <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="Reconcile MAHORAGA_EXPECTED_GIT_SHA after each protected-main merge. Never derive the pin from the running SHA." tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"} />
+        <StatusCard label="Owner login" value="AUTH_NO_STORE_#486" detail="Cache-Control: no-store · failure and success responses are not cached" tone="good" />
+        <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
+        <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
+        <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
+        <StatusCard label="Model fabric" value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`} tone={routable.length > 0 ? "good" : "neutral"} />
         <StatusCard
-          label="Product"
-          value={productName}
-          detail={`Build provenance ${buildVersion}`}
-          tone="good"
+          label="Institutional learning"
+          value={learning.status === "promoted" ? "verified-outcome" : learning.status === "refused" ? "refused" : "no receipt"}
+          detail={learning.status === "promoted" ? `${learning.headline} · confidence ${learning.confidence ?? "n/a"}` : learning.reasonLabel}
+          tone={learning.status === "promoted" ? "good" : learning.status === "refused" ? "warn" : "neutral"}
         />
-        <StatusCard
-          label="Ready / pairing"
-          value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"}
-          detail={readyOk ? "Live health OK and core session paired" : "LIVE_OK alone is not Ready"}
-          tone={readyOk ? "good" : "neutral"}
-        />
-        <StatusCard
-          label="CI publish / steward"
-          value="self-hosted Linux/X64"
-          detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane"
-          tone="neutral"
-        />
-        <StatusCard
-          label="Deployment"
-          value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"}
-          detail={deploymentDetail}
-          tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"}
-        />
-        <StatusCard
-          label="Source convergence"
-          value={deploymentConvergence}
-          detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`}
-          tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"}
-        />
-        <StatusCard
-          label="Expected SHA pin"
-          value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"}
-          detail="Reconcile MAHORAGA_EXPECTED_GIT_SHA after each protected-main merge. Never derive the pin from the running SHA."
-          tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"}
-        />
-        <StatusCard
-          label="Owner login"
-          value="AUTH_NO_STORE_#486"
-          detail="Cache-Control: no-store · failure and success responses are not cached"
-          tone="good"
-        />
-        <StatusCard
-          label="Execution core"
-          value={coreReady ? "Paired" : "Ready to pair"}
-          detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"}
-          tone={coreReady ? "good" : "neutral"}
-        />
-        <StatusCard
-          label="Answer lane"
-          value={interaction.ready ? "Routable" : "Not routable"}
-          detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`}
-          tone={interaction.ready ? "good" : "warn"}
-        />
-        <StatusCard
-          label="Zero-credit answers"
-          value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"}
-          detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`}
-          tone={zeroCredit.state === "allow" ? "good" : "warn"}
-        />
-        <StatusCard
-          label="Model fabric"
-          value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`}
-          detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`}
-          tone={routable.length > 0 ? "good" : "neutral"}
-        />
-        <StatusCard
-          label="Evolution lane"
-          value="Verified convergence"
-          detail="Stage → verify → canary → pin → converge"
-          tone="good"
-        />
+        <StatusCard label="Evolution lane" value="Verified convergence" detail="Stage → verify → canary → pin → converge" tone="good" />
       </div>
+
+      <DissentReceiptPanel receipt={dissentReceipt} />
 
       <div className="eclipse-detail-grid">
         <section className="eclipse-panel" aria-labelledby="telemetry-heading">
@@ -249,6 +202,10 @@ export function CockpitView({
         <div>
           <strong>Studio authority</strong>
           <p>non-authoritative evidence plane - Mahoraga remains canonical</p>
+        </div>
+        <div>
+          <strong>Institutional learning</strong>
+          <p>{learning.headline}. {learning.reasonLabel}. Provenance {learning.provenance ?? "none"}. Calibrated confidence {learning.confidence ?? "n/a"}. Public evidence refs: {learning.evidenceRefs.length ? learning.evidenceRefs.join(", ") : "none"}. {learning.privacyNote}</p>
         </div>
         <div>
           <strong>Adaptive review</strong>
