@@ -133,7 +133,7 @@ test("tracked contract preserves exact-head Verify policy while private-plan enf
     "Verify (ubuntu-latest)",
     "Verify (windows-latest)",
   ]);
-  assert.equal(contract.liveEnforcementRequired, false);
+  assert.equal(contract.liveEnforcementRequired, true);
   assert.equal(contract.strictExactHead, true);
   assert.equal(contract.deletionAllowed, false);
   assert.equal(contract.forcePushAllowed, false);
