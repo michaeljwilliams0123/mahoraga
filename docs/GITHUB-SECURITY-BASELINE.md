@@ -25,7 +25,9 @@ without a new explicit instruction.
 
 Live `main` protection is attested by `node scripts/github-live-protection.mjs`
 against `config/main-protection.contract.json`. Repository-only `github:audit`
-success is not proof of live settings.
+success is not proof of live settings. Because the repository is public, missing
+live ruleset evidence now fails closed instead of entering private-plan advisory
+mode.
 
 Ruleset `22502690` (`Protect main - exact-head Verify`) is active with no
 bypass actors. It requires strict, exact-head success for exactly these contexts:
@@ -42,15 +44,18 @@ No actor may bypass, synthesize, or substitute these checks. Autonomous
 integration may squash-merge only after both exact-head checks pass and the
 candidate base is still current.
 
-Account-level controls last verified 2026-08-24 and re-checked 2026-09-07:
+Account-level controls last verified 2026-08-24 and re-checked 2026-09-21:
 
 1. Secret scanning, push protection, Dependabot alerts/security updates, private
    vulnerability reporting, and CodeQL default setup are enabled.
-2. Actions permits GitHub-owned actions only. Current workflows use only
-   `actions/checkout`, `actions/setup-node`, and `actions/github-script`.
-3. The default workflow token remains read-only except on the write-capable
-   Autonomous Integration merge job, and no repository secret stores Codex,
-   ChatGPT, browser-session, or local Windows runtime authentication.
+2. Actions permits GitHub-owned actions only, requires full-length commit SHA
+   pinning, and rejects unapproved workflow event classes before workflow YAML
+   can broaden execution. Current workflows use only `actions/checkout`,
+   `actions/setup-node`, and `actions/github-script`.
+3. The default workflow token remains read-only except on explicitly scoped
+   write-capable workflow jobs, Actions cannot approve pull requests, and no
+   repository secret stores Codex, ChatGPT, browser-session, or local Windows
+   runtime authentication.
 4. The Chromebook fast-forward control path is retired. Exact-head required
    checks are now the live merge gate.
 
