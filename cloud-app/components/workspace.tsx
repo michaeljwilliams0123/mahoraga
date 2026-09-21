@@ -1,8 +1,9 @@
 "use client";
 
-import { Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
+import { Calculator, Database, Menu, MonitorUp, Radar, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
+import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
@@ -19,6 +20,7 @@ const VIEW_HASH: Record<WorkspaceView, string> = { chat: "workspace", work: "wor
 const HASH_VIEW = new Map(Object.entries(VIEW_HASH).map(([view, hash]) => [hash, view as WorkspaceView]));
 
 const starters: Starter[] = [
+  { icon: Calculator, title: "Try instant math", prompt: "2+2" },
   { icon: Database, title: "Analyze something", prompt: "Help me analyze the current files or context. Start with the most useful next step and keep the result human-readable." },
   { icon: Search, title: "Improve Mahoraga", prompt: "Review the connected repository and current objective, choose the highest-impact verified improvement, implement it through the Mahoraga core, and return concise evidence." },
   { icon: MonitorUp, title: "Work in the browser", prompt: "Use an approved browser capability if the Mahoraga core can route one. Keep me informed in plain language and stop only when an owner decision is genuinely required." },
@@ -98,11 +100,22 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
+  const brainRouteState = useMemo(
+    () => deriveBrainRouteState(coreReady, runtimeCapabilities, runtimeError),
+    [coreReady, runtimeCapabilities, runtimeError],
+  );
+  const routeReadiness = brainReadiness(brainRouteState);
   const brainState: BrainState = new Set<RelayState>(["pairing", "resuming"]).has(relayState)
     ? "Connecting"
-    : coreReady
-      ? runtimeBusy ? "Awake" : licensedRetry || runtimeError ? "Degraded" : "Idle"
-      : relayState === "error" ? "Degraded" : "Ready";
+    : runtimeBusy
+      ? "Awake"
+      : licensedRetry || runtimeError || routeReadiness === "degraded"
+        ? "Degraded"
+        : routeReadiness === "ready"
+          ? "Idle"
+          : routeReadiness === "offline"
+            ? "Ready"
+            : "Connecting";
   const brainLabel = `Mahoraga: ${brainState}`;
 
   useEffect(() => {
@@ -350,7 +363,7 @@ export function Workspace() {
     for (let attempt = 0; attempt < 160; attempt += 1) {
       if (runtimePollGeneration.current !== pollGeneration) return;
       const [runtimeMessages, tasks] = await Promise.all([transport.messages(conversationId), transport.tasks(conversationId)]);
-      if (await syncRuntimeMessages(transport, conversationId, runtimeMessages)) sawResponse = true;
+      if (await syncRuntimeMessages(transport, conversationId, runtimeMessages, tasks)) sawResponse = true;
       const activeTask = tasks.find((task) => runtimeTaskPhase(task.status) === "active") ?? null;
       const settledTask = tasks.find((task) => runtimeTaskPhase(task.status) === "settled") ?? null;
       const trackedTask = trackedTaskId
@@ -388,8 +401,9 @@ export function Workspace() {
     appendMessage("assistant", "Mahoraga accepted this work and is still processing it. The result remains bound to this core conversation.");
   }
 
-  async function syncRuntimeMessages(transport: RuntimeRelay, conversationId: string, runtimeMessages: RuntimeMessage[]) {
+  async function syncRuntimeMessages(transport: RuntimeRelay, conversationId: string, runtimeMessages: RuntimeMessage[], tasks: RuntimeTask[]) {
     const additions: WorkspaceMessage[] = [];
+    const taskById = new Map(tasks.map((task) => [task.id, task]));
     for (const message of runtimeMessages) {
       if (renderedRuntimeMessages.current.has(message.id) || message.role === "user") {
         renderedRuntimeMessages.current.add(message.id);
@@ -398,7 +412,9 @@ export function Workspace() {
       const content = message.contentReference ? await transport.messageContent(message, conversationId) : message.content ?? "";
       if (!content) continue;
       renderedRuntimeMessages.current.add(message.id);
-      additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content });
+      const sourceTask = message.taskId ? taskById.get(message.taskId) : undefined;
+      const instantLocal = sourceTask?.capability === "assistant.calculate";
+      additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content, ...(instantLocal ? { instantLocal: true } : {}) });
     }
     if (additions.length > 0) setMessages((current) => [...current, ...additions]);
     return additions.length > 0;
