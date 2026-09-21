@@ -253,6 +253,25 @@ test("promotion disables native autodeploy, verifies readback, and continues", a
   assert.deepEqual(calls, [["disable-autodeploy"]]);
   assert.equal(statuses.length, 0);
 });
+test("promotion fails closed when fresh post-mutation autodeploy read shows drift", async () => {
+  const { promoteExactMain } = await controller();
+  const statuses = [
+    { enabled: true, canEnable: true, reason: null },
+    { enabled: true, canEnable: true, reason: "concurrent-reenable" },
+  ];
+  let deploymentRead = false;
+  const { deps, calls } = orchestrationDeps({
+    resolveAutoDeployStatus: async () => statuses.shift(),
+    resolvePreviousSuccessfulDeployment: async () => { deploymentRead = true; return { deploymentId: "dep-old", commitSha: SHA_B }; },
+  });
+  const receipt = await promoteExactMain(orchestrationInput(), deps);
+  assert.equal(receipt.state, "failed");
+  assert.equal(receipt.errorCode, "railway-autodeploy-enabled");
+  assert.equal(receipt.errorStage, "autodeploy-preflight");
+  assert.deepEqual(calls, [["disable-autodeploy"]]);
+  assert.equal(deploymentRead, false);
+});
+
 test("promotion receipt identifies an early Railway deployment-read failure stage", async () => {
   const { promoteExactMain } = await controller();
   const error = Object.assign(new Error("BAD_USER_INPUT"), { code: "BAD_USER_INPUT", status: 400 });
