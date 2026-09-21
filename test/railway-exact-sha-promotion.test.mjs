@@ -144,6 +144,25 @@ test("Railway promotion preflight reads canonical autodeploy posture", async () 
     serviceId: PROMOTION.serviceId,
   });
 });
+test("Railway mutation disables native autodeploy for the fixed canonical target", async () => {
+  const { disableAutoDeploy, PROMOTION } = await controller();
+  let observed;
+  const fetchImpl = async (_url, options) => {
+    observed = JSON.parse(options.body);
+    return response({ data: { serviceInstanceAutoDeployUpdate: { enabled: false } } });
+  };
+  assert.deepEqual(await disableAutoDeploy({ token: "project-token", fetchImpl }), { enabled: false });
+  assert.match(observed.query, /serviceInstanceAutoDeployUpdate/);
+  assert.deepEqual(observed.variables, {
+    input: {
+      enabled: false,
+      projectId: PROMOTION.projectId,
+      environmentId: PROMOTION.environmentId,
+      serviceId: PROMOTION.serviceId,
+    },
+  });
+});
+
 test("previous successful deployment uses an unfiltered bounded list and selects SUCCESS locally", async () => {
   const { resolvePreviousSuccessfulDeployment } = await controller();
   const fetchImpl = async (_url, options) => {
