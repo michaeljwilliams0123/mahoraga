@@ -1,6 +1,6 @@
 import { webcrypto } from "node:crypto";
 import { performance } from "node:perf_hooks";
-import * as ts from "typescript";
+import { Script } from "node:vm";
 import {
   ErrorProfileCode,
   type BrandedASTNode,
@@ -12,16 +12,13 @@ function isStructurallyValidCandidate(source: string): boolean {
   if (candidate.length === 0 || candidate.includes("undefined_locus")) return false;
   if (!/\bfunction\b/u.test(candidate)) return false;
 
-  const result = ts.transpileModule(candidate, {
-    fileName: "mahoraga-canary-candidate.ts",
-    reportDiagnostics: true,
-    compilerOptions: {
-      target: ts.ScriptTarget.ES2022,
-      module: ts.ModuleKind.ESNext,
-    },
-  });
-
-  return !(result.diagnostics ?? []).some((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
+  try {
+    new Script(candidate, { filename: "mahoraga-canary-candidate.js" });
+    return true;
+  } catch (error) {
+    if (error instanceof SyntaxError) return false;
+    throw error;
+  }
 }
 
 export class VerificationPipeline {
