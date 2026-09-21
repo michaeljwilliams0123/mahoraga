@@ -41,7 +41,7 @@ export function CockpitView({
   const deploymentUrl = health?.deployment?.url ?? "unavailable";
   const railwayExactSha = deploymentProvider === "railway" || promotionMode === "exact-sha-railway";
   const deploymentDetail = railwayExactSha
-    ? `Railway is the server-capable runtime during migration · pin after merge · ${deploymentEnvironment}`
+    ? `Promote after Verify Mahoraga on main · verified run SHA (#656) · Wait for CI disabled · ${deploymentEnvironment}`
     : deploymentProvider === "vercel"
       ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
@@ -137,7 +137,7 @@ export function CockpitView({
         <StatusCard
           label="Expected SHA pin"
           value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"}
-          detail="Reconcile MAHORAGA_EXPECTED_GIT_SHA after each protected-main merge. Never derive the pin from the running SHA."
+          detail="Promote after Verify Mahoraga on main using the verified run SHA, not Railway GitHub status. Wait for CI disabled."
           tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"}
         />
         <StatusCard
@@ -197,7 +197,7 @@ export function CockpitView({
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
             <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
             <div><dt>Source convergence</dt><dd>{deploymentConvergence}</dd></div>
-            <div><dt>Pin policy</dt><dd>independent Railway pin after each protected-main merge</dd></div>
+            <div><dt>Pin policy</dt><dd>after Verify Mahoraga on main; verified run SHA; not Railway GitHub status; Wait for CI disabled</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
@@ -207,6 +207,7 @@ export function CockpitView({
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
+            <div><dt>Liveness/readiness</dt><dd>provenance probe and rollback remain</dd></div>
           </dl>
         </section>
 
@@ -222,7 +223,7 @@ export function CockpitView({
             <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
             <li><span>2</span><div><strong>Verify</strong><small>Exact-head CI plus rollback checkpoint</small></div></li>
             <li><span>3</span><div><strong>Canary</strong><small>Prove candidate and runtime readiness</small></div></li>
-            <li><span>4</span><div><strong>Pin</strong><small>Reconcile Railway expected SHA independently of the running process</small></div></li>
+            <li><span>4</span><div><strong>Pin</strong><small>Promote Railway to the verified Verify Mahoraga run SHA after main</small></div></li>
             <li><span>5</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
           </ol>
         </section>
