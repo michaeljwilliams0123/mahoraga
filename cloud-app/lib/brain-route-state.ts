@@ -39,25 +39,29 @@ export function deriveBrainRouteState(
     return { kind: "transport-unavailable", reason: diagnostic ?? "transport-not-connected" };
   }
 
-  const assistant = capabilities.find((item) => item.capability === "assistant.respond");
-  if (!assistant) {
+  const assistantRoutes = capabilities.filter((item) => item.capability === "assistant.respond");
+  if (assistantRoutes.length === 0) {
     return { kind: "capability-unavailable", capability: capabilityId("assistant.respond"), reason: "capability-not-advertised" };
   }
 
-  if (!assistant.routable || assistant.enabled === false) {
-    const reason = assistant.providerReasonCode ?? assistant.routingReason ?? "capability-not-routable";
-    if (/backoff|quota|rate|credit/i.test(reason)) {
-      return { kind: "provider-backoff", routeId: routeId("assistant.respond"), reason, retryAfter: null };
-    }
-    return { kind: "capability-unavailable", capability: capabilityId(assistant.capability), reason };
+  const healthyRoute = assistantRoutes.find((item) => item.routable && item.enabled !== false);
+  if (healthyRoute) {
+    return {
+      kind: "route-ready",
+      capability: capabilityId(healthyRoute.capability),
+      routeId: routeId(`assistant.respond:${healthyRoute.provider ?? "unidentified"}`),
+      provider: healthyRoute.provider ?? null,
+    };
   }
 
-  return {
-    kind: "route-ready",
-    capability: capabilityId(assistant.capability),
-    routeId: routeId(assistant.capability),
-    provider: assistant.provider ?? null,
-  };
+  const degradedRoute = assistantRoutes.find((item) => /backoff|quota|rate|credit/i.test(item.providerReasonCode ?? item.routingReason ?? ""));
+  if (degradedRoute) {
+    const reason = degradedRoute.providerReasonCode ?? degradedRoute.routingReason ?? "provider-backoff";
+    return { kind: "provider-backoff", routeId: routeId("assistant.respond"), reason, retryAfter: null };
+  }
+
+  const reason = assistantRoutes[0]?.providerReasonCode ?? assistantRoutes[0]?.routingReason ?? "capability-not-routable";
+  return { kind: "capability-unavailable", capability: capabilityId("assistant.respond"), reason };
 }
 
 export function brainReadiness(state: BrainRouteState): BrainReadiness {
