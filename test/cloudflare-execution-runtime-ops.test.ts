@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as runtimeOperator from "../scripts/cloudflare-execution-runtime.ts";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -53,6 +54,16 @@ test("Wrangler deployment overrides the sentinel with exact SHA and rollback anc
   assert.ok(args.includes("deploy/cloudflare-execution-runtime/wrangler.jsonc"));
   assert.ok(args.includes(`TARGET_SHA:${SHA}`));
   assert.ok(args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"));
+});
+
+test("Windows Wrangler deployment launches npx through cmd.exe", () => {
+  const buildNpxProcess = (runtimeOperator as any).buildNpxProcess;
+  assert.equal(typeof buildNpxProcess, "function");
+  assert.deepEqual(buildNpxProcess(["--version"], "win32", "C:\\Windows\\System32\\cmd.exe"), {
+    command: "C:\\Windows\\System32\\cmd.exe",
+    args: ["/d", "/s", "/c", "npx.cmd", "--version"],
+  });
+  assert.deepEqual(buildNpxProcess(["--version"], "linux"), { command: "npx", args: ["--version"] });
 });
 
 test("acceptance probe proves Access auth, stale-SHA rejection, execution, and replay", async () => {
