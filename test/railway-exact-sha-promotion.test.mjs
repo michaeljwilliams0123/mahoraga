@@ -62,6 +62,7 @@ test("workflow is manual owner-only, input-free, fixed, and zero-model", async (
   assert.match(source, /contents:\s*read/);
   assert.match(source, /checks:\s*read/);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
+  assert.match(source, /MAHORAGA_PROMOTION_ACTOR:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
   assert.match(source, /MAHORAGA_PROMOTION_REF:\s*refs\/heads\/main/);
   assert.match(source, /MAHORAGA_PROMOTION_SHA:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
   assert.match(source, /node scripts\/railway-exact-sha-promotion\.mjs promote/);
