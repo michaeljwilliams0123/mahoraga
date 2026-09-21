@@ -198,8 +198,9 @@ function deploymentTarget(args: string[]): string {
   return normalizeSha(option(args, "--sha") ?? process.env.GITHUB_SHA ?? "", "deploy-target-sha-invalid");
 }
 
-function npxExecutable(): string {
-  return process.platform === "win32" ? "npx.cmd" : "npx";
+export function buildNpxProcess(args: string[], platform: NodeJS.Platform = process.platform, comSpec = process.env.ComSpec): { command: string; args: string[] } {
+  if (platform === "win32") return { command: comSpec?.trim() || "cmd.exe", args: ["/d", "/s", "/c", "npx.cmd", ...args] };
+  return { command: "npx", args };
 }
 
 async function deploy(args: string[]): Promise<void> {
@@ -210,7 +211,8 @@ async function deploy(args: string[]): Promise<void> {
   assertDeployableSource({ targetSha, headSha, remoteMainSha, statusPorcelain });
 
   const wranglerArgs = buildWranglerDeployArgs({ targetSha });
-  const result = spawnSync(npxExecutable(), wranglerArgs, { stdio: "inherit" });
+  const wranglerProcess = buildNpxProcess(wranglerArgs);
+  const result = spawnSync(wranglerProcess.command, wranglerProcess.args, { stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`deploy-wrangler-exit-${result.status ?? "unknown"}`);
 
