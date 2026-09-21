@@ -171,6 +171,27 @@ export async function resolveAutoDeployStatus({ token, fetchImpl = fetch }) {
   return { enabled: status.enabled, canEnable: status.canEnable, reason: status.reason ?? null };
 }
 
+export async function disableAutoDeploy({ token, fetchImpl = fetch }) {
+  const query = `mutation DisableAutoDeploy($input: ServiceInstanceAutoDeployUpdateInput!) {
+    serviceInstanceAutoDeployUpdate(input: $input) { enabled }
+  }`;
+  const data = await railwayRequest({
+    query,
+    variables: {
+      input: {
+        enabled: false,
+        projectId: PROMOTION.projectId,
+        environmentId: PROMOTION.environmentId,
+        serviceId: PROMOTION.serviceId,
+      },
+    },
+    token,
+    fetchImpl,
+  });
+  if (data?.serviceInstanceAutoDeployUpdate?.enabled !== false) throw coded("autodeploy-disable-invalid");
+  return { enabled: false };
+}
+
 export async function resolvePreviousSuccessfulDeployment({ token, fetchImpl = fetch }) {
   const query = `query RecentDeployments($input: DeploymentListInput!) {
     deployments(input: $input, first: 10) { edges { node { id status createdAt meta } } }
