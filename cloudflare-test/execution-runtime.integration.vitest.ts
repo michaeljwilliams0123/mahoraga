@@ -1,7 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
+import worker, { type ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
 
 const SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 
@@ -20,6 +20,25 @@ const execute = (key: string, body: unknown, headers: Record<string, string> = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("ExecutionDurableObject", () => {
+  it("fails closed when deployment provenance is unset", async () => {
+    const invalidEnv = {
+      EXECUTION_DO: env.EXECUTION_DO,
+      TARGET_SHA: "UNSET",
+      RAILWAY_ANCHOR_URL: env.RAILWAY_ANCHOR_URL,
+      BYPASS_SECRET: env.BYPASS_SECRET,
+    } as Env;
+    const live = await worker.fetch(new Request("https://execution.example/api/live"), invalidEnv);
+    expect(live.status).toBe(503);
+    expect(await live.json()).toEqual({ status: "unready", error: "target-sha-invalid" });
+
+    const executeResponse = await worker.fetch(new Request("https://execution.example/api/execute", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-target-sha": "UNSET", "x-idempotency-key": "invalid-provenance" },
+      body: JSON.stringify({ value: 1 }),
+    }), invalidEnv);
+    expect(executeResponse.status).toBe(503);
+  });
+
   it("fails closed in the public Worker before creating a Durable Object schema", async () => {
     const response = await exports.default.fetch(new Request("https://execution.example/api/execute", {
       method: "POST",

@@ -11,9 +11,5 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ExecutionDurableObject"] }
   ],
-  "vars": {
-    "TARGET_SHA": "7cb8aab1129875f798347afdb2844f963e986a65",
-    "RAILWAY_ANCHOR_URL": "https://mahoraga-runtime-main-production.up.railway.app/"
-  },
   "observability": { "enabled": true }
 }
