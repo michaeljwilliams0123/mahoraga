@@ -165,6 +165,23 @@ describe("ExecutionDurableObject", () => {
     expect(await response.json()).toEqual({ railway: true });
     expect(forwarded?.url).toBe("https://mahoraga-runtime-main-production.up.railway.app/api/execute?source=edge");
     expect(forwarded?.headers.get("x-bypass-token")).toBeNull();
+    expect(forwarded?.headers.get("x-mahoraga-forwarded-by")).toBe("cloudflare-canonical");
+  });
+
+  it("rejects a Railway routing loop before forwarding", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await env.EXECUTION_DO.getByName("loop").fetch("https://execution.example/api/execute", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-bypass-token": "test-bypass-secret-that-is-not-production",
+        "x-target-sha": SHA,
+        "x-mahoraga-forwarded-by": "railway-runtime",
+      },
+      body: JSON.stringify({ route: "cloudflare" }),
+    });
+    expect(response.status).toBe(508);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("serves live and ready health routes and rejects the wrong method", async () => {
@@ -175,7 +192,12 @@ describe("ExecutionDurableObject", () => {
 
     const ready = await stub.fetch("https://execution.example/api/ready");
     expect(ready.status).toBe(200);
-    expect(await ready.json()).toEqual({ status: "ready", sha: SHA });
+    expect(await ready.json()).toEqual({
+      status: "ready",
+      sha: SHA,
+      durableState: "cloudflare-do-sqlite",
+      trafficAuthority: "cloudflare-canonical",
+    });
 
     const method = await stub.fetch("https://execution.example/api/execute");
     expect(method.status).toBe(405);
