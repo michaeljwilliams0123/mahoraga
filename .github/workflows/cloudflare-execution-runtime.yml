@@ -1,0 +1,92 @@
+name: Deploy and Accept Exact Main on Cloudflare
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mahoraga-cloudflare-execution-runtime
+  cancel-in-progress: false
+
+jobs:
+  deploy-accept:
+    name: Deploy and accept exact verified main
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       github.actor == github.repository_owner &&
+       github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == github.repository_owner)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_TOKEN }}
+      CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
+      CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+
+    steps:
+      - name: Check out exact verified main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.VERIFIED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Verify exact SHA is still authoritative main
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
+
+      - name: Require bounded Cloudflare credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Cloudflare deployment credentials are not configured for the hosted exact-main lane."
+            exit 1
+          fi
+          if [ -n "$CLOUDFLARE_ACCESS_TOKEN" ]; then
+            if [ -n "$CLOUDFLARE_ACCESS_CLIENT_ID" ] || [ -n "$CLOUDFLARE_ACCESS_CLIENT_SECRET" ]; then
+              echo "::error::Cloudflare Access credentials are ambiguous; configure either token or service-token pair."
+              exit 1
+            fi
+          elif [ -z "$CLOUDFLARE_ACCESS_CLIENT_ID" ] || [ -z "$CLOUDFLARE_ACCESS_CLIENT_SECRET" ]; then
+            echo "::error::Cloudflare Access credentials are not configured for live acceptance."
+            exit 1
+          fi
+
+      - name: Deploy exact verified execution runtime
+        run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA"
+
+      - name: Prove Access, readiness, SHA rejection, execution, and replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports
+          node scripts/cloudflare-execution-runtime.ts accept \
+            --sha "$VERIFIED_SHA" \
+            --receipt reports/cloudflare-execution-runtime-acceptance.json
+          {
+            echo '### Cloudflare execution-runtime acceptance'
+            echo '```json'
+            cat reports/cloudflare-execution-runtime-acceptance.json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
