@@ -73,6 +73,9 @@ jobs:
             exit 1
           fi
 
+      - name: Deploy exact verified owner gateway
+        run: npm run cloudflare:owner-gateway:deploy
+
       - name: Deploy exact verified execution runtime
         run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA"
 

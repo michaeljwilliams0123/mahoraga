@@ -50,6 +50,7 @@ export type ChatViewProps = {
   totalBytes: number;
   busy: boolean;
   coreReady: boolean;
+  assistantReady: boolean;
   taskMode: TaskMode;
   brainLabel: string;
   brainState: BrainState;
