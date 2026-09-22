@@ -200,8 +200,8 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
   const workspaceAgentReceiverMissing = workspaceAgentReceiverFiles.filter((file) => !fileSet.has(file));
   const workspaceAgentReceiverTrusted = workspaceAgentReceiverMissing.length === 0
     && /push:\s*[\s\S]*branches:\s*\[main\][\s\S]*coordination\/assignments\/\*\.json/.test(workspaceAgentReceiver)
-    && /issue_comment:\s*[\s\S]*types:\s*\[created\]/.test(workspaceAgentReceiver)
-    && /github\.actor == github\.repository_owner/.test(workspaceAgentReceiver)
+    && /workflow_dispatch:\s*[\s\S]*assignment_id:\s*[\s\S]*route_policy:/.test(workspaceAgentReceiver)
+    && !/issue_comment\s*:/.test(workspaceAgentReceiver)
     && /contents:\s*read/.test(workspaceAgentReceiver)
     && !/contents:\s*write/.test(workspaceAgentReceiver)
     && !/pull-requests:\s*write/.test(workspaceAgentReceiver)
@@ -216,6 +216,9 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     && /MIKE_PRIMARY_METERED:\s*\$\{\{ vars\.MIKE_PRIMARY_METERED \}\}/.test(workspaceAgentReceiver)
     && /ROUTE_POLICY:\s*\$\{\{ inputs\.route_policy \}\}/.test(workspaceAgentReceiver)
     && /node scripts\/workspace-agent-receiver\.mjs receive --event-file "\$GITHUB_EVENT_PATH"/.test(workspaceAgentReceiver)
+    && /workflow_dispatch:\s*[\s\S]*issue_number:\s*[\s\S]*command:/.test(cloudTaskGateway)
+    && /if:\s*github\.actor == github\.repository_owner/.test(cloudTaskGateway)
+    && !/issue_comment\s*:/.test(cloudTaskGateway)
     && /actions:\s*write/.test(cloudTaskGateway)
     && /actions\.createWorkflowDispatch/.test(cloudTaskGateway)
     && /workflow_id:\s*"workspace-agent-receiver\.yml"/.test(cloudTaskGateway)

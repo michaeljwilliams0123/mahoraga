@@ -28,13 +28,11 @@ start workflows. The Cloud Task Gateway explicitly dispatches this receiver
 after publishing its assignment, because GitHub intentionally prevents a push
 made with the workflow `GITHUB_TOKEN` from recursively starting another
 workflow. The gateway never receives the Workspace Agent secrets and never
-invokes a model itself. An owner can retry delivery
-of one existing assignment from **Actions → Receive Workspace Agent Assignment**
-or with this exact issue command:
-
-```text
-/mahoraga receive workspace-agent sec-...
-```
+invokes a model itself. An owner can retry delivery of one existing assignment
+from **Actions → Receive Workspace Agent Assignment → Run workflow**, supplying
+the existing `assignment_id` and an explicit route policy. Repository-wide issue
+comments are intentionally not workflow triggers; bot comments therefore cannot
+spawn receiver runs or consume runner capacity.
 
 The receiver is read-only in GitHub, accepts no batch, validates the canonical
 repository and assignment record before delivery, skips an assignment whose
