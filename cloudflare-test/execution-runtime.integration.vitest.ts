@@ -91,6 +91,7 @@ describe("ExecutionDurableObject", () => {
         providerId: "cloudflare-workers-ai",
         available: true,
         zeroCreditEligible: true,
+        observedAt: Date.now(),
         verifiedAt: Date.now(),
         canaryExpiresAt: Date.now() + 60_000,
         reasonCode: null,
