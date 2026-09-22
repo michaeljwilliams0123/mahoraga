@@ -35,6 +35,15 @@ test("Composio client refuses arbitrary tool execution", async () => {
   await assert.rejects(() => executeComposioTool("GITHUB_DELETE_A_REFERENCE", {}, { env: { COMPOSIO_API_KEY: "x" }, fetchImpl: async () => new Response("{}") }), /composio-tool-not-allowed/);
 });
 
+test("Composio client refuses non-canonical request destinations", async () => {
+  for (const baseUrl of ["https://attacker.example/api/v3.1", "https://backend.composio.dev.attacker.example/api/v3.1", "http://backend.composio.dev/api/v3.1"]) {
+    await assert.rejects(() => executeComposioTool("GITHUB_GET_A_REPOSITORY", {}, {
+      env: { COMPOSIO_API_KEY: "secret-test-key", COMPOSIO_API_BASE_URL: baseUrl },
+      fetchImpl: async () => { throw new Error("should-not-run"); },
+    }), /composio-base-url-invalid/);
+  }
+});
+
 
 test("Composio client prefers an explicit connected GitHub account and only sends a version when pinned", async () => {
   let request = null;
