@@ -1,3 +1,4 @@
+import type { EncryptedContentRecord, ConversationContentRole } from "./content-vault";
 import type { AssistantCostClass } from "./provider-policy";
 
 export type ReceiptStatus = "SUCCESS" | "FAILED";
@@ -56,6 +57,8 @@ export interface StorageAdapter {
   saveTurn(record: AssistantTurnRecord): void;
   getProviderState(providerId: string): ProviderStateRecord | null;
   saveProviderState(record: ProviderStateRecord): void;
+  getContentRecord(contentId: string): EncryptedContentRecord | null;
+  saveContentRecord(record: EncryptedContentRecord): void;
   executeTransaction<T>(fn: () => T): T;
 }
 
@@ -97,6 +100,16 @@ type ProviderStateRow = Record<string, SqlStorageValue> & {
   observed_at: number;
   verified_at: number | null;
   canary_expires_at: number | null;
+};
+
+type ContentRow = Record<string, SqlStorageValue> & {
+  content_id: string;
+  conversation_id: string;
+  role: ConversationContentRole;
+  ciphertext: string;
+  iv: string;
+  content_hash: string;
+  created_at: number;
 };
 
 const isLeaseConflict = (error: unknown): boolean =>
@@ -157,6 +170,17 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         verified_at INTEGER,
         canary_expires_at INTEGER
       );
+      CREATE TABLE IF NOT EXISTS conversation_content (
+        content_id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        ciphertext TEXT NOT NULL,
+        iv TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_conversation_content_conversation_created_at
+        ON conversation_content(conversation_id, created_at);
     `);
   }
 
@@ -342,6 +366,41 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       record.observedAt,
       record.verifiedAt,
       record.canaryExpiresAt,
+    );
+  }
+
+  getContentRecord(contentId: string): EncryptedContentRecord | null {
+    const row = this.sql
+      .exec<ContentRow>(
+        `SELECT content_id, conversation_id, role, ciphertext, iv, content_hash, created_at
+         FROM conversation_content WHERE content_id = ?`,
+        contentId,
+      )
+      .toArray()[0];
+    if (row === undefined) return null;
+    return {
+      contentId: row.content_id,
+      conversationId: row.conversation_id,
+      role: row.role,
+      ciphertext: row.ciphertext,
+      iv: row.iv,
+      contentHash: row.content_hash,
+      createdAt: row.created_at,
+    };
+  }
+
+  saveContentRecord(record: EncryptedContentRecord): void {
+    this.sql.exec(
+      `INSERT INTO conversation_content (
+         content_id, conversation_id, role, ciphertext, iv, content_hash, created_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      record.contentId,
+      record.conversationId,
+      record.role,
+      record.ciphertext,
+      record.iv,
+      record.contentHash,
+      record.createdAt,
     );
   }
 
