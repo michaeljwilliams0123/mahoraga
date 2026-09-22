@@ -120,6 +120,66 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
 });
 
 
+test("acceptance probe waits for the deployed Durable Object provenance to settle", async () => {
+  let authenticatedReadyAttempts = 0;
+  const sleeps: number[] = [];
+  let correctPosts = 0;
+  const firstBody = { executed: true, data: { probe: "settled" } };
+  const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {
+    const request = new Request(input, init);
+    if (request.method === "GET" && request.headers.get("cf-access-token") === null) {
+      return new Response("Access denied", { status: 403 });
+    }
+    if (request.method === "GET") {
+      authenticatedReadyAttempts += 1;
+      return Response.json({ status: "ready", sha: authenticatedReadyAttempts < 3 ? OTHER_SHA : SHA });
+    }
+    if (request.headers.get("x-target-sha") !== SHA) {
+      return Response.json({ error: "sha" }, { status: 412 });
+    }
+    correctPosts += 1;
+    return Response.json(firstBody, correctPosts > 1 ? { headers: { "x-idempotent-replay": "true" } } : undefined);
+  };
+
+  const receipt = await runAcceptanceProbe({
+    accessToken: "secret-access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    idempotencyKey: "settle-key",
+    fetchImpl,
+    readyAttempts: 3,
+    readyDelayMs: 25,
+    sleep: async (ms) => { sleeps.push(ms); },
+  });
+
+  assert.equal(receipt.status, "accepted");
+  assert.equal(authenticatedReadyAttempts, 3);
+  assert.deepEqual(sleeps, [25, 25]);
+});
+
+test("acceptance probe remains fail-closed when Durable Object provenance never converges", async () => {
+  let authenticatedReadyAttempts = 0;
+  let sleepCount = 0;
+  const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {
+    const request = new Request(input, init);
+    if (request.headers.get("cf-access-token") === null) return new Response("Access denied", { status: 403 });
+    authenticatedReadyAttempts += 1;
+    return Response.json({ status: "ready", sha: OTHER_SHA });
+  };
+
+  await assert.rejects(runAcceptanceProbe({
+    accessToken: "secret-access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    fetchImpl,
+    readyAttempts: 3,
+    readyDelayMs: 1,
+    sleep: async () => { sleepCount += 1; },
+  }), /accept-ready-provenance-mismatch/);
+  assert.equal(authenticatedReadyAttempts, 3);
+  assert.equal(sleepCount, 2);
+});
+
 test("acceptance probe supports Cloudflare Access service-token headers", async () => {
   const requests: Request[] = [];
   const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {

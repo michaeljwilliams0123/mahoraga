@@ -8,6 +8,8 @@ export const DEFAULT_CONFIG = "deploy/cloudflare-execution-runtime/wrangler.json
 export const DEFAULT_RAILWAY_ANCHOR = "https://mahoraga-runtime-main-production.up.railway.app/";
 export const DEFAULT_RUNTIME_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
 const WRANGLER_VERSION = "4.132.0";
+const DEFAULT_READY_ATTEMPTS = 37;
+const DEFAULT_READY_DELAY_MS = 5_000;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 
 export type DeployableSource = {
@@ -136,6 +138,9 @@ export async function runAcceptanceProbe(input: {
   idempotencyKey?: string;
   fetchImpl?: typeof fetch;
   now?: () => string;
+  readyAttempts?: number;
+  readyDelayMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<AcceptanceReceipt> {
   const accessHeaders = cloudflareAccessHeaders(input);
   const targetSha = normalizeSha(input.targetSha, "accept-target-sha-invalid");
@@ -144,6 +149,11 @@ export async function runAcceptanceProbe(input: {
   if (!idempotencyKey || idempotencyKey.length > 200) throw new Error("accept-idempotency-key-invalid");
   const fetchImpl = input.fetchImpl ?? fetch;
   const now = input.now ?? (() => new Date().toISOString());
+  const readyAttempts = input.readyAttempts ?? DEFAULT_READY_ATTEMPTS;
+  const readyDelayMs = input.readyDelayMs ?? DEFAULT_READY_DELAY_MS;
+  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  if (!Number.isInteger(readyAttempts) || readyAttempts < 1 || readyAttempts > 61) throw new Error("accept-ready-attempts-invalid");
+  if (!Number.isInteger(readyDelayMs) || readyDelayMs < 0 || readyDelayMs > 10_000) throw new Error("accept-ready-delay-invalid");
 
   const unauthenticatedResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
     method: "GET",
@@ -154,14 +164,38 @@ export async function runAcceptanceProbe(input: {
     throw new Error("accept-access-not-enforced");
   }
 
-  const readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
-    method: "GET",
-    headers: accessHeaders,
-    redirect: "manual",
-  });
-  if (readyResponse.status !== 200) throw new Error(`accept-ready-${readyResponse.status}`);
-  const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
-  if (readyBody.status !== "ready" || readyBody.sha !== targetSha) throw new Error("accept-ready-provenance-mismatch");
+  // Durable Object code and bindings can briefly lag the Worker deployment; require exact provenance before proceeding.
+  let ready = false;
+  for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
+    let readyResponse: Response;
+    try {
+      readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
+        method: "GET",
+        headers: accessHeaders,
+        redirect: "manual",
+      });
+    } catch {
+      if (attempt === readyAttempts) throw new Error("accept-ready-unreachable");
+      await sleep(readyDelayMs);
+      continue;
+    }
+    if (readyResponse.status === 200) {
+      const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
+      if (readyBody.status === "ready" && readyBody.sha === targetSha) {
+        ready = true;
+        break;
+      }
+      if (attempt === readyAttempts) throw new Error("accept-ready-provenance-mismatch");
+      await sleep(readyDelayMs);
+      continue;
+    }
+    if (readyResponse.status >= 500 && attempt < readyAttempts) {
+      await sleep(readyDelayMs);
+      continue;
+    }
+    throw new Error(`accept-ready-${readyResponse.status}`);
+  }
+  if (!ready) throw new Error("accept-ready-provenance-mismatch");
 
   const staleResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
