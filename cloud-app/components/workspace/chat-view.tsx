@@ -85,6 +85,12 @@ export function ChatView(props: ChatViewProps) {
   } = props;
 
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
+  const cloudBridgeOrigin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ?? "";
+
+  function openCloudSignIn() {
+    if (!cloudBridgeOrigin) return;
+    window.open(cloudBridgeOrigin, "_blank", "noopener,noreferrer");
+  }
 
   return (
     <div className="one-chat-page">
@@ -203,12 +209,17 @@ export function ChatView(props: ChatViewProps) {
 
         {!coreReady && relayState !== "resuming" && !ownerLoginRequired && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Mahoraga uses the authenticated cloud session first. Relay pairing is reserved for recovery when that path cannot be used.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Authenticate with Cloudflare first, then retry the cloud connection. Relay pairing is recovery only.</p></div></div>
+            <div className="connect-controls">
+              <button type="button" onClick={openCloudSignIn} disabled={!cloudBridgeOrigin}><Link2 size={16} /> Open Cloudflare sign-in</button>
+              <button type="button" onClick={() => window.location.reload()}>Retry cloud connection</button>
+            </div>
             <details>
-              <summary>Recovery connection <ChevronDown size={15} /></summary>
+              <summary>Recovery connection (advanced) <ChevronDown size={15} /></summary>
+              <p>Do not enter your owner PIN here. Paste only a generated recovery pairing offer from the Mahoraga runtime.</p>
               <div className="connect-controls">
                 <input value={pairingOffer} onChange={(event) => setPairingOffer(event.target.value)} placeholder="Paste pairing offer" aria-label="Runtime pairing offer" />
-                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect</button>
+                <button type="button" onClick={() => void pairRuntime()} disabled={!pairingOffer.trim() || new Set(["pairing", "resuming"]).has(relayState)}>{new Set(["pairing", "resuming"]).has(relayState) ? <LoaderCircle className="spin" size={16} /> : <Link2 size={16} />} Connect recovery relay</button>
               </div>
             </details>
           </div>
