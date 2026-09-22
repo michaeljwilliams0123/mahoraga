@@ -1,8 +1,16 @@
 name: Mahoraga Cloud Task Gateway
 
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing owner-authored Mahoraga issue number
+        required: true
+        type: string
+      command:
+        description: Exact bounded dispatch command for the issue
+        required: true
+        type: string
 
 permissions:
   actions: write
@@ -10,16 +18,13 @@ permissions:
   issues: write
 
 concurrency:
-  group: mahoraga-cloud-gateway-${{ github.event.issue.number }}
+  group: mahoraga-cloud-gateway-${{ inputs.issue_number }}
   cancel-in-progress: false
 
 jobs:
   dispatch:
     name: Validate owner approval and dispatch
-    if: >-
-      github.event.issue.pull_request == null &&
-      github.actor == github.repository_owner &&
-      startsWith(github.event.comment.body, '/mahoraga dispatch ')
+    if: github.actor == github.repository_owner
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,14 +39,51 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Build owner-approved issue event
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
+          COMMAND: ${{ inputs.command }}
+          EVENT_FILE: ${{ runner.temp }}/mahoraga-owner-dispatch-event.json
+        with:
+          script: |
+            const fs = require("node:fs");
+            const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.ISSUE_NUMBER);
+            if (!Number.isSafeInteger(issue_number) || issue_number < 1) {
+              core.setFailed("issue_number must be a positive integer");
+              return;
+            }
+            const command = String(process.env.COMMAND ?? "").trim();
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
+            if (issue.pull_request) {
+              core.setFailed("Mahoraga dispatch requires an issue, not a pull request");
+              return;
+            }
+            const event = {
+              action: "created",
+              repository: { full_name: `${owner}/${repo}`, owner: { login: owner } },
+              sender: { login: owner },
+              issue,
+              comment: {
+                body: command,
+                user: { login: owner },
+                author_association: "OWNER",
+              },
+            };
+            fs.writeFileSync(process.env.EVENT_FILE, JSON.stringify(event));
+
       - name: Parse and validate owner-approved issue
         id: gateway
         shell: bash
+        env:
+          RESULT_FILE: ${{ runner.temp }}/mahoraga-gateway.json
+          EVENT_FILE: ${{ runner.temp }}/mahoraga-owner-dispatch-event.json
         run: |
           set -euo pipefail
           node scripts/cloud-task-gateway.mjs dispatch \
-            --event "$GITHUB_EVENT_PATH" \
-            --base-commit "$(git rev-parse HEAD)" > "$RUNNER_TEMP/mahoraga-gateway.json"
+            --event "$EVENT_FILE" \
+            --base-commit "$(git rev-parse HEAD)" > "$RESULT_FILE"
           node -e '
             const fs = require("node:fs");
             const result = JSON.parse(fs.readFileSync(process.env.RESULT_FILE, "utf8"));
@@ -49,8 +91,6 @@ jobs:
               fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${result[key]}\n`);
             }
           '
-        env:
-          RESULT_FILE: ${{ runner.temp }}/mahoraga-gateway.json
 
       - name: Validate coordination ledgers
         run: |
@@ -61,7 +101,7 @@ jobs:
         id: publish
         shell: bash
         env:
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
           MODE: ${{ steps.gateway.outputs.mode }}
         run: |
           set -euo pipefail
@@ -99,6 +139,7 @@ jobs:
       - name: Label and acknowledge accepted dispatch
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
           MODE: ${{ steps.gateway.outputs.mode }}
           RECORD_ID: ${{ steps.gateway.outputs.recordId }}
           RECORD_PATH: ${{ steps.gateway.outputs.recordPath }}
@@ -110,6 +151,7 @@ jobs:
         with:
           script: |
             const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.ISSUE_NUMBER);
             const mode = process.env.MODE;
             const labels = [
               { name: "mahoraga:dispatched", color: "0e8a16", description: "Owner-approved Mahoraga dispatch" },
@@ -124,7 +166,7 @@ jobs:
                 await github.rest.issues.createLabel({ owner, repo, ...label });
               }
             }
-            await github.rest.issues.addLabels({ owner, repo, issue_number: context.issue.number, labels: labels.map((item) => item.name) });
+            await github.rest.issues.addLabels({ owner, repo, issue_number, labels: labels.map((item) => item.name) });
             const state = process.env.CHANGED === "true" ? "created" : "reused idempotently";
             const attachments = Number(process.env.ATTACHMENT_COUNT) > 0
               ? ` ${process.env.ATTACHMENT_COUNT} attachment reference(s) remain in this source issue and were not copied into the coordination record.`
@@ -139,20 +181,23 @@ jobs:
             await github.rest.issues.createComment({
               owner,
               repo,
-              issue_number: context.issue.number,
+              issue_number,
               body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${receiver}${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
             });
 
       - name: Report rejected dispatch without echoing issue content
         if: failure()
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          ISSUE_NUMBER: ${{ inputs.issue_number }}
         with:
           script: |
             const { owner, repo } = context.repo;
+            const issue_number = Number(process.env.ISSUE_NUMBER);
             await github.rest.issues.createComment({
               owner,
               repo,
-              issue_number: context.issue.number,
+              issue_number,
               body: `Mahoraga rejected this dispatch before model execution. No execution record was activated. Review the bounded workflow evidence: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             });
 
