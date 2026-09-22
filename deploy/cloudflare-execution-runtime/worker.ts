@@ -114,7 +114,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const capability = projectPersistedAssistantCapability(providerState);
       if (!capability.routable) return json({ error: "Cognition provider unavailable", reasonCode: capability.providerReasonCode }, 503);
 
-      const providerResult = await invokeWorkersAi(this.env.AI, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
+      const providerResult = this.env.AI !== undefined && typeof this.env.AI.run === "function"
+        ? await this.env.AI.run(ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] })
+        : await invokeWorkersAi(this.env.AI, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
       const answer = extractAnswer(providerResult);
       if (answer === null) return json({ error: "Cognition provider returned invalid response" }, 502);
 
