@@ -39,7 +39,10 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
       .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || zeroMarginalEligible(candidate, context) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
-    const candidates = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
+    const billingEligible = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
+    // A worker may be projected by more than one evidence source. Compete each
+    // worker once so recovery cannot cycle through duplicate representations.
+    const candidates = uniqueWorkers(billingEligible).slice(0, 16);
 
     if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
       const billingDecision = Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false });
@@ -66,26 +69,12 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       });
     }
 
-    const selected = candidates[0];
-    const capabilityAuthorityScopes = selected.authorityScopes ?? [];
-    const ownerDecision = task.authorityScope || capabilityAuthorityScopes.length > 0 ? resolveCapabilityAuthority({
-      grant: ownerGrant,
-      requestedScope: task.authorityScope ?? null,
-      requestedTarget: task.authorityTarget ?? null,
-      platformScopes: context.platformAuthorityScopesByWorkerId?.[selected.workerId] ?? selected.platformAuthorityScopes ?? [],
-      capabilityScopes: capabilityAuthorityScopes,
-    }) : null;
-    const billingDecision = Object.freeze({
-      required: zeroMarginalRequired,
-      effectiveClass: selected.billingClass,
-      eligible: zeroMarginalEligible(selected, context),
-    });
-    const authorityDecision = createAuthorityDecision({
-      ownerGrant, task, candidate: selected, ownerDecision, providerDecision, creditFreeDecision,
-      billingDecision, context,
-    });
-
-    if (authorityDecision.decision !== "allow") {
+    const competition = candidates.map((candidate) => evaluateCandidate({
+      candidate, ownerGrant, task, context, providerDecision, creditFreeDecision, zeroMarginalRequired,
+    }));
+    const winner = competition.find((item) => item.authorityDecision.decision === "allow");
+    if (!winner) {
+      const { ownerDecision, billingDecision, authorityDecision } = competition[0];
       const authorityReason = ownerDecision?.authorized === false
         ? ownerDecision.reason
         : ownerDecision?.confirmationRequired === true
@@ -93,23 +82,71 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
           : authorityDecision.reasonCodes[0] ?? "authority-hold";
       return waitingWithRecovery(authorityReason, task, ranked, {
         authorityDecision, billingDecision,
+        competition: competitionReceipt(competition, null),
         ...(providerDecision ? { providerDecision } : {}),
         ...(creditFreeDecision ? { creditFreeDecision } : {}),
       });
     }
+
+    const { candidate: selected, billingDecision, authorityDecision } = winner;
+    const allowedAlternates = competition
+      .filter((item) => item !== winner && item.authorityDecision.decision === "allow")
+      .map((item) => item.candidate);
 
     const route = {
       status: "routable",
       reason: null,
       worker: resolveWorker(manifest, selected),
       decision: selected,
-      alternates: candidates.slice(1),
+      alternates: allowedAlternates,
       billingDecision,
       authorityDecision,
+      competition: competitionReceipt(competition, selected.workerId),
     };
     const withProvider = providerDecision ? { ...route, providerDecision } : route;
     return creditFreeDecision ? { ...withProvider, creditFreeDecision } : withProvider;
   };
+}
+
+function uniqueWorkers(candidates) {
+  const seen = new Set();
+  return candidates.filter((candidate) => {
+    if (seen.has(candidate.workerId)) return false;
+    seen.add(candidate.workerId);
+    return true;
+  });
+}
+
+function evaluateCandidate({ candidate, ownerGrant, task, context, providerDecision, creditFreeDecision, zeroMarginalRequired }) {
+  const capabilityScopes = candidate.authorityScopes ?? [];
+  const ownerDecision = task.authorityScope || capabilityScopes.length > 0 ? resolveCapabilityAuthority({
+    grant: ownerGrant,
+    requestedScope: task.authorityScope ?? null,
+    requestedTarget: task.authorityTarget ?? null,
+    platformScopes: context.platformAuthorityScopesByWorkerId?.[candidate.workerId] ?? candidate.platformAuthorityScopes ?? [],
+    capabilityScopes,
+  }) : null;
+  const billingDecision = Object.freeze({
+    required: zeroMarginalRequired,
+    effectiveClass: candidate.billingClass,
+    eligible: zeroMarginalEligible(candidate, context),
+  });
+  const authorityDecision = createAuthorityDecision({
+    ownerGrant, task, candidate, ownerDecision, providerDecision, creditFreeDecision, billingDecision, context,
+  });
+  return Object.freeze({ candidate, ownerDecision, billingDecision, authorityDecision });
+}
+
+function competitionReceipt(competition, selectedWorkerId) {
+  return Object.freeze({
+    bounded: true,
+    considered: competition.map((item) => Object.freeze({
+      workerId: item.candidate.workerId,
+      decision: item.authorityDecision.decision,
+      reasonCodes: [...item.authorityDecision.reasonCodes],
+    })),
+    selectedWorkerId,
+  });
 }
 
 function waitingWithRecovery(reason, task, ranked, extra = {}) {

@@ -72,8 +72,10 @@ function projectRepository(value) {
 function normalizeBaseUrl(value) {
   let url;
   try { url = new URL(String(value)); } catch { fail("composio-base-url-invalid", 500); }
-  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) fail("composio-base-url-invalid", 500);
-  return url.href.replace(/\/$/, "");
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash
+    || url.hostname !== "backend.composio.dev" || url.port
+    || url.pathname.replace(/\/$/, "") !== "/api/v3.1") fail("composio-base-url-invalid", 500);
+  return DEFAULT_BASE_URL;
 }
 
 function githubToken(value, code) {

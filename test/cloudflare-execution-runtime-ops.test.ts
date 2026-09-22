@@ -12,6 +12,7 @@ import {
 const SHA = "6a1d51e25654eb7a5c22bab7a1c2dcaca522c2af";
 const OTHER_SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 const BASE_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
+const readyBody = (sha: string) => ({ status: "ready", sha, durableState: "cloudflare-do-sqlite", trafficAuthority: "cloudflare-canonical" });
 const scriptPath = fileURLToPath(new URL("../scripts/cloudflare-execution-runtime.ts", import.meta.url));
 
 test("Cloudflare execution runtime has one governed deployment/acceptance operator", () => {
@@ -76,7 +77,7 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
       return new Response("Access denied", { status: 403 });
     }
     if (request.method === "GET") {
-      return Response.json({ status: "ready", sha: SHA });
+      return Response.json(readyBody(SHA));
     }
     if (request.headers.get("x-target-sha") !== SHA) {
       return Response.json({ error: "Precondition Failed: SHA mismatch" }, { status: 412 });
@@ -101,6 +102,8 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
   assert.equal(receipt.observedAt, "2026-09-21T22:00:00.000Z");
   assert.equal(receipt.accessProtected, true);
   assert.equal(receipt.ready, true);
+  assert.equal(receipt.durableStateVerified, true);
+  assert.equal(receipt.trafficAuthorityVerified, true);
   assert.equal(receipt.staleShaRejected, true);
   assert.equal(receipt.executed, true);
   assert.equal(receipt.replayed, true);
@@ -132,7 +135,7 @@ test("acceptance probe waits for the deployed Durable Object provenance to settl
     }
     if (request.method === "GET") {
       authenticatedReadyAttempts += 1;
-      return Response.json({ status: "ready", sha: authenticatedReadyAttempts < 3 ? OTHER_SHA : SHA });
+      return Response.json(readyBody(authenticatedReadyAttempts < 3 ? OTHER_SHA : SHA));
     }
     if (request.headers.get("x-target-sha") !== SHA) {
       return Response.json({ error: "sha" }, { status: 412 });
@@ -164,7 +167,7 @@ test("acceptance probe remains fail-closed when Durable Object provenance never 
     const request = new Request(input, init);
     if (request.headers.get("cf-access-token") === null) return new Response("Access denied", { status: 403 });
     authenticatedReadyAttempts += 1;
-    return Response.json({ status: "ready", sha: OTHER_SHA });
+    return Response.json(readyBody(OTHER_SHA));
   };
 
   await assert.rejects(runAcceptanceProbe({
@@ -188,7 +191,7 @@ test("acceptance probe supports Cloudflare Access service-token headers", async 
     if (request.method === "GET" && request.headers.get("cf-access-client-id") === null) {
       return new Response("Access denied", { status: 403 });
     }
-    if (request.method === "GET") return Response.json({ status: "ready", sha: SHA });
+    if (request.method === "GET") return Response.json(readyBody(SHA));
     if (request.headers.get("x-target-sha") !== SHA) return Response.json({ error: "sha" }, { status: 412 });
     const body = { executed: true };
     const prior = requests.filter((item) => item.method === "POST" && item.headers.get("x-target-sha") === SHA);
@@ -215,7 +218,7 @@ test("acceptance probe supports Cloudflare Access service-token headers", async 
 });
 
 test("acceptance probe fails when Access does not protect the runtime", async () => {
-  const fetchImpl = async (): Promise<Response> => Response.json({ status: "ready", sha: SHA });
+  const fetchImpl = async (): Promise<Response> => Response.json(readyBody(SHA));
   await assert.rejects(
     runAcceptanceProbe({
       accessToken: "secret-access-token",
