@@ -39,3 +39,13 @@ test("Cloudflare exact-main workflow deploys before live acceptance and does not
   assert.match(workflow, /--receipt reports\/cloudflare-execution-runtime-acceptance\.json/);
   assert.doesNotMatch(workflow, /railway\s+(up|deploy|delete|remove|down)|RAILWAY_PROJECT_TOKEN/i);
 });
+
+test("Cloudflare exact-main workflow deploys the owner gateway before execution-runtime acceptance", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const gatewayDeploy = workflow.indexOf("cloudflare:owner-gateway:deploy");
+  const runtimeDeploy = workflow.indexOf("cloudflare-execution-runtime.ts deploy");
+  const accept = workflow.indexOf("cloudflare-execution-runtime.ts accept");
+  assert.ok(gatewayDeploy >= 0, "owner gateway must be deployed from the exact verified checkout");
+  assert.ok(runtimeDeploy > gatewayDeploy, "execution runtime must deploy after the owner gateway");
+  assert.ok(accept > runtimeDeploy, "live acceptance must run after both Cloudflare deployments");
+});

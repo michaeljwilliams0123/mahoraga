@@ -1,9 +1,10 @@
-﻿name = "mahoraga-owner-gateway"
+name = "mahoraga-owner-gateway"
 main = "worker.mjs"
 compatibility_date = "2026-09-01"
 
 [vars]
 MAHORAGA_RUNTIME_ORIGIN = "https://mahoraga-runtime-main-production.up.railway.app/"
+MAHORAGA_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io/"
 
 [secrets]
 required = ["MAHORAGA_CLOUD_OWNER_ID", "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET"]

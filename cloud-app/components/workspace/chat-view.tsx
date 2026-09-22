@@ -48,6 +48,7 @@ export function ChatView(props: ChatViewProps) {
     totalBytes,
     busy,
     coreReady,
+    assistantReady,
     brainLabel,
     brainState,
     licensedRetryAvailable,
@@ -119,7 +120,7 @@ export function ChatView(props: ChatViewProps) {
               {quickActions.map((action) => {
                 const Icon = ACTION_ICONS[action.id];
                 return (
-                  <button key={action.id} type="button" onClick={() => void runQuickAction(action.id)} disabled={busy || (action.requiresCore === true && !coreReady)}>
+                  <button key={action.id} type="button" onClick={() => void runQuickAction(action.id)} disabled={busy || (action.requiresCore === true && !assistantReady)}>
                     <span className={`quick-icon quick-${action.id}`}><Icon size={18} /></span>
                     <span><strong>{action.label}</strong><small>{action.description}</small></span>
                   </button>
@@ -241,7 +242,7 @@ export function ChatView(props: ChatViewProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
             }}
-            placeholder={voiceListening ? "Listening…" : coreReady ? "Ask Mahoraga anything…" : "Sign in or restore the cloud connection to execute work…"}
+            placeholder={voiceListening ? "Listening…" : assistantReady ? "Ask Mahoraga anything…" : coreReady ? "Brain route unavailable — Mahoraga remains fail-closed." : "Sign in or restore the cloud connection to execute work…"}
             aria-label="Message Mahoraga"
           />
           <div className="composer-actions">
@@ -252,7 +253,7 @@ export function ChatView(props: ChatViewProps) {
             {busy ? (
               <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={15} /></button>
             ) : (
-              <button type="button" className="send-button" onClick={() => void submit()} disabled={!input.trim() && files.length === 0} aria-label="Send"><ArrowUp size={18} /></button>
+              <button type="button" className="send-button" onClick={() => void submit()} disabled={!assistantReady || (!input.trim() && files.length === 0)} aria-label="Send"><ArrowUp size={18} /></button>
             )}
           </div>
         </div>

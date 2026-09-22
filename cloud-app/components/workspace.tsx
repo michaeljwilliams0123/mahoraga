@@ -101,6 +101,7 @@ export function Workspace() {
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
+  const assistantReady = coreReady && runtimeCapabilities.some((item) => item.capability === "assistant.respond" && item.routable && item.enabled !== false);
   const brainRouteState = useMemo(
     () => deriveBrainRouteState(coreReady, runtimeCapabilities, runtimeError),
     [coreReady, runtimeCapabilities, runtimeError],
@@ -252,6 +253,10 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
+    if (!assistantReady) {
+      setRuntimeError("Mahoraga's assistant route is not currently routable.");
+      return;
+    }
     await submitCore(text, taskMode, null, "zero-codex", files);
   }
 
@@ -262,7 +267,7 @@ export function Workspace() {
       fileInput.current?.click();
       return;
     }
-    if (action.requiresCore && !coreReady) {
+    if (action.requiresCore && !assistantReady) {
       setRuntimeError(`Connect Mahoraga before using ${action.label}.`);
       navigate("chat");
       return;
@@ -468,11 +473,11 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={coreReady} onNewConversation={resetConversation}>
+    <WorkspaceShell view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
       {view === "chat" && (
         <ChatView
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
-          busy={busy} coreReady={coreReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
+          busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
           ownerLoginRequired={ownerLoginRequired} ownerLoginPin={ownerLoginPin} ownerLoginBusy={ownerLoginBusy}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
