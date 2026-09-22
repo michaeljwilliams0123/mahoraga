@@ -90,3 +90,11 @@ jobs:
             cat reports/cloudflare-execution-runtime-acceptance.json
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain sanitized Cloudflare acceptance receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cloudflare-execution-runtime-acceptance-${{ env.VERIFIED_SHA }}
+          path: reports/cloudflare-execution-runtime-acceptance.json
+          retention-days: 7
+          if-no-files-found: error
