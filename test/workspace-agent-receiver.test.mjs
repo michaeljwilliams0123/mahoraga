@@ -23,7 +23,7 @@ function ownerCommand(id = assignmentId) {
   };
 }
 
-test("receiver accepts the gateway's deterministic assignment ID and owner command", async () => {
+test("receiver parser still validates deterministic owner command envelopes", async () => {
   assert.equal(validateWorkspaceAgentReceiverId(assignmentId), assignmentId);
   const assignments = await selectWorkspaceAgentAssignments({ eventName: "issue_comment", event: ownerCommand() });
   assert.equal(assignments[0].assignmentId, assignmentId);
@@ -105,14 +105,17 @@ test("completed assignment cannot execute again", async () => {
   assert.equal(result.modelExecution, false);
 });
 
-test("GitHub receiver is read-only, owner-bound, pinned, and secret-backed", async () => {
+test("GitHub receiver is read-only, explicitly dispatched, pinned, and secret-backed", async () => {
   const [source, gateway] = await Promise.all([
     readFile(new URL("../.github/workflows/workspace-agent-receiver.yml", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/cloud-task-gateway.yml", import.meta.url), "utf8"),
   ]);
   assert.match(source, /branches: \[main\]/);
   assert.match(source, /coordination\/assignments\/\*\.json/);
-  assert.match(source, /github\.actor == github\.repository_owner/);
+  assert.match(source, /workflow_dispatch:/);
+  assert.match(source, /assignment_id:/);
+  assert.match(source, /route_policy:/);
+  assert.doesNotMatch(source, /^\s*issue_comment\s*:/m);
   assert.match(source, /permissions:\s*\n  contents: read/);
   assert.doesNotMatch(source, /contents: write|pull-requests: write|pull_request_target/);
   assert.match(source, /actions\/checkout@[a-f0-9]{40}/);
@@ -123,6 +126,9 @@ test("GitHub receiver is read-only, owner-bound, pinned, and secret-backed", asy
   assert.match(source, /MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID: \$\{\{ secrets\.MIKE_PRIMARY_WORKSPACE_AGENT_TRIGGER_ID \}\}/);
   assert.match(source, /ROUTE_POLICY: \$\{\{ inputs\.route_policy \}\}/);
   assert.doesNotMatch(source, /secrets\.AGENT_ACCESS_TOKEN|secrets\.WORKSPACE_AGENT_TRIGGER_ID/);
+  assert.match(gateway, /workflow_dispatch:/);
+  assert.match(gateway, /github\.actor == github\.repository_owner/);
+  assert.doesNotMatch(gateway, /^\s*issue_comment\s*:/m);
   assert.match(gateway, /steps\.gateway\.outputs\.mode == 'desktop'/);
   assert.match(gateway, /actions\.createWorkflowDispatch/);
   assert.match(gateway, /workflow_id: "workspace-agent-receiver\.yml"/);
