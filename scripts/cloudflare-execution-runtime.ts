@@ -96,27 +96,47 @@ async function readJson(response: Response, code: string): Promise<Record<string
   return body as Record<string, unknown>;
 }
 
-function executionHeaders(accessToken: string, targetSha: string, idempotencyKey: string): Headers {
-  const headers = new Headers({
-    "cache-control": "no-store",
-    "cf-access-token": accessToken,
-    "content-type": "application/json",
-    "x-idempotency-key": idempotencyKey,
-    "x-target-sha": targetSha,
-  });
+type CloudflareAccessCredentials = {
+  accessToken?: string;
+  accessClientId?: string;
+  accessClientSecret?: string;
+};
+
+function cloudflareAccessHeaders(input: CloudflareAccessCredentials): Headers {
+  const accessToken = input.accessToken?.trim() ?? "";
+  const accessClientId = input.accessClientId?.trim() ?? "";
+  const accessClientSecret = input.accessClientSecret?.trim() ?? "";
+  if (accessToken && (accessClientId || accessClientSecret)) throw new Error("accept-access-credentials-ambiguous");
+  const headers = new Headers({ "cache-control": "no-store" });
+  if (accessToken) {
+    headers.set("cf-access-token", accessToken);
+    return headers;
+  }
+  if (!accessClientId || !accessClientSecret) throw new Error("accept-access-credentials-missing");
+  headers.set("cf-access-client-id", accessClientId);
+  headers.set("cf-access-client-secret", accessClientSecret);
+  return headers;
+}
+
+function executionHeaders(accessHeaders: Headers, targetSha: string, idempotencyKey: string): Headers {
+  const headers = new Headers(accessHeaders);
+  headers.set("content-type", "application/json");
+  headers.set("x-idempotency-key", idempotencyKey);
+  headers.set("x-target-sha", targetSha);
   return headers;
 }
 
 export async function runAcceptanceProbe(input: {
-  accessToken: string;
+  accessToken?: string;
+  accessClientId?: string;
+  accessClientSecret?: string;
   baseUrl?: string;
   targetSha: string;
   idempotencyKey?: string;
   fetchImpl?: typeof fetch;
   now?: () => string;
 }): Promise<AcceptanceReceipt> {
-  const accessToken = input.accessToken.trim();
-  if (!accessToken) throw new Error("accept-access-token-missing");
+  const accessHeaders = cloudflareAccessHeaders(input);
   const targetSha = normalizeSha(input.targetSha, "accept-target-sha-invalid");
   const baseUrl = normalizeHttpsUrl(input.baseUrl ?? DEFAULT_RUNTIME_URL, "accept-runtime-url-invalid");
   const idempotencyKey = (input.idempotencyKey ?? `accept-${crypto.randomUUID()}`).trim();
@@ -126,7 +146,7 @@ export async function runAcceptanceProbe(input: {
 
   const readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
     method: "GET",
-    headers: { "cache-control": "no-store", "cf-access-token": accessToken },
+    headers: accessHeaders,
     redirect: "manual",
   });
   if (readyResponse.status !== 200) throw new Error(`accept-ready-${readyResponse.status}`);
@@ -135,7 +155,7 @@ export async function runAcceptanceProbe(input: {
 
   const staleResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
-    headers: executionHeaders(accessToken, alternateSha(targetSha), `${idempotencyKey}-stale`),
+    headers: executionHeaders(accessHeaders, alternateSha(targetSha), `${idempotencyKey}-stale`),
     body: JSON.stringify({ acceptance: "stale-sha" }),
     redirect: "manual",
   });
@@ -143,7 +163,7 @@ export async function runAcceptanceProbe(input: {
 
   const firstResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
-    headers: executionHeaders(accessToken, targetSha, idempotencyKey),
+    headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
     body: JSON.stringify({ acceptance: "first" }),
     redirect: "manual",
   });
@@ -154,7 +174,7 @@ export async function runAcceptanceProbe(input: {
 
   const replayResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
-    headers: executionHeaders(accessToken, targetSha, idempotencyKey),
+    headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
     body: JSON.stringify({ acceptance: "replay" }),
     redirect: "manual",
   });
@@ -232,7 +252,9 @@ async function accept(args: string[]): Promise<void> {
   if (targetSha !== remoteMainSha) throw new Error("accept-main-mismatch");
   const idempotencyKey = option(args, "--idempotency-key");
   const receipt = await runAcceptanceProbe({
-    accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN ?? "",
+    ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
     baseUrl: option(args, "--url") ?? DEFAULT_RUNTIME_URL,
     targetSha,
     ...(idempotencyKey ? { idempotencyKey } : {}),
