@@ -58,12 +58,14 @@ test("automatic release accepts only trusted verification of still-current main"
   assert.match(source, /github\.event\.workflow_run\.event == 'workflow_dispatch'/);
   assert.match(source, /github\.event\.workflow_run\.actor\.login == 'github-actions\[bot\]'/);
   assert.match(source, /name: Verify automatic release SHA is still current main/);
-  assert.match(source, /GH_TOKEN: \$\{\{ github\.token \}\}/);
-  assert.match(source, /gh api "repos\/\$\{GITHUB_REPOSITORY\}\/git\/ref\/heads\/main"/);
-  assert.match(source, /--jq '\.object\.sha'/);
+  assert.match(source, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.match(source, /run: node scripts\/verify-exact-head\.mjs/);
+  const verifier = await readFile(path.join(ROOT, "scripts", "verify-exact-head.mjs"), "utf8");
+  assert.match(verifier, /https:\/\/api\.github\.com\/repos\//);
+  assert.match(verifier, /currentMainSha/);
+  assert.match(verifier, /stale-verified-main/);
   assert.doesNotMatch(source, /git fetch origin main/);
   assert.doesNotMatch(source, /git rev-parse origin\/main/);
-  assert.match(source, /stale-verified-main/);
 
   const baseline = await readFile(path.join(ROOT, "state", "release-baseline", ".github", "workflows", "release.yml"), "utf8");
   assert.equal(baseline, source);

@@ -91,11 +91,13 @@ test("successful sovereign verification explicitly dispatches trusted integratio
 test("automatic main beta release stays on workflow_run, not a second verify dispatch", async () => {
   const verify = await readFile(new URL("../.github/workflows/verify.yml", import.meta.url), "utf8");
   const release = await readFile(new URL("../.github/workflows/release.yml", import.meta.url), "utf8");
+  const verifier = await readFile(new URL("../scripts/verify-exact-head.mjs", import.meta.url), "utf8");
 
   assert.doesNotMatch(verify, /dispatch-automatic-release:/);
   assert.match(release, /workflow_run:/);
   assert.match(release, /head_branch == 'main'/);
   assert.match(release, /github-actions\[bot\]/);
-  assert.match(release, /current_main/);
-  assert.match(release, /stale-verified-main/);
+  assert.match(release, /run: node scripts\/verify-exact-head\.mjs/);
+  assert.match(verifier, /currentMainSha/);
+  assert.match(verifier, /stale-verified-main/);
 });

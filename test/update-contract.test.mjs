@@ -21,11 +21,13 @@ test("update manifest fixes source, digest, and verified local automatic activat
 
 test("release workflow is owner-only, verified, attested, and never activates a device", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "release.yml"), "utf8");
+  const publisher = await readFile(path.join(ROOT, "scripts", "publish-github-release.mjs"), "utf8");
   assert.match(source, /github\.actor == github\.repository_owner/);
   assert.match(source, /npm run verify/);
   assert.match(source, /if: github\.event\.repository\.private == false/);
   assert.match(source, /actions\/attest-build-provenance@[a-f0-9]{40} # v4\.2\.2/);
   assert.match(source, /node scripts\/update-manifest\.mjs validate/);
   assert.doesNotMatch(source, /Expand-Archive|start-production|OPENAI_API_KEY|\$\{\{\s*secrets\./i);
-  assert.match(source, /Eligible for verified local rollout with mandatory rollback evidence/);
+  assert.match(source, /run: node scripts\/publish-github-release\.mjs/);
+  assert.match(publisher, /Eligible for verified local rollout with mandatory rollback evidence/);
 });
