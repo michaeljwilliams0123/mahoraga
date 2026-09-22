@@ -1,6 +1,7 @@
 import { env, exports } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { setProviderInvokerForTest } from "../deploy/cloudflare-execution-runtime/provider-invoker";
 import worker, { type ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
 
 const SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
@@ -17,7 +18,10 @@ const execute = (key: string, body: unknown, headers: Record<string, string> = {
     body: JSON.stringify(body),
   });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  setProviderInvokerForTest(null);
+  vi.restoreAllMocks();
+});
 
 describe("ExecutionDurableObject", () => {
   it("fails closed when deployment provenance is unset", async () => {
@@ -98,7 +102,7 @@ describe("ExecutionDurableObject", () => {
       });
     });
     const aiRun = vi.fn().mockResolvedValue({ response: "first answer" });
-    vi.stubGlobal("AI", { run: aiRun });
+    setProviderInvokerForTest(aiRun);
 
     const first = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-1", message: "first message" });
     expect(first.status).toBe(200);
