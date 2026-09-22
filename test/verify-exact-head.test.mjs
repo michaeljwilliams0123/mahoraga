@@ -9,6 +9,20 @@ const ok = (status, body = { object: { sha } }) => ({ status, ok: status >= 200 
 test('exact head accepts only checkout = verified = main', () => {
   assert.deepEqual(assertExactHead({ checkedOutSha: sha, verifiedSha: sha, currentMainSha: sha }), { checkedOutSha: sha, verifiedSha: sha, currentMainSha: sha });
 });
+test('current-main lookup stays pinned to the canonical GitHub API endpoint', async () => {
+  let observedUrl;
+  const result = await fetchCurrentMainSha({
+    repository: 'owner/repo',
+    token: 'token',
+    attempts: 1,
+    fetchImpl: async (url) => {
+      observedUrl = String(url);
+      return ok(200);
+    },
+  });
+  assert.equal(result, sha);
+  assert.equal(observedUrl, 'https://api.github.com/repos/owner/repo/git/ref/heads/main');
+});
 for (const [name, input] of Object.entries({
   'verified differs from checkout': { checkedOutSha: other, verifiedSha: sha, currentMainSha: sha },
   'verified differs from current main': { checkedOutSha: sha, verifiedSha: sha, currentMainSha: other },
