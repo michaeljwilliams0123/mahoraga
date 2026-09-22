@@ -97,7 +97,8 @@ describe("ExecutionDurableObject", () => {
         reasonCode: null,
       });
     });
-    vi.spyOn(env.AI, "run").mockResolvedValue({ response: "first answer" });
+    const aiRun = vi.fn().mockResolvedValue({ response: "first answer" });
+    vi.stubGlobal("AI", { run: aiRun });
 
     const first = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-1", message: "first message" });
     expect(first.status).toBe(200);
@@ -108,7 +109,7 @@ describe("ExecutionDurableObject", () => {
     expect(replay.status).toBe(200);
     expect(replay.headers.get("x-idempotent-replay")).toBe("true");
     expect(await replay.json()).toEqual(firstBody);
-    expect(env.AI.run).toHaveBeenCalledTimes(1);
+    expect(aiRun).toHaveBeenCalledTimes(1);
   });
 
   it("returns 409 when an active lease already owns the idempotency key", async () => {
