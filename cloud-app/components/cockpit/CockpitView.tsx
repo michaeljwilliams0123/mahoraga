@@ -60,6 +60,7 @@ export function CockpitView({
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
+  const providerAdmitted = interaction.ready && zeroCredit.state === "allow";
   const [readinessOk, setReadinessOk] = useState(false);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
@@ -122,6 +123,7 @@ export function CockpitView({
         <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
         <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
+        <StatusCard label="Cloudflare provider admission" value={providerAdmitted ? "Evidence-backed" : "Fail-closed"} detail="assistant.respond stays unroutable without a fresh verified-zero probe · bridge health is not cognition · no paid or Railway fallback · #720" tone={providerAdmitted ? "good" : "warn"} />
         <StatusCard label="Model fabric" value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`} tone={routable.length > 0 ? "good" : "neutral"} />
         <StatusCard
           label="Institutional learning"
@@ -165,6 +167,8 @@ export function CockpitView({
             <div><dt>Runtime DB target</dt><dd>{runtimeDatabase}</dd></div>
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
+            <div><dt>Cloudflare provider admission</dt><dd>{providerAdmitted ? "evidence-backed" : "fail-closed"} · fresh verified-zero probe required · no licensed/metered fallback</dd></div>
+            <div><dt>Cognition activation</dt><dd>not activated · provider contract only · #720</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
             <div><dt>Liveness/readiness</dt><dd>provenance probe and rollback remain</dd></div>
           </dl>
@@ -209,6 +213,10 @@ export function CockpitView({
         <div>
           <strong>Studio authority</strong>
           <p>non-authoritative evidence plane - Mahoraga remains canonical</p>
+        </div>
+        <div>
+          <strong>Cloudflare assistant admission</strong>
+          <p>Typed AssistantProvider / ProviderProbe contract is live. Absent evidence, stale canary, and missing hard-zero billing stay unroutable. Bridge health is not cognition readiness.</p>
         </div>
         <div>
           <strong>Institutional learning</strong>

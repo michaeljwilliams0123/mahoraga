@@ -16,8 +16,8 @@ describe("singular control center contract", () => {
 
   it("keeps operator-deck pure helpers available as a non-authoritative reference layer", () => {
     const bridge = readFileSync(join(root, "lib/cockpit.ts"), "utf8");
-    assert.match(bridge, /operator-deck\/src\/lib\/cockpit\/types/);
-    assert.match(bridge, /operator-deck\/src\/lib\/cockpit\/health/);
+    assert.match(bridge, /operator-deck\\/src\\/lib\\/cockpit\\/types/);
+    assert.match(bridge, /operator-deck\\/src\\/lib\\/cockpit\\/health/);
     assert.doesNotMatch(bridge, /automation-adapter/);
     assert.doesNotMatch(bridge, /panels/);
   });
@@ -29,7 +29,7 @@ describe("singular control center contract", () => {
     assert.match(workspace, /ConnectionsView/);
     assert.match(workspace, /OperationsView/);
     assert.match(workspace, /Deep control center/);
-    assert.doesNotMatch(workspace, /function placeholder\(/);
+    assert.doesNotMatch(workspace, /function placeholder\\(/);
   });
 
   it("keeps the final Control Center observational and core-mediated", () => {
@@ -38,7 +38,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /runtimeCapabilities/);
     assert.match(cockpit, /automaticPaidFallback/);
     assert.match(cockpit, /onOpenOperations/);
-    assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
+    assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\\.0\\.0\\.1:11434|api\\.github\\.com/);
   });
 
   it("surfaces #486 owner-login no-store status on the rendered Control Center", () => {
@@ -53,32 +53,45 @@ describe("singular control center contract", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     assert.match(cockpit, /projectZeroCreditAdmission/);
     assert.match(cockpit, /Zero-credit answers/);
-    assert.match(cockpit, /zeroCredit\.state === "allow" \? "Admitted"/);
-    assert.match(cockpit, /zeroCredit\.state === "deny" \? "Denied" : "On hold"/);
+    assert.match(cockpit, /zeroCredit\\.state === "allow" \\? "Admitted"/);
+    assert.match(cockpit, /zeroCredit\\.state === "deny" \\? "Denied" : "On hold"/);
     assert.match(cockpit, /no paid fallback/);
     assert.match(cockpit, /verification unavailable/);
+  });
+
+  it("surfaces Cloudflare provider admission without activating cognition", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    assert.match(cockpit, /Cloudflare provider admission/);
+    assert.match(cockpit, /Fail-closed/);
+    assert.match(cockpit, /bridge health is not cognition/);
+    assert.match(cockpit, /no paid or Railway fallback/);
+    assert.match(cockpit, /Cognition activation/);
+    assert.match(cockpit, /not activated/);
+    assert.match(cockpit, /Cloudflare assistant admission/);
+    assert.match(cockpit, /AssistantProvider \/ ProviderProbe/);
+    assert.doesNotMatch(cockpit, /assistant\\.respond=true/);
   });
 
   it("renders the persisted canonical authority decision on the Work surface", () => {
     const work = readFileSync(join(root, "components/workspace/work-view.tsx"), "utf8");
     const relay = readFileSync(join(root, "lib/runtime-relay.ts"), "utf8");
     assert.match(work, /Canonical routing receipt/);
-    assert.match(work, /authority\?\.envelope\.kind/);
-    assert.match(work, /authority\?\.envelope\.decision/);
-    assert.match(work, /authority\?\.envelope\.reasonCodes/);
+    assert.match(work, /authority\\?\\.envelope\\.kind/);
+    assert.match(work, /authority\\?\\.envelope\\.decision/);
+    assert.match(work, /authority\\?\\.envelope\\.reasonCodes/);
     assert.match(work, /No routed task has persisted an authority decision yet/);
     assert.match(relay, /kind: "authority-decision-v1"/);
-    assert.doesNotMatch(work, /evidence\.ownerAuthority|evidence\.providerAdmission/);
+    assert.doesNotMatch(work, /evidence\\.ownerAuthority|evidence\\.providerAdmission/);
   });
 
   it("keeps public product identity Mahoraga and treats 7.0.0-alpha.2 as build provenance only", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
-    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(cockpit, /productName = health\\?\\.product \\?\\? "Mahoraga"/);
     assert.match(cockpit, /Build provenance/);
-    assert.match(cockpit, /buildVersion = health\?\.build\?\.version \?\? health\?\.version \?\? "unavailable"/);
-    assert.match(types, /build\?: \{ version\?: string \}/);
-    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+    assert.match(cockpit, /buildVersion = health\\?\\.build\\?\\.version \\?\\? health\\?\\.version \\?\\? "unavailable"/);
+    assert.match(types, /build\\?: \\{ version\\?: string \\}/);
+    assert.doesNotMatch(cockpit, /<h2>7\\.0\\.0-alpha\\.2/);
   });
 
   it("surfaces bounded Studio truth and the adaptive review loop", () => {
@@ -89,11 +102,11 @@ describe("singular control center contract", () => {
     assert.doesNotMatch(cockpit, /runtime ingestion inactive/);
     assert.match(cockpit, /managementPlaneReady/);
     assert.match(cockpit, /delegationRuntimeReady/);
-    assert.match(cockpit, /management-ready \/ delegation-unavailable/);
+    assert.match(cockpit, /management-ready \\/ delegation-unavailable/);
     assert.match(cockpit, /not fully available/);
-    assert.match(cockpit, /no widened studio\.delegate authority/);
+    assert.match(cockpit, /no widened studio\\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
-    assert.match(cockpit, /verified \+ approved metadata only/);
+    assert.match(cockpit, /verified \\+ approved metadata only/);
     assert.match(cockpit, /Direction → Compile → Delta → Verify → Learn/);
     assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /live ingestion is active/);
@@ -105,8 +118,7 @@ describe("singular control center contract", () => {
     const route = readFileSync(join(root, "app/api/health/route.ts"), "utf8");
     const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
-    assert.match(route, /path\.basename\(configured\)/);
-    assert.match(route, /databaseTarget/);
+    assert.match(route, /path\\.basename\\(configured\\)/);
     assert.match(types, /databaseTarget/);
     assert.match(types, /managementPlaneReady/);
     assert.match(types, /delegationRuntimeReady/);
@@ -124,7 +136,7 @@ describe("singular control center contract", () => {
     const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
     const chat = readFileSync(join(root, "components/workspace/chat-view.tsx"), "utf8");
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
-    assert.match(workspace, /deriveBrainRouteState\(coreReady, runtimeCapabilities, runtimeError\)/);
+    assert.match(workspace, /deriveBrainRouteState\\(coreReady, runtimeCapabilities, runtimeError\\)/);
     assert.match(workspace, /routeReadiness === "degraded"/);
     assert.match(workspace, /routeReadiness === "ready"/);
     assert.match(chat, /Ready to pair/);
