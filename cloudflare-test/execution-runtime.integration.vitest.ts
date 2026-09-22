@@ -84,15 +84,30 @@ describe("ExecutionDurableObject", () => {
   });
 
   it("replays the first receipt without executing a changed payload", async () => {
-    const first = await execute("replay-key", { value: 1 });
+    const stub = env.EXECUTION_DO.getByName("replay-key");
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
+      instance.storage.saveProviderState({
+        providerId: "cloudflare-workers-ai",
+        available: true,
+        zeroCreditEligible: true,
+        verifiedAt: Date.now(),
+        canaryExpiresAt: Date.now() + 60_000,
+        reasonCode: null,
+      });
+    });
+    vi.spyOn(env.AI, "run").mockResolvedValue({ response: "first answer" });
+
+    const first = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-1", message: "first message" });
     expect(first.status).toBe(200);
     expect(first.headers.get("x-idempotent-replay")).toBeNull();
     const firstBody = await first.json();
 
-    const replay = await execute("replay-key", { value: 2 });
+    const replay = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-2", message: "changed message" });
     expect(replay.status).toBe(200);
     expect(replay.headers.get("x-idempotent-replay")).toBe("true");
     expect(await replay.json()).toEqual(firstBody);
+    expect(env.AI.run).toHaveBeenCalledTimes(1);
   });
 
   it("returns 409 when an active lease already owns the idempotency key", async () => {
