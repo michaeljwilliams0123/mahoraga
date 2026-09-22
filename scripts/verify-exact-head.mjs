@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 
 export const RETRY_ATTEMPTS = 3;
 export const REQUEST_TIMEOUT_MS = 5_000;
+const GITHUB_API_ORIGIN = 'https://api.github.com';
 
 export function assertExactHead({ checkedOutSha, verifiedSha, currentMainSha }) {
   for (const [name, value] of Object.entries({ checkedOutSha, verifiedSha, currentMainSha })) {
@@ -16,12 +17,14 @@ export function assertExactHead({ checkedOutSha, verifiedSha, currentMainSha }) 
 export async function fetchCurrentMainSha({ repository, token, fetchImpl = fetch, attempts = RETRY_ATTEMPTS, timeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   if (!/^[\w.-]+\/[\w.-]+$/.test(String(repository ?? ''))) throw codedError('exact-head-repository-invalid');
   if (!token) throw codedError('exact-head-token-required');
+  const [owner, name] = String(repository).split('/');
+  const endpoint = new URL(`/repos/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/git/ref/heads/main`, GITHUB_API_ORIGIN);
   let lastError;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const response = await fetchImpl('https://api.github.com/repos/' + repository + '/git/ref/heads/main', {
+      const response = await fetchImpl(endpoint, {
         headers: { Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token, 'X-GitHub-Api-Version': '2022-11-28' },
         signal: controller.signal,
       });

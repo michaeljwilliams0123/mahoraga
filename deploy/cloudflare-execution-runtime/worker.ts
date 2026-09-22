@@ -6,6 +6,10 @@ const LEASE_TTL_MS = 15_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
+const TRAFFIC_AUTHORITY = "cloudflare-canonical";
+const DURABLE_STATE = "cloudflare-do-sqlite";
+const RAILWAY_ANCHOR_HOST = "mahoraga-runtime-main-production.up.railway.app";
+const FORWARDED_BY_HEADER = "x-mahoraga-forwarded-by";
 
 const targetShaValid = (value: unknown): value is string => typeof value === "string" && SHA_PATTERN.test(value);
 
@@ -64,7 +68,8 @@ const secureEqual = async (provided: string, expected: string): Promise<boolean>
 
 const railwayTarget = (requestUrl: URL, configured: string): URL => {
   const anchor = new URL(configured);
-  if (anchor.protocol !== "https:" || anchor.username || anchor.password || anchor.search || anchor.hash) {
+  if (anchor.protocol !== "https:" || anchor.hostname !== RAILWAY_ANCHOR_HOST || anchor.port
+    || anchor.username || anchor.password || anchor.search || anchor.hash || anchor.pathname !== "/") {
     throw new Error("railway-anchor-invalid");
   }
   return new URL(`${requestUrl.pathname}${requestUrl.search}`, anchor);
@@ -72,10 +77,12 @@ const railwayTarget = (requestUrl: URL, configured: string): URL => {
 
 const proxyToRailway = async (request: Request, requestUrl: URL, env: Env): Promise<Response> => {
   try {
+    if (request.headers.has(FORWARDED_BY_HEADER)) return json({ error: "Traffic routing loop rejected" }, 508);
     const target = railwayTarget(requestUrl, env.RAILWAY_ANCHOR_URL);
     const headers = new Headers(request.headers);
     headers.delete("x-bypass-token");
     headers.delete("host");
+    headers.set(FORWARDED_BY_HEADER, TRAFFIC_AUTHORITY);
     const upstream = await fetch(new Request(target, {
       method: request.method,
       headers,
@@ -118,7 +125,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       try {
         this.initialize();
         this.storage.sql.exec("SELECT 1").one();
-        return json({ status: "ready", sha: this.env.TARGET_SHA });
+        return json({ status: "ready", sha: this.env.TARGET_SHA, durableState: DURABLE_STATE, trafficAuthority: TRAFFIC_AUTHORITY });
       } catch {
         return json({ status: "unready" }, 503);
       }

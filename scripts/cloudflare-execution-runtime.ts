@@ -26,6 +26,8 @@ export type AcceptanceReceipt = Readonly<{
   targetSha: string;
   accessProtected: true;
   ready: true;
+  durableStateVerified: true;
+  trafficAuthorityVerified: true;
   staleShaRejected: true;
   executed: true;
   replayed: true;
@@ -181,7 +183,9 @@ export async function runAcceptanceProbe(input: {
     }
     if (readyResponse.status === 200) {
       const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
-      if (readyBody.status === "ready" && readyBody.sha === targetSha) {
+      if (readyBody.status === "ready" && readyBody.sha === targetSha
+        && readyBody.durableState === "cloudflare-do-sqlite"
+        && readyBody.trafficAuthority === "cloudflare-canonical") {
         ready = true;
         break;
       }
@@ -234,6 +238,8 @@ export async function runAcceptanceProbe(input: {
     targetSha,
     accessProtected: true,
     ready: true,
+    durableStateVerified: true,
+    trafficAuthorityVerified: true,
     staleShaRejected: true,
     executed: true,
     replayed: true,
