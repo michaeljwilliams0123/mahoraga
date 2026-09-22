@@ -154,14 +154,20 @@ export async function runAcceptanceProbe(input: {
     throw new Error("accept-access-not-enforced");
   }
 
-  const readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
-    method: "GET",
-    headers: accessHeaders,
-    redirect: "manual",
-  });
-  if (readyResponse.status !== 200) throw new Error(`accept-ready-${readyResponse.status}`);
-  const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
-  if (readyBody.status !== "ready" || readyBody.sha !== targetSha) throw new Error("accept-ready-provenance-mismatch");
+  const readyAttempts = 8;
+  for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
+    const readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
+      method: "GET",
+      headers: accessHeaders,
+      redirect: "manual",
+    });
+    if (readyResponse.status !== 200) throw new Error(`accept-ready-${readyResponse.status}`);
+    const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
+    if (readyBody.status === "ready" && readyBody.sha === targetSha) break;
+    if (attempt === readyAttempts) throw new Error("accept-ready-provenance-mismatch");
+    const delayMs = Math.min(250 * (2 ** (attempt - 1)), 2_000);
+    await new Promise<void>((resolveDelay) => setTimeout(resolveDelay, delayMs));
+  }
 
   const staleResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
