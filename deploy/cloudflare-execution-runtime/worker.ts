@@ -1,10 +1,11 @@
 import { DurableObject } from "cloudflare:workers";
-import { CloudflareDOSQLiteAdapter, type StorageReceipt } from "./storage";
+import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 15_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
+const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
 
 const targetShaValid = (value: unknown): value is string => typeof value === "string" && SHA_PATTERN.test(value);
 
@@ -12,6 +13,37 @@ const json = (body: Record<string, unknown>, status = 200, headers?: HeadersInit
   const responseHeaders = new Headers(JSON_HEADERS);
   if (headers !== undefined) new Headers(headers).forEach((value, key) => responseHeaders.set(key, value));
   return new Response(JSON.stringify(body), { status, headers: responseHeaders });
+};
+
+const pendingAssistantCapability = (provider = "cloudflare-native", reasonCode = "cloudflare-native-provider-pending") => ({
+  capability: "assistant.respond",
+  routable: false,
+  enabled: false,
+  provider,
+  workerIds: [] as string[],
+  routingReason: "provider.gap",
+  providerReasonCode: reasonCode,
+  evidenceLevel: "runtime-probe",
+});
+
+const projectPersistedAssistantCapability = (state: ProviderStateRecord | null, now = Date.now()) => {
+  if (state === null) return pendingAssistantCapability();
+  if (state.verifiedAt === null || state.canaryExpiresAt === null || state.canaryExpiresAt <= now) {
+    return pendingAssistantCapability(state.providerId, "provider-canary-stale");
+  }
+  if (!state.available || !state.zeroCreditEligible) {
+    return pendingAssistantCapability(state.providerId, state.reasonCode ?? "provider-not-admitted");
+  }
+  return {
+    capability: "assistant.respond",
+    routable: true,
+    enabled: true,
+    provider: state.providerId,
+    workerIds: [] as string[],
+    routingReason: null,
+    providerReasonCode: null,
+    evidenceLevel: "runtime-probe",
+  };
 };
 
 const secureEqual = async (provided: string, expected: string): Promise<boolean> => {
@@ -89,6 +121,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         return json({ status: "ready", sha: this.env.TARGET_SHA });
       } catch {
         return json({ status: "unready" }, 503);
+      }
+    }
+    if (url.pathname === "/api/capabilities") {
+      if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
+      try {
+        this.initialize();
+        const providerState = this.storage.getProviderState(ASSISTANT_PROVIDER_ID);
+        return json({ capabilities: [projectPersistedAssistantCapability(providerState)] });
+      } catch {
+        return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] });
       }
     }
     if (url.pathname !== "/api/execute") return json({ error: "Not Found" }, 404);
