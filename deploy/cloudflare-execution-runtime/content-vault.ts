@@ -24,6 +24,12 @@ const AES_GCM_IV_BYTES = 12;
 const AES_256_KEY_BYTES = 32;
 const AAD_VERSION = 1;
 
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+};
+
 const encodeBase64Url = (bytes: Uint8Array): string => {
   let binary = "";
   for (let offset = 0; offset < bytes.length; offset += 0x8000) {
@@ -48,7 +54,7 @@ const importVaultKey = async (secret: string): Promise<CryptoKey> => {
     throw new Error("content-vault-key-invalid");
   }
   if (raw.byteLength !== AES_256_KEY_BYTES) throw new Error("content-vault-key-invalid");
-  return crypto.subtle.importKey("raw", raw, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+  return crypto.subtle.importKey("raw", toArrayBuffer(raw), { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 };
 
 const additionalData = (record: Pick<EncryptedContentRecord, "contentId" | "conversationId" | "role">): Uint8Array =>
@@ -60,7 +66,7 @@ const additionalData = (record: Pick<EncryptedContentRecord, "contentId" | "conv
   ]));
 
 const sha256 = async (value: Uint8Array): Promise<string> =>
-  encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", value)));
+  encodeBase64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", toArrayBuffer(value))));
 
 const secureEqualText = (left: string, right: string): boolean => {
   if (left.length !== right.length) return false;
@@ -91,9 +97,14 @@ export const encryptConversationContent = async (
     role: input.role,
   } satisfies Pick<EncryptedContentRecord, "contentId" | "conversationId" | "role">;
   const encrypted = await crypto.subtle.encrypt(
-    { name: "AES-GCM", iv, additionalData: additionalData(recordIdentity), tagLength: 128 },
+    {
+      name: "AES-GCM",
+      iv: toArrayBuffer(iv),
+      additionalData: toArrayBuffer(additionalData(recordIdentity)),
+      tagLength: 128,
+    },
     key,
-    plaintext,
+    toArrayBuffer(plaintext),
   );
 
   return {
@@ -120,9 +131,14 @@ export const decryptConversationContent = async (
     if (iv.byteLength !== AES_GCM_IV_BYTES) throw new Error("content-vault-iv-invalid");
     const ciphertext = decodeBase64Url(record.ciphertext);
     const decrypted = new Uint8Array(await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv, additionalData: additionalData(record), tagLength: 128 },
+      {
+        name: "AES-GCM",
+        iv: toArrayBuffer(iv),
+        additionalData: toArrayBuffer(additionalData(record)),
+        tagLength: 128,
+      },
       key,
-      ciphertext,
+      toArrayBuffer(ciphertext),
     ));
     const digest = await sha256(decrypted);
     if (!secureEqualText(digest, record.contentHash)) throw new Error("content-vault-hash-mismatch");
