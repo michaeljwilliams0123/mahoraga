@@ -22,7 +22,7 @@ permissions:
 
 concurrency:
   group: mahoraga-release-${{ github.event_name == 'workflow_run' && 'automatic' || inputs.channel }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   release:
