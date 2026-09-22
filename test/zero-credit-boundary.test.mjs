@@ -41,13 +41,12 @@ test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted A
 });
 
 
-test("release and Steward workflows use the proven self-hosted Linux lane", async () => {
-  for (const relative of [
-    ".github/workflows/release.yml",
-    ".github/workflows/steward-two-hour-learning.yml",
-  ]) {
-    const workflow = await readFile(path.join(root, relative), "utf8");
-    assert.match(workflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
-    assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
-  }
+test("release uses hosted Linux while Steward keeps the proven self-hosted lane", async () => {
+  const releaseWorkflow = await readFile(path.join(root, ".github/workflows/release.yml"), "utf8");
+  assert.match(releaseWorkflow, /runs-on:\s*ubuntu-latest/i);
+  assert.doesNotMatch(releaseWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+
+  const stewardWorkflow = await readFile(path.join(root, ".github/workflows/steward-two-hour-learning.yml"), "utf8");
+  assert.match(stewardWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*ubuntu-latest/i);
 });
