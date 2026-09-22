@@ -35,7 +35,7 @@ jobs:
           POLICY: ${{ inputs.route_policy }}
           CAP: ${{ inputs.max_parallel }}
         run: node -e 'const fs=require("node:fs"),ids=process.env.IDS.split(",").map(x=>x.trim()).filter(Boolean),cap=Number(process.env.CAP);if(!ids.length||ids.length>8||!Number.isInteger(cap)||cap<1||cap>8)throw Error("fabric-input-invalid");fs.writeFileSync(process.env.RUNNER_TEMP+"/fabric-plan.json",JSON.stringify({ids,policy:process.env.POLICY,maxParallel:cap,exactHead:process.env.GITHUB_SHA},null,2))'
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: workspace-fabric-plan-${{ github.run_id }}
           path: ${{ runner.temp }}/fabric-plan.json

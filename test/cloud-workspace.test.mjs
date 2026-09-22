@@ -29,7 +29,7 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);
   assert.match(workspace, /RuntimeRelay/);
   assert.match(workspace, /chat:\s*"workspace".*work:\s*"work".*files:\s*"files".*advanced:\s*"advanced"/s);
-  assert.match(workspace, /Execution stays with the paired core/i);
+  assert.match(workspace, /encrypted relay remains the execution path/i);
   assert.match(workspace, /browser never stores GitHub credentials/i);
   await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
   assert.match(docs, /single cloud-hosted workspace and only browser UI/i);
@@ -68,7 +68,8 @@ test("cloud gateway workflow is owner-only, event-file parsed, and model-free", 
 
 test("terminal runtime work cannot silently return the chat to idle without a rendered reply", async () => {
   const workspace = await read("cloud-app/components/workspace.tsx");
-  assert.match(workspace, /terminalWithoutResponsePolls/);
+  assert.match(workspace, /settledWithoutResponsePolls/);
+  assert.match(workspace, /runtimeTaskPhase/);
   assert.match(workspace, /runtime-response-missing/);
   assert.match(workspace, /setRuntimeError\(runtimeErrorMessage\("runtime-response-missing"\)\)/);
 });

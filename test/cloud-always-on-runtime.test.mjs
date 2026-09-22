@@ -49,7 +49,7 @@ test("cloud supervisor shutdown is safe before idle liveness initialization", as
 });
 
 test("cloud runtime keeps core loopback-only and secrets in server environment", async () => {
-  const [service, gateway, action, edge] = await Promise.all([read("scripts/cloud-service.mjs"), read("cloud-app/lib/cloud-owner-gateway.ts"), read("cloud-app/app/api/runtime/action/route.ts"), read("deploy/cloudflare-owner-gateway/worker.mjs")]);
+  const [service, gateway, action, dispatcher, edge] = await Promise.all([read("scripts/cloud-service.mjs"), read("cloud-app/lib/cloud-owner-gateway.ts"), read("cloud-app/app/api/runtime/action/route.ts"), read("cloud-app/lib/cloud-runtime-action.ts"), read("deploy/cloudflare-owner-gateway/worker.mjs")]);
   assert.match(service, /127\.0\.0\.1:4782/);
   assert.match(service, /const stateRoot = "\/var\/lib\/mahoraga"/);
   assert.match(service, /127\.0\.0\.1:3000\/api\/live/);
@@ -66,12 +66,13 @@ test("cloud runtime keeps core loopback-only and secrets in server environment",
   assert.match(gateway, /x-mahoraga-owner-signature/);
   assert.match(gateway, /timingSafeEqual/);
   assert.match(gateway, /request_nonces/);
-  assert.match(action, /cloud-action-not-allowed/);
+  assert.match(action, /dispatchCloudRuntimeAction/);
+  assert.match(dispatcher, /cloud-action-not-allowed/);
   assert.match(edge, /ctx\?\.access/);
   assert.match(edge, /ctx\.access\.getIdentity/);
   assert.doesNotMatch(edge, /request\.headers\.get\("cf-access-authenticated-user-email"\)/);
   assert.match(edge, /crypto\.subtle\.sign\("HMAC"/);
-  assert.doesNotMatch(action, /child_process|exec\(|spawn\(|port.forward|reverse.shell/i);
+  assert.doesNotMatch(`${action}\n${dispatcher}`, /child_process|exec\(|spawn\(|port.forward|reverse.shell/i);
 });
 
 test("objective release uses explicit injection rather than method monkey-patching", async () => {
