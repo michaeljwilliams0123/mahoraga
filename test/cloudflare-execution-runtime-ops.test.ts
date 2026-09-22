@@ -66,12 +66,15 @@ test("Windows Wrangler deployment launches npx through cmd.exe", () => {
   assert.deepEqual(buildNpxProcess(["--version"], "linux"), { command: "npx", args: ["--version"] });
 });
 
-test("acceptance probe proves Access auth, stale-SHA rejection, execution, and replay", async () => {
+test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution, and replay", async () => {
   const requests: Request[] = [];
   const firstBody = { executed: true, data: { probe: "first" }, timestamp: 123 };
   const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     requests.push(request);
+    if (request.method === "GET" && request.headers.get("cf-access-token") === null) {
+      return new Response("Access denied", { status: 403 });
+    }
     if (request.method === "GET") {
       return Response.json({ status: "ready", sha: SHA });
     }
@@ -96,6 +99,7 @@ test("acceptance probe proves Access auth, stale-SHA rejection, execution, and r
   assert.equal(receipt.status, "accepted");
   assert.equal(receipt.targetSha, SHA);
   assert.equal(receipt.observedAt, "2026-09-21T22:00:00.000Z");
+  assert.equal(receipt.accessProtected, true);
   assert.equal(receipt.ready, true);
   assert.equal(receipt.staleShaRejected, true);
   assert.equal(receipt.executed, true);
@@ -103,8 +107,9 @@ test("acceptance probe proves Access auth, stale-SHA rejection, execution, and r
   assert.equal(JSON.stringify(receipt).includes("secret-access-token"), false);
   assert.equal(JSON.stringify(receipt).includes("probe"), false);
 
-  assert.equal(requests.length, 4);
-  for (const request of requests) {
+  assert.equal(requests.length, 5);
+  assert.equal(requests[0]?.headers.get("cf-access-token"), null);
+  for (const request of requests.slice(1)) {
     assert.equal(request.headers.get("cf-access-token"), "secret-access-token");
   }
   const correctPosts = requests.filter((request) => request.method === "POST" && request.headers.get("x-target-sha") === SHA);
@@ -120,6 +125,9 @@ test("acceptance probe supports Cloudflare Access service-token headers", async 
   const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {
     const request = new Request(input, init);
     requests.push(request);
+    if (request.method === "GET" && request.headers.get("cf-access-client-id") === null) {
+      return new Response("Access denied", { status: 403 });
+    }
     if (request.method === "GET") return Response.json({ status: "ready", sha: SHA });
     if (request.headers.get("x-target-sha") !== SHA) return Response.json({ error: "sha" }, { status: 412 });
     const body = { executed: true };
@@ -135,10 +143,26 @@ test("acceptance probe supports Cloudflare Access service-token headers", async 
     fetchImpl,
   });
   assert.equal(receipt.status, "accepted");
-  for (const request of requests) {
+  assert.equal(receipt.accessProtected, true);
+  assert.equal(requests[0]?.headers.get("cf-access-client-id"), null);
+  assert.equal(requests[0]?.headers.get("cf-access-client-secret"), null);
+  for (const request of requests.slice(1)) {
     assert.equal(request.headers.get("cf-access-client-id"), "client-id.access");
     assert.equal(request.headers.get("cf-access-client-secret"), "client-secret");
     assert.equal(request.headers.get("cf-access-token"), null);
   }
   assert.equal(JSON.stringify(receipt).includes("client-secret"), false);
+});
+
+test("acceptance probe fails when Access does not protect the runtime", async () => {
+  const fetchImpl = async (): Promise<Response> => Response.json({ status: "ready", sha: SHA });
+  await assert.rejects(
+    runAcceptanceProbe({
+      accessToken: "secret-access-token",
+      baseUrl: BASE_URL,
+      targetSha: SHA,
+      fetchImpl,
+    }),
+    /accept-access-not-enforced/,
+  );
 });

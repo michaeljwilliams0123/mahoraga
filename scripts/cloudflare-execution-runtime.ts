@@ -22,6 +22,7 @@ export type AcceptanceReceipt = Readonly<{
   kind: "cloudflare-execution-runtime-acceptance";
   status: "accepted";
   targetSha: string;
+  accessProtected: true;
   ready: true;
   staleShaRejected: true;
   executed: true;
@@ -144,6 +145,15 @@ export async function runAcceptanceProbe(input: {
   const fetchImpl = input.fetchImpl ?? fetch;
   const now = input.now ?? (() => new Date().toISOString());
 
+  const unauthenticatedResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
+    method: "GET",
+    headers: { "cache-control": "no-store" },
+    redirect: "manual",
+  });
+  if (unauthenticatedResponse.status >= 200 && unauthenticatedResponse.status < 300) {
+    throw new Error("accept-access-not-enforced");
+  }
+
   const readyResponse = await fetchImpl(new URL("/api/ready", baseUrl), {
     method: "GET",
     headers: accessHeaders,
@@ -188,6 +198,7 @@ export async function runAcceptanceProbe(input: {
     kind: "cloudflare-execution-runtime-acceptance",
     status: "accepted",
     targetSha,
+    accessProtected: true,
     ready: true,
     staleShaRejected: true,
     executed: true,
