@@ -56,12 +56,15 @@ test("legacy duplicate UI entry points stay retired and Pages publishes cloud-ap
   assert.doesNotMatch(integration, /DEPLOY_PAGES/);
 });
 
-test("cloud gateway workflow is owner-only, event-file parsed, and model-free", async () => {
+test("cloud gateway workflow is owner-only, explicitly dispatched, and model-free", async () => {
   const workflow = await read(".github/workflows/cloud-task-gateway.yml");
-  assert.match(workflow, /issue_comment:/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /issue_number:/);
+  assert.match(workflow, /command:/);
+  assert.doesNotMatch(workflow, /^\s*issue_comment\s*:/m);
   assert.match(workflow, /github\.actor == github\.repository_owner/);
-  assert.match(workflow, /startsWith\(github\.event\.comment\.body, '\/mahoraga dispatch '\)/);
-  assert.match(workflow, /--event "\$GITHUB_EVENT_PATH"/);
+  assert.match(workflow, /Build owner-approved issue event/);
+  assert.match(workflow, /--event "\$EVENT_FILE"/);
   assert.match(workflow, /node scripts\/coordination\.mjs validate/);
   assert.match(workflow, /node scripts\/codex-cloud-task\.mjs dispatch-bundle/);
   assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex exec|\$\{\{\s*secrets\./);
