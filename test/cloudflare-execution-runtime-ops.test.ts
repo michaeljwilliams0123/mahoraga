@@ -113,3 +113,32 @@ test("acceptance probe proves Access auth, stale-SHA rejection, execution, and r
   assert.equal(correctPosts[1]?.headers.get("x-idempotency-key"), "acceptance-key");
   assert.notEqual(await correctPosts[0]?.clone().text(), await correctPosts[1]?.clone().text());
 });
+
+
+test("acceptance probe supports Cloudflare Access service-token headers", async () => {
+  const requests: Request[] = [];
+  const fetchImpl = async (input: RequestInfo | globalThis.URL, init?: RequestInit): Promise<Response> => {
+    const request = new Request(input, init);
+    requests.push(request);
+    if (request.method === "GET") return Response.json({ status: "ready", sha: SHA });
+    if (request.headers.get("x-target-sha") !== SHA) return Response.json({ error: "sha" }, { status: 412 });
+    const body = { executed: true };
+    const prior = requests.filter((item) => item.method === "POST" && item.headers.get("x-target-sha") === SHA);
+    return Response.json(body, prior.length > 1 ? { headers: { "x-idempotent-replay": "true" } } : undefined);
+  };
+  const receipt = await runAcceptanceProbe({
+    accessClientId: "client-id.access",
+    accessClientSecret: "client-secret",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    idempotencyKey: "service-auth-key",
+    fetchImpl,
+  });
+  assert.equal(receipt.status, "accepted");
+  for (const request of requests) {
+    assert.equal(request.headers.get("cf-access-client-id"), "client-id.access");
+    assert.equal(request.headers.get("cf-access-client-secret"), "client-secret");
+    assert.equal(request.headers.get("cf-access-token"), null);
+  }
+  assert.equal(JSON.stringify(receipt).includes("client-secret"), false);
+});
