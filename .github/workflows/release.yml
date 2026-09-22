@@ -35,8 +35,8 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository &&
        (github.event.workflow_run.event == 'push' ||
         (github.event.workflow_run.event == 'workflow_dispatch' && github.event.workflow_run.actor.login == 'github-actions[bot]')))
-    # Deterministic repository work must not depend on hosted Actions billing admission.
-    runs-on: [self-hosted, linux, x64]
+    # Exact-SHA release packaging is portable and intentionally uses hosted Linux during cloud migration.
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - name: Check out authoritative main
