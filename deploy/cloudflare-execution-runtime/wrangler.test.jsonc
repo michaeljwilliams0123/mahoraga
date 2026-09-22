@@ -1,9 +1,8 @@
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
-  "name": "mahoraga-execution-runtime",
+  "name": "mahoraga-execution-runtime-test",
   "main": "worker.ts",
   "compatibility_date": "2026-09-21",
-  "ai": { "binding": "AI" },
   "durable_objects": {
     "bindings": [
       { "name": "EXECUTION_DO", "class_name": "ExecutionDurableObject" }
@@ -11,6 +10,5 @@
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ExecutionDurableObject"] }
-  ],
-  "observability": { "enabled": true }
+  ]
 }
