@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
+import { invokeWorkersAi } from "./provider-invoker";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
@@ -113,7 +114,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const capability = projectPersistedAssistantCapability(providerState);
       if (!capability.routable) return json({ error: "Cognition provider unavailable", reasonCode: capability.providerReasonCode }, 503);
 
-      const providerResult = await this.env.AI.run(ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
+      const providerResult = await invokeWorkersAi(this.env.AI, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
       const answer = extractAnswer(providerResult);
       if (answer === null) return json({ error: "Cognition provider returned invalid response" }, 502);
 
