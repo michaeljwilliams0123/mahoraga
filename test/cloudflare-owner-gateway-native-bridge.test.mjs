@@ -59,6 +59,46 @@ test("native bridge advertises assistant.respond as unavailable instead of inven
     assert.match(body.capabilities[0].routingReason, /provider/i);
   });
 });
+
+test("native bridge projects assistant.respond from the Cloudflare execution runtime binding", async () => {
+  let calls = 0;
+  const executionRuntime = {
+    async fetch(request) {
+      calls += 1;
+      const url = new URL(request.url);
+      assert.equal(url.pathname, "/api/capabilities");
+      return new Response(JSON.stringify({
+        capabilities: [{
+          capability: "assistant.respond",
+          routable: true,
+          enabled: true,
+          provider: "cloudflare-workers-ai",
+          workerIds: [],
+          routingReason: null,
+          providerReasonCode: null,
+          evidenceLevel: "runtime-probe",
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    },
+  };
+
+  await withoutUpstream(async () => {
+    const request = new Request(`${base}/api/runtime/pages-bridge/action`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: base },
+      body: JSON.stringify({ type: "capabilities", payload: {} }),
+    });
+    const response = await gateway.fetch(request, { ...env, MAHORAGA_EXECUTION_RUNTIME: executionRuntime }, access);
+    assert.equal(response.status, 200);
+    assert.equal(calls, 1);
+    const body = await response.json();
+    assert.equal(body.capabilities[0].provider, "cloudflare-workers-ai");
+    assert.equal(body.capabilities[0].routable, true);
+    assert.equal(body.capabilities[0].enabled, true);
+    assert.equal(body.capabilities[0].routingReason, null);
+  });
+});
+
 test("native bridge rejects unavailable chat without falling through to Railway", async () => {
   await withoutUpstream(async () => {
     const request = new Request(`${base}/api/runtime/pages-bridge/action`, {

@@ -59,6 +59,66 @@ function bridgeFrame(pagesOrigin) {
 })();
 </script></body></html>`;
 }
+
+function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pending") {
+  return {
+    capability: "assistant.respond",
+    routable: false,
+    enabled: false,
+    provider: "cloudflare-native",
+    workerIds: [],
+    routingReason: "provider.gap",
+    providerReasonCode: reasonCode,
+    evidenceLevel: "runtime-probe",
+  };
+}
+
+function boundedCapability(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  if (value.capability !== "assistant.respond" || typeof value.routable !== "boolean" || typeof value.enabled !== "boolean") return null;
+  if (value.routable !== value.enabled) return null;
+  if (typeof value.provider !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(value.provider)) return null;
+  if (value.evidenceLevel !== "runtime-probe") return null;
+  const routingReason = value.routingReason === null ? null : value.routingReason;
+  const providerReasonCode = value.providerReasonCode === null ? null : value.providerReasonCode;
+  if (routingReason !== null && (typeof routingReason !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(routingReason))) return null;
+  if (providerReasonCode !== null && (typeof providerReasonCode !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(providerReasonCode))) return null;
+  if (value.routable && (routingReason !== null || providerReasonCode !== null)) return null;
+  if (!value.routable && routingReason === null) return null;
+  return {
+    capability: "assistant.respond",
+    routable: value.routable,
+    enabled: value.enabled,
+    provider: value.provider,
+    workerIds: [],
+    routingReason,
+    providerReasonCode,
+    evidenceLevel: "runtime-probe",
+  };
+}
+
+async function runtimeCapabilities(env) {
+  const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
+  if (!binding || typeof binding.fetch !== "function") {
+    return { capabilities: [pendingAssistantCapability()] };
+  }
+  try {
+    const response = await binding.fetch(new Request("https://mahoraga-execution-runtime/api/capabilities", {
+      method: "GET",
+      headers: { accept: "application/json" },
+    }));
+    if (!response.ok) return { capabilities: [pendingAssistantCapability("execution-runtime-unavailable")] };
+    const body = await response.json();
+    if (!body || typeof body !== "object" || Array.isArray(body) || !Array.isArray(body.capabilities)) {
+      return { capabilities: [pendingAssistantCapability("execution-runtime-evidence-invalid")] };
+    }
+    const capability = boundedCapability(body.capabilities.find((entry) => entry?.capability === "assistant.respond"));
+    return { capabilities: [capability ?? pendingAssistantCapability("execution-runtime-evidence-invalid")] };
+  } catch {
+    return { capabilities: [pendingAssistantCapability("execution-runtime-unavailable")] };
+  }
+}
+
 async function nativeBridgeResponse(request, requestUrl, env) {
   if (requestUrl.pathname === "/" && request.method === "GET") {
     return json({
@@ -85,9 +145,7 @@ async function nativeBridgeResponse(request, requestUrl, env) {
   if (requestUrl.pathname === "/api/runtime/pages-bridge/action" && request.method === "POST") {
     const value = await request.json().catch(() => null);
     if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "cloud-action-not-allowed" }, 400);
-    if (value.type === "capabilities") {
-      return json({ capabilities: [{ capability: "assistant.respond", routable: false, enabled: false, provider: "cloudflare-native", workerIds: [], routingReason: "provider.gap", providerReasonCode: "cloudflare-native-provider-pending", evidenceLevel: "runtime-probe" }] });
-    }
+    if (value.type === "capabilities") return json(await runtimeCapabilities(env));
     return json({ error: "cloud-native-capability-unavailable" }, 503);
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/artifacts") return json({ error: "cloud-native-artifact-unavailable" }, 503);
