@@ -6,5 +6,9 @@ compatibility_date = "2026-09-01"
 MAHORAGA_RUNTIME_ORIGIN = "https://mahoraga-runtime-main-production.up.railway.app/"
 MAHORAGA_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io/"
 
+[[services]]
+binding = "MAHORAGA_EXECUTION_RUNTIME"
+service = "mahoraga-execution-runtime"
+
 [secrets]
 required = ["MAHORAGA_CLOUD_OWNER_ID", "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET"]
