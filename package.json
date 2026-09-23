@@ -63,7 +63,8 @@
     "language:verify": "node scripts/language-policy.ts",
     "verify:fast": "npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none --test-concurrency=1 test/verification-workflow.test.mjs test/github-live-protection.test.mjs test/release-baseline.test.mjs test/repository-head.test.mjs test/autonomous-integration.test.mjs test/return-reconciler.test.mjs test/composio-tool-client.test.mjs cloud-app/test/composio-integration-contract.test.mjs cloud-app/test/runtime-truth.test.mjs test/workspace-agent-receiver.test.mjs test/destiny-trigger-trust.test.mjs test/railway-exact-sha-promotion.test.mjs test/mahoraga-core-types.test.ts test/verification-pipeline.test.ts",
     "cloudflare:execution-runtime:deploy": "node scripts/cloudflare-execution-runtime.ts deploy",
-    "cloudflare:execution-runtime:accept": "node scripts/cloudflare-execution-runtime.ts accept"
+    "cloudflare:execution-runtime:accept": "node scripts/cloudflare-execution-runtime.ts accept",
+    "cloudflare:workspace:build": "node scripts/build-pages-static.mjs --cloudflare"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",

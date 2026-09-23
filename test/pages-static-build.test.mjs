@@ -141,6 +141,27 @@ test("Pages artifact inspection rejects redirect-only or assetless entry points"
   await assert.rejects(() => inspectPagesStaticArtifact(assetless), /pages-static-artifact-entry-invalid/);
 });
 
+test("Cloudflare root export uses root asset paths and keeps server routes out of the artifact", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "mahoraga-cloudflare-static-test-"));
+  const output = path.join(root, "out");
+  await mkdir(path.join(output, "_next", "static"), { recursive: true });
+  await writeFile(path.join(output, "index.html"), '<!doctype html><script src="/_next/static/app.js"></script>');
+  await writeFile(path.join(output, "_next", "static", "app.js"), 'console.log("Mahoraga")');
+  await inspectPagesStaticArtifact(output, { target: "cloudflare" });
+  await assert.rejects(() => inspectPagesStaticArtifact(output), /pages-static-artifact-entry-invalid/);
+  const healthTarget = path.join(root, "staging");
+  await writePagesStaticHealth(healthTarget, { MAHORAGA_STATIC_EXPORT_TARGET: "cloudflare" });
+  const health = JSON.parse(await readFile(path.join(healthTarget, "public", "api", "health.json"), "utf8"));
+  assert.equal(health.deployment.provider, "cloudflare-workers");
+  assert.equal(health.deployment.promotion, "unverified-cloudflare-static");
+  const config = JSON.parse(await readFile(new URL("../deploy/cloudflare-workspace/wrangler.jsonc", import.meta.url), "utf8"));
+  assert.equal(config.name, "mahoraga-workspace-candidate");
+  assert.equal(config.assets.directory, "../../cloud-app/out");
+  assert.equal(config.assets.html_handling, "auto-trailing-slash");
+  assert.equal(config.assets.not_found_handling, "404-page");
+  assert.equal(config.main, undefined);
+});
+
 
 test("Pages workflow builds and inspects pull requests without publishing them", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
