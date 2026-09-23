@@ -12,6 +12,12 @@ function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : "unavailable";
 }
 
+type ReadyObservation = {
+  status: string | null;
+  sha: string | null;
+  durableState: string | null;
+};
+
 function StatusCard({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral" }) {
   return (
     <article className={`eclipse-status-card ${tone}`}>
@@ -60,18 +66,29 @@ export function CockpitView({
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
-  const [readinessOk, setReadinessOk] = useState(false);
+  const [readyObservation, setReadyObservation] = useState<ReadyObservation>({ status: null, sha: null, durableState: null });
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
   useEffect(() => {
     let active = true;
-    setReadinessOk(false);
+    setReadyObservation({ status: null, sha: null, durableState: null });
     void fetch("/api/ready")
-      .then((response) => { if (active) setReadinessOk(response.ok); })
-      .catch(() => { if (active) setReadinessOk(false); });
+      .then(async (response) => {
+        const payload = await response.json().catch(() => null) as { status?: string; sha?: string; durableState?: string } | null;
+        if (!active) return;
+        setReadyObservation({
+          status: payload?.status ?? (response.ok ? "ready" : "unavailable"),
+          sha: payload?.sha ?? null,
+          durableState: payload?.durableState ?? null,
+        });
+      })
+      .catch(() => {
+        if (active) setReadyObservation({ status: "unavailable", sha: null, durableState: null });
+      });
     return () => { active = false; };
   }, [coreReady]);
 
+  const readinessOk = readyObservation.status === "ready" || readyObservation.status === "ok";
   const readyOk = coreReady && readinessOk;
 
   return (
@@ -113,7 +130,9 @@ export function CockpitView({
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={railwayExactSha ? "Railway exact-SHA" : deploymentProvider} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
-        <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"} detail={readyOk ? "Live health OK and core session paired" : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard label="Execution readiness" value={readyObservation.status ?? "pending"} detail={`Observational /api/ready only · SHA ${shortSha(readyObservation.sha)} · durable-state ${readyObservation.durableState ?? "unknown"}`} tone={readinessOk ? "good" : "neutral"} />
+        <StatusCard label="Traffic authority" value="Separate claim" detail="Must not be inferred from /api/ready after #734. Hop identity cloudflare-execution-runtime is not an authority claim." tone="warn" />
+        <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"} detail={readyOk ? "Execution/durable-state ready and core session paired · not traffic authority" : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"} />
         <StatusCard label="Deployment convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
@@ -166,7 +185,7 @@ export function CockpitView({
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
-            <div><dt>Liveness/readiness</dt><dd>provenance probe and rollback remain</dd></div>
+            <div><dt>Liveness/readiness</dt><dd>{readyObservation.status ?? "pending"} · SHA {shortSha(readyObservation.sha)} · durable-state {readyObservation.durableState ?? "unknown"} · hop cloudflare-execution-runtime is not an authority claim</dd></div>
           </dl>
         </section>
 
