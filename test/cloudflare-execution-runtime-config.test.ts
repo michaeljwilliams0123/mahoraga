@@ -10,3 +10,14 @@ test("checked-in Wrangler config carries no deploy provenance", () => {
   assert.equal(config.includes("TARGET_SHA"), false);
   assert.equal(config.includes("RAILWAY_ANCHOR_URL"), false);
 });
+
+test("execution runtime fails deployment when protected secrets are missing", () => {
+  const config = JSON.parse(readFileSync(configPath, "utf8")) as {
+    secrets?: { required?: string[] };
+  };
+  assert.deepEqual(config.secrets?.required, [
+    "BYPASS_SECRET",
+    "CONTENT_VAULT_KEY",
+    "OWNER_GATEWAY_SECRET",
+  ]);
+});
