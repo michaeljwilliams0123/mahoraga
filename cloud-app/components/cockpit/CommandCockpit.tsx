@@ -205,7 +205,7 @@ export function CommandCockpit({
             Cloudflare candidate browser: {CLOUDFLARE_WORKSPACE_CANDIDATE} · promotion unverified-cloudflare-static. GitHub Pages remains a presentation/export fallback. Runtime execution and traffic authority remain independently gated.
           </p>
           <p>
-            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer values are never shown, logged, or persisted here.
+            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here.
           </p>
           <p role="status">
             Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
