@@ -33,9 +33,14 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /Source Truth/);
   assert.match(cockpit, /Deployment Truth/);
   assert.match(cockpit, /Live-Runtime Truth/);
-  assert.match(cockpit, /Railway exact-SHA runtime/);
-  assert.match(cockpit, /GitHub Pages hosts the published static workspace/);
-  assert.match(cockpit, /encrypted relay remains the execution path/);
+  assert.match(cockpit, /Cloudflare root-path candidate/);
+  assert.match(cockpit, /mahoraga-workspace-candidate\.mahoraga-mjw0123\.workers\.dev/);
+  assert.match(cockpit, /unverified-cloudflare-static/);
+  assert.match(cockpit, /response\.json/);
+  assert.match(cockpit, /durableState/);
+  assert.match(cockpit, /cloudflare-execution-runtime is hop identity only/);
+  assert.match(cockpit, /Traffic authority/);
+  assert.doesNotMatch(cockpit, /GitHub Pages hosts the published static workspace/);
   assert.match(cockpit, /Expected SHA/);
   assert.match(cockpit, /Promotion mode/);
   assert.match(cockpit, /Deployment URL/);
