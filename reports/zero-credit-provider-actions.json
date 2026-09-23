@@ -1,0 +1,11 @@
+{
+  "actions": [
+    "reject-account-wide-downgrade",
+    "select-isolated-standalone-free-account",
+    "add-idempotent-provisioning-workflow",
+    "keep-provider-fail-closed-until-proof"
+  ],
+  "paidInferenceInvoked": false,
+  "railwayChanged": false,
+  "trafficAuthorityChanged": false
+}
