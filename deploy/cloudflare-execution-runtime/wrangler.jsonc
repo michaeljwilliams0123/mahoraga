@@ -12,5 +12,8 @@
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["ExecutionDurableObject"] }
   ],
+  "secrets": {
+    "required": ["BYPASS_SECRET", "CONTENT_VAULT_KEY", "OWNER_GATEWAY_SECRET"]
+  },
   "observability": { "enabled": true }
 }
