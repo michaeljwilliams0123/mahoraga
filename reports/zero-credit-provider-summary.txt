@@ -1,1 +1,0 @@
-Selected route: isolated standalone Cloudflare Workers Free account. Existing paid account remains unchanged. Live cognition stays fail-closed until independent Free-account proof.
