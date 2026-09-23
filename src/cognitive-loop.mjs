@@ -5,7 +5,7 @@ import { resolveCollectiveDissent } from './collective-dissent-resolution.mjs';
 import { simulateCounterfactual } from './cognitive-world-model.mjs';
 import { planWorldStateActions } from './objective-planner.mjs';
 
-export function runCognitiveLoop(input) {
+export function runCognitiveLoop(input, { now = Date.now() } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) fail('cognitive-loop-invalid');
   const participants = selectCollectiveParticipants({
     members: input.members,
@@ -24,13 +24,13 @@ export function runCognitiveLoop(input) {
     materialConflictCount: Math.max(suppliedMetacognition.materialConflictCount, dissentResolution.blockingCount),
     reversible: suppliedMetacognition.reversible,
   });
-  const planned = planWorldStateActions(input.plannerSnapshot, { now: Date.parse('2026-09-15T09:00:00.000Z') });
-  const plan = gateAutomaticMutation(planned, metacognitive.proceed && dissentResolution.blockingCount === 0);
+  const planned = planWorldStateActions(input.plannerSnapshot, { now });
   const resolvedDeliberationDecision = deliberation.materialDissent.length > 0 && dissentResolution.blockingCount === 0 && dissentResolution.alternativeSupport.qualified ? dissentResolution.alternativeSupport.conclusion : deliberation.decision;
   const prediction = simulateCounterfactual({ observedState: input.observedState, stateUncertainty: input.stateUncertainty, action: input.proposedAction });
   const predictionAdmissible = prediction.predictedUncertainty <= 0.7;
   const decision = metacognitive.proceed && resolvedDeliberationDecision !== 'hold' && predictionAdmissible ? resolvedDeliberationDecision : 'hold';
   const decisionGate = dissentResolution.escalationCount > 0 ? 'dissent-escalation' : dissentResolution.blockingCount > 0 ? 'material-dissent' : !metacognitive.proceed ? 'metacognition-hold' : resolvedDeliberationDecision === 'hold' ? 'collective-hold' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
+  const plan = gateAutomaticMutation(planned, decision !== 'hold' && decisionGate === 'admitted');
   const evidenceRefs = [...new Set(positions.flatMap((item) => item.evidenceRefs))].sort();
   const core = {
     schemaVersion: 1,
@@ -68,5 +68,4 @@ function publicDeliberation(value) {
 function digest(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function deepFreeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value)) deepFreeze(child); } return value; }
 function fail(code) { const error = new TypeError(code); error.code = code; throw error; }
-
 
