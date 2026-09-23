@@ -39,6 +39,54 @@ function jsonRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 }
 
+function accessHeaders(input: {
+  accessToken?: string;
+  accessClientId?: string;
+  accessClientSecret?: string;
+}): Headers {
+  const token = input.accessToken?.trim() ?? "";
+  const clientId = input.accessClientId?.trim() ?? "";
+  const clientSecret = input.accessClientSecret?.trim() ?? "";
+  if (token && (clientId || clientSecret)) throw new Error("accept-access-credentials-ambiguous");
+  const headers = new Headers({ "cache-control": "no-store" });
+  if (token) {
+    headers.set("cf-access-token", token);
+    return headers;
+  }
+  if (!clientId || !clientSecret) throw new Error("accept-access-credentials-missing");
+  headers.set("cf-access-client-id", clientId);
+  headers.set("cf-access-client-secret", clientSecret);
+  return headers;
+}
+
+async function assertProviderAdmitted(input: {
+  accessToken?: string;
+  accessClientId?: string;
+  accessClientSecret?: string;
+  baseUrl?: string;
+}, fetchImpl: typeof fetch): Promise<void> {
+  let url: URL;
+  try { url = new URL("/api/capabilities", input.baseUrl ?? DEFAULT_RUNTIME_URL); }
+  catch { throw new Error("accept-runtime-url-invalid"); }
+  const response = await fetchImpl(url, {
+    method: "GET",
+    headers: accessHeaders(input),
+    redirect: "manual",
+  });
+  if (response.status !== 200) throw new Error(`accept-provider-preflight-${response.status}`);
+  let body: unknown;
+  try { body = await response.json(); } catch { throw new Error("accept-provider-preflight-json-invalid"); }
+  const record = jsonRecord(body);
+  const capabilities = Array.isArray(record?.capabilities) ? record.capabilities : [];
+  const assistant = capabilities.map(jsonRecord).find((item) => item?.capability === "assistant.respond") ?? null;
+  if (assistant?.routable !== true || assistant.enabled !== true) {
+    const rawReason = typeof assistant?.providerReasonCode === "string" ? assistant.providerReasonCode : "provider-not-admitted";
+    const reason = /^[a-z0-9.-]{1,120}$/i.test(rawReason) ? rawReason : "provider-not-admitted";
+    throw new Error(`accept-provider-not-admitted:${reason}`);
+  }
+  if (assistant.provider !== EXPECTED_PROVIDER_ID) throw new Error("accept-provider-preflight-id-mismatch");
+}
+
 export async function runProductionAcceptance(input: {
   accessToken?: string;
   accessClientId?: string;
@@ -53,6 +101,7 @@ export async function runProductionAcceptance(input: {
   sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<ProductionAcceptanceReceipt> {
   const fetchImpl = input.fetchImpl ?? fetch;
+  await assertProviderAdmitted(input, fetchImpl);
   let successfulCloudflareExecutions = 0;
 
   const evidenceFetch: typeof fetch = async (requestInput, requestInit) => {
