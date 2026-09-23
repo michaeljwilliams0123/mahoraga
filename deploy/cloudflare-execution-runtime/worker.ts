@@ -5,6 +5,7 @@ import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceip
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
+const GATEWAY_ASSERTION_TTL_MS = 60_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
@@ -69,19 +70,19 @@ const boundedId = (value: unknown): value is string => typeof value === "string"
 const objectValue = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const safeError = (error: unknown): string => error instanceof Error && /^content-vault-[a-z-]+$/.test(error.message) ? error.message : "cognition-provider-failed";
 
-async function verifyGatewayAssertion(request: Request, body: string, secret: string): Promise<string | null> {
+async function verifyGatewayAssertion(request: Request, body: string, secret: string): Promise<{ owner: string; nonce: string } | null> {
   const owner = request.headers.get("x-mahoraga-owner") ?? "";
   const timestamp = request.headers.get("x-mahoraga-owner-timestamp") ?? "";
   const nonce = request.headers.get("x-mahoraga-owner-nonce") ?? "";
   const signature = request.headers.get("x-mahoraga-owner-signature") ?? "";
-  if (typeof secret !== "string" || secret.length < 32 || !owner || owner.length > 320 || !/^\d{13}$/.test(timestamp) || Math.abs(Date.now() - Number(timestamp)) > 60_000 || !/^[a-f0-9-]{36}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  if (typeof secret !== "string" || secret.length < 32 || !owner || owner.length > 320 || !/^\d{13}$/.test(timestamp) || Math.abs(Date.now() - Number(timestamp)) > GATEWAY_ASSERTION_TTL_MS || !/^[a-f0-9-]{36}$/.test(nonce) || !/^[a-f0-9]{64}$/.test(signature)) return null;
   const digest = await digestText(body);
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const expected = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${owner}\n${timestamp}\n${nonce}\n${digest}`)));
   const actual = Uint8Array.from(signature.match(/../g)!, (hex) => parseInt(hex, 16));
   let difference = 0;
   for (let i = 0; i < expected.length; i += 1) difference |= expected[i]! ^ actual[i]!;
-  return difference === 0 ? owner : null;
+  return difference === 0 ? { owner, nonce } : null;
 }
 
 export class ExecutionDurableObject extends DurableObject<Env> {
@@ -100,13 +101,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
   private async nativeBridge(request: Request): Promise<Response> {
     if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405);
     const owner = request.headers.get("x-mahoraga-verified-owner") ?? "";
-    if (!owner) return json({ error: "owner-auth-required" }, 403);
+    const nonce = request.headers.get("x-mahoraga-verified-nonce") ?? "";
+    if (!owner || !/^[a-f0-9-]{36}$/.test(nonce)) return json({ error: "owner-auth-required" }, 403);
+    this.initialize();
+    const ownerHash = await digestText(owner);
+    this.storage.sql.exec("DELETE FROM leases WHERE expires_at <= ?", Date.now());
+    if (!this.storage.acquireLease(`gateway-assertion:${ownerHash}:${nonce}`, "consumed", GATEWAY_ASSERTION_TTL_MS)) return json({ error: "gateway-assertion-replayed" }, 409);
     let input: Record<string, unknown> | null;
     try { input = objectValue(await request.json()); } catch { input = null; }
     const payload = objectValue(input?.payload);
     if (!payload) return json({ error: "cloud-action-not-allowed" }, 400);
-    this.initialize();
-    const ownerHash = await digestText(owner);
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
     const conversationId = payload.conversationId;
     if (!boundedId(conversationId)) return json({ error: "conversation-id-invalid" }, 400);
@@ -235,9 +239,13 @@ export default {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405);
       const body = await request.text();
       if (new TextEncoder().encode(body).byteLength > 32_768) return json({ error: "cloud-action-too-large" }, 413);
-      const owner = await verifyGatewayAssertion(request, body, env.OWNER_GATEWAY_SECRET);
-      if (!owner) return json({ error: "owner-auth-required" }, 403);
-      return env.EXECUTION_DO.getByName("execution-v1").fetch(new Request(request, { body, headers: { "content-type": "application/json", "x-mahoraga-verified-owner": owner } }));
+      const assertion = await verifyGatewayAssertion(request, body, env.OWNER_GATEWAY_SECRET);
+      if (!assertion) return json({ error: "owner-auth-required" }, 403);
+      return env.EXECUTION_DO.getByName("execution-v1").fetch(new Request(request, { body, headers: {
+        "content-type": "application/json",
+        "x-mahoraga-verified-owner": assertion.owner,
+        "x-mahoraga-verified-nonce": assertion.nonce,
+      } }));
     }
     if (url.pathname === "/api/execute" && request.method === "POST") {
       const actualSha = request.headers.get("x-target-sha"); if (actualSha !== env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: env.TARGET_SHA, actual: actualSha }, 412);

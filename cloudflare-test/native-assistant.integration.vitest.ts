@@ -7,7 +7,7 @@ import worker, { type ExecutionDurableObject } from "../deploy/cloudflare-execut
 const stub = env.EXECUTION_DO.getByName("native-assistant-test");
 const owner = "owner@example.com";
 const post = (type: string, payload: Record<string, unknown>, who = owner) => stub.fetch("https://execution.example/api/native/bridge", {
-  method: "POST", headers: { "content-type": "application/json", "x-mahoraga-verified-owner": who }, body: JSON.stringify({ type, payload }),
+  method: "POST", headers: { "content-type": "application/json", "x-mahoraga-verified-owner": who, "x-mahoraga-verified-nonce": crypto.randomUUID() }, body: JSON.stringify({ type, payload }),
 });
 
 afterEach(() => setProviderInvokerForTest(null));
@@ -32,6 +32,29 @@ describe("native assistant bridge", () => {
     expect((await worker.fetch(new Request("https://execution.example/api/native/bridge", { method: "POST", headers, body }), runtimeEnv)).status).toBe(404);
     expect((await worker.fetch(new Request("https://execution.example/api/native/bridge", { method: "POST", headers, body: body.replace("missing", "changed") }), runtimeEnv)).status).toBe(403);
     expect((await worker.fetch(new Request("https://execution.example/api/native/bridge", { method: "POST", headers: { ...headers, "x-mahoraga-owner-timestamp": String(Date.now() - 120_000) }, body }), runtimeEnv)).status).toBe(403);
+  });
+
+  it("rejects an identical signed assertion replay before a second provider invocation", async () => {
+    const secret = "a".repeat(64);
+    const body = JSON.stringify({ type: "chat", payload: { conversationId: "signed-replay", content: "Answer once", mode: "auto", creditPolicy: "zero-codex", idempotencyKey: "signed-replay-turn" } });
+    const timestamp = String(Date.now()); const nonce = crypto.randomUUID();
+    const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const signature = Array.from(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${owner}\n${timestamp}\n${nonce}\n${digest}`))), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    const headers = { "x-mahoraga-owner": owner, "x-mahoraga-owner-timestamp": timestamp, "x-mahoraga-owner-nonce": nonce, "x-mahoraga-owner-signature": signature };
+    const runtimeEnv = { ...env, OWNER_GATEWAY_SECRET: secret };
+    const publicStub = env.EXECUTION_DO.getByName("execution-v1");
+    await publicStub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(publicStub, (instance) => {
+      instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, reasonCode: null, observedAt: Date.now(), verifiedAt: Date.now(), canaryExpiresAt: Date.now() + 60_000 });
+    });
+    const run = vi.fn().mockResolvedValue({ response: "One answer." }); setProviderInvokerForTest(run);
+    const first = await worker.fetch(new Request("https://execution.example/api/native/bridge", { method: "POST", headers, body }), runtimeEnv);
+    expect(first.status).toBe(200);
+    const replay = await worker.fetch(new Request("https://execution.example/api/native/bridge", { method: "POST", headers, body }), runtimeEnv);
+    expect(replay.status).toBe(409);
+    expect((await replay.json() as { error: string }).error).toBe("gateway-assertion-replayed");
+    expect(run).toHaveBeenCalledTimes(1);
   });
 
   it("rejects unavailable zero credit and unconfigured licensed inference without invoking a provider", async () => {
