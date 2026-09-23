@@ -9,7 +9,7 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
 const ASSISTANT_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
-const TRAFFIC_AUTHORITY = "cloudflare-canonical";
+const ROUTING_HOP_ID = "cloudflare-execution-runtime";
 const DURABLE_STATE = "cloudflare-do-sqlite";
 const RAILWAY_ANCHOR_HOST = "mahoraga-runtime-main-production.up.railway.app";
 const FORWARDED_BY_HEADER = "x-mahoraga-forwarded-by";
@@ -47,7 +47,7 @@ const proxyToRailway = async (request: Request, requestUrl: URL, env: Env): Prom
   try {
     if (request.headers.has(FORWARDED_BY_HEADER)) return json({ error: "Traffic routing loop rejected" }, 508);
     const target = railwayTarget(requestUrl, env.RAILWAY_ANCHOR_URL);
-    const headers = new Headers(request.headers); headers.delete("x-bypass-token"); headers.delete("host"); headers.set(FORWARDED_BY_HEADER, TRAFFIC_AUTHORITY);
+    const headers = new Headers(request.headers); headers.delete("x-bypass-token"); headers.delete("host"); headers.set(FORWARDED_BY_HEADER, ROUTING_HOP_ID);
     const upstream = await fetch(new Request(target, { method: request.method, headers, body: request.body, redirect: "manual" }));
     const responseHeaders = new Headers(upstream.headers); responseHeaders.set("x-bypass-applied", "true"); responseHeaders.set("cache-control", "no-store");
     return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
@@ -84,7 +84,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (url.pathname === "/api/live") return request.method === "GET" ? json({ status: "live", sha: this.env.TARGET_SHA }) : json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
     if (url.pathname === "/api/ready") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
-      try { this.initialize(); this.storage.sql.exec("SELECT 1").one(); return json({ status: "ready", sha: this.env.TARGET_SHA, durableState: DURABLE_STATE, trafficAuthority: TRAFFIC_AUTHORITY }); } catch { return json({ status: "unready" }, 503); }
+      try { this.initialize(); this.storage.sql.exec("SELECT 1").one(); return json({ status: "ready", sha: this.env.TARGET_SHA, durableState: DURABLE_STATE }); } catch { return json({ status: "unready" }, 503); }
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });

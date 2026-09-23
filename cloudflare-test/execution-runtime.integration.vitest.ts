@@ -186,7 +186,7 @@ describe("ExecutionDurableObject", () => {
     expect(await response.json()).toEqual({ railway: true });
     expect(forwarded?.url).toBe("https://mahoraga-runtime-main-production.up.railway.app/api/execute?source=edge");
     expect(forwarded?.headers.get("x-bypass-token")).toBeNull();
-    expect(forwarded?.headers.get("x-mahoraga-forwarded-by")).toBe("cloudflare-canonical");
+    expect(forwarded?.headers.get("x-mahoraga-forwarded-by")).toBe("cloudflare-execution-runtime");
   });
 
   it("rejects a Railway routing loop before forwarding", async () => {
@@ -217,7 +217,6 @@ describe("ExecutionDurableObject", () => {
       status: "ready",
       sha: SHA,
       durableState: "cloudflare-do-sqlite",
-      trafficAuthority: "cloudflare-canonical",
     });
 
     const method = await stub.fetch("https://execution.example/api/execute");
