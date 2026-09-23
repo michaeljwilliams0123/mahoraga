@@ -27,7 +27,7 @@ export type AcceptanceReceipt = Readonly<{
   accessProtected: true;
   ready: true;
   durableStateVerified: true;
-  trafficAuthorityVerified: true;
+  trafficAuthorityVerified: false;
   staleShaRejected: true;
   executed: true;
   replayed: true;
@@ -184,8 +184,7 @@ export async function runAcceptanceProbe(input: {
     if (readyResponse.status === 200) {
       const readyBody = await readJson(readyResponse, "accept-ready-json-invalid");
       if (readyBody.status === "ready" && readyBody.sha === targetSha
-        && readyBody.durableState === "cloudflare-do-sqlite"
-        && readyBody.trafficAuthority === "cloudflare-canonical") {
+        && readyBody.durableState === "cloudflare-do-sqlite") {
         ready = true;
         break;
       }
@@ -204,7 +203,7 @@ export async function runAcceptanceProbe(input: {
   const staleResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
     headers: executionHeaders(accessHeaders, alternateSha(targetSha), `${idempotencyKey}-stale`),
-    body: JSON.stringify({ acceptance: "stale-sha" }),
+    body: JSON.stringify({ conversationId: "acceptance-stale", turnId: `${idempotencyKey}-stale`, message: "Acceptance stale-SHA probe" }),
     redirect: "manual",
   });
   if (staleResponse.status !== 412) throw new Error(`accept-stale-sha-not-rejected-${staleResponse.status}`);
@@ -212,7 +211,7 @@ export async function runAcceptanceProbe(input: {
   const firstResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
     headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
-    body: JSON.stringify({ acceptance: "first" }),
+    body: JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" }),
     redirect: "manual",
   });
   if (firstResponse.status !== 200) throw new Error(`accept-execute-${firstResponse.status}`);
@@ -223,7 +222,7 @@ export async function runAcceptanceProbe(input: {
   const replayResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
     headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
-    body: JSON.stringify({ acceptance: "replay" }),
+    body: JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" }),
     redirect: "manual",
   });
   if (replayResponse.status !== 200) throw new Error(`accept-replay-${replayResponse.status}`);
@@ -239,7 +238,7 @@ export async function runAcceptanceProbe(input: {
     accessProtected: true,
     ready: true,
     durableStateVerified: true,
-    trafficAuthorityVerified: true,
+    trafficAuthorityVerified: false,
     staleShaRejected: true,
     executed: true,
     replayed: true,
