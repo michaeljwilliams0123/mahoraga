@@ -79,12 +79,12 @@ jobs:
       - name: Deploy exact verified execution runtime
         run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA"
 
-      - name: Prove Access, readiness, SHA rejection, execution, and replay
+      - name: Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p reports
-          node scripts/cloudflare-execution-runtime.ts accept \
+          node scripts/cloudflare-production-acceptance.ts \
             --sha "$VERIFIED_SHA" \
             --receipt reports/cloudflare-execution-runtime-acceptance.json
           {
