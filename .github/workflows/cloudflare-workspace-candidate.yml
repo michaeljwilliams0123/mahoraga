@@ -74,7 +74,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail --silent --show-error --retry 4 --retry-delay 2 --output /tmp/mahoraga-ui.html "$MAHORAGA_DEPLOYMENT_URL/"
-          curl --fail --silent --show-error --retry 4 --retry-delay 2 --output /tmp/mahoraga-health.json "$MAHORAGA_DEPLOYMENT_URL/api/health.json"
-          node -e 'const fs = require("node:fs"); const html = fs.readFileSync("/tmp/mahoraga-ui.html", "utf8"); const health = JSON.parse(fs.readFileSync("/tmp/mahoraga-health.json", "utf8")); if (!html.includes("/_next/static/") || health.deployment.provider !== "cloudflare-workers" || health.deployment.commitSha !== process.env.VERIFIED_SHA || health.deployment.promotion !== "unverified-cloudflare-static") process.exit(1);'
-          echo "Candidate UI verified at $MAHORAGA_DEPLOYMENT_URL for $VERIFIED_SHA" >> "$GITHUB_STEP_SUMMARY"
+          for attempt in {1..10}; do
+            if curl --fail --silent --show-error --output /tmp/mahoraga-ui.html "$MAHORAGA_DEPLOYMENT_URL/" &&
+               curl --fail --silent --show-error --output /tmp/mahoraga-health.json "$MAHORAGA_DEPLOYMENT_URL/api/health.json" &&
+               node -e 'const fs = require("node:fs"); const html = fs.readFileSync("/tmp/mahoraga-ui.html", "utf8"); const health = JSON.parse(fs.readFileSync("/tmp/mahoraga-health.json", "utf8")); if (!html.includes("/_next/static/") || health.deployment.provider !== "cloudflare-workers" || health.deployment.commitSha !== process.env.VERIFIED_SHA || health.deployment.promotion !== "unverified-cloudflare-static") process.exit(1);'; then
+              echo "Candidate UI verified at $MAHORAGA_DEPLOYMENT_URL for $VERIFIED_SHA" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            if [ "$attempt" -lt 10 ]; then sleep 3; fi
+          done
+          echo "::error::Cloudflare candidate did not serve the exact UI build after propagation retries."
+          exit 1
