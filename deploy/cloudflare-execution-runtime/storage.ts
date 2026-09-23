@@ -54,6 +54,7 @@ export interface StorageAdapter {
   getConversation(id: string): ConversationRecord | null;
   saveConversation(record: ConversationRecord): void;
   getTurn(id: string): AssistantTurnRecord | null;
+  listTurns(conversationId: string): AssistantTurnRecord[];
   saveTurn(record: AssistantTurnRecord): void;
   getProviderState(providerId: string): ProviderStateRecord | null;
   saveProviderState(record: ProviderStateRecord): void;
@@ -296,6 +297,12 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       createdAt: row.created_at,
       completedAt: row.completed_at,
     };
+  }
+
+  listTurns(conversationId: string): AssistantTurnRecord[] {
+    return this.sql.exec<{ id: string } & Record<string, SqlStorageValue>>(
+      "SELECT id FROM turns WHERE conversation_id = ? ORDER BY created_at, id LIMIT 200", conversationId,
+    ).toArray().map((row) => this.getTurn(row.id)!).filter(Boolean);
   }
 
   saveTurn(record: AssistantTurnRecord): void {

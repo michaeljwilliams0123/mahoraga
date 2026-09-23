@@ -16,7 +16,10 @@ test("Cloudflare execution runtime cannot synthesize SUCCESS by echoing the requ
 test("Workers AI is explicitly bound and success is persisted only after provider execution", async () => {
   const [source, wrangler] = await Promise.all([readFile(workerUrl, "utf8"), readFile(wranglerUrl, "utf8")]);
   assert.match(wrangler, /"ai"\s*:\s*\{\s*"binding"\s*:\s*"AI"/, "Wrangler must bind Workers AI explicitly");
-  const providerCall = source.indexOf("this.env.AI.run");
-  const successReceipt = source.indexOf('status: "SUCCESS"');
-  assert.ok(providerCall >= 0 && successReceipt > providerCall, "SUCCESS must occur only after provider execution");
+  const nativeProviderCall = source.indexOf("invokeWorkersAi(this.env.AI");
+  const nativeSuccess = source.indexOf('status: "SUCCESS"', nativeProviderCall);
+  const legacyProviderCall = source.indexOf("this.env.AI.run");
+  const legacySuccess = source.indexOf('status: "SUCCESS"', legacyProviderCall);
+  assert.ok(nativeProviderCall >= 0 && nativeSuccess > nativeProviderCall, "native SUCCESS must follow its provider invocation");
+  assert.ok(legacyProviderCall >= 0 && legacySuccess > legacyProviderCall, "legacy SUCCESS must follow its provider invocation");
 });

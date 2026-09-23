@@ -6,6 +6,7 @@ interface Env {
   AI: WorkersAiBinding;
   BYPASS_SECRET: string;
   CONTENT_VAULT_KEY: string;
+  OWNER_GATEWAY_SECRET: string;
   TARGET_SHA: string;
   RAILWAY_ANCHOR_URL: string;
 }
@@ -15,6 +16,7 @@ declare namespace Cloudflare {
     AI: WorkersAiBinding;
     BYPASS_SECRET: string;
     CONTENT_VAULT_KEY: string;
+    OWNER_GATEWAY_SECRET: string;
     TARGET_SHA: string;
     RAILWAY_ANCHOR_URL: string;
   }

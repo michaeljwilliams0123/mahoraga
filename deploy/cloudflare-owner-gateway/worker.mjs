@@ -119,7 +119,27 @@ async function runtimeCapabilities(env) {
   }
 }
 
-async function nativeBridgeResponse(request, requestUrl, env) {
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content"]);
+async function nativeRuntimeAction(type, payload, env, owner) {
+  const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
+  if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);
+  const body = JSON.stringify({ type, payload });
+  if (new TextEncoder().encode(body).byteLength > 32_768) return json({ error: "cloud-action-too-large" }, 413);
+  const timestamp = String(Date.now());
+  const nonce = crypto.randomUUID();
+  const digest = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(body))), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = Array.from(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${owner}\n${timestamp}\n${nonce}\n${digest}`))), (byte) => byte.toString(16).padStart(2, "0")).join("");
+  try {
+    const response = await binding.fetch(new Request("https://mahoraga-execution-runtime/api/native/bridge", {
+      method: "POST", headers: { "content-type": "application/json", "x-mahoraga-owner": owner, "x-mahoraga-owner-timestamp": timestamp, "x-mahoraga-owner-nonce": nonce, "x-mahoraga-owner-signature": signature }, body,
+    }));
+    const result = await response.json();
+    return json(result, response.status);
+  } catch { return json({ error: "execution-runtime-unavailable" }, 503); }
+}
+
+async function nativeBridgeResponse(request, requestUrl, env, owner) {
   if (requestUrl.pathname === "/" && request.method === "GET") {
     return json({
       gateway: "mahoraga-owner-gateway",
@@ -146,6 +166,7 @@ async function nativeBridgeResponse(request, requestUrl, env) {
     const value = await request.json().catch(() => null);
     if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "cloud-action-not-allowed" }, 400);
     if (value.type === "capabilities") return json(await runtimeCapabilities(env));
+    if (NATIVE_ACTIONS.has(value.type)) return nativeRuntimeAction(value.type, value.payload, env, owner);
     return json({ error: "cloud-native-capability-unavailable" }, 503);
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/artifacts") return json({ error: "cloud-native-artifact-unavailable" }, 503);
@@ -173,7 +194,7 @@ export default {
       if (callerOrigin !== requestUrl.origin) return new Response("gateway-same-origin-required", { status: 403 });
     }
 
-    const native = await nativeBridgeResponse(request, requestUrl, env);
+    const native = await nativeBridgeResponse(request, requestUrl, env, owner);
     if (native) return native;
 
     let origin;

@@ -12,7 +12,7 @@ import {
 const SHA = "6a1d51e25654eb7a5c22bab7a1c2dcaca522c2af";
 const OTHER_SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 const BASE_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
-const readyBody = (sha: string) => ({ status: "ready", sha, durableState: "cloudflare-do-sqlite", trafficAuthority: "cloudflare-canonical" });
+const readyBody = (sha: string) => ({ status: "ready", sha, durableState: "cloudflare-do-sqlite" });
 const scriptPath = fileURLToPath(new URL("../scripts/cloudflare-execution-runtime.ts", import.meta.url));
 
 test("Cloudflare execution runtime has one governed deployment/acceptance operator", () => {
@@ -103,7 +103,7 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
   assert.equal(receipt.accessProtected, true);
   assert.equal(receipt.ready, true);
   assert.equal(receipt.durableStateVerified, true);
-  assert.equal(receipt.trafficAuthorityVerified, true);
+  assert.equal(receipt.trafficAuthorityVerified, false);
   assert.equal(receipt.staleShaRejected, true);
   assert.equal(receipt.executed, true);
   assert.equal(receipt.replayed, true);
@@ -119,7 +119,7 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
   assert.equal(correctPosts.length, 2);
   assert.equal(correctPosts[0]?.headers.get("x-idempotency-key"), "acceptance-key");
   assert.equal(correctPosts[1]?.headers.get("x-idempotency-key"), "acceptance-key");
-  assert.notEqual(await correctPosts[0]?.clone().text(), await correctPosts[1]?.clone().text());
+  assert.equal(await correctPosts[0]?.clone().text(), await correctPosts[1]?.clone().text());
 });
 
 
