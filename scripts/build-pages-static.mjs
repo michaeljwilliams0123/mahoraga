@@ -35,13 +35,13 @@ export async function writePagesStaticHealth(destination, env = process.env) {
     product: "Mahoraga",
     build: { version: "7.0.0-alpha.2" },
     deployment: {
-      provider: env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim() || "github-pages",
+      provider: env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim() || (env.MAHORAGA_STATIC_EXPORT_TARGET === "cloudflare" ? "cloudflare-workers" : "github-pages"),
       environment: env.MAHORAGA_DEPLOYMENT_ENV?.trim() || "production",
       url: env.MAHORAGA_DEPLOYMENT_URL?.trim() || null,
       commitSha: env.MAHORAGA_GIT_COMMIT_SHA?.trim() || null,
       expectedCommitSha: null,
       gitRef: env.MAHORAGA_GIT_COMMIT_REF?.trim() || null,
-      promotion: "exact-main-pages",
+      promotion: env.MAHORAGA_STATIC_EXPORT_TARGET === "cloudflare" ? "unverified-cloudflare-static" : "exact-main-pages",
     },
     runtime: {
       databaseTarget: { basename: null, source: "paired-core-required" },
@@ -96,12 +96,13 @@ async function pagesTextFiles(root) {
   return files;
 }
 
-export async function inspectPagesStaticArtifact(root) {
+export async function inspectPagesStaticArtifact(root, { target = "pages" } = {}) {
   const indexHtml = path.join(root, "index.html");
   let index;
   try { index = await readFile(indexHtml, "utf8"); }
   catch { throw new Error("pages-static-artifact-entry-invalid"); }
-  if (!index.includes("/mahoraga/_next/static/") || /http-equiv=["']refresh["']/i.test(index) || /location\.replace\(/.test(index)) {
+  const assetPath = target === "cloudflare" ? "/_next/static/" : "/mahoraga/_next/static/";
+  if (!index.includes(assetPath) || /http-equiv=["']refresh["']/i.test(index) || /location\.replace\(/.test(index)) {
     throw new Error("pages-static-artifact-entry-invalid");
   }
   const files = await pagesTextFiles(root);
@@ -114,24 +115,27 @@ export async function inspectPagesStaticArtifact(root) {
   return { indexHtml, textFiles: files.length };
 }
 
-export async function buildPagesStaticExport({ source = path.resolve(import.meta.dirname, "..", "cloud-app") } = {}) {
+export async function buildPagesStaticExport({ source = path.resolve(import.meta.dirname, "..", "cloud-app"), target = "pages" } = {}) {
+  if (target !== "pages" && target !== "cloudflare") throw new TypeError("static-export-target-invalid");
   const stagingRoot = pagesStaticStagingRoot(source);
   const stagedApp = path.join(stagingRoot, "cloud-app");
   const output = path.join(source, "out");
   try {
     await rm(stagingRoot, { recursive: true, force: true });
     await preparePagesStaticWorkspace({ source, destination: stagedApp });
-    await writePagesStaticHealth(stagedApp);
+    await writePagesStaticHealth(stagedApp, { ...process.env, MAHORAGA_STATIC_EXPORT_TARGET: target });
     await cp(path.resolve(source, "..", "operator-deck"), path.join(stagingRoot, "operator-deck"), { recursive: true, filter: (candidate) => !hasPathPrefix(relativePath(path.resolve(source, "..", "operator-deck"), candidate), "node_modules") });
     await linkPagesDependencies({ source, destination: stagedApp });
     await run(process.execPath, [path.join(stagedApp, "node_modules", "next", "dist", "bin", "next"), "build"], {
       cwd: stagedApp,
-      env: { ...process.env, MAHORAGA_PAGES_EXPORT: "1", MAHORAGA_TURBOPACK_ROOT: path.resolve(source, "..") },
+      env: { ...process.env, MAHORAGA_PAGES_EXPORT: "1", MAHORAGA_STATIC_EXPORT_TARGET: target,
+        NEXT_PUBLIC_HEALTH_ENDPOINT: process.env.NEXT_PUBLIC_HEALTH_ENDPOINT || (target === "cloudflare" ? "/api/health.json" : "/mahoraga/api/health.json"),
+        MAHORAGA_TURBOPACK_ROOT: path.resolve(source, "..") },
     });
     await rm(output, { recursive: true, force: true });
     await mkdir(output, { recursive: true });
     await cp(path.join(stagedApp, "out"), output, { recursive: true });
-    await inspectPagesStaticArtifact(output);
+    await inspectPagesStaticArtifact(output, { target });
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
   }
@@ -141,4 +145,4 @@ export function isDirectExecution(metaUrl, commandPath) {
   return typeof commandPath === "string" && metaUrl === pathToFileURL(path.resolve(commandPath)).href;
 }
 
-if (isDirectExecution(import.meta.url, process.argv[1])) await buildPagesStaticExport();
+if (isDirectExecution(import.meta.url, process.argv[1])) await buildPagesStaticExport({ target: process.argv[2] === "--cloudflare" ? "cloudflare" : "pages" });

@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 import { resolve } from "node:path";
 
 const pagesExport = process.env.MAHORAGA_PAGES_EXPORT === "1";
+const staticBasePath = process.env.MAHORAGA_STATIC_EXPORT_TARGET === "cloudflare" ? "" : "/mahoraga";
 const turbopackRoot = process.env.MAHORAGA_TURBOPACK_ROOT?.trim() || resolve(import.meta.dirname, "..");
 
 const securityHeaders = [
@@ -21,8 +22,8 @@ const nextConfig: NextConfig = {
   ...(pagesExport
     ? {
         output: "export" as const,
-        basePath: "/mahoraga",
-        assetPrefix: "/mahoraga",
+        basePath: staticBasePath,
+        assetPrefix: staticBasePath,
         trailingSlash: true,
         images: { unoptimized: true },
       }

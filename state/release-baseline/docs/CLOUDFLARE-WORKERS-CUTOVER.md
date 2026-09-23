@@ -60,6 +60,26 @@ npx @vinext/cloudflare deploy
 The existing `next dev` / `next build` path remains authoritative until that
 Workers compatibility gate and deployment canary pass.
 
+## Root-path static workspace candidate
+
+The same `cloud-app/` source can also be exported as a root-path static asset
+bundle for the `mahoraga-workspace-candidate` Worker. From the repository root, install
+the `cloud-app/` dependencies, then run `npm run cloudflare:workspace:build`.
+The build writes `cloud-app/out/`, checks that its entry uses `/_next/static/`,
+and excludes server-only API routes. `deploy/cloudflare-workspace/wrangler.jsonc`
+points Static Assets at that output. The existing Pages build keeps its
+`/mahoraga` prefix.
+
+This static UI requires a verified owner gateway bridge origin or an authorized
+encrypted relay pairing for actions. Set `NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN`
+only to the exact HTTPS origin of an Access-protected gateway that implements
+the existing Pages bridge protocol; do not use the stale Railway origin or the
+execution Worker's `/api/execute` endpoint as the browser bridge. Static
+`/api/health.json` identifies only the UI build. The static Worker does not
+implement `/api/runtime/*`, assert traffic authority, or prove model execution.
+Deploy and promote it only after the owner access, exact-SHA, live action, and
+rollback checks in the activation gate and #697 have passed.
+
 Official references:
 
 - https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/
