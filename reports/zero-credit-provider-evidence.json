@@ -1,0 +1,22 @@
+{
+  "existingAccount": {
+    "usageModel": "standard",
+    "downgradeAuthorized": false,
+    "reason": "non-mahoraga-worker-present"
+  },
+  "selectedTarget": {
+    "accountName": "Mahoraga Zero-Credit",
+    "accountClass": "standalone-free",
+    "status": "provisioning-required"
+  },
+  "mcpProvisioning": {
+    "status": "blocked",
+    "reason": "idempotency-header-not-forwarded"
+  },
+  "githubProvisioning": {
+    "workflow": ".github/workflows/provision-cloudflare-zero-credit.yml",
+    "idempotent": true,
+    "existingAccountMutation": false
+  },
+  "liveCognitionAuthorized": false
+}
