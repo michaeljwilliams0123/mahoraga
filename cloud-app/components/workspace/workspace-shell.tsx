@@ -44,7 +44,7 @@ export function WorkspaceShell({
 
         <div className="privacy-card">
           <ShieldCheck size={16} />
-          <span>GitHub Pages is the published static workspace. The authenticated cloud bridge is the primary execution path; the encrypted relay remains recovery. This browser never stores GitHub credentials.</span>
+          <span>This browser workspace displays Mahoraga. Cloud actions require an authenticated connection; encrypted relay pairing remains a recovery option. This browser never stores GitHub credentials.</span>
         </div>
         <a className="repo-link" href="https://github.com/michaeljwilliams0123/mahoraga" target="_blank" rel="noreferrer">Open GitHub <ExternalLink size={13} /></a>
       </aside>
