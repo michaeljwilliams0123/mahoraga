@@ -111,3 +111,26 @@ test("native bridge rejects unavailable chat without falling through to Railway"
     assert.deepEqual(await response.json(), { error: "cloud-native-capability-unavailable" });
   });
 });
+
+test("native chat and conversation reads use the execution service binding with owner assertion", async () => {
+  const calls = [];
+  const executionRuntime = { async fetch(request) {
+    calls.push({ path: new URL(request.url).pathname, owner: request.headers.get("x-mahoraga-owner"), signature: request.headers.get("x-mahoraga-owner-signature"), body: await request.json() });
+    return Response.json({ conversation: { id: "conversation-1" }, task: null, objective: null, decision: { mode: "ask" } });
+  } };
+  await withoutUpstream(async () => {
+    for (const type of ["chat", "tasks", "messages", "message-content"]) {
+      const response = await gateway.fetch(new Request(`${base}/api/runtime/pages-bridge/action`, {
+        method: "POST", headers: { "content-type": "application/json", origin: base },
+        body: JSON.stringify({ type, payload: { conversationId: "conversation-1", content: "hello" } }),
+      }), { ...env, MAHORAGA_EXECUTION_RUNTIME: executionRuntime }, access);
+      assert.equal(response.status, 200);
+    }
+  });
+  assert.deepEqual(calls.map((call) => call.body.type), ["chat", "tasks", "messages", "message-content"]);
+  for (const call of calls) {
+    assert.equal(call.path, "/api/native/bridge");
+    assert.equal(call.owner, env.MAHORAGA_CLOUD_OWNER_ID);
+    assert.match(call.signature, /^[a-f0-9]{64}$/);
+  }
+});

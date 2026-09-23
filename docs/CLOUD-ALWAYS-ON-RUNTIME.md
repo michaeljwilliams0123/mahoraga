@@ -71,6 +71,12 @@ deployment and evidence for recovery.
 
 ## Cloudflare owner gateway deployment
 
+### Native assistant bridge prerequisites
+
+The owner gateway forwards `chat`, `tasks`, `messages`, and `message-content` only through the `MAHORAGA_EXECUTION_RUNTIME` service binding. Configure the execution runtime's protected `OWNER_GATEWAY_SECRET` to the same value as the gateway's protected `MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET`. The runtime verifies a timestamped HMAC over the owner and exact request body; absent or mismatched secrets reject native calls. Never put the shared value in tracked variables or a deployment receipt.
+
+The native chat path requires a protected `CONTENT_VAULT_KEY` and fresh, independently verified hard-zero provider evidence in the execution Durable Object. Without those prerequisites the capability remains unroutable and requests return `zero-credit-provider-unavailable`. Workers AI free allocation alone cannot be used to set `zeroCreditEligible`. The licensed path remains unavailable until a separate cloud-callable licensed provider and one-turn authorization are configured and verified. The existing Railway proxy is only an explicit rollback path.
+
 1. `npm run cloudflare:owner-gateway:whoami` must identify the intended Cloudflare account.
 2. Confirm Railway production is the canonical `mahoraga-runtime-main` service and `/api/ready` is green at current GitHub `main`.
 3. Run `npm run cloudflare:owner-gateway:secret:owner` and enter only the owner identity authorized by the Access policy.
