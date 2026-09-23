@@ -8,6 +8,20 @@ import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 
+const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
+type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
+
+function parseReadinessObservation(value: unknown): ReadinessObservation | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.status !== "string") return null;
+  return {
+    status: candidate.status,
+    sha: typeof candidate.sha === "string" ? candidate.sha : null,
+    durableState: typeof candidate.durableState === "string" ? candidate.durableState : null,
+  };
+}
+
 function shortSha(value: string | null | undefined) {
   return value ? value.slice(0, 12) : "unavailable";
 }
@@ -60,18 +74,20 @@ export function CockpitView({
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
-  const [readinessOk, setReadinessOk] = useState(false);
+  const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
   useEffect(() => {
     let active = true;
-    setReadinessOk(false);
+    setReadiness(null);
     void fetch("/api/ready")
-      .then((response) => { if (active) setReadinessOk(response.ok); })
-      .catch(() => { if (active) setReadinessOk(false); });
+      .then(async (response) => response.ok ? parseReadinessObservation(await response.json()) : null)
+      .then((observation) => { if (active) setReadiness(observation); })
+      .catch(() => { if (active) setReadiness(null); });
     return () => { active = false; };
   }, [coreReady]);
 
+  const readinessOk = readiness?.status === "ready";
   const readyOk = coreReady && readinessOk;
 
   return (
@@ -80,7 +96,7 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>GitHub Pages publishes the static workspace. Execution stays on the encrypted relay to the Conversation Gateway / Railway runtime. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
+          <p>Cloudflare root-path candidate is the migration browser surface; GitHub Pages remains a presentation/export fallback. Execution readiness, cognition readiness, and traffic authority remain separate. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
@@ -89,7 +105,7 @@ export function CockpitView({
       </header>
 
       <p className="eclipse-readiness-note" role="status">
-        Published static workspace: GitHub Pages (https://michaeljwilliams0123.github.io/mahoraga/). Execution path: existing encrypted relay. This origin does not make cross-origin authenticated API calls.
+        Cloudflare candidate browser: {CLOUDFLARE_WORKSPACE_CANDIDATE} · promotion unverified-cloudflare-static. GitHub Pages remains a presentation/export fallback. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
       </p>
 
       {healthError && (
@@ -103,7 +119,7 @@ export function CockpitView({
           <ShieldCheck size={18} />
           <div>
             <strong>The interface is online and ready to pair.</strong>
-            <p>GitHub Pages hosts the published static workspace; the encrypted relay remains the execution path. Execution begins only after an approved cloud or owner runtime supplies a verified session. Ready requires live health plus that pairing.</p>
+            <p>The Cloudflare candidate and GitHub Pages export are presentation surfaces only. Execution begins only after an approved owner-authenticated runtime supplies a verified session. Ready requires observed execution readiness plus pairing; traffic authority remains independently gated.</p>
           </div>
         </div>
       )}
@@ -113,7 +129,9 @@ export function CockpitView({
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={railwayExactSha ? "Railway exact-SHA" : deploymentProvider} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
-        <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, live pending" : "Ready to pair"} detail={readyOk ? "Live health OK and core session paired" : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
+        <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; requires independent route/domain cutover evidence" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"} />
         <StatusCard label="Deployment convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
@@ -146,7 +164,7 @@ export function CockpitView({
           <dl className="eclipse-metrics">
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
-            <div><dt>Browser presentation</dt><dd>GitHub Pages · https://michaeljwilliams0123.github.io/mahoraga/</dd></div>
+            <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>Host provider</dt><dd>{railwayExactSha ? "railway (server-capable runtime)" : deploymentProvider}</dd></div>
             <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
@@ -166,7 +184,7 @@ export function CockpitView({
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
-            <div><dt>Liveness/readiness</dt><dd>provenance probe and rollback remain</dd></div>
+            <div><dt>Liveness/readiness</dt><dd>{readiness?.status ?? "unobserved"} · SHA {shortSha(readiness?.sha)} · durableState {readiness?.durableState ?? "unavailable"} · execution observation only</dd></div>
           </dl>
         </section>
 

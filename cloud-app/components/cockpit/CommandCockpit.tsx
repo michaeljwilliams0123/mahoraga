@@ -25,6 +25,15 @@ const HELPERS = [
   { label: "Artifact bridge", command: "Describe the Track 3 bounded artifact bridge (#505): same-origin owner-authenticated upload, loopback /api/artifacts, fail-closed legacy relay. Do not select destination, provider, executable, or paid fallback." },
   { label: "Workers Builds detect", command: "Describe Cloudflare Workers Builds root wrangler.toml (#562): production npx wrangler deploy and preview npx wrangler versions upload resolve deploy/cloudflare-owner-gateway/worker.mjs from repo root. Nested wrangler.toml remains valid. No Worker logic or secret values changed." },
 ] as const;
+const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
+type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
+const shortReadinessSha = (value: string | null | undefined) => value ? value.slice(0, 12) : "unavailable";
+const parseReadinessObservation = (value: unknown): ReadinessObservation | null => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const candidate = value as Record<string, unknown>;
+  if (typeof candidate.status !== "string") return null;
+  return { status: candidate.status, sha: typeof candidate.sha === "string" ? candidate.sha : null, durableState: typeof candidate.durableState === "string" ? candidate.durableState : null };
+};
 
 type CommandCockpitProps = {
   coreReady: boolean;
@@ -54,7 +63,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "GitHub Pages is the published static workspace. Railway exact-SHA health is observational runtime only — no fake rollback API.",
+      summary: "Cloudflare root-path workspace is a non-authoritative candidate. GitHub Pages remains an export fallback; Railway remains rollback evidence, not the new browser entry point.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -78,8 +87,8 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
     lines: [
       { label: "core", value: coreReady ? "paired" : "unpaired" },
       { label: "pairing", value: coreReady ? "session verified" : "awaiting pair" },
-      { label: "presentation", value: "GitHub Pages static workspace" },
-      { label: "execution", value: "encrypted relay" },
+      { label: "presentation", value: "Cloudflare candidate · unverified-cloudflare-static" },
+      { label: "execution", value: "owner-authenticated gateway; authority separately gated" },
       { label: "relaySeesPlaintext", value: String(health?.relaySeesPlaintext ?? false) },
       { label: "browserMaySelectProvider", value: String(health?.browserMaySelectProvider ?? false) },
     ],
@@ -99,14 +108,15 @@ export function CommandCockpit({
     `// Pressure-test AST sandbox (local only)\nexport const optimize = (node: { rewriteLoops: () => unknown }) => {\n  return node.rewriteLoops();\n};\n`,
   );
   const [copied, setCopied] = useState<string | null>(null);
-  const [readinessOk, setReadinessOk] = useState(false);
+  const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
 
   useEffect(() => {
     let active = true;
-    setReadinessOk(false);
+    setReadiness(null);
     void fetch("/api/ready")
-      .then((response) => { if (active) setReadinessOk(response.ok); })
-      .catch(() => { if (active) setReadinessOk(false); });
+      .then(async (response) => response.ok ? parseReadinessObservation(await response.json()) : null)
+      .then((observation) => { if (active) setReadiness(observation); })
+      .catch(() => { if (active) setReadiness(null); });
     return () => { active = false; };
   }, [coreReady]);
 
@@ -125,6 +135,7 @@ export function CommandCockpit({
   );
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
+  const readinessOk = readiness?.status === "ready";
   const readyOk = coreReady && readinessOk;
 
   const panels = useMemo(() => {
@@ -191,10 +202,10 @@ export function CommandCockpit({
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. The active Windows runtime is reported from live core status; 3.6.0 is retained only as the legacy rollback predecessor.
           </p>
           <p role="status">
-            Published static workspace: GitHub Pages. Execution path: existing encrypted relay to the Conversation Gateway. Railway remains the server-capable runtime during migration. No cross-origin authenticated API calls from github.io.
+            Cloudflare candidate browser: {CLOUDFLARE_WORKSPACE_CANDIDATE} · promotion unverified-cloudflare-static. GitHub Pages remains a presentation/export fallback. Runtime execution and traffic authority remain independently gated.
           </p>
           <p>
-            Live is /api/live health. Ready is /api/ready after shared core bearer injection by the parent supervisor only when the configured token is blank. Bearer value is never shown, logged, or persisted here.
+            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here.
           </p>
           <p role="status">
             Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
@@ -213,7 +224,7 @@ export function CommandCockpit({
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
-            <div><dt>browser presentation</dt><dd>GitHub Pages</dd></div>
+            <div><dt>browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>execution path</dt><dd>encrypted relay</dd></div>
             <div><dt>authoritative runtime</dt><dd>Mahoraga core (4782)</dd></div>
             <div><dt>surface</dt><dd>PR 461 / PR 543</dd></div>
@@ -237,7 +248,8 @@ export function CommandCockpit({
             <div><dt>Source Truth</dt><dd>protected GitHub main · required exact-head Verify (ubuntu-latest + windows-latest)</dd></div>
             <div><dt>Deployment Truth</dt><dd>Railway exact-SHA promotion/pin state · verified main SHA only</dd></div>
             <div><dt>Live-Runtime Truth</dt><dd>{liveOk ? "observed /api/live" : healthError ? "unavailable" : "pending"} · observational, not source authority</dd></div>
-            <div><dt>Ready</dt><dd>{readyOk ? "live + paired core" : "not proven"} · never inferred from LIVE_OK alone</dd></div>
+            <div><dt>Ready</dt><dd>{readyOk ? "execution ready + paired core" : "not proven"} · SHA {shortReadinessSha(readiness?.sha)} · durableState {readiness?.durableState ?? "unavailable"}</dd></div>
+            <div><dt>Traffic authority</dt><dd>separate / unverified · never inferred from /api/ready</dd></div>
             <div><dt>authority</dt><dd>foundation/status only · no new provider, deploy, credential, or mutation authority</dd></div>
           </dl>
         </aside>
