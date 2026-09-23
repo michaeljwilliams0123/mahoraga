@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createCognitiveIndividual } from '../src/cognitive-individual.mjs';
 import { runCognitiveLoop } from '../src/cognitive-loop.mjs';
+import { executeCognitiveCapability } from '../src/cognitive-worker.mjs';
 
 const now = '2026-09-15T09:00:00.000Z';
 const member = (id, tags) => createCognitiveIndividual({
@@ -24,16 +25,17 @@ test('unified cognitive loop emits bounded phase receipts without private reason
     metacognition: { evidenceCoverage: 0.9, calibratedConfidence: 0.82, knownUnknowns: [], materialConflictCount: 0, reversible: true },
     observedState: { queueDepth: 3 }, stateUncertainty: 0.1,
     proposedAction: { actionId: 'repair-capacity', effects: { queueDepth: -1 }, uncertainty: 0.1 },
-    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
+    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [{ id: 'model-provider', error: 'unavailable' }] },
   });
   assert.deepEqual(result.phases, ['perceive', 'remember', 'deliberate', 'assess', 'plan', 'predict', 'decide', 'store']);
   assert.equal(result.decision, 'repair');
+  assert.equal(result.plan.automaticMutationAllowed, true);
   assert.equal(JSON.stringify(result).includes('privateEpisodicRefs'), false);
   assert.equal(result.authoritySource, 'existing-router-and-owner-authority');
 });
 
-test('cognitive loop holds when predicted uncertainty is materially high', () => {
-  const result = runCognitiveLoop({
+test('cognitive worker holds automatic mutation when predicted uncertainty is materially high', async () => {
+  const execution = await executeCognitiveCapability('cognitive.cycle', { capabilityInput: { cognitiveInput: {
     members, requiredPerspectiveTags: ['engineering', 'risk', 'evidence'],
     positions: [
       { individualId: 'builder-agent', conclusion: 'repair', confidence: 0.9, evidenceRefs: ['ev:a'], assumptions: [], unknowns: [], dissentTags: [] },
@@ -43,12 +45,15 @@ test('cognitive loop holds when predicted uncertainty is materially high', () =>
     metacognition: { evidenceCoverage: 0.95, calibratedConfidence: 0.9, knownUnknowns: [], materialConflictCount: 0, reversible: true },
     observedState: { queueDepth: 3 }, stateUncertainty: 0.55,
     proposedAction: { actionId: 'repair-capacity', effects: { queueDepth: -1 }, uncertainty: 0.3 },
-    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
-  });
+    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [{ id: 'model-provider', error: 'unavailable' }] },
+  } } });
+  const result = execution.cycle;
+  assert.equal(execution.verified, true);
   assert.equal(result.prediction.predictedUncertainty, 0.85);
   assert.equal(result.decision, 'hold');
   assert.equal(result.decisionGate, 'prediction-uncertain');
   assert.equal(result.storedLesson.promotable, false);
+  assert.equal(result.plan.automaticMutationAllowed, false);
 });
 
 
@@ -139,10 +144,30 @@ test('collective hold without material dissent keeps distinct gate provenance', 
     metacognition: { evidenceCoverage: 0.95, calibratedConfidence: 0.9, knownUnknowns: [], materialConflictCount: 0, reversible: true },
     observedState: { queueDepth: 3 }, stateUncertainty: 0.1,
     proposedAction: { actionId: 'repair-capacity', effects: { queueDepth: -1 }, uncertainty: 0.1 },
-    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
+    plannerSnapshot: { workers: [], activeLeases: [], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [{ id: 'model-provider', error: 'unavailable' }] },
   });
   assert.equal(result.deliberation.materialDissent.length, 0);
   assert.equal(result.metacognition.proceed, true);
   assert.equal(result.decision, 'hold');
   assert.equal(result.decisionGate, 'collective-hold');
+  assert.equal(result.plan.actions.some((item) => item.reasonCode === 'provider-errors-present'), true);
+  assert.equal(result.plan.automaticMutationAllowed, false);
+});
+
+test('cognitive loop evaluates lease expiry with the current or explicitly supplied clock', (t) => {
+  const currentTime = Date.parse('2026-09-23T12:00:00.000Z');
+  t.mock.method(Date, 'now', () => currentTime);
+  const input = {
+    members, requiredPerspectiveTags: ['engineering', 'risk', 'evidence'],
+    positions: members.map((item) => ({ individualId: item.individualId, conclusion: 'repair', confidence: 0.85, evidenceRefs: [`ev:${item.individualId}`], assumptions: [], unknowns: [], dissentTags: [] })),
+    metacognition: { evidenceCoverage: 0.95, calibratedConfidence: 0.9, knownUnknowns: [], materialConflictCount: 0, reversible: true },
+    observedState: { queueDepth: 3 }, stateUncertainty: 0.1,
+    proposedAction: { actionId: 'repair-capacity', effects: { queueDepth: -1 }, uncertainty: 0.1 },
+    plannerSnapshot: { workers: [], activeLeases: [{ id: 'lease-1', leaseExpiresAt: '2026-09-23T11:00:00.000Z' }], repository: { verified: true }, taskCounts: {}, objectives: [], providers: [] },
+  };
+  const live = runCognitiveLoop(input);
+  assert.equal(live.plan.actions.some((item) => item.reasonCode === 'task-lease-expired'), true);
+  const beforeExpiry = runCognitiveLoop(input, { now: Date.parse('2026-09-23T10:00:00.000Z') });
+  assert.equal(beforeExpiry.plan.actions.some((item) => item.reasonCode === 'task-lease-expired'), false);
+  assert.throws(() => runCognitiveLoop(input, { now: NaN }), /planner-clock-invalid/);
 });
