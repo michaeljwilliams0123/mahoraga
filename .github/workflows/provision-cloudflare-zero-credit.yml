@@ -3,7 +3,7 @@ name: Provision Cloudflare Zero-Credit Account
 on:
   push:
     branches:
-      - feat/cloudflare-hard-zero-inference
+      - main
     paths:
       - .github/workflows/provision-cloudflare-zero-credit.yml
 
