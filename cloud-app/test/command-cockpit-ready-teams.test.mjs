@@ -65,8 +65,14 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
 
   it("derives Ready from fail-closed /api/ready evidence rather than static health metadata", () => {
     assert.match(cockpitView, /fetch\("\/api\/ready"/);
-    assert.match(cockpitView, /response\.ok/);
+    assert.match(cockpitView, /payload\?\.status/);
+    assert.match(cockpitView, /payload\?\.sha/);
+    assert.match(cockpitView, /payload\?\.durableState/);
     assert.match(cockpitView, /const readyOk = coreReady && readinessOk/);
     assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
+    assert.match(cockpitView, /Must not be inferred from \/api\/ready after #734/);
+    assert.match(cockpitView, /cloudflare-execution-runtime is not an authority claim/);
+    assert.doesNotMatch(cockpitView, /trafficAuthority from \/api\/ready/);
+    assert.doesNotMatch(cockpitView, /payload\?\.trafficAuthority/);
   });
 });
