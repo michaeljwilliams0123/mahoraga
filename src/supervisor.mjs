@@ -65,7 +65,11 @@ export class Supervisor extends EventEmitter {
       this.workers.clear();
       return undefined;
     }
-    return Promise.all(workerClosures).then(() => { this.workers.clear(); });
+    return Promise.allSettled(workerClosures).then((results) => {
+      this.workers.clear();
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
+    });
   }
 
   status() {

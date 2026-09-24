@@ -124,10 +124,13 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
     uccp?.plane.stop();
     clearInterval(provenanceRefreshTimer);
     clearInterval(vaultCleanupTimer);
-    await supervisor.stop({ waitForWorkers: true });
-    await new Promise((resolve) => server.close(resolve));
-    database.close();
-    uccp?.stateStore.close();
+    try {
+      await supervisor.stop({ waitForWorkers: true });
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+      database.close();
+      uccp?.stateStore.close();
+    }
   };
   return { manifest, database, artifactStore, contentVault, supervisor, server, controlSessions, mcpHost, relayRuntime, pgaTelemetryRegistry, runtimeProvenance, uccp, address, stop };
 }

@@ -64,6 +64,21 @@ test("cloud runtime dispatch is fixed-path, bearer-only, and bounded", async (t)
   assert.deepEqual(await rejected.json(), { error: "cloud-core-action-not-allowed" });
 });
 
+test("runtime closes its listener and database even when worker shutdown fails", async (t) => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-shutdown-"));
+  const runtime = await startRuntime({ port: 0, databaseFile: path.join(root, "runtime.sqlite"), contentVaultMasterKey: TEST_VAULT_KEY, primaryCodexToken: PRIMARY_TOKEN, syncCoordinationMailbox: false });
+  const stopWorkers = runtime.supervisor.stop.bind(runtime.supervisor);
+  runtime.supervisor.stop = async (options) => { await stopWorkers(options); throw new Error("injected-worker-shutdown-failure"); };
+  t.after(async () => {
+    if (runtime.server.listening) await new Promise((resolve) => runtime.server.close(resolve));
+    try { runtime.database.close(); } catch {}
+    rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
+  await assert.rejects(runtime.stop(), /injected-worker-shutdown-failure/);
+  assert.equal(runtime.server.listening, false);
+  assert.throws(() => runtime.database.listTasks(), /not open|closed/);
+});
+
 test("cloud runtime preserves zero-credit chat rejection semantics", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;

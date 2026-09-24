@@ -138,6 +138,14 @@ test("all eligible answer workers at capacity produce a queueable hold", () => {
   assert.equal(route.authorityDecision.decision, "hold");
 });
 
+test("an unverified idle provider cannot consume a request waiting for a verified busy provider", () => {
+  const local = { ...candidate(), workerId: "local-open-weight", costClass: "local-model" };
+  const router = createTaskRouter({ rankRoutes: () => ({ candidates: [candidate(), local], considered: [], reason: null }) });
+  const route = router(manifest, task, { cloudModeEnabled: true, providers: [provider], availableWorkerIds: [local.workerId] });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "workers-at-capacity");
+});
+
 
 test("canonical manifest exposes a local zero-credit answer worker", async () => {
   const { loadManifest } = await import("../src/config.mjs");

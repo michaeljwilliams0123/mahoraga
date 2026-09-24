@@ -55,6 +55,22 @@ test("new completed objectives cannot hide an older active request from reconcil
   assert.ok(result.released.some((item) => item.objectiveId === active.id));
 });
 
+test("objective recovery stops at its worker exclusion bound without re-admitting a failed worker", (t) => {
+  const database = databaseFixture(t);
+  const excludedWorkerIds = Array.from({ length: 16 }, (_, index) => `rejected-${index}`);
+  const objective = database.createObjective({ title: "Bounded recovery", tasks: [
+    { id: "health", capability: "system.health", dataClass: "synthetic", taskArea: "health", dependsOn: [], excludedWorkerIds },
+  ] });
+  database.reconcileObjectives();
+  const task = database.claimNext({ workerId: "last-worker", capabilities: ["system.health"], leaseMs: 5000 });
+  database.finishTask(task.id, { status: "failed", errorCode: "provider-unavailable" });
+  database.reconcileObjectives();
+  const result = database.reconcileObjectives();
+  assert.deepEqual(result.released, []);
+  assert.equal(database.getObjective(objective.id).status, "failed");
+  assert.equal(database.listTasks().length, 1);
+});
+
 test("task submission is idempotent and durable", (t) => {
   const database = databaseFixture(t);
   const first = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: "same-request" });

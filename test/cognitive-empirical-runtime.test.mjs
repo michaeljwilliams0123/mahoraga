@@ -14,9 +14,9 @@ test('held-out deliberation traverses supervisor/router and persists empirical r
  const root=mkdtempSync(path.join(os.tmpdir(),'mhg-cognitive-empirical-'));
  const runtime=await startRuntime({port:0,databaseFile:path.join(root,'runtime.sqlite'),contentVaultMasterKey:Buffer.alloc(32,41),primaryCodexToken:'cognitive-empirical-token-00000000000001',syncCoordinationMailbox:false,repositoryHeadReader:async()=>SHA,authoritativeHeadReader:async()=>SHA,expectedSourceCommit:SHA});
  t.after(async()=>{await runtime.stop();rmSync(root,{recursive:true,force:true,maxRetries:10,retryDelay:50});});
- await waitFor(()=>runtime.supervisor.status().find(w=>w.workerId==='cognitive-core')?.readiness.find(r=>r.capability==='cognitive.deliberate')?.providerStatus==='ready');
+ await waitFor(()=>{const r=runtime.supervisor.status().find(w=>w.workerId==='cognitive-core')?.readiness.find(r=>r.capability==='cognitive.deliberate');return r?.providerStatus==='ready'&&r?.canaryStatus==='verified';});
  const task=runtime.database.submitTask({capability:'cognitive.deliberate',dataClass:'synthetic',requestedMode:'local',executionPlane:'local',idempotencyKey:'empirical-cognitive-deliberation-536',correlationId:'issue-536-minority-rescue',requestedOutcome:'Run held-out minority-rescue challenge.',allowedWorkerIds:['cognitive-core'],policyVersion:'legacy-internal',capabilityInput:{positions}});
- const completed=await waitFor(()=>{const x=runtime.database.getTask(task.id);return x?.status==='completed'?x:null;});
+ const completed=await waitFor(()=>{const x=runtime.database.getTask(task.id);if(['failed','waiting'].includes(x?.status))throw new Error(`Cognitive empirical task stopped: ${x.errorCode}`);return x?.status==='completed'?x:null;});
  const receipt=runtime.database.listReceipts(completed.id)[0];
  assert.equal(receipt.capability,'cognitive.deliberate');assert.equal(receipt.outcome,'succeeded');
  assert.equal(receipt.receipt.details.providerEvidence.sourceCommit,SHA);
@@ -27,4 +27,5 @@ test('held-out deliberation traverses supervisor/router and persists empirical r
  assert.equal(receipt.receipt.details.outputEvidence.deliberation.materialDissent.length>0,true);
  assert.equal(JSON.stringify(receipt).includes('privateEpisodicRefs'),false);
 });
-async function waitFor(check,timeoutMs=8000){const end=Date.now()+timeoutMs;while(Date.now()<end){const v=await check();if(v)return v;await new Promise(r=>setTimeout(r,100));}throw new Error('Timed out waiting for cognitive empirical receipt.');}
+// Match the runtime's 30-second lease window, including cold worker startup on Windows.
+async function waitFor(check,timeoutMs=30000){const end=Date.now()+timeoutMs;while(Date.now()<end){const v=await check();if(v)return v;await new Promise(r=>setTimeout(r,100));}throw new Error('Timed out waiting for cognitive empirical receipt.');}

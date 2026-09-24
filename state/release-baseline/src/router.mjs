@@ -35,7 +35,13 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       || task?.creditFreeRequired === true
       || task?.requestedMode === "zero-credit";
     const normalizedCandidates = ranked.candidates.map(normalizeCandidateBilling);
-    const permittedCandidates = normalizedCandidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId));
+    const permittedCandidates = normalizedCandidates
+      .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
+      .filter((candidate) => {
+        if (!providerDecision || !isAnswer(task)) return true;
+        const admission = zeroCreditDecision(task, context, new Set([candidate.workerId]));
+        return admission.status === "selected" && admission.providerId === candidate.workerId && admission.costClass === candidate.costClass;
+      });
     const availableWorkers = context.availableWorkerIds === undefined ? null : new Set(context.availableWorkerIds);
     const availableCandidates = permittedCandidates.filter((candidate) => !availableWorkers || availableWorkers.has(candidate.workerId));
     if (permittedCandidates.length > 0 && availableCandidates.length === 0) {

@@ -722,3 +722,18 @@ test("graceful supervisor stop accepts process exit without waiting for delayed 
   ]);
   assert.equal(resolved, true, "process exit must satisfy the teardown barrier even if stdio close is delayed");
 });
+
+test("timed-out shutdown releases tracking while preserving the shutdown failure", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({ manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false, forkWorker: () => child, tickIntervalMs: 1000 });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const stopped = assert.rejects(supervisor.stop({ waitForWorkers: true }), /worker-shutdown-timeout/);
+  t.mock.timers.tick(10000);
+  await stopped;
+  assert.equal(supervisor.status().length, 0);
+  child.emit("exit", 1, null);
+});
