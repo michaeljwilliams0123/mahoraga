@@ -49,12 +49,13 @@ describe("ExecutionDurableObject", () => {
       headers: {
         "content-type": "application/json",
         "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-idempotency-key": "outer-sha-mismatch",
+        "x-idempotency-key": "outer-retired-bypass",
         "x-target-sha": "stale-sha",
       },
       body: JSON.stringify({ mustNotRun: true }),
     }));
-    expect(response.status).toBe(412);
+    expect(response.status).toBe(410);
+    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
 
     const stub = env.EXECUTION_DO.getByName("execution-v1");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
@@ -159,17 +160,9 @@ describe("ExecutionDurableObject", () => {
     });
   });
 
-  it("proxies a valid emergency bypass without exposing the bypass secret", async () => {
-    let forwarded: Request | undefined;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (request: RequestInfo | URL, init?: RequestInit) => {
-      forwarded = new Request(request, init);
-      return new Response(JSON.stringify({ railway: true }), {
-        status: 202,
-        headers: { "content-type": "application/json" },
-      });
-    });
-
-    const response = await env.EXECUTION_DO.getByName("bypass").fetch(
+  it("rejects the retired Railway bypass without an upstream fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await env.EXECUTION_DO.getByName("bypass-retired").fetch(
       "https://execution.example/api/execute?source=edge",
       {
         method: "POST",
@@ -181,17 +174,14 @@ describe("ExecutionDurableObject", () => {
         body: JSON.stringify({ route: "railway" }),
       },
     );
-    expect(response.status).toBe(202);
-    expect(response.headers.get("x-bypass-applied")).toBe("true");
-    expect(await response.json()).toEqual({ railway: true });
-    expect(forwarded?.url).toBe("https://mahoraga-runtime-main-production.up.railway.app/api/execute?source=edge");
-    expect(forwarded?.headers.get("x-bypass-token")).toBeNull();
-    expect(forwarded?.headers.get("x-mahoraga-forwarded-by")).toBe("cloudflare-execution-runtime");
+    expect(response.status).toBe(410);
+    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects a Railway routing loop before forwarding", async () => {
+  it("rejects former Railway loop markers without forwarding", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const response = await env.EXECUTION_DO.getByName("loop").fetch("https://execution.example/api/execute", {
+    const response = await env.EXECUTION_DO.getByName("loop-retired").fetch("https://execution.example/api/execute", {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -201,7 +191,8 @@ describe("ExecutionDurableObject", () => {
       },
       body: JSON.stringify({ route: "cloudflare" }),
     });
-    expect(response.status).toBe(508);
+    expect(response.status).toBe(410);
+    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
