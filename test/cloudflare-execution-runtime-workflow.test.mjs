@@ -7,6 +7,8 @@ import test from "node:test";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = path.join(root, ".github/workflows/cloudflare-execution-runtime.yml");
 const billingAttestationPath = path.join(root, "scripts/cloudflare-zero-credit-attestation.mjs");
+const runtimeWorkerPath = path.join(root, "deploy/cloudflare-execution-runtime/worker.ts");
+const runtimeWranglerPath = path.join(root, "deploy/cloudflare-execution-runtime/wrangler.jsonc");
 
 test("Cloudflare exact-main workflow is hosted, owner-bound, and verify-gated", async () => {
   const workflow = await readFile(workflowPath, "utf8");
@@ -51,7 +53,6 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   assert.ok(accept > refresh, "live cognition/replay acceptance must follow provider admission");
   assert.match(workflow, /ZERO_CREDIT_PROVIDER_URL:/);
   assert.match(workflow, /ZERO_CREDIT_ACCOUNT_ID_HASH/);
-  assert.match(workflow, /ZERO_CREDIT_BILLING_ATTESTATION/);
   assert.match(billingAttestationScript, /workers\/account-settings/);
   assert.match(billingAttestationScript, /\/subscriptions/);
   assert.match(workflow, /--secrets-file "\$PROVIDER_SECRETS_FILE"/);
@@ -60,6 +61,28 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   assert.doesNotMatch(workflow, /secret put ZERO_CREDIT_PROVIDER_TOKEN/);
   assert.doesNotMatch(workflow, /secret put PROVIDER_REFRESH_SECRET/);
   assert.match(workflow, /provider-admitted/);
+});
+
+test("Cloudflare billing proof renews externally before expiry without redeploying Workers", async () => {
+  const [workflow, runtimeWorker, runtimeWrangler] = await Promise.all([
+    readFile(workflowPath, "utf8"),
+    readFile(runtimeWorkerPath, "utf8"),
+    readFile(runtimeWranglerPath, "utf8"),
+  ]);
+  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"17 \* \* \* \*"/);
+  const renewalJob = workflow.indexOf("renew-provider-admission:");
+  const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);
+  const refreshCall = workflow.indexOf("/api/provider/refresh", renewalJob);
+  assert.ok(renewalJob >= 0, "hourly external renewal job must exist");
+  assert.ok(billingProof > renewalJob, "renewal must re-prove account billing");
+  assert.ok(refreshCall > billingProof, "fresh attestation must be submitted only after billing proof");
+  const renewalBlock = workflow.slice(renewalJob);
+  assert.match(renewalBlock, /billingAttestation/);
+  assert.doesNotMatch(renewalBlock, /wrangler@[^\n]* deploy|cloudflare-execution-runtime\.ts deploy|cloudflare:owner-gateway:deploy/);
+  assert.doesNotMatch(runtimeWrangler, /"crons"\s*:/, "Cloudflare cron must not recycle deployment-time billing evidence");
+  assert.doesNotMatch(runtimeWorker, /async scheduled\(/, "runtime must not self-renew billing evidence without account API proof");
+  assert.match(runtimeWorker, /provider-refresh-attestation-invalid/);
+  assert.doesNotMatch(runtimeWorker, /ZERO_CREDIT_BILLING_ATTESTATION/);
 });
 
 test("Cloudflare exact-main workflow deploys before strengthened live acceptance and does not mutate Railway or billing", async () => {
