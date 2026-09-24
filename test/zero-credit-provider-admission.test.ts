@@ -10,16 +10,16 @@ const config: ZeroCreditProviderConfig = {
   token: "z".repeat(64),
   accountIdHash: "a".repeat(64),
   targetSha: "b".repeat(40),
-  billingAttestation: JSON.stringify({
-    schemaVersion: 1,
-    evidenceSource: "cloudflare-account-api",
-    accountIdHash: "a".repeat(64),
-    defaultUsageModel: "bundled",
-    billableAccountSubscriptionCount: 0,
-    verifiedAt: NOW,
-    expiresAt: NOW + 90 * 60_000,
-  }),
 };
+const billingAttestation = JSON.stringify({
+  schemaVersion: 1,
+  evidenceSource: "cloudflare-account-api",
+  accountIdHash: "a".repeat(64),
+  defaultUsageModel: "bundled",
+  billableAccountSubscriptionCount: 0,
+  verifiedAt: NOW,
+  expiresAt: NOW + 90 * 60_000,
+});
 
 const proof = (overrides: Record<string, unknown> = {}) => ({
   providerId: ASSISTANT_PROVIDER_ID,
@@ -40,7 +40,7 @@ const responseFetch = (body: Record<string, unknown>, status = 200): typeof fetc
   async () => Response.json(body, { status });
 
 test("admits only fresh identity-bound proof constrained below the daily free allocation", async () => {
-  const probe = await probeZeroCreditProvider(config, responseFetch(proof()), () => NOW);
+  const probe = await probeZeroCreditProvider(config, billingAttestation, responseFetch(proof()), () => NOW);
   const state = providerStateFromProbe(probe, NOW);
   assert.equal(state.available, true);
   assert.equal(state.zeroCreditEligible, true);
@@ -49,17 +49,17 @@ test("admits only fresh identity-bound proof constrained below the daily free al
 });
 
 test("rejects wrong identity or a budget boundary that could exceed the free allocation", async () => {
-  const wrongIdentity = await probeZeroCreditProvider(config, responseFetch(proof({ accountIdHash: "c".repeat(64) })), () => NOW);
+  const wrongIdentity = await probeZeroCreditProvider(config, billingAttestation, responseFetch(proof({ accountIdHash: "c".repeat(64) })), () => NOW);
   assert.equal(providerStateFromProbe(wrongIdentity, NOW).reasonCode, "provider-identity-mismatch");
 
-  const unsafeBudget = await probeZeroCreditProvider(config, responseFetch(proof({ dailyBudgetNeurons: FREE_ALLOCATION_NEURONS })), () => NOW);
+  const unsafeBudget = await probeZeroCreditProvider(config, billingAttestation, responseFetch(proof({ dailyBudgetNeurons: FREE_ALLOCATION_NEURONS })), () => NOW);
   const unsafeState = providerStateFromProbe(unsafeBudget, NOW);
   assert.equal(unsafeState.zeroCreditEligible, false);
   assert.equal(unsafeState.reasonCode, "provider-identity-mismatch");
 });
 
 test("rejects stale provider evidence even when the provider is reachable", async () => {
-  const stale = await probeZeroCreditProvider(config, responseFetch(proof({ verifiedAt: NOW - 120_000, canaryExpiresAt: NOW - 1 })), () => NOW);
+  const stale = await probeZeroCreditProvider(config, billingAttestation, responseFetch(proof({ verifiedAt: NOW - 120_000, canaryExpiresAt: NOW - 1 })), () => NOW);
   const staleState = providerStateFromProbe(stale, NOW);
   assert.equal(staleState.zeroCreditEligible, false);
   assert.equal(staleState.reasonCode, "provider-canary-stale");
@@ -73,7 +73,7 @@ test("rejects missing, stale, or paid-account billing attestations independently
     billingState: "verified-zero",
     zeroDollarStopGuaranteed: true,
   });
-  for (const billingAttestation of [
+  for (const candidateBillingAttestation of [
     "",
     JSON.stringify({
       schemaVersion: 1,
@@ -94,7 +94,7 @@ test("rejects missing, stale, or paid-account billing attestations independently
       expiresAt: NOW - 60_000,
     }),
   ]) {
-    const probe = await probeZeroCreditProvider({ ...config, billingAttestation }, responseFetch(providerSelfClaimsZero), () => NOW);
+    const probe = await probeZeroCreditProvider(config, candidateBillingAttestation, responseFetch(providerSelfClaimsZero), () => NOW);
     const state = providerStateFromProbe(probe, NOW);
     assert.equal(state.zeroCreditEligible, false);
     assert.equal(state.reasonCode, "provider-billing-attestation-invalid");
@@ -102,7 +102,7 @@ test("rejects missing, stale, or paid-account billing attestations independently
 });
 
 test("maps free-allocation budget exhaustion to provider.gap instead of a fallback", async () => {
-  const probe = await probeZeroCreditProvider(config, responseFetch({}, 429), () => NOW);
+  const probe = await probeZeroCreditProvider(config, billingAttestation, responseFetch({}, 429), () => NOW);
   const state = providerStateFromProbe(probe, NOW);
   assert.equal(state.available, false);
   assert.equal(state.zeroCreditEligible, false);
