@@ -3,13 +3,13 @@ import {
   ASSISTANT_PROVIDER_ID,
   parseZeroCreditProviderEnvelope,
   type ZeroCreditProviderConfig,
-} from "./provider-invoker";
+} from "./provider-invoker.ts";
 import {
   isFreshProviderProbe,
   isVerifiedZeroCreditProbe,
   type ProviderProbe,
-} from "./provider-policy";
-import type { ProviderStateRecord } from "./storage";
+} from "./provider-policy.ts";
+import type { ProviderStateRecord } from "./storage.ts";
 
 const objectValue = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
