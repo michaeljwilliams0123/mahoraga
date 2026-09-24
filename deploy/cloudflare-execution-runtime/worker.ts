@@ -8,6 +8,7 @@ const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application
 const LEASE_TTL_MS = 300_000;
 const GATEWAY_ASSERTION_TTL_MS = 60_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
+const MAX_BILLING_ATTESTATION_BYTES = 8_192;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const ROUTING_HOP_ID = "cloudflare-execution-runtime";
 const DURABLE_STATE = "cloudflare-do-sqlite";
@@ -95,7 +96,6 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       token: this.env.ZERO_CREDIT_PROVIDER_TOKEN,
       accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH,
       targetSha: this.env.TARGET_SHA,
-      billingAttestation: this.env.ZERO_CREDIT_BILLING_ATTESTATION,
     };
   }
   private providerGapResponse(error: unknown): Response | null {
@@ -104,9 +104,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     this.storage.saveProviderState(providerStateForGap(reasonCode));
     return json({ error: "zero-credit-provider-unavailable", reasonCode }, 503);
   }
-  private async refreshProviderState(): Promise<Response> {
+  private async refreshProviderState(billingAttestation: string): Promise<Response> {
     this.initialize();
-    const probe = await probeZeroCreditProvider(this.providerConfig());
+    const probe = await probeZeroCreditProvider(this.providerConfig(), billingAttestation);
     const state = providerStateFromProbe(probe);
     this.storage.saveProviderState(state);
     return json({
@@ -214,7 +214,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
       const provided = request.headers.get("x-provider-refresh-token") ?? "";
       if (!await secureEqual(provided, this.env.PROVIDER_REFRESH_SECRET)) return json({ error: "provider-refresh-auth-required" }, 403);
-      return this.refreshProviderState();
+      if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return json({ error: "provider-refresh-attestation-invalid" }, 400);
+      const rawBody = await request.text();
+      if (new TextEncoder().encode(rawBody).byteLength > MAX_BILLING_ATTESTATION_BYTES) return json({ error: "provider-refresh-attestation-invalid" }, 400);
+      let input: Record<string, unknown> | null;
+      try { input = objectValue(JSON.parse(rawBody)); } catch { input = null; }
+      const billingAttestation = input?.billingAttestation;
+      if (typeof billingAttestation !== "string" || !billingAttestation.trim() || new TextEncoder().encode(billingAttestation).byteLength > MAX_BILLING_ATTESTATION_BYTES) return json({ error: "provider-refresh-attestation-invalid" }, 400);
+      return this.refreshProviderState(billingAttestation);
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
@@ -288,14 +295,5 @@ export default {
       const bypassToken = request.headers.get("x-bypass-token") ?? ""; if (await secureEqual(bypassToken, env.BYPASS_SECRET)) return proxyToRailway(request, url, env);
     }
     return env.EXECUTION_DO.getByName("execution-v1").fetch(request);
-  },
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    const request = new Request("https://execution.internal/api/provider/refresh", {
-      method: "POST",
-      headers: { "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET },
-    });
-    ctx.waitUntil(env.EXECUTION_DO.getByName("execution-v1").fetch(request).then((response) => {
-      if (!response.ok) throw new Error("provider-refresh-failed");
-    }));
   },
 } satisfies ExportedHandler<Env>;
