@@ -3,7 +3,15 @@
   "compilerOptions": {
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
+    "types": [
+      "@cloudflare/workers-types",
+      "@cloudflare/vitest-plugin/types"
+    ]
   },
-  "include": ["./**/*.ts", "../../cloudflare-test/**/*.ts", "../../vitest.cloudflare.config.ts"]
+  "include": [
+    "./**/*.ts",
+    "../cloudflare-zero-credit-inference/**/*.ts",
+    "../../cloudflare-test/**/*.ts",
+    "../../vitest.cloudflare.config.ts"
+  ]
 }

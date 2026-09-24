@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "provider": "cloudflare-workers-ai",
   "model": "@cf/zai-org/glm-4.7-flash",
-  "billingBoundary": "standalone-workers-free-account",
-  "accountName": "Mahoraga Zero-Credit",
-  "status": "provisioning-required",
+  "billingBoundary": "daily-free-allocation-budget",
+  "cloudflareFreeAllocationNeurons": 10000,
+  "mahoragaDailyBudgetNeurons": 9000,
+  "status": "budget-guard-implemented",
   "zeroDollarStopGuaranteed": false,
   "liveCognitionAuthorized": false,
   "trafficAuthorityVerified": false

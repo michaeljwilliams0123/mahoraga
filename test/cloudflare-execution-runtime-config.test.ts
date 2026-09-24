@@ -19,5 +19,9 @@ test("execution runtime fails deployment when protected secrets are missing", ()
     "BYPASS_SECRET",
     "CONTENT_VAULT_KEY",
     "OWNER_GATEWAY_SECRET",
+    "PROVIDER_REFRESH_SECRET",
+    "ZERO_CREDIT_PROVIDER_URL",
+    "ZERO_CREDIT_PROVIDER_TOKEN",
+    "ZERO_CREDIT_ACCOUNT_ID_HASH",
   ]);
 });
