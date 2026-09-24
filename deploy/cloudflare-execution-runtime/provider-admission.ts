@@ -32,11 +32,14 @@ const parseBillingAttestation = (
 ): BillingAttestation | null => {
   try {
     const record = objectValue(JSON.parse(value));
+    const defaultUsageModel = record?.defaultUsageModel;
     if (
       record?.schemaVersion !== 1
       || record.evidenceSource !== "cloudflare-account-api"
       || record.accountIdHash !== accountIdHash
-      || record.defaultUsageModel !== "bundled"
+      || typeof defaultUsageModel !== "string"
+      || !defaultUsageModel.trim()
+      || defaultUsageModel.length > 64
       || record.billableAccountSubscriptionCount !== 0
       || !Number.isSafeInteger(record.verifiedAt)
       || !Number.isSafeInteger(record.expiresAt)
