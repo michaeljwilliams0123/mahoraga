@@ -10,8 +10,10 @@ const types = readFileSync(join(root, "components/workspace/workspace-types.ts")
 
 describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   it("gates cognition and no-Railway-fallback on sanitized receipt fields only", () => {
-    assert.match(cockpit, /providerCognitionVerified/);
-    assert.match(cockpit, /noRailwayFallbackVerified/);
+    assert.match(cockpit, /const cognitionObserved = acceptance\.providerCognitionVerified === true;/);
+    assert.match(cockpit, /const noRailwayVerified = acceptance\.noRailwayFallbackVerified === true;/);
+    assert.match(cockpit, /providerCognitionVerified: providerCognitionVerified && !bypassApplied/);
+    assert.match(cockpit, /noRailwayFallbackVerified: noRailwayFallbackVerified && !bypassApplied/);
     assert.match(cockpit, /Cloudflare cognition/);
     assert.match(cockpit, /No Railway fallback/);
     assert.match(cockpit, /Observed/);
@@ -19,7 +21,7 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Unproven/);
     assert.match(cockpit, /rollback anchor/);
     assert.match(cockpit, /x-bypass-applied/);
-    assert.doesNotMatch(cockpit, /providerCognitionVerified.*\/api\/ready/);
+    assert.match(cockpit, /never inferred from \/api\/ready/i);
   });
 
   it("keeps traffic authority separate and never flips it from ready or acceptance", () => {
