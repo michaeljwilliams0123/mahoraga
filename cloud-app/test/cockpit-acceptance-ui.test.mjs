@@ -38,4 +38,12 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
+
+  it("surfaces GLM attestation canary parser repair as observational only", () => {
+    assert.match(cockpit, /GLM attestation canary/);
+    assert.match(cockpit, /choices\[\]\.message\.content/);
+    assert.match(cockpit, /max_completion_tokens/);
+    assert.match(cockpit, /Merge #773 is not live cognition or traffic authority/);
+    assert.match(cockpit, /9,000\/10,000 neuron hard-zero budget unchanged/);
+  });
 });
