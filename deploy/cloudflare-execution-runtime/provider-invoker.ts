@@ -26,7 +26,6 @@ export interface ZeroCreditProviderConfig {
   token: string;
   accountIdHash: string;
   targetSha: string;
-  billingAttestation: string;
 }
 
 export interface ZeroCreditProviderEnvelope {
