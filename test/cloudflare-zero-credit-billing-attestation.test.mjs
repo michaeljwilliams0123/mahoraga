@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildZeroCreditBillingAttestation } from "../scripts/cloudflare-zero-credit-attestation.mjs";
+import { buildZeroCreditBillingAttestation, fetchZeroCreditBillingEvidence } from "../scripts/cloudflare-zero-credit-attestation.mjs";
 
 const NOW = 1_790_208_000_000;
 const ACCOUNT_HASH = "a".repeat(64);
@@ -65,4 +65,27 @@ test("permits explicit zero-dollar Free subscriptions and ignores terminated one
     now: NOW,
   });
   assert.equal(attestation.billableAccountSubscriptionCount, 0);
+});
+
+test("uses a separate read-only billing token only for the subscriptions proof", async () => {
+  const calls = [];
+  const result = await fetchZeroCreditBillingEvidence({
+    accountId: "a".repeat(32), deploymentToken: "deploy", billingReadToken: "billing",
+    fetchImpl: async (url, options) => {
+      calls.push({ url, authorization: options.headers.authorization });
+      return { ok: true, json: async () => url.endsWith("/subscriptions") ? subscriptions() : settings() };
+    },
+  });
+  assert.equal(result.accountSettingsEnvelope.success, true);
+  assert.equal(result.subscriptionsEnvelope.success, true);
+  assert.deepEqual(calls.map(({ authorization }) => authorization), ["Bearer deploy", "Bearer billing"]);
+});
+
+test("billing authorization failure is actionable and never treated as free evidence", async () => {
+  await assert.rejects(fetchZeroCreditBillingEvidence({
+    accountId: "a".repeat(32), deploymentToken: "deploy", billingReadToken: "billing",
+    fetchImpl: async (url) => url.endsWith("/subscriptions")
+      ? { ok: false, status: 403 }
+      : { ok: true, json: async () => settings() },
+  }), /cloudflare-subscriptions-billing-read-required-403/);
 });

@@ -56,25 +56,40 @@ export const buildZeroCreditBillingAttestation = ({
   };
 };
 
-const fetchEvidence = async (url, token, label) => {
-  const response = await fetch(url, {
+const fetchEvidence = async (url, token, label, fetchImpl) => {
+  const response = await fetchImpl(url, {
     headers: { authorization: `Bearer ${token}`, "cache-control": "no-store" },
   });
-  if (!response.ok) throw new Error(`cloudflare-${label}-request-${response.status}`);
+  if (!response.ok) {
+    if (label === "subscriptions" && response.status === 403) {
+      throw new Error("cloudflare-subscriptions-billing-read-required-403");
+    }
+    throw new Error(`cloudflare-${label}-request-${response.status}`);
+  }
   return response.json();
+};
+
+export const fetchZeroCreditBillingEvidence = async ({
+  accountId, deploymentToken, billingReadToken, fetchImpl = fetch,
+}) => {
+  const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
+  const [accountSettingsEnvelope, subscriptionsEnvelope] = await Promise.all([
+    fetchEvidence(`${base}/workers/account-settings`, deploymentToken, "account-settings", fetchImpl),
+    fetchEvidence(`${base}/subscriptions`, billingReadToken || deploymentToken, "subscriptions", fetchImpl),
+  ]);
+  return { accountSettingsEnvelope, subscriptionsEnvelope };
 };
 
 const run = async () => {
   const outputIndex = process.argv.indexOf("--output");
   const output = outputIndex >= 0 ? process.argv[outputIndex + 1] : "";
   const token = (process.env.CLOUDFLARE_API_TOKEN ?? "").trim();
+  const billingReadToken = (process.env.CLOUDFLARE_BILLING_READ_TOKEN ?? "").trim();
   const accountId = (process.env.CLOUDFLARE_ACCOUNT_ID ?? "").trim();
   if (!output || !token || !/^[a-f0-9]{32}$/i.test(accountId)) throw new Error("cloudflare-billing-evidence-config-invalid");
-  const base = `https://api.cloudflare.com/client/v4/accounts/${accountId}`;
-  const [accountSettingsEnvelope, subscriptionsEnvelope] = await Promise.all([
-    fetchEvidence(`${base}/workers/account-settings`, token, "account-settings"),
-    fetchEvidence(`${base}/subscriptions`, token, "subscriptions"),
-  ]);
+  const { accountSettingsEnvelope, subscriptionsEnvelope } = await fetchZeroCreditBillingEvidence({
+    accountId, deploymentToken: token, billingReadToken,
+  });
   const accountIdHash = createHash("sha256").update(accountId).digest("hex");
   const attestation = buildZeroCreditBillingAttestation({ accountIdHash, accountSettingsEnvelope, subscriptionsEnvelope });
   await writeFile(output, JSON.stringify(attestation), { encoding: "utf8", mode: 0o600 });
