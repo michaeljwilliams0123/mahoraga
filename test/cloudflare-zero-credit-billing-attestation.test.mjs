@@ -98,3 +98,27 @@ test("billing authorization failure is actionable and never treated as free evid
       : { ok: true, json: async () => settings("standard") },
   }), /cloudflare-subscriptions-billing-read-required-403/);
 });
+
+
+test("accepts a zero-dollar non-contract account subscription without relying on a zone-plan id", () => {
+  const attestation = buildZeroCreditBillingAttestation({
+    accountIdHash: ACCOUNT_HASH,
+    accountSettingsEnvelope: settings("standard"),
+    subscriptionsEnvelope: subscriptions([
+      { state: "Provisioned", price: 0, rate_plan: { id: "workers-free", externally_managed: false, is_contract: false }, component_values: [] },
+    ]),
+    now: NOW,
+  });
+  assert.equal(attestation.billableAccountSubscriptionCount, 0);
+});
+
+test("rejects a zero-base subscription that still exposes metered billing", () => {
+  assert.throws(() => buildZeroCreditBillingAttestation({
+    accountIdHash: ACCOUNT_HASH,
+    accountSettingsEnvelope: settings("standard"),
+    subscriptionsEnvelope: subscriptions([
+      { state: "Provisioned", price: 0, rate_plan: { id: "free", externally_managed: false, is_contract: false }, component_values: [{ kind: "usage", price: 0.02, value: 0 }] },
+    ]),
+    now: NOW,
+  }), /account-subscription-not-provably-free/);
+});
