@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { probeZeroCreditProvider, providerStateFromProbe } from "../deploy/cloudflare-execution-runtime/provider-admission.ts";
-import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, type ZeroCreditProviderConfig } from "../deploy/cloudflare-execution-runtime/provider-invoker.ts";
+import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, FREE_ALLOCATION_NEURONS, MAHORAGA_DAILY_BUDGET_NEURONS, type ZeroCreditProviderConfig } from "../deploy/cloudflare-execution-runtime/provider-invoker.ts";
 
 const NOW = 1_790_208_000_000;
 const config: ZeroCreditProviderConfig = {
@@ -17,7 +17,9 @@ const proof = (overrides: Record<string, unknown> = {}) => ({
   modelId: ASSISTANT_MODEL_ID,
   targetSha: config.targetSha,
   accountIdHash: config.accountIdHash,
-  accountClass: "standalone-free",
+  billingBoundary: "daily-free-allocation-budget",
+  freeAllocationNeurons: FREE_ALLOCATION_NEURONS,
+  dailyBudgetNeurons: MAHORAGA_DAILY_BUDGET_NEURONS,
   available: true,
   metered: false,
   priceUsd: 0,
@@ -33,7 +35,7 @@ const proof = (overrides: Record<string, unknown> = {}) => ({
 const responseFetch = (body: Record<string, unknown>, status = 200): typeof fetch =>
   async () => Response.json(body, { status });
 
-test("admits only a fresh identity-bound standalone-Free provider proof", async () => {
+test("admits only fresh identity-bound proof constrained below the daily free allocation", async () => {
   const probe = await probeZeroCreditProvider(config, responseFetch(proof()), () => NOW);
   const state = providerStateFromProbe(probe, NOW);
   assert.equal(state.available, true);
@@ -42,11 +44,14 @@ test("admits only a fresh identity-bound standalone-Free provider proof", async 
   assert.equal(state.canaryExpiresAt, NOW + 75 * 60_000);
 });
 
-test("rejects a proof from the wrong Cloudflare account identity", async () => {
-  const probe = await probeZeroCreditProvider(config, responseFetch(proof({ accountIdHash: "c".repeat(64) })), () => NOW);
-  const state = providerStateFromProbe(probe, NOW);
-  assert.equal(state.zeroCreditEligible, false);
-  assert.equal(state.reasonCode, "provider-identity-mismatch");
+test("rejects wrong identity or a budget boundary that could exceed the free allocation", async () => {
+  const wrongIdentity = await probeZeroCreditProvider(config, responseFetch(proof({ accountIdHash: "c".repeat(64) })), () => NOW);
+  assert.equal(providerStateFromProbe(wrongIdentity, NOW).reasonCode, "provider-identity-mismatch");
+
+  const unsafeBudget = await probeZeroCreditProvider(config, responseFetch(proof({ dailyBudgetNeurons: FREE_ALLOCATION_NEURONS })), () => NOW);
+  const unsafeState = providerStateFromProbe(unsafeBudget, NOW);
+  assert.equal(unsafeState.zeroCreditEligible, false);
+  assert.equal(unsafeState.reasonCode, "provider-identity-mismatch");
 });
 
 test("rejects paid or stale evidence even when the provider is reachable", async () => {
@@ -59,7 +64,7 @@ test("rejects paid or stale evidence even when the provider is reachable", async
   assert.equal(staleState.reasonCode, "provider-canary-stale");
 });
 
-test("maps Free-tier exhaustion to provider.gap instead of a fallback", async () => {
+test("maps free-allocation budget exhaustion to provider.gap instead of a fallback", async () => {
   const probe = await probeZeroCreditProvider(config, responseFetch({}, 429), () => NOW);
   const state = providerStateFromProbe(probe, NOW);
   assert.equal(state.available, false);

@@ -4,6 +4,8 @@ export type ProviderInvoker = (model: string, input: ProviderInput) => Promise<u
 
 export const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
 export const ASSISTANT_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
+export const FREE_ALLOCATION_NEURONS = 10_000;
+export const MAHORAGA_DAILY_BUDGET_NEURONS = 9_000;
 
 export interface ZeroCreditProviderConfig {
   origin: string;
@@ -17,7 +19,9 @@ export interface ZeroCreditProviderEnvelope {
   modelId: string;
   targetSha: string;
   accountIdHash: string;
-  accountClass: "standalone-free";
+  billingBoundary: "daily-free-allocation-budget";
+  freeAllocationNeurons: 10_000;
+  dailyBudgetNeurons: 9_000;
   zeroDollarStopGuaranteed: true;
 }
 
@@ -51,7 +55,9 @@ export const parseZeroCreditProviderEnvelope = (
     || body.modelId !== ASSISTANT_MODEL_ID
     || body.targetSha !== config.targetSha
     || body.accountIdHash !== config.accountIdHash
-    || body.accountClass !== "standalone-free"
+    || body.billingBoundary !== "daily-free-allocation-budget"
+    || body.freeAllocationNeurons !== FREE_ALLOCATION_NEURONS
+    || body.dailyBudgetNeurons !== MAHORAGA_DAILY_BUDGET_NEURONS
     || body.zeroDollarStopGuaranteed !== true
   ) return null;
   return {
@@ -59,7 +65,9 @@ export const parseZeroCreditProviderEnvelope = (
     modelId: ASSISTANT_MODEL_ID,
     targetSha: config.targetSha,
     accountIdHash: config.accountIdHash,
-    accountClass: "standalone-free",
+    billingBoundary: "daily-free-allocation-budget",
+    freeAllocationNeurons: FREE_ALLOCATION_NEURONS,
+    dailyBudgetNeurons: MAHORAGA_DAILY_BUDGET_NEURONS,
     zeroDollarStopGuaranteed: true,
   };
 };
