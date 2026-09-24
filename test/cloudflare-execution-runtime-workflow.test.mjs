@@ -112,11 +112,14 @@ test("Cloudflare exact-main workflow promotes dependencies inside-out before the
   assert.ok(accept > gatewayDeploy, "live acceptance must run after all Cloudflare deployments");
 });
 
-test("Cloudflare exact-main workflow removes protected temporary secret files on every outcome", async () => {
+test("Cloudflare exact-main workflow resolves runner temp paths at runtime instead of invalid job context", async () => {
   const workflow = await readFile(workflowPath, "utf8");
-  assert.match(workflow, /PROVIDER_SECRETS_FILE:\s*\$\{\{ runner\.temp \}\}\//);
-  assert.match(workflow, /RUNTIME_SECRETS_FILE:\s*\$\{\{ runner\.temp \}\}\//);
-  assert.match(workflow, /BILLING_ATTESTATION_FILE:\s*\$\{\{ runner\.temp \}\}\//);
+  assert.doesNotMatch(workflow, /\$\{\{\s*runner\.temp\s*\}\}/, "runner context is invalid in job-level env and makes workflow_dispatch unparsable");
+  assert.match(workflow, /RUNNER_TEMP/);
+  assert.match(workflow, /PROVIDER_SECRETS_FILE=.*mahoraga-zero-credit-provider-secrets\.json/);
+  assert.match(workflow, /RUNTIME_SECRETS_FILE=.*mahoraga-execution-runtime-secrets\.json/);
+  assert.match(workflow, /BILLING_ATTESTATION_FILE=.*mahoraga-zero-credit-billing-attestation\.json/);
+  assert.match(workflow, /GITHUB_ENV/);
   assert.match(workflow, /name:\s*Remove temporary Cloudflare secret files/);
   assert.match(workflow, /if:\s*always\(\)/);
   assert.match(workflow, /rm -f "\$PROVIDER_SECRETS_FILE" "\$RUNTIME_SECRETS_FILE" "\$BILLING_ATTESTATION_FILE"/);
