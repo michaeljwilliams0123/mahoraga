@@ -15,7 +15,7 @@ const billingAttestation = JSON.stringify({
   schemaVersion: 1,
   evidenceSource: "cloudflare-account-api",
   accountIdHash: "a".repeat(64),
-  defaultUsageModel: "bundled",
+  defaultUsageModel: "standard",
   billableAccountSubscriptionCount: 0,
   verifiedAt: NOW,
   expiresAt: NOW + 90 * 60_000,
@@ -39,7 +39,7 @@ const proof = (overrides: Record<string, unknown> = {}) => ({
 const responseFetch = (body: Record<string, unknown>, status = 200): typeof fetch =>
   async () => Response.json(body, { status });
 
-test("admits only fresh identity-bound proof constrained below the daily free allocation", async () => {
+test("admits fresh identity-bound proof when billing attestation independently proves zero billable subscriptions", async () => {
   const probe = await probeZeroCreditProvider(config, billingAttestation, responseFetch(proof()), () => NOW);
   const state = providerStateFromProbe(probe, NOW);
   assert.equal(state.available, true);
@@ -65,7 +65,7 @@ test("rejects stale provider evidence even when the provider is reachable", asyn
   assert.equal(staleState.reasonCode, "provider-canary-stale");
 });
 
-test("rejects missing, stale, or paid-account billing attestations independently of provider claims", async () => {
+test("rejects missing, stale, or billable-account attestations independently of provider claims", async () => {
   const providerSelfClaimsZero = proof({
     metered: false,
     priceUsd: 0,
@@ -80,7 +80,7 @@ test("rejects missing, stale, or paid-account billing attestations independently
       evidenceSource: "cloudflare-account-api",
       accountIdHash: config.accountIdHash,
       defaultUsageModel: "standard",
-      billableAccountSubscriptionCount: 0,
+      billableAccountSubscriptionCount: 1,
       verifiedAt: NOW,
       expiresAt: NOW + 90 * 60_000,
     }),
@@ -88,7 +88,7 @@ test("rejects missing, stale, or paid-account billing attestations independently
       schemaVersion: 1,
       evidenceSource: "cloudflare-account-api",
       accountIdHash: config.accountIdHash,
-      defaultUsageModel: "bundled",
+      defaultUsageModel: "standard",
       billableAccountSubscriptionCount: 0,
       verifiedAt: NOW - 91 * 60_000,
       expiresAt: NOW - 60_000,
