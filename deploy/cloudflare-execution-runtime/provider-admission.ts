@@ -9,7 +9,16 @@ import {
   isVerifiedZeroCreditProbe,
   type ProviderProbe,
 } from "./provider-policy.ts";
-import type { ProviderStateRecord } from "./storage.ts";
+
+export interface ProviderStateProjection {
+  providerId: string;
+  available: boolean;
+  zeroCreditEligible: boolean;
+  reasonCode: string | null;
+  observedAt: number;
+  verifiedAt: number | null;
+  canaryExpiresAt: number | null;
+}
 
 const objectValue = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -95,7 +104,7 @@ export const probeZeroCreditProvider = async (
   }
 };
 
-export const providerStateFromProbe = (probe: ProviderProbe, now = Date.now()): ProviderStateRecord => {
+export const providerStateFromProbe = (probe: ProviderProbe, now = Date.now()): ProviderStateProjection => {
   const eligible = isVerifiedZeroCreditProbe(probe, now);
   const reasonCode = eligible
     ? null
