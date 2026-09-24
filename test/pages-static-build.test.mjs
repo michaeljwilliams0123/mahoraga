@@ -78,7 +78,7 @@ test("Pages staging stays inside the repository root without copying the UI into
   assert.equal(path.relative(source, destination).startsWith(".."), true);
 });
 
-test("Pages publishes the real workspace and has no Railway launcher contract", async () => {
+test("Pages publishes the real workspace and maps the browser bridge to Cloudflare", async () => {
   const builder = await readFile(new URL("../scripts/build-pages-static.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(builder, /pagesLauncherHtml/);
   assert.doesNotMatch(builder, /DEFAULT_CANONICAL_WORKSPACE_URL/);
@@ -89,7 +89,8 @@ test("Pages publishes the real workspace and has no Railway launcher contract", 
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
   assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
-  assert.match(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
+  assert.match(workflow, /mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev/);
+  assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
   assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_PIN_HASH/);
   assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_SESSION_SECRET/);
@@ -105,7 +106,7 @@ test("Pages artifact inspection accepts the real workspace shape and rejects ser
   const safe = path.join(root, "safe");
   await mkdir(path.join(safe, "_next", "static", "chunks"), { recursive: true });
   await writeFile(path.join(safe, "index.html"), '<!doctype html><html><body><div id="app">Mahoraga</div><script src="/mahoraga/_next/static/chunks/app.js"></script></body></html>');
-  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://mahoraga-runtime-main-production.up.railway.app")');
+  await writeFile(path.join(safe, "_next", "static", "chunks", "app.js"), 'console.log("https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev")');
   const result = await inspectPagesStaticArtifact(safe);
   assert.equal(result.indexHtml, path.join(safe, "index.html"));
   assert.ok(result.textFiles >= 2);
