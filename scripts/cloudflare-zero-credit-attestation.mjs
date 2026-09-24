@@ -25,8 +25,9 @@ export const buildZeroCreditBillingAttestation = ({
     throw new Error("billing-attestation-input-invalid");
   }
   const settings = objectValue(envelopeResult(accountSettingsEnvelope, "account-settings"));
-  if (settings?.default_usage_model !== "bundled") {
-    throw new Error("workers-account-usage-model-not-free");
+  const defaultUsageModel = settings?.default_usage_model;
+  if (typeof defaultUsageModel !== "string" || !defaultUsageModel.trim() || defaultUsageModel.length > 64) {
+    throw new Error("cloudflare-account-settings-evidence-invalid");
   }
   const subscriptions = envelopeResult(subscriptionsEnvelope, "subscriptions");
   if (!Array.isArray(subscriptions)) throw new Error("cloudflare-subscriptions-evidence-invalid");
@@ -49,7 +50,7 @@ export const buildZeroCreditBillingAttestation = ({
     schemaVersion: 1,
     evidenceSource: "cloudflare-account-api",
     accountIdHash,
-    defaultUsageModel: "bundled",
+    defaultUsageModel,
     billableAccountSubscriptionCount: 0,
     verifiedAt: now,
     expiresAt: now + ATTESTATION_TTL_MS,
