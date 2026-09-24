@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
-import { invokeWorkersAi } from "./provider-invoker";
+import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, type ZeroCreditProviderConfig } from "./provider-invoker";
+import { probeZeroCreditProvider, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
@@ -8,8 +9,6 @@ const LEASE_TTL_MS = 300_000;
 const GATEWAY_ASSERTION_TTL_MS = 60_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
-const ASSISTANT_PROVIDER_ID = "cloudflare-workers-ai";
-const ASSISTANT_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 const ROUTING_HOP_ID = "cloudflare-execution-runtime";
 const DURABLE_STATE = "cloudflare-do-sqlite";
 const RAILWAY_ANCHOR_HOST = "mahoraga-runtime-main-production.up.railway.app";
@@ -90,6 +89,29 @@ export class ExecutionDurableObject extends DurableObject<Env> {
   private initialized = false;
   constructor(ctx: DurableObjectState, env: Env) { super(ctx, env); this.storage = new CloudflareDOSQLiteAdapter(ctx); }
   private initialize(): void { if (!this.initialized) { this.storage.initSchema(); this.initialized = true; } }
+  private providerConfig(): ZeroCreditProviderConfig {
+    return {
+      origin: this.env.ZERO_CREDIT_PROVIDER_URL,
+      token: this.env.ZERO_CREDIT_PROVIDER_TOKEN,
+      accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH,
+      targetSha: this.env.TARGET_SHA,
+    };
+  }
+  private async refreshProviderState(): Promise<Response> {
+    this.initialize();
+    const probe = await probeZeroCreditProvider(this.providerConfig());
+    const state = providerStateFromProbe(probe);
+    this.storage.saveProviderState(state);
+    return json({
+      providerId: state.providerId,
+      available: state.available,
+      zeroCreditEligible: state.zeroCreditEligible,
+      reasonCode: state.reasonCode,
+      verifiedAt: state.verifiedAt,
+      canaryExpiresAt: state.canaryExpiresAt,
+      capability: projectPersistedAssistantCapability(state),
+    }, state.zeroCreditEligible ? 200 : 503);
+  }
   private async replay(receipt: StorageReceipt): Promise<Response> {
     const metadata = receipt.resultPayload as Partial<ReceiptPayload>;
     if (typeof metadata.assistantContentId !== "string") return json({ error: "Persisted receipt invalid" }, 500);
@@ -155,7 +177,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (raced?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" } });
       const state = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
-      const result = await invokeWorkersAi(this.env.AI, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: message }] });
+      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: message }] });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
@@ -180,6 +202,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (url.pathname === "/api/ready") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
       try { this.initialize(); this.storage.sql.exec("SELECT 1").one(); return json({ status: "ready", sha: this.env.TARGET_SHA, durableState: DURABLE_STATE }); } catch { return json({ status: "unready" }, 503); }
+    }
+    if (url.pathname === "/api/provider/refresh") {
+      if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
+      const provided = request.headers.get("x-provider-refresh-token") ?? "";
+      if (!await secureEqual(provided, this.env.PROVIDER_REFRESH_SECRET)) return json({ error: "provider-refresh-auth-required" }, 403);
+      return this.refreshProviderState();
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
@@ -209,9 +237,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const capability = projectPersistedAssistantCapability(providerState);
       if (!capability.routable) return json({ error: "Cognition provider unavailable", reasonCode: capability.providerReasonCode }, 503);
 
-      const providerResult = this.env.AI !== undefined && typeof this.env.AI.run === "function"
-        ? await this.env.AI.run(ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] })
-        : await invokeWorkersAi(this.env.AI, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
+      const providerResult = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
       const answer = extractAnswer(providerResult);
       if (answer === null) return json({ error: "Cognition provider returned invalid response" }, 502);
 
@@ -253,5 +279,14 @@ export default {
       const bypassToken = request.headers.get("x-bypass-token") ?? ""; if (await secureEqual(bypassToken, env.BYPASS_SECRET)) return proxyToRailway(request, url, env);
     }
     return env.EXECUTION_DO.getByName("execution-v1").fetch(request);
+  },
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const request = new Request("https://execution.internal/api/provider/refresh", {
+      method: "POST",
+      headers: { "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET },
+    });
+    ctx.waitUntil(env.EXECUTION_DO.getByName("execution-v1").fetch(request).then((response) => {
+      if (!response.ok) throw new Error("provider-refresh-failed");
+    }));
   },
 } satisfies ExportedHandler<Env>;

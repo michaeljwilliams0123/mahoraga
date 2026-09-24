@@ -3,17 +3,39 @@
   "name": "mahoraga-execution-runtime",
   "main": "worker.ts",
   "compatibility_date": "2026-09-21",
-  "ai": { "binding": "AI" },
   "durable_objects": {
     "bindings": [
-      { "name": "EXECUTION_DO", "class_name": "ExecutionDurableObject" }
+      {
+        "name": "EXECUTION_DO",
+        "class_name": "ExecutionDurableObject"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ExecutionDurableObject"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "ExecutionDurableObject"
+      ]
+    }
   ],
   "secrets": {
-    "required": ["BYPASS_SECRET", "CONTENT_VAULT_KEY", "OWNER_GATEWAY_SECRET"]
+    "required": [
+      "BYPASS_SECRET",
+      "CONTENT_VAULT_KEY",
+      "OWNER_GATEWAY_SECRET",
+      "PROVIDER_REFRESH_SECRET",
+      "ZERO_CREDIT_PROVIDER_URL",
+      "ZERO_CREDIT_PROVIDER_TOKEN",
+      "ZERO_CREDIT_ACCOUNT_ID_HASH"
+    ]
   },
-  "observability": { "enabled": true }
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": [
+      "0 * * * *"
+    ]
+  }
 }
