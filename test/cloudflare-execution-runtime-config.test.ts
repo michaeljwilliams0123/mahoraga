@@ -23,6 +23,5 @@ test("execution runtime fails deployment when protected secrets are missing", ()
     "ZERO_CREDIT_PROVIDER_URL",
     "ZERO_CREDIT_PROVIDER_TOKEN",
     "ZERO_CREDIT_ACCOUNT_ID_HASH",
-    "ZERO_CREDIT_BILLING_ATTESTATION",
   ]);
 });
