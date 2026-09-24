@@ -15,7 +15,6 @@ const config: ZeroCreditProviderConfig = {
   token: "z".repeat(64),
   accountIdHash: "a".repeat(64),
   targetSha: "b".repeat(40),
-  billingAttestation: "test-only",
 };
 
 test("provider input limit is enforced in UTF-8 bytes", () => {

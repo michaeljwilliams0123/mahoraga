@@ -27,16 +27,10 @@
       "PROVIDER_REFRESH_SECRET",
       "ZERO_CREDIT_PROVIDER_URL",
       "ZERO_CREDIT_PROVIDER_TOKEN",
-      "ZERO_CREDIT_ACCOUNT_ID_HASH",
-      "ZERO_CREDIT_BILLING_ATTESTATION"
+      "ZERO_CREDIT_ACCOUNT_ID_HASH"
     ]
   },
   "observability": {
     "enabled": true
-  },
-  "triggers": {
-    "crons": [
-      "0 * * * *"
-    ]
   }
 }
