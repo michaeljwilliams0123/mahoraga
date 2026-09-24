@@ -20,7 +20,6 @@ type AiRunInput = {
   messages: Message[];
   max_tokens?: number;
   max_completion_tokens?: number;
-  reasoning_effort?: "low" | "medium" | "high" | null;
   chat_template_kwargs?: { enable_thinking?: boolean };
 };
 type AiBinding = { run(model: string, input: AiRunInput): Promise<unknown> };
@@ -171,7 +170,6 @@ export default {
         const result = await env.AI.run(MODEL_ID, {
           messages: [{ role: "user", content: "Reply exactly READY." }],
           max_completion_tokens: PROBE_MAX_OUTPUT_TOKENS,
-          reasoning_effort: null,
           chat_template_kwargs: { enable_thinking: false },
         });
         if (extractAnswer(result) === null) return json({ error: "provider-canary-invalid" }, 502);
