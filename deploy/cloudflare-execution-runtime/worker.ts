@@ -10,10 +10,7 @@ const GATEWAY_ASSERTION_TTL_MS = 60_000;
 const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const MAX_BILLING_ATTESTATION_BYTES = 8_192;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
-const ROUTING_HOP_ID = "cloudflare-execution-runtime";
 const DURABLE_STATE = "cloudflare-do-sqlite";
-const RAILWAY_ANCHOR_HOST = "mahoraga-runtime-main-production.up.railway.app";
-const FORWARDED_BY_HEADER = "x-mahoraga-forwarded-by";
 
 type ChatPayload = { conversationId: string; turnId: string; message: string };
 type ReceiptPayload = { executed: true; providerId: string; modelId: string; assistantContentId: string; timestamp: number };
@@ -38,21 +35,6 @@ const secureEqual = async (provided: string, expected: string): Promise<boolean>
   const left = new Uint8Array(providedHash); const right = new Uint8Array(expectedHash); let difference = 0;
   for (let index = 0; index < left.length; index += 1) difference |= left[index]! ^ right[index]!;
   return difference === 0;
-};
-const railwayTarget = (requestUrl: URL, configured: string): URL => {
-  const anchor = new URL(configured);
-  if (anchor.protocol !== "https:" || anchor.hostname !== RAILWAY_ANCHOR_HOST || anchor.port || anchor.username || anchor.password || anchor.search || anchor.hash || anchor.pathname !== "/") throw new Error("railway-anchor-invalid");
-  return new URL(`${requestUrl.pathname}${requestUrl.search}`, anchor);
-};
-const proxyToRailway = async (request: Request, requestUrl: URL, env: Env): Promise<Response> => {
-  try {
-    if (request.headers.has(FORWARDED_BY_HEADER)) return json({ error: "Traffic routing loop rejected" }, 508);
-    const target = railwayTarget(requestUrl, env.RAILWAY_ANCHOR_URL);
-    const headers = new Headers(request.headers); headers.delete("x-bypass-token"); headers.delete("host"); headers.set(FORWARDED_BY_HEADER, ROUTING_HOP_ID);
-    const upstream = await fetch(new Request(target, { method: request.method, headers, body: request.body, redirect: "manual" }));
-    const responseHeaders = new Headers(upstream.headers); responseHeaders.set("x-bypass-applied", "true"); responseHeaders.set("cache-control", "no-store");
-    return new Response(upstream.body, { status: upstream.status, statusText: upstream.statusText, headers: responseHeaders });
-  } catch { return json({ error: "Railway bypass unavailable" }, 502); }
 };
 const parseChatPayload = (value: unknown): ChatPayload | null => {
   if (value === null || Array.isArray(value) || typeof value !== "object") return null;
@@ -231,9 +213,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
     const actualSha = request.headers.get("x-target-sha");
     if (actualSha !== this.env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: this.env.TARGET_SHA, actual: actualSha }, 412);
-    if (this.env.BYPASS_SECRET.length === 0 || this.env.CONTENT_VAULT_KEY.length === 0) return json({ error: "Execution environment invalid" }, 503);
-    const bypassToken = request.headers.get("x-bypass-token") ?? "";
-    if (await secureEqual(bypassToken, this.env.BYPASS_SECRET)) return proxyToRailway(request, url, this.env);
+    if (this.env.CONTENT_VAULT_KEY.length === 0) return json({ error: "Execution environment invalid" }, 503);
+    if (request.headers.has("x-bypass-token")) return json({ error: "railway-routing-retired" }, 410);
     this.initialize();
     const key = request.headers.get("x-idempotency-key")?.trim() ?? "";
     if (key.length === 0 || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) return json({ error: "Idempotency key required" }, 400);
@@ -289,10 +270,8 @@ export default {
         "x-mahoraga-verified-nonce": assertion.nonce,
       } }));
     }
-    if (url.pathname === "/api/execute" && request.method === "POST") {
-      const actualSha = request.headers.get("x-target-sha"); if (actualSha !== env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: env.TARGET_SHA, actual: actualSha }, 412);
-      if (env.BYPASS_SECRET.length === 0) return json({ error: "Execution environment invalid" }, 503);
-      const bypassToken = request.headers.get("x-bypass-token") ?? ""; if (await secureEqual(bypassToken, env.BYPASS_SECRET)) return proxyToRailway(request, url, env);
+    if (url.pathname === "/api/execute" && request.method === "POST" && request.headers.has("x-bypass-token")) {
+      return json({ error: "railway-routing-retired" }, 410);
     }
     return env.EXECUTION_DO.getByName("execution-v1").fetch(request);
   },
