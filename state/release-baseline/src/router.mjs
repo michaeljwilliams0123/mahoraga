@@ -19,7 +19,7 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       return waitingWithRecovery(creditFreeDecision.reason, task, null, { creditFreeDecision, authorityDecision });
     }
 
-    const providerDecision = zeroCreditDecision(task, context);
+    let providerDecision = zeroCreditDecision(task, context);
     if (providerDecision?.status === "waiting") {
       const authorityDecision = createAuthorityDecision({
         ownerGrant, task, providerDecision, creditFreeDecision, context,
@@ -35,9 +35,27 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       || task?.creditFreeRequired === true
       || task?.requestedMode === "zero-credit";
     const normalizedCandidates = ranked.candidates.map(normalizeCandidateBilling);
-    const preBillingCandidates = normalizedCandidates
-      .filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId))
+    const permittedCandidates = normalizedCandidates.filter((candidate) => !task.excludedWorkerIds?.includes(candidate.workerId));
+    const availableWorkers = context.availableWorkerIds === undefined ? null : new Set(context.availableWorkerIds);
+    const availableCandidates = permittedCandidates.filter((candidate) => !availableWorkers || availableWorkers.has(candidate.workerId));
+    if (permittedCandidates.length > 0 && availableCandidates.length === 0) {
+      const reason = "workers-at-capacity";
+      const authorityDecision = createAuthorityDecision({ ownerGrant, task, providerDecision, creditFreeDecision, context, legacyReason: reason });
+      return waitingWithRecovery(reason, task, ranked, { authorityDecision, ...(providerDecision ? { providerDecision } : {}) });
+    }
+    // Answer evidence belongs to a specific provider, not every worker sharing
+    // its cost class. Select again from routes allowed for this request now.
+    if (providerDecision && isAnswer(task)) {
+      const eligibleProviderIds = new Set(availableCandidates.map((candidate) => candidate.workerId));
+      providerDecision = zeroCreditDecision(task, context, eligibleProviderIds);
+      if (providerDecision.status === "waiting") {
+        const authorityDecision = createAuthorityDecision({ ownerGrant, task, providerDecision, creditFreeDecision, context, legacyReason: providerDecision.providerId });
+        return waitingWithRecovery(providerDecision.providerId, task, ranked, { providerDecision, authorityDecision });
+      }
+    }
+    const preBillingCandidates = availableCandidates
       .filter((candidate) => !providerDecision || candidate.costClass === providerDecision.costClass)
+      .filter((candidate) => !providerDecision || !isAnswer(task) || candidate.workerId === providerDecision.providerId)
       .filter((candidate) => !creditFreeDecision || isCreditFreeWorkerId(candidate.workerId) || zeroMarginalEligible(candidate, context) || (classifyAutonomyProvider(candidate.workerId) === "local-reasoner" && context.localReasonerReady === true));
     const billingEligible = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
     // A worker may be projected by more than one evidence source. Compete each
@@ -180,19 +198,19 @@ function creditFreeGate(task, context) {
   });
 }
 
-function zeroCreditDecision(task, context) {
+function zeroCreditDecision(task, context, eligibleProviderIds = null) {
   const zeroCreditRequested = context.providerPolicy === "zero-credit" || task?.requestedMode === "zero-credit";
   if (!zeroCreditRequested) return null;
-  if (!isAutonomySelfUpgrade(task) && !isZeroCreditAnswer(task)) return null;
+  if (!isAutonomySelfUpgrade(task) && !isAnswer(task)) return null;
   return selectZeroCreditProvider({
-    providers: context.providers ?? [],
+    providers: eligibleProviderIds ? (context.providers ?? []).filter((provider) => eligibleProviderIds.has(provider?.id)) : context.providers ?? [],
     cloudModeEnabled: context.cloudModeEnabled === true,
-    requiresGeneration: context.requiresGeneration === true || isZeroCreditAnswer(task),
+    requiresGeneration: context.requiresGeneration === true || isAnswer(task),
   });
 }
 
-function isZeroCreditAnswer(task) {
-  return task?.capability === "assistant.respond" && task?.requestedMode === "zero-credit";
+function isAnswer(task) {
+  return task?.capability === "assistant.respond";
 }
 
 function isAutonomySelfUpgrade(task) {

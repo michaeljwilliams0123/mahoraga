@@ -401,9 +401,16 @@ export class Supervisor extends EventEmitter {
       }
       if (!state.busy) this.#refreshStaleReadiness(state, now);
       if (!state.ready || state.busy) continue;
-      const task = this.database.claimNext({ workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs });
+      const task = this.database.claimNext({
+        workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs,
+        acceptTask: (candidate) => {
+          const route = routeTask(this.manifest, candidate, this.#routingContext(candidate, { dispatch: true }));
+          if (route.reason === "workers-at-capacity") return false;
+          return route.status !== "routable" || route.worker.id === state.definition.id;
+        },
+      });
       if (!task) continue;
-      const route = routeTask(this.manifest, task, this.#routingContext(task));
+      const route = routeTask(this.manifest, task, this.#routingContext(task, { dispatch: true }));
       this.database.recordTaskAuthorityDecision(task.id, route.authorityDecision);
       if (route.status !== "routable" || route.worker.id !== state.definition.id) {
         if (route.recoveryPlan?.recoverable === true && task.attemptCount < task.maximumAttempts) {
@@ -442,9 +449,12 @@ export class Supervisor extends EventEmitter {
     }
   }
 
-  #routingContext(task) {
+  #routingContext(task, { dispatch = false } = {}) {
     const workerStates = this.status();
-    if (task?.requestedMode !== "zero-credit" || task?.capability !== "assistant.respond") return { workerStates };
+    const context = { workerStates, ...(dispatch ? {
+      availableWorkerIds: [...this.workers.values()].filter((state) => state.ready && !state.busy).map((state) => state.definition.id),
+    } : {}) };
+    if (task?.requestedMode !== "zero-credit" || task?.capability !== "assistant.respond") return context;
     const registry = capabilityIndex(this.manifest, workerStates);
     const providers = [];
     for (const providerId of ["codespaces-open-weight", "local-open-weight"]) {
@@ -453,7 +463,7 @@ export class Supervisor extends EventEmitter {
       const evidence = zeroCreditProviderEvidenceFromEnv({ providerId });
       if (evidence.ok) providers.push(evidence.value);
     }
-    return { workerStates, providerPolicy: "zero-credit", providers, cloudModeEnabled: true, requiresGeneration: true };
+    return { ...context, providerPolicy: "zero-credit", providers, cloudModeEnabled: true, requiresGeneration: true };
   }
 
   #refreshStaleReadiness(state, now) {

@@ -99,6 +99,45 @@ test("missing zero-credit evidence stops before ranking and cannot fall back to 
   assert.equal(route.authorityDecision.decision, "hold");
 });
 
+test("context zero-credit policy requires provider evidence even for a local-mode answer", () => {
+  const router = createTaskRouter({ rankRoutes: () => ({ candidates: [candidate()], considered: [], reason: null }) });
+  const route = router(manifest, { ...task, requestedMode: "local" }, { providerPolicy: "zero-credit", providers: [] });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "waiting-zero-credit-provider");
+});
+
+test("provider evidence cannot admit a different answer worker with the same cost class", () => {
+  const intruder = { ...candidate(), workerId: "unattested-answer" };
+  const router = createTaskRouter({ rankRoutes: () => ({ candidates: [intruder], considered: [], reason: null }) });
+  const route = router(manifest, task, { cloudModeEnabled: true, providers: [provider] });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.worker, null);
+});
+
+test("zero-credit answer routing falls back to an admitted local provider when cloud is excluded or busy", () => {
+  const local = { ...candidate(), workerId: "local-open-weight", costClass: "local-model", executionPlane: "local" };
+  const router = createTaskRouter({ rankRoutes: () => ({ candidates: [candidate(), local], considered: [], reason: null }) });
+  const context = { cloudModeEnabled: true, providers: [provider, { ...provider, id: "local-open-weight", billingState: "not-applicable" }] };
+  for (const [request, routingContext] of [
+    [{ ...task, excludedWorkerIds: [provider.id] }, context],
+    [task, { ...context, availableWorkerIds: ["local-open-weight"] }],
+  ]) {
+    const route = router(manifest, request, routingContext);
+    assert.equal(route.status, "routable");
+    assert.equal(route.worker.id, "local-open-weight");
+    assert.equal(route.providerDecision.providerId, "local-open-weight");
+    assert.equal(route.authorityDecision.provider.id, "local-open-weight");
+  }
+});
+
+test("all eligible answer workers at capacity produce a queueable hold", () => {
+  const router = createTaskRouter({ rankRoutes: () => ({ candidates: [candidate()], considered: [], reason: null }) });
+  const route = router(manifest, task, { cloudModeEnabled: true, providers: [provider], availableWorkerIds: [] });
+  assert.equal(route.status, "waiting");
+  assert.equal(route.reason, "workers-at-capacity");
+  assert.equal(route.authorityDecision.decision, "hold");
+});
+
 
 test("canonical manifest exposes a local zero-credit answer worker", async () => {
   const { loadManifest } = await import("../src/config.mjs");

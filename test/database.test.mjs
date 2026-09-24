@@ -15,6 +15,46 @@ function databaseFixture(t) {
   return database;
 }
 
+test("routing admission skips queued requests without consuming their execution attempts", (t) => {
+  const database = databaseFixture(t);
+  const first = database.submitTask({ capability: "system.health", dataClass: "synthetic", priority: "critical", maximumAttempts: 1, idempotencyKey: "other-agent" });
+  const second = database.submitTask({ capability: "system.health", dataClass: "synthetic", priority: "normal", maximumAttempts: 1, idempotencyKey: "this-agent" });
+  const claimed = database.claimNext({ workerId: "local-core", capabilities: ["system.health"], leaseMs: 5000, acceptTask: (task) => task.id === second.id });
+  assert.equal(claimed.id, second.id);
+  assert.equal(database.getTask(first.id).status, "queued");
+  assert.equal(database.getTask(first.id).attemptCount, 0);
+  assert.equal(claimed.attemptCount, 1);
+});
+
+test("objective recovery carries failed worker exclusions through every replan", (t) => {
+  const database = databaseFixture(t);
+  const objective = database.createObjective({ title: "Bounded recovery", maximumReplans: 3, tasks: [
+    { id: "health", capability: "system.health", dataClass: "synthetic", taskArea: "health", dependsOn: [], excludedWorkerIds: ["already-rejected"] },
+  ] });
+  database.reconcileObjectives();
+  for (const workerId of ["worker-a", "worker-b"]) {
+    const task = database.claimNext({ workerId, capabilities: ["system.health"], leaseMs: 5000 });
+    database.finishTask(task.id, { status: "failed", errorCode: "provider-unavailable" });
+    database.reconcileObjectives();
+    database.reconcileObjectives();
+  }
+  const retry = database.getObjective(objective.id).tasks[0].task;
+  assert.deepEqual(retry.excludedWorkerIds, ["already-rejected", "worker-a", "worker-b"]);
+});
+
+test("new completed objectives cannot hide an older active request from reconciliation", (t) => {
+  const database = databaseFixture(t);
+  const definition = { title: "Request", tasks: [{ id: "health", capability: "system.health", dataClass: "synthetic", taskArea: "health", dependsOn: [] }] };
+  const active = database.createObjective(definition);
+  database.db.prepare("UPDATE objectives SET created_at='2020-01-01T00:00:00.000Z' WHERE id=?").run(active.id);
+  for (let index = 0; index < 501; index += 1) {
+    const done = database.createObjective(definition);
+    database.db.prepare("UPDATE objectives SET status='completed' WHERE id=?").run(done.id);
+  }
+  const result = database.reconcileObjectives();
+  assert.ok(result.released.some((item) => item.objectiveId === active.id));
+});
+
 test("task submission is idempotent and durable", (t) => {
   const database = databaseFixture(t);
   const first = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", idempotencyKey: "same-request" });
