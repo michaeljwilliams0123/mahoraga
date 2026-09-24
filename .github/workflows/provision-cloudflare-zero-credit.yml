@@ -1,0 +1,73 @@
+name: Provision Cloudflare Zero-Credit Account
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/provision-cloudflare-zero-credit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  provision:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      ACCOUNT_NAME: Mahoraga Zero-Credit
+    steps:
+      - name: Require protected Cloudflare credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${CLOUDFLARE_API_TOKEN:-}" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is unavailable."
+            exit 1
+          fi
+
+      - name: Create standalone Free account idempotently
+        id: provision
+        shell: bash
+        run: |
+          set -euo pipefail
+          existing="$(curl --silent --show-error --fail-with-body \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            'https://api.cloudflare.com/client/v4/accounts')"
+          existing_id="$(printf '%s' "$existing" | jq -r --arg name "$ACCOUNT_NAME" '.result[] | select(.name == $name) | .id' | head -n 1)"
+          if [ -n "$existing_id" ]; then
+            echo "account_id=$existing_id" >> "$GITHUB_OUTPUT"
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "Standalone account already exists; reusing its identity."
+            exit 0
+          fi
+
+          idempotency_key="$(printf '%s' "${GITHUB_REPOSITORY}:mahoraga-zero-credit:v1" | sha256sum | cut -d' ' -f1)"
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --header "Idempotency-Key: ${idempotency_key}" \
+            --data "$(jq -cn --arg name "$ACCOUNT_NAME" '{name:$name,type:"standard",standalone:true}')" \
+            'https://api.cloudflare.com/client/v4/accounts')"
+          account_id="$(printf '%s' "$response" | jq -r '.result.id // empty')"
+          if ! [[ "$account_id" =~ ^[a-f0-9]{32}$ ]]; then
+            echo "::error::Cloudflare did not return a valid standalone account id."
+            exit 1
+          fi
+          echo "account_id=$account_id" >> "$GITHUB_OUTPUT"
+          echo "created=true" >> "$GITHUB_OUTPUT"
+          echo "Standalone Free account provisioned successfully."
+
+      - name: Emit sanitized receipt
+        shell: bash
+        env:
+          ACCOUNT_ID: ${{ steps.provision.outputs.account_id }}
+          CREATED: ${{ steps.provision.outputs.created }}
+        run: |
+          set -euo pipefail
+          jq -n \
+            --arg accountName "$ACCOUNT_NAME" \
+            --arg accountId "$ACCOUNT_ID" \
+            --arg created "$CREATED" \
+            '{status:"provisioned",accountName:$accountName,accountId:$accountId,standaloneFree:true,created:($created == "true")}'
