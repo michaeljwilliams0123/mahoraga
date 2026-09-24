@@ -13,7 +13,7 @@
     { "tag": "v1", "new_sqlite_classes": ["ZeroCreditBudgetDO"] }
   ],
   "secrets": {
-    "required": ["TARGET_SHA", "ZERO_CREDIT_ACCOUNT_ID_HASH", "ZERO_CREDIT_PROVIDER_TOKEN"]
+    "required": ["ZERO_CREDIT_PROVIDER_TOKEN"]
   },
   "observability": { "enabled": true }
 }
