@@ -41,3 +41,12 @@ test("isolated Workers AI binding is bounded below Cloudflare's daily free alloc
   assert.doesNotMatch(providerWorker, /standalone-free/);
   assert.doesNotMatch(providerWorker, /Railway|railway|licensed-approved|metered-cloud/);
 });
+
+test("GLM attestation canary accepts current chat-completion output and disables thinking", async () => {
+  const providerWorker = await read("deploy/cloudflare-zero-credit-inference/worker.ts");
+  assert.match(providerWorker, /record\?\.choices/);
+  assert.match(providerWorker, /message\?\.content/);
+  assert.match(providerWorker, /chat_template_kwargs:\s*\{\s*enable_thinking:\s*false\s*\}/);
+  assert.match(providerWorker, /max_completion_tokens:\s*PROBE_MAX_OUTPUT_TOKENS/);
+  assert.doesNotMatch(providerWorker, /reasoning_effort:\s*null/);
+});
