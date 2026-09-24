@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const ACTIVE_STATES = new Set(["Trial", "Provisioned", "Paid", "AwaitingPayment"]);
 const TERMINAL_STATES = new Set(["Cancelled", "Failed", "Expired"]);
+const DOCUMENTED_UNRELATED_FREE_ACCOUNT_PLANS = new Set(["teams_free"]);
 const ATTESTATION_TTL_MS = 90 * 60_000;
 
 const objectValue = (value) => value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -38,6 +39,19 @@ export const buildZeroCreditBillingAttestation = ({
     }
     if (TERMINAL_STATES.has(state)) continue;
     const ratePlan = objectValue(subscription.rate_plan);
+    const planId = typeof ratePlan?.id === "string" ? ratePlan.id.trim().toLowerCase() : "";
+    const sets = Array.isArray(ratePlan?.sets) ? ratePlan.sets : [];
+    const workersPlan = [ratePlan?.id, ratePlan?.public_name, ...sets]
+      .some((signal) => typeof signal === "string" && signal.toLowerCase().includes("workers"));
+    const knownUnrelatedFree = DOCUMENTED_UNRELATED_FREE_ACCOUNT_PLANS.has(planId)
+      && subscription.price === 0
+      && ratePlan?.externally_managed === false
+      && ratePlan?.is_contract === false;
+    if (knownUnrelatedFree) continue;
+    if (workersPlan) {
+      const safe = { state, price: subscription.price, planId: ratePlan?.id ?? null, publicName: ratePlan?.public_name ?? null, scope: ratePlan?.scope ?? null, sets: Array.isArray(ratePlan?.sets) ? ratePlan.sets : null, externallyManaged: ratePlan?.externally_managed ?? null, isContract: ratePlan?.is_contract ?? null, componentCount: Array.isArray(subscription.component_values) ? subscription.component_values.length : null };
+      throw new Error(`account-subscription-not-provably-free:${JSON.stringify(safe)}`);
+    }
     const rawComponents = subscription.component_values;
     if (rawComponents !== undefined && !Array.isArray(rawComponents)) {
       throw new Error("account-subscription-not-provably-free:component-values-invalid");

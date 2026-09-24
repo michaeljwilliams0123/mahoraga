@@ -100,12 +100,12 @@ test("billing authorization failure is actionable and never treated as free evid
 });
 
 
-test("accepts a zero-dollar non-contract account subscription without relying on a zone-plan id", () => {
+test("ignores the documented Teams Free account product when proving Workers billing", () => {
   const attestation = buildZeroCreditBillingAttestation({
     accountIdHash: ACCOUNT_HASH,
     accountSettingsEnvelope: settings("standard"),
     subscriptionsEnvelope: subscriptions([
-      { state: "Provisioned", price: 0, rate_plan: { id: "workers-free", externally_managed: false, is_contract: false }, component_values: [] },
+      { state: "Paid", price: 0, rate_plan: { id: "teams_free", public_name: "Teams Free Base", scope: "account", externally_managed: false, is_contract: false }, component_values: [{ kind: "enum", name: "seats", value: 1 }] },
     ]),
     now: NOW,
   });
@@ -118,6 +118,28 @@ test("rejects a zero-base subscription that still exposes metered billing", () =
     accountSettingsEnvelope: settings("standard"),
     subscriptionsEnvelope: subscriptions([
       { state: "Provisioned", price: 0, rate_plan: { id: "free", externally_managed: false, is_contract: false }, component_values: [{ kind: "usage", price: 0.02, value: 0 }] },
+    ]),
+    now: NOW,
+  }), /account-subscription-not-provably-free/);
+});
+
+test("rejects an active Workers paid subscription even when its base price is zero", () => {
+  assert.throws(() => buildZeroCreditBillingAttestation({
+    accountIdHash: ACCOUNT_HASH,
+    accountSettingsEnvelope: settings("standard"),
+    subscriptionsEnvelope: subscriptions([
+      { state: "Paid", price: 0, rate_plan: { id: "workers_paid", public_name: "Workers Paid", scope: "account", externally_managed: false, is_contract: false }, component_values: [] },
+    ]),
+    now: NOW,
+  }), /account-subscription-not-provably-free/);
+});
+
+test("does not exempt a mutated Teams Free record that has a nonzero base price", () => {
+  assert.throws(() => buildZeroCreditBillingAttestation({
+    accountIdHash: ACCOUNT_HASH,
+    accountSettingsEnvelope: settings("standard"),
+    subscriptionsEnvelope: subscriptions([
+      { state: "Paid", price: 1, rate_plan: { id: "teams_free", public_name: "Teams Free Base", scope: "account", externally_managed: false, is_contract: false }, component_values: [] },
     ]),
     now: NOW,
   }), /account-subscription-not-provably-free/);
