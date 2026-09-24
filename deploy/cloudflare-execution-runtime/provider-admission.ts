@@ -78,6 +78,7 @@ const providerUrl = (config: ZeroCreditProviderConfig): URL => {
 
 export const probeZeroCreditProvider = async (
   config: ZeroCreditProviderConfig,
+  billingAttestationValue: string,
   fetchImpl: typeof fetch = fetch,
   nowFn: () => number = Date.now,
 ): Promise<ProviderProbe> => {
@@ -86,7 +87,7 @@ export const probeZeroCreditProvider = async (
     if (typeof config.token !== "string" || config.token.length < 32 || !/^[a-f0-9]{64}$/i.test(config.accountIdHash) || !/^[a-f0-9]{40}$/i.test(config.targetSha)) {
       return unavailableProbe(now, "provider-config-invalid");
     }
-    const billingAttestation = parseBillingAttestation(config.billingAttestation, config.accountIdHash, now);
+    const billingAttestation = parseBillingAttestation(billingAttestationValue, config.accountIdHash, now);
     if (billingAttestation === null) return unavailableProbe(now, "provider-billing-attestation-invalid");
     const response = await fetchImpl(providerUrl(config), {
       method: "POST",
