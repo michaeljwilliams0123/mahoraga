@@ -23,6 +23,35 @@ export interface ProviderStateProjection {
 const objectValue = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
+type BillingAttestation = { verifiedAt: number; expiresAt: number };
+
+const parseBillingAttestation = (
+  value: string,
+  accountIdHash: string,
+  now: number,
+): BillingAttestation | null => {
+  try {
+    const record = objectValue(JSON.parse(value));
+    if (
+      record?.schemaVersion !== 1
+      || record.evidenceSource !== "cloudflare-account-api"
+      || record.accountIdHash !== accountIdHash
+      || record.defaultUsageModel !== "bundled"
+      || record.billableAccountSubscriptionCount !== 0
+      || !Number.isSafeInteger(record.verifiedAt)
+      || !Number.isSafeInteger(record.expiresAt)
+      || typeof record.verifiedAt !== "number"
+      || typeof record.expiresAt !== "number"
+      || record.verifiedAt > now
+      || record.expiresAt <= now
+      || record.expiresAt > record.verifiedAt + 90 * 60_000
+    ) return null;
+    return { verifiedAt: record.verifiedAt, expiresAt: record.expiresAt };
+  } catch {
+    return null;
+  }
+};
+
 const unavailableProbe = (now: number, reasonCode: string): ProviderProbe => ({
   providerId: ASSISTANT_PROVIDER_ID,
   modelId: ASSISTANT_MODEL_ID,
@@ -57,6 +86,8 @@ export const probeZeroCreditProvider = async (
     if (typeof config.token !== "string" || config.token.length < 32 || !/^[a-f0-9]{64}$/i.test(config.accountIdHash) || !/^[a-f0-9]{40}$/i.test(config.targetSha)) {
       return unavailableProbe(now, "provider-config-invalid");
     }
+    const billingAttestation = parseBillingAttestation(config.billingAttestation, config.accountIdHash, now);
+    if (billingAttestation === null) return unavailableProbe(now, "provider-billing-attestation-invalid");
     const response = await fetchImpl(providerUrl(config), {
       method: "POST",
       headers: {
@@ -76,10 +107,6 @@ export const probeZeroCreditProvider = async (
     const observedAt = record?.observedAt;
     if (
       record?.available !== true
-      || record.metered !== false
-      || record.priceUsd !== 0
-      || record.spendUsd !== 0
-      || record.billingState !== "verified-zero"
       || typeof observedAt !== "number"
       || typeof verifiedAt !== "number"
       || typeof canaryExpiresAt !== "number"
@@ -95,8 +122,8 @@ export const probeZeroCreditProvider = async (
       billingState: "verified-zero",
       zeroDollarStopGuaranteed: true,
       observedAt,
-      verifiedAt,
-      canaryExpiresAt,
+      verifiedAt: Math.max(verifiedAt, billingAttestation.verifiedAt),
+      canaryExpiresAt: Math.min(canaryExpiresAt, billingAttestation.expiresAt),
       reasonCode: null,
     };
   } catch {
@@ -123,3 +150,16 @@ export const providerStateFromProbe = (probe: ProviderProbe, now = Date.now()): 
     canaryExpiresAt: probe.canaryExpiresAt,
   };
 };
+
+export const providerStateForGap = (
+  reasonCode: "provider-free-quota-exhausted",
+  now = Date.now(),
+): ProviderStateProjection => ({
+  providerId: ASSISTANT_PROVIDER_ID,
+  available: false,
+  zeroCreditEligible: false,
+  reasonCode,
+  observedAt: now,
+  verifiedAt: null,
+  canaryExpiresAt: null,
+});

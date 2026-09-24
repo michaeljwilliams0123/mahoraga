@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { probeZeroCreditProvider, providerStateFromProbe } from "../deploy/cloudflare-execution-runtime/provider-admission.ts";
+import { probeZeroCreditProvider, providerStateForGap, providerStateFromProbe } from "../deploy/cloudflare-execution-runtime/provider-admission.ts";
 import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, FREE_ALLOCATION_NEURONS, MAHORAGA_DAILY_BUDGET_NEURONS, type ZeroCreditProviderConfig } from "../deploy/cloudflare-execution-runtime/provider-invoker.ts";
 
 const NOW = 1_790_208_000_000;
@@ -10,6 +10,15 @@ const config: ZeroCreditProviderConfig = {
   token: "z".repeat(64),
   accountIdHash: "a".repeat(64),
   targetSha: "b".repeat(40),
+  billingAttestation: JSON.stringify({
+    schemaVersion: 1,
+    evidenceSource: "cloudflare-account-api",
+    accountIdHash: "a".repeat(64),
+    defaultUsageModel: "bundled",
+    billableAccountSubscriptionCount: 0,
+    verifiedAt: NOW,
+    expiresAt: NOW + 90 * 60_000,
+  }),
 };
 
 const proof = (overrides: Record<string, unknown> = {}) => ({
@@ -21,11 +30,6 @@ const proof = (overrides: Record<string, unknown> = {}) => ({
   freeAllocationNeurons: FREE_ALLOCATION_NEURONS,
   dailyBudgetNeurons: MAHORAGA_DAILY_BUDGET_NEURONS,
   available: true,
-  metered: false,
-  priceUsd: 0,
-  spendUsd: 0,
-  billingState: "verified-zero",
-  zeroDollarStopGuaranteed: true,
   observedAt: NOW,
   verifiedAt: NOW,
   canaryExpiresAt: NOW + 75 * 60_000,
@@ -54,14 +58,47 @@ test("rejects wrong identity or a budget boundary that could exceed the free all
   assert.equal(unsafeState.reasonCode, "provider-identity-mismatch");
 });
 
-test("rejects paid or stale evidence even when the provider is reachable", async () => {
-  const paid = await probeZeroCreditProvider(config, responseFetch(proof({ metered: true, billingState: "metered" })), () => NOW);
-  assert.equal(providerStateFromProbe(paid, NOW).zeroCreditEligible, false);
-
+test("rejects stale provider evidence even when the provider is reachable", async () => {
   const stale = await probeZeroCreditProvider(config, responseFetch(proof({ verifiedAt: NOW - 120_000, canaryExpiresAt: NOW - 1 })), () => NOW);
   const staleState = providerStateFromProbe(stale, NOW);
   assert.equal(staleState.zeroCreditEligible, false);
   assert.equal(staleState.reasonCode, "provider-canary-stale");
+});
+
+test("rejects missing, stale, or paid-account billing attestations independently of provider claims", async () => {
+  const providerSelfClaimsZero = proof({
+    metered: false,
+    priceUsd: 0,
+    spendUsd: 0,
+    billingState: "verified-zero",
+    zeroDollarStopGuaranteed: true,
+  });
+  for (const billingAttestation of [
+    "",
+    JSON.stringify({
+      schemaVersion: 1,
+      evidenceSource: "cloudflare-account-api",
+      accountIdHash: config.accountIdHash,
+      defaultUsageModel: "standard",
+      billableAccountSubscriptionCount: 0,
+      verifiedAt: NOW,
+      expiresAt: NOW + 90 * 60_000,
+    }),
+    JSON.stringify({
+      schemaVersion: 1,
+      evidenceSource: "cloudflare-account-api",
+      accountIdHash: config.accountIdHash,
+      defaultUsageModel: "bundled",
+      billableAccountSubscriptionCount: 0,
+      verifiedAt: NOW - 91 * 60_000,
+      expiresAt: NOW - 60_000,
+    }),
+  ]) {
+    const probe = await probeZeroCreditProvider({ ...config, billingAttestation }, responseFetch(providerSelfClaimsZero), () => NOW);
+    const state = providerStateFromProbe(probe, NOW);
+    assert.equal(state.zeroCreditEligible, false);
+    assert.equal(state.reasonCode, "provider-billing-attestation-invalid");
+  }
 });
 
 test("maps free-allocation budget exhaustion to provider.gap instead of a fallback", async () => {
@@ -70,4 +107,17 @@ test("maps free-allocation budget exhaustion to provider.gap instead of a fallba
   assert.equal(state.available, false);
   assert.equal(state.zeroCreditEligible, false);
   assert.equal(state.reasonCode, "provider-free-quota-exhausted");
+});
+
+test("revokes persisted eligibility when runtime invocation exhausts the free quota", () => {
+  const state = providerStateForGap("provider-free-quota-exhausted", NOW);
+  assert.deepEqual(state, {
+    providerId: ASSISTANT_PROVIDER_ID,
+    available: false,
+    zeroCreditEligible: false,
+    reasonCode: "provider-free-quota-exhausted",
+    observedAt: NOW,
+    verifiedAt: null,
+    canaryExpiresAt: null,
+  });
 });

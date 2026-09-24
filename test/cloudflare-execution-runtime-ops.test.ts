@@ -50,11 +50,18 @@ test("deployment admission requires clean exact authoritative main", () => {
 });
 
 test("Wrangler deployment overrides the sentinel with exact SHA and rollback anchor", () => {
-  const args = buildWranglerDeployArgs({ targetSha: SHA });
+  const args = buildWranglerDeployArgs({
+    targetSha: SHA,
+    secretsFile: "/runner/temp/mahoraga-execution-runtime-secrets.json",
+  });
   assert.deepEqual(args.slice(0, 4), ["--yes", "wrangler@4.132.0", "deploy", "--config"]);
   assert.ok(args.includes("deploy/cloudflare-execution-runtime/wrangler.jsonc"));
   assert.ok(args.includes(`TARGET_SHA:${SHA}`));
   assert.ok(args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"));
+  assert.deepEqual(
+    args.slice(args.indexOf("--secrets-file"), args.indexOf("--secrets-file") + 2),
+    ["--secrets-file", "/runner/temp/mahoraga-execution-runtime-secrets.json"],
+  );
 });
 
 test("Windows Wrangler deployment launches npx through cmd.exe", () => {

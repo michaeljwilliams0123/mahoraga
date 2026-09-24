@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
-import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, type ZeroCreditProviderConfig } from "./provider-invoker";
-import { probeZeroCreditProvider, providerStateFromProbe } from "./provider-admission";
+import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, type ZeroCreditProviderConfig } from "./provider-invoker";
+import { probeZeroCreditProvider, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
@@ -56,7 +56,7 @@ const proxyToRailway = async (request: Request, requestUrl: URL, env: Env): Prom
 const parseChatPayload = (value: unknown): ChatPayload | null => {
   if (value === null || Array.isArray(value) || typeof value !== "object") return null;
   const candidate = value as Record<string, unknown>;
-  if (typeof candidate.conversationId !== "string" || !candidate.conversationId.trim() || typeof candidate.turnId !== "string" || !candidate.turnId.trim() || typeof candidate.message !== "string" || !candidate.message.trim()) return null;
+  if (typeof candidate.conversationId !== "string" || !candidate.conversationId.trim() || typeof candidate.turnId !== "string" || !candidate.turnId.trim() || typeof candidate.message !== "string" || !candidate.message.trim() || !providerInputWithinLimit(candidate.message)) return null;
   return { conversationId: candidate.conversationId.trim(), turnId: candidate.turnId.trim(), message: candidate.message };
 };
 const extractAnswer = (value: unknown): string | null => {
@@ -95,7 +95,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       token: this.env.ZERO_CREDIT_PROVIDER_TOKEN,
       accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH,
       targetSha: this.env.TARGET_SHA,
+      billingAttestation: this.env.ZERO_CREDIT_BILLING_ATTESTATION,
     };
+  }
+  private providerGapResponse(error: unknown): Response | null {
+    const reasonCode = providerGapReasonFromError(error);
+    if (reasonCode === null) return null;
+    this.storage.saveProviderState(providerStateForGap(reasonCode));
+    return json({ error: "zero-credit-provider-unavailable", reasonCode }, 503);
   }
   private async refreshProviderState(): Promise<Response> {
     this.initialize();
@@ -158,7 +165,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const message = payload.content;
     const conversationId = payload.conversationId ?? crypto.randomUUID();
     const key = payload.idempotencyKey;
-    if (!boundedId(conversationId) || !boundedId(key) || typeof message !== "string" || !message.trim() || message.length > 16_000 || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "chat-payload-invalid" }, 400);
+    if (!boundedId(conversationId) || !boundedId(key) || typeof message !== "string" || !message.trim() || !providerInputWithinLimit(message) || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "chat-payload-invalid" }, 400);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
     const existingConversation = this.storage.getConversation(conversationId);
@@ -191,7 +198,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" } });
-    } catch (error) { return json({ error: safeError(error) }, 502); }
+    } catch (error) { return this.providerGapResponse(error) ?? json({ error: safeError(error) }, 502); }
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
   async fetch(request: Request): Promise<Response> {
@@ -251,6 +258,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => { this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent); this.storage.saveReceipt(receipt); });
       return json({ executed: true, answer, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID, timestamp: now });
     } catch (error) {
+      const providerGap = this.providerGapResponse(error);
+      if (providerGap !== null) return providerGap;
       const message = error instanceof Error ? error.message : "Execution failed";
       return json({ error: message }, 502);
     } finally { this.storage.releaseLease(leaseResource, holderId); }

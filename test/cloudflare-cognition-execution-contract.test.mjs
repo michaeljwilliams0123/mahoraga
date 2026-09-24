@@ -12,6 +12,9 @@ test("Cloudflare execution runtime cannot synthesize SUCCESS or call paid-accoun
   assert.doesNotMatch(source, /env\.AI\.run|this\.env\.AI\.run|invokeWorkersAi/, "paid execution runtime must not own a Workers AI binding");
   assert.match(source, /invokeZeroCreditProvider\(this\.providerConfig\(\)/, "assistant execution must invoke the isolated hard-zero provider");
   assert.match(source, /getProviderState\(ASSISTANT_PROVIDER_ID\)/, "provider admission must be checked from durable evidence before inference");
+  assert.match(source, /providerInputWithinLimit\(message\)/, "native chat must enforce the provider UTF-8 byte limit");
+  assert.match(source, /providerInputWithinLimit\(candidate\.message\)/, "direct execution must enforce the provider UTF-8 byte limit");
+  assert.match(source, /saveProviderState\(providerStateForGap\(reasonCode\)\)/, "runtime quota exhaustion must revoke durable provider admission");
   assert.match(source, /encryptConversationContent/, "prompt and answer content must be vaulted rather than persisted in plaintext receipts");
 });
 

@@ -36,7 +36,12 @@ jobs:
       CLOUDFLARE_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_TOKEN }}
       CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+      ZERO_CREDIT_PROVIDER_TOKEN: ${{ secrets.ZERO_CREDIT_PROVIDER_TOKEN }}
+      PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
       ZERO_CREDIT_PROVIDER_URL: https://mahoraga-zero-credit-inference.mahoraga-mjw0123.workers.dev/
+      PROVIDER_SECRETS_FILE: ${{ runner.temp }}/mahoraga-zero-credit-provider-secrets.json
+      RUNTIME_SECRETS_FILE: ${{ runner.temp }}/mahoraga-execution-runtime-secrets.json
+      BILLING_ATTESTATION_FILE: ${{ runner.temp }}/mahoraga-zero-credit-billing-attestation.json
 
     steps:
       - name: Check out exact verified main
@@ -73,23 +78,47 @@ jobs:
             echo "::error::Cloudflare Access credentials are not configured for live acceptance."
             exit 1
           fi
+          if [ -z "$ZERO_CREDIT_PROVIDER_TOKEN" ] || [ -z "$PROVIDER_REFRESH_SECRET" ]; then
+            echo "::error::Hard-zero provider credentials are not configured for the hosted exact-main lane."
+            exit 1
+          fi
 
-      - name: Deploy exact verified owner gateway
-        run: npm run cloudflare:owner-gateway:deploy
-
-      - name: Prepare hard-zero provider material
+      - name: Prove account-level hard-zero billing and prepare provider material
         shell: bash
         run: |
           set -euo pipefail
           account_hash="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | sha256sum | cut -d' ' -f1)"
-          provider_token="$(openssl rand -hex 32)"
-          refresh_token="$(openssl rand -hex 32)"
           echo "::add-mask::$account_hash"
-          echo "::add-mask::$provider_token"
-          echo "::add-mask::$refresh_token"
+          export ZERO_CREDIT_ACCOUNT_ID_HASH="$account_hash"
           echo "ZERO_CREDIT_ACCOUNT_ID_HASH=$account_hash" >> "$GITHUB_ENV"
-          echo "ZERO_CREDIT_PROVIDER_TOKEN=$provider_token" >> "$GITHUB_ENV"
-          echo "PROVIDER_REFRESH_SECRET=$refresh_token" >> "$GITHUB_ENV"
+          node scripts/cloudflare-zero-credit-attestation.mjs --output "$BILLING_ATTESTATION_FILE"
+          node --input-type=module <<'NODE'
+          import { readFile, writeFile } from 'node:fs/promises';
+          const providerToken = (process.env.ZERO_CREDIT_PROVIDER_TOKEN ?? '').trim();
+          const refreshSecret = (process.env.PROVIDER_REFRESH_SECRET ?? '').trim();
+          const providerUrl = (process.env.ZERO_CREDIT_PROVIDER_URL ?? '').trim();
+          const accountHash = (process.env.ZERO_CREDIT_ACCOUNT_ID_HASH ?? '').trim();
+          const billingAttestation = await readFile(process.env.BILLING_ATTESTATION_FILE, 'utf8');
+          if (providerToken.length < 32 || refreshSecret.length < 32 || !providerUrl || !accountHash) {
+            throw new Error('hard-zero-provider-material-invalid');
+          }
+          await writeFile(
+            process.env.PROVIDER_SECRETS_FILE,
+            JSON.stringify({ ZERO_CREDIT_PROVIDER_TOKEN: providerToken }),
+            { encoding: 'utf8', mode: 0o600 },
+          );
+          await writeFile(
+            process.env.RUNTIME_SECRETS_FILE,
+            JSON.stringify({
+              PROVIDER_REFRESH_SECRET: refreshSecret,
+              ZERO_CREDIT_PROVIDER_URL: providerUrl,
+              ZERO_CREDIT_PROVIDER_TOKEN: providerToken,
+              ZERO_CREDIT_ACCOUNT_ID_HASH: accountHash,
+              ZERO_CREDIT_BILLING_ATTESTATION: billingAttestation,
+            }),
+            { encoding: 'utf8', mode: 0o600 },
+          );
+          NODE
 
       - name: Deploy isolated budgeted Workers AI provider
         shell: bash
@@ -98,25 +127,11 @@ jobs:
           npx --yes wrangler@4.136.1 deploy \
             --config deploy/cloudflare-zero-credit-inference/wrangler.jsonc \
             --var "TARGET_SHA:${VERIFIED_SHA}" \
-            --var "ZERO_CREDIT_ACCOUNT_ID_HASH:${ZERO_CREDIT_ACCOUNT_ID_HASH}"
-          printf '%s' "$ZERO_CREDIT_PROVIDER_TOKEN" | npx --yes wrangler@4.136.1 secret put ZERO_CREDIT_PROVIDER_TOKEN \
-            --config deploy/cloudflare-zero-credit-inference/wrangler.jsonc
-
-      - name: Bind zero-credit provider to execution runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-          printf '%s' "$PROVIDER_REFRESH_SECRET" | npx --yes wrangler@4.136.1 secret put PROVIDER_REFRESH_SECRET \
-            --config deploy/cloudflare-execution-runtime/wrangler.jsonc
-          printf '%s' "$ZERO_CREDIT_PROVIDER_URL" | npx --yes wrangler@4.136.1 secret put ZERO_CREDIT_PROVIDER_URL \
-            --config deploy/cloudflare-execution-runtime/wrangler.jsonc
-          printf '%s' "$ZERO_CREDIT_PROVIDER_TOKEN" | npx --yes wrangler@4.136.1 secret put ZERO_CREDIT_PROVIDER_TOKEN \
-            --config deploy/cloudflare-execution-runtime/wrangler.jsonc
-          printf '%s' "$ZERO_CREDIT_ACCOUNT_ID_HASH" | npx --yes wrangler@4.136.1 secret put ZERO_CREDIT_ACCOUNT_ID_HASH \
-            --config deploy/cloudflare-execution-runtime/wrangler.jsonc
+            --var "ZERO_CREDIT_ACCOUNT_ID_HASH:${ZERO_CREDIT_ACCOUNT_ID_HASH}" \
+            --secrets-file "$PROVIDER_SECRETS_FILE"
 
       - name: Deploy exact verified execution runtime
-        run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA"
+        run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA" --secrets-file "$RUNTIME_SECRETS_FILE"
 
       - name: Refresh hard-zero provider admission
         shell: bash
@@ -151,6 +166,9 @@ jobs:
           })}\n`);
           NODE
 
+      - name: Deploy exact verified owner gateway
+        run: npm run cloudflare:owner-gateway:deploy
+
       - name: Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough
         shell: bash
         run: |
@@ -173,3 +191,8 @@ jobs:
           path: reports/cloudflare-execution-runtime-acceptance.json
           retention-days: 7
           if-no-files-found: error
+
+      - name: Remove temporary Cloudflare secret files
+        if: always()
+        shell: bash
+        run: rm -f "$PROVIDER_SECRETS_FILE" "$RUNTIME_SECRETS_FILE" "$BILLING_ATTESTATION_FILE"
