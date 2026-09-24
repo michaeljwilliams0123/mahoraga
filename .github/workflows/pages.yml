@@ -50,7 +50,7 @@ jobs:
           MAHORAGA_DEPLOYMENT_ENV: production
           MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
           NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health.json
-          NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: ${{ vars.MAHORAGA_PAGES_BRIDGE_ORIGIN || 'https://mahoraga-runtime-main-production.up.railway.app' }}
+          NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: ${{ vars.MAHORAGA_PAGES_BRIDGE_ORIGIN || 'https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev' }}
           MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
           MAHORAGA_GIT_COMMIT_REF: main
         run: node ../scripts/build-pages-static.mjs
