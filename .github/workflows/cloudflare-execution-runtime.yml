@@ -41,9 +41,6 @@ jobs:
       ZERO_CREDIT_PROVIDER_TOKEN: ${{ secrets.ZERO_CREDIT_PROVIDER_TOKEN }}
       PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
       ZERO_CREDIT_PROVIDER_URL: https://mahoraga-zero-credit-inference.mahoraga-mjw0123.workers.dev/
-      PROVIDER_SECRETS_FILE: ${{ runner.temp }}/mahoraga-zero-credit-provider-secrets.json
-      RUNTIME_SECRETS_FILE: ${{ runner.temp }}/mahoraga-execution-runtime-secrets.json
-      BILLING_ATTESTATION_FILE: ${{ runner.temp }}/mahoraga-zero-credit-billing-attestation.json
 
     steps:
       - name: Check out exact verified main
@@ -57,6 +54,14 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Prepare ephemeral cutover paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "PROVIDER_SECRETS_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-provider-secrets.json" >> "$GITHUB_ENV"
+          echo "RUNTIME_SECRETS_FILE=${RUNNER_TEMP}/mahoraga-execution-runtime-secrets.json" >> "$GITHUB_ENV"
+          echo "BILLING_ATTESTATION_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-billing-attestation.json" >> "$GITHUB_ENV"
 
       - name: Verify exact SHA is still authoritative main
         env:
@@ -213,7 +218,6 @@ jobs:
       CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
       PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
-      BILLING_ATTESTATION_FILE: ${{ runner.temp }}/mahoraga-zero-credit-billing-attestation.json
 
     steps:
       - name: Check out scheduled authoritative main
@@ -227,6 +231,12 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Prepare ephemeral renewal path
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "BILLING_ATTESTATION_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-billing-attestation.json" >> "$GITHUB_ENV"
 
       - name: Verify scheduled SHA is still authoritative main
         env:
