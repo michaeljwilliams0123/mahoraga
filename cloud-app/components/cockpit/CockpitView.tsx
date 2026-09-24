@@ -5,10 +5,12 @@ import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
-import type { CockpitViewProps } from "../workspace/workspace-types";
+import type { CockpitViewProps, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
+const EXPECTED_PROVIDER_ID = "cloudflare-workers-ai";
+const EXPECTED_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
 
 function parseReadinessObservation(value: unknown): ReadinessObservation | null {
@@ -19,6 +21,55 @@ function parseReadinessObservation(value: unknown): ReadinessObservation | null 
     status: candidate.status,
     sha: typeof candidate.sha === "string" ? candidate.sha : null,
     durableState: typeof candidate.durableState === "string" ? candidate.durableState : null,
+  };
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function firstBoolean(...values: unknown[]): boolean | undefined {
+  for (const value of values) {
+    if (typeof value === "boolean") return value;
+  }
+  return undefined;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function parseSanitizedAcceptance(health: Health | null): SanitizedAcceptanceReceipt & { bypassApplied: boolean } {
+  const root = asRecord(health);
+  const nested = [
+    root,
+    asRecord(root?.acceptance),
+    asRecord(root?.productionAcceptance),
+    asRecord(root?.cloudflareAcceptance),
+    asRecord(root?.receipt),
+    asRecord(root?.runtime),
+    asRecord(asRecord(root?.runtime)?.acceptance),
+  ].filter((value): value is Record<string, unknown> => value !== null);
+
+  const providerCognitionVerified = firstBoolean(...nested.map((entry) => entry.providerCognitionVerified)) === true;
+  const noRailwayFallbackVerified = firstBoolean(...nested.map((entry) => entry.noRailwayFallbackVerified)) === true;
+  const trafficAuthorityVerified = firstBoolean(...nested.map((entry) => entry.trafficAuthorityVerified)) === true;
+  const bypassApplied = firstBoolean(...nested.map((entry) => entry["x-bypass-applied"])) === true;
+  const providerId = firstString(...nested.map((entry) => entry.providerId));
+  const modelId = firstString(...nested.map((entry) => entry.modelId));
+
+  return {
+    providerCognitionVerified: providerCognitionVerified && !bypassApplied,
+    noRailwayFallbackVerified: noRailwayFallbackVerified && !bypassApplied,
+    trafficAuthorityVerified,
+    providerId,
+    modelId,
+    "x-bypass-applied": bypassApplied,
+    bypassApplied,
   };
 }
 
@@ -74,6 +125,15 @@ export function CockpitView({
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
+  const acceptance = parseSanitizedAcceptance(health);
+  const cognitionObserved = acceptance.providerCognitionVerified === true;
+  const noRailwayVerified = acceptance.noRailwayFallbackVerified === true;
+  const cognitionDetail = cognitionObserved
+    ? `${acceptance.providerId ?? EXPECTED_PROVIDER_ID} · ${acceptance.modelId ?? EXPECTED_MODEL_ID} · receipt-gated`
+    : "Unverified until providerCognitionVerified is true on sanitized health/runtime metadata; never inferred from /api/ready";
+  const noRailwayDetail = noRailwayVerified
+    ? "Verified no Railway fallback on sanitized receipt; Railway remains rollback/evidence anchor"
+    : "Unproven; Railway remains the rollback/evidence anchor until noRailwayFallbackVerified is true";
   const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
@@ -131,7 +191,9 @@ export function CockpitView({
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
-        <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; requires independent route/domain cutover evidence" tone="neutral" />
+        <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
+        <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
+        <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"} />
         <StatusCard label="Deployment convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
@@ -176,6 +238,9 @@ export function CockpitView({
             <div><dt>Deployment convergence</dt><dd>{deploymentConvergence}</dd></div>
             <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · after Verify Mahoraga on main; verified run SHA; not Railway GitHub status; Wait for CI disabled</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
+            <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
+            <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway rollback anchor · x-bypass-applied fail-closed</dd></div>
+            <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
             <div><dt>Cloud boundary</dt><dd>{health?.boundaries?.executionPlane ?? "client-shell-with-owner-paired-core"}</dd></div>

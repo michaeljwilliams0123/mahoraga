@@ -18,18 +18,37 @@ export type QuickAction = {
   requiresCore?: boolean;
 };
 
+export type SanitizedAcceptanceReceipt = {
+  providerCognitionVerified?: boolean;
+  noRailwayFallbackVerified?: boolean;
+  trafficAuthorityVerified?: boolean;
+  providerId?: string;
+  modelId?: string;
+  "x-bypass-applied"?: boolean;
+};
+
 export type Health = {
   ok: boolean;
   product?: string;
   version?: string;
   build?: { version?: string };
   deployment?: { provider?: string; environment?: string; url?: string | null; commitSha?: string | null; expectedCommitSha?: string | null; gitRef?: string | null; promotion?: string | null };
-  runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } };
+  runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } } & SanitizedAcceptanceReceipt;
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
   studio?: { managementPlaneReady?: boolean; delegationRuntimeReady?: boolean };
   cognitiveLearning?: CognitiveLearningPromotionReceipt | null;
+  acceptance?: SanitizedAcceptanceReceipt;
+  productionAcceptance?: SanitizedAcceptanceReceipt;
+  cloudflareAcceptance?: SanitizedAcceptanceReceipt;
+  receipt?: SanitizedAcceptanceReceipt;
+  providerCognitionVerified?: boolean;
+  noRailwayFallbackVerified?: boolean;
+  trafficAuthorityVerified?: boolean;
+  providerId?: string;
+  modelId?: string;
+  "x-bypass-applied"?: boolean;
 };
 
 export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: string }> = Object.freeze([
