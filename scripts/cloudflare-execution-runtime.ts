@@ -66,6 +66,7 @@ export function buildWranglerDeployArgs(input: {
   targetSha: string;
   railwayAnchorUrl?: string;
   configPath?: string;
+  secretsFile?: string;
 }): string[] {
   const targetSha = normalizeSha(input.targetSha, "deploy-target-sha-invalid");
   const railwayAnchorUrl = normalizeHttpsUrl(
@@ -73,7 +74,7 @@ export function buildWranglerDeployArgs(input: {
     "deploy-railway-anchor-invalid",
   );
   const configPath = input.configPath ?? DEFAULT_CONFIG;
-  return [
+  const args = [
     "--yes",
     `wrangler@${WRANGLER_VERSION}`,
     "deploy",
@@ -84,6 +85,10 @@ export function buildWranglerDeployArgs(input: {
     "--var",
     `RAILWAY_ANCHOR_URL:${railwayAnchorUrl}`,
   ];
+  const secretsFile = input.secretsFile?.trim();
+  if (input.secretsFile !== undefined && !secretsFile) throw new Error("deploy-secrets-file-invalid");
+  if (secretsFile) args.push("--secrets-file", secretsFile);
+  return args;
 }
 
 function alternateSha(targetSha: string): string {
@@ -280,7 +285,11 @@ async function deploy(args: string[]): Promise<void> {
   const statusPorcelain = gitOutput(["status", "--porcelain"]);
   assertDeployableSource({ targetSha, headSha, remoteMainSha, statusPorcelain });
 
-  const wranglerArgs = buildWranglerDeployArgs({ targetSha });
+  const secretsFile = option(args, "--secrets-file");
+  const wranglerArgs = buildWranglerDeployArgs({
+    targetSha,
+    ...(secretsFile ? { secretsFile } : {}),
+  });
   const wranglerProcess = buildNpxProcess(wranglerArgs);
   const result = spawnSync(wranglerProcess.command, wranglerProcess.args, { stdio: "inherit" });
   if (result.error) throw result.error;

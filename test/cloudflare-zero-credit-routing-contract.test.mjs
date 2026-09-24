@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("execution runtime cannot invoke Workers AI directly", async () => {
+test("execution runtime cannot invoke Workers AI directly or self-renew billing proof", async () => {
   const [worker, config, bindings] = await Promise.all([
     read("deploy/cloudflare-execution-runtime/worker.ts"),
     read("deploy/cloudflare-execution-runtime/wrangler.jsonc"),
@@ -15,7 +15,9 @@ test("execution runtime cannot invoke Workers AI directly", async () => {
   assert.doesNotMatch(worker, /env\.AI|invokeWorkersAi/);
   assert.match(worker, /invokeZeroCreditProvider/);
   assert.match(worker, /\/api\/provider\/refresh/);
-  assert.match(config, /\"0 \* \* \* \*\"/);
+  assert.doesNotMatch(config, /\"crons\"\s*:/);
+  assert.doesNotMatch(worker, /async scheduled\(/);
+  assert.doesNotMatch(worker, /ZERO_CREDIT_BILLING_ATTESTATION/);
 });
 
 test("isolated Workers AI binding is bounded below Cloudflare's daily free allocation", async () => {
