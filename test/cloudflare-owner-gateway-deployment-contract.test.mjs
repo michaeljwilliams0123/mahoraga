@@ -8,7 +8,7 @@ const ignore = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 test("owner gateway keeps identity and assertion key out of tracked vars", () => {
   assert.match(config, /\[secrets\][\s\S]*MAHORAGA_CLOUD_OWNER_ID[\s\S]*MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET/);
   assert.doesNotMatch(config, /example\.invalid/);
-  assert.match(config, /MAHORAGA_RUNTIME_ORIGIN\s*=\s*"https:\/\/mahoraga-runtime-main-production\.up\.railway\.app\/"/);
+  assert.match(config, /MAHORAGA_RUNTIME_ORIGIN\s*=\s*"https:\/\/mahoraga-execution-runtime\.mahoraga-mjw0123\.workers\.dev\/"/);\n  assert.doesNotMatch(config, /railway\.app/i);
 });
 
 test("Wrangler local state is ignored everywhere in the repository", () => {
