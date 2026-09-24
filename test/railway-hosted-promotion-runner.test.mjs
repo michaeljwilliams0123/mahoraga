@@ -9,7 +9,9 @@ test("Railway rollback promotion uses hosted Linux without weakening exact-SHA a
   assert.match(source, /runs-on:\s*ubuntu-latest/i);
   assert.doesNotMatch(source, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
-  assert.match(source, /github\.event\.workflow_run\.conclusion == 'success'/);
-  assert.match(source, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(source, /workflow_dispatch:/);
+  assert.doesNotMatch(source, /workflow_run:/);
+  assert.match(source, /github\.actor == github\.repository_owner/);
+  assert.match(source, /github\.ref == 'refs\/heads\/main'/);
   assert.match(source, /node scripts\/railway-exact-sha-promotion\.mjs promote/);
 });

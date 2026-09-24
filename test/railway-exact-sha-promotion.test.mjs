@@ -51,25 +51,22 @@ test("promotion gate fails closed for missing, stale, pending, skipped, or faile
 test("workflow is manual owner-only, input-free, fixed, and zero-model", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "railway-promote.yml"), "utf8");
   assert.match(source, /workflow_dispatch:/);
-  assert.match(source, /workflow_run:\s*\n\s*workflows:\s*\["Verify Mahoraga"\]\s*\n\s*types:\s*\[completed\]/);
+  assert.doesNotMatch(source, /workflow_run:/);
   assert.doesNotMatch(source, /\binputs\s*:/);
   assert.match(source, /github\.actor == github\.repository_owner/);
-  assert.match(source, /github\.event\.workflow_run\.conclusion == 'success'/);
-  assert.match(source, /github\.event\.workflow_run\.event == 'push'/);
-  assert.match(source, /github\.event\.workflow_run\.head_branch == 'main'/);
-  assert.match(source, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
-  assert.match(source, /github\.event\.workflow_run\.actor\.login == github\.repository_owner/);
+  assert.match(source, /github\.repository == 'michaeljwilliams0123\/mahoraga'/);
+  assert.match(source, /github\.ref == 'refs\/heads\/main'/);
   assert.match(source, /contents:\s*read/);
   assert.match(source, /checks:\s*read/);
   assert.match(source, /runs-on:\s*ubuntu-latest/i);
   assert.doesNotMatch(source, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
   assert.match(source, /RAILWAY_PROJECT_TOKEN:\s*\$\{\{\s*secrets\.RAILWAY_PROJECT_TOKEN\s*\}\}/);
-  assert.match(source, /MAHORAGA_PROMOTION_ACTOR:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
+  assert.match(source, /MAHORAGA_PROMOTION_ACTOR:\s*\$\{\{\s*github\.actor\s*\}\}/);
   assert.match(source, /MAHORAGA_PROMOTION_REF:\s*refs\/heads\/main/);
-  assert.match(source, /MAHORAGA_PROMOTION_SHA:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
+  assert.match(source, /MAHORAGA_PROMOTION_SHA:\s*\$\{\{\s*github\.sha\s*\}\}/);
   assert.match(source, /node scripts\/railway-exact-sha-promotion\.mjs promote/);
-  assert.match(source, /ref:\s*\$\{\{\s*github\.event_name == 'workflow_run'/);
-  assert.doesNotMatch(source, /OPENAI|ANTHROPIC|MODEL|provider|schedule:|push:|pull_request:/i);
+  assert.match(source, /ref:\s*\$\{\{\s*github\.sha\s*\}\}/);
+  assert.doesNotMatch(source, /OPENAI|ANTHROPIC|MODEL|provider|schedule:|push:|pull_request:|workflow_run:/i);
 });
 
 function response(payload, status = 200) {
