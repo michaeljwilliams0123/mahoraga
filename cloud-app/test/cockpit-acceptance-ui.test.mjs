@@ -32,6 +32,15 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(cockpit, /readyOk \? "Canonical traffic"/);
   });
 
+  it("surfaces SHA/durableState and required-secret/provider-admission without promoting traffic authority", () => {
+    assert.match(cockpit, /SHA \/ durableState/);
+    assert.match(cockpit, /Required-secret \/ provider admission/);
+    assert.match(cockpit, /Operator evidence \(observational\)/);
+    assert.match(cockpit, /acceptance-evidence-heading/);
+    assert.match(cockpit, /cloudflare-execution-runtime hop identity/);
+    assert.doesNotMatch(cockpit, /readyOk \? "Promoted traffic"/);
+  });
+
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
