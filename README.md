@@ -2,12 +2,26 @@
 
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
 [![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
+[![Cloudflare exact-main acceptance](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/cloudflare-execution-runtime.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/cloudflare-execution-runtime.yml)
 
-**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. The Cloudflare execution runtime serves the accepted exact source; owner actions cross the Access-protected gateway and remain independently gated. Railway is retained for rollback/evidence and is not a production route.
+## Open Mahoraga
 
-GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. It is the current canonical browser presentation, but browser hosting remains replaceable and never becomes execution authority.
+| Surface | Link | Authority boundary |
+| --- | --- | --- |
+| Browser workspace | **[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** | Canonical GitHub Pages presentation derived from `cloud-app/`; not execution authority |
+| Owner action gateway | **[Open the Access-protected gateway](https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/)** | Cloudflare Access authentication required; the attended owner-browser transaction remains independently gated |
+| Cloudflare workspace candidate | **[Open the exact-main candidate](https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev/)** | Deployment/provenance observation only; not runtime or traffic authority by itself |
+| Source authority | **[`main`](https://github.com/michaeljwilliams0123/mahoraga/tree/main)** | Canonical source and evolution ledger |
 
-**Cutover evidence (2026-09-25):** [hosted run 36087031059, attempt 3](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36087031059) accepted exact `main` SHA `eabfedd95877847bc8cdf407dfe0559d7a56bcbe`. Its sanitized receipt proves Cloudflare execution routing, fresh hard-zero billing and provider cognition, Access protection, stale-SHA rejection, one provider execution under concurrent/replayed requests, durable replay across redeploy, and no Railway fallback. A later merge requires fresh acceptance for its new SHA. This execution-runtime receipt does not by itself prove an owner browser transaction through the gateway or a custom-domain promotion; those require separate live evidence.
+GitHub Pages is the canonical browser presentation. GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. The Cloudflare execution runtime is the canonical production execution plane and owner-action gateway. Railway is retained only as non-routing rollback/evidence; it has no production traffic authority or fallback role.
+
+## Cutover status
+
+**Latest recorded exact-source acceptance (2026-09-25):** [Verify run 36184745536](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36184745536), [Pages run 36184745686](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36184745686), [workspace candidate run 36185314226](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36185314226), and [Cloudflare deploy/accept run 36185314285](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36185314285) passed for SHA [`bbf14f88b9d3f480d3e42a445ec7bba279e9ad7a`](https://github.com/michaeljwilliams0123/mahoraga/commit/bbf14f88b9d3f480d3e42a445ec7bba279e9ad7a). Sanitized artifact `10884948964` has SHA-256 `107739db1facd423efd4ce05f6ea520968fd302335b6e8fe20823f3804712ac8`.
+
+That receipt proves Cloudflare execution routing, fresh hard-zero billing and provider cognition, Access protection, exact-SHA/stale-SHA enforcement, at-most-one provider execution across concurrent/replayed requests, durable continuity across redeploy, and no Railway route, influence, or fallback. A later `main` SHA requires its own fresh acceptance. The receipt does **not** prove the separate attended owner-browser transaction through Cloudflare Access; [#697](https://github.com/michaeljwilliams0123/mahoraga/issues/697) and [#757](https://github.com/michaeljwilliams0123/mahoraga/issues/757) remain the authoritative gates for that evidence.
+
+The repository homepage now points to the canonical GitHub Pages presentation; the stale Railway metadata blocker [#732](https://github.com/michaeljwilliams0123/mahoraga/issues/732) is closed.
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
@@ -17,7 +31,7 @@ GitHub Pages is a derived static export of the canonical `cloud-app/` workspace 
 >
 > **Product identity:** the product name is simply **Mahoraga**. Semantic versions such as `7.0.0-alpha.2` remain build/provenance metadata, not user-facing product names. Repository visibility is an access setting, not an execution-authority signal; private source access does not itself grant Microsoft, relay, runtime, provider, or deployment authority.
 
-## Current review baseline
+## Historical review baseline (2026-09-18)
 
 The following 2026-09-18 review is historical. It was reconciled through `#564` at `bff05087ccf54cbe9d0911c23421c35d97725425`; its Railway observations are not current routing authority. Earlier September 15 / `#533` / `a3cdb03c` text is also historical provenance.
 
@@ -27,9 +41,10 @@ At this review point:
 - the 2026-09-18 stack was admitted by a temporary owner ruleset bypass, then the original ruleset was restored with **no** bypass actors;
 - GitHub remains the authoritative source ledger;
 - GitLab remains a secondary assurance plane;
-- GitHub Pages is the canonical browser presentation; conversation and action execution continue through Mahoraga’s encrypted relay to the authoritative runtime, with Railway `mahoraga-runtime-main` remaining the current server-capable execution/control service during migration;
-- source on `main` can be ahead of live Railway until an explicit exact-SHA promotion, so deployment claims remain fail-closed;
-- canonical Railway promotion is guarded by source policy so GitHub autodeploy must be disabled before exact-SHA promotion; deployments are explicit, verified promotion events rather than implicit reactions to every push.
+- GitHub Pages was the canonical browser presentation while Railway `mahoraga-runtime-main` remained the server-capable execution/control service during that migration stage;
+- source on `main` could be ahead of live Railway until an explicit exact-SHA promotion, so deployment claims remained fail-closed;
+- Railway promotion was guarded by source policy so deployments were explicit, verified promotion events rather than implicit reactions to every push.
+
 ## Capability-first architecture
 
 Mahoraga plans against **capabilities, evidence, authority, and cost**, not vendor names. A user asks for an outcome; Mahoraga compiles the objective into required capabilities, observes current state, derives authority, ranks lawful routes, executes through the best admitted path, verifies results, persists receipts/state, and recovers or reroutes when a recoverable path drifts.
@@ -236,8 +251,11 @@ If the owner identity/gateway is absent, session establishment must fail closed.
 ## Workspace and UI surfaces
 
 - **Canonical browser source:** [`cloud-app/`](cloud-app/)
-- **Production server-capable target:** Railway `mahoraga-runtime-main`, once exact-source deployment and owner-session readiness are freshly proven.
-- **GitHub Pages:** canonical browser presentation built as a derived static export. It is not runtime authority, cannot expose server-only action/session routes, and reaches Mahoraga through the encrypted relay.
+- **Canonical browser presentation:** [GitHub Pages](https://michaeljwilliams0123.github.io/mahoraga/), built as a derived static export. It is not runtime authority and cannot expose server-only action/session routes.
+- **Production execution runtime:** Cloudflare Workers, admitted only by exact-SHA deployment plus the full hard-zero acceptance chain.
+- **Owner action gateway:** [Cloudflare Access-protected gateway](https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/), using the native `MAHORAGA_EXECUTION_RUNTIME` service binding rather than a Railway proxy.
+- **Static deployment candidate:** [Cloudflare workspace candidate](https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev/); provenance evidence only until its exact commit is observed.
+- **Railway:** non-routing rollback/evidence only; never a production route, influence source, or automatic fallback.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
 - **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.
@@ -367,7 +385,8 @@ The following are intentionally tracked as **gates**, not papered over as succes
 | Gate | Current meaning |
 | --- | --- |
 | [#697 Cloudflare migration gate](https://github.com/michaeljwilliams0123/mahoraga/issues/697) | The accepted exact-SHA execution-runtime receipt must be followed by independently observed owner-browser/gateway and hostname authority before claiming that complete user path |
-| [#732 repository homepage cleanup](https://github.com/michaeljwilliams0123/mahoraga/issues/732) | Repository metadata still points to Railway; replace it with the verified canonical browser entry while preserving Railway rollback assets |
+| [#757 current-head owner-path acceptance](https://github.com/michaeljwilliams0123/mahoraga/issues/757) | The authenticated Pages/UI → Access gateway → native service binding → runtime → provider → durable state → answer transaction still needs independent attended evidence |
+| [#786 cutover freeze](https://github.com/michaeljwilliams0123/mahoraga/issues/786) | Non-critical PR work remains frozen until the owner-path gate is closed and canonical traffic authority is confirmed |
 | [#388 Windows runtime convergence](https://github.com/michaeljwilliams0123/mahoraga/issues/388) | Repository evolution must not be confused with the paired Windows runtime; live host evidence is still required before claiming the Windows brain is current/healthy |
 | [#412 private-repo operator reads](https://github.com/michaeljwilliams0123/mahoraga/issues/412) | `operator-deck` needs authenticated server-side GitHub reads and must fail closed rather than falling back to misleading public-state assumptions |
 | [#451 zero-credit UI evidence](https://github.com/michaeljwilliams0123/mahoraga/issues/451) | UI still needs complete canonical zero-credit provider/quota/billing observability |
@@ -377,7 +396,7 @@ Other open issues may represent future capability work rather than current produ
 
 ## Release and runtime truth
 
-`7.0.0-alpha.2` remains repository build/candidate metadata. It is **not** the product name and a merged source head does not prove that a Windows machine or Railway service has loaded it.
+`7.0.0-alpha.2` remains repository build/candidate metadata. It is **not** the product name, and a merged source head does not prove that a Windows machine or Cloudflare deployment has loaded it.
 
 The protected rollback predecessor remains `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` until a later candidate completes the governed activation, canary, checkpoint, state, and rollback evidence required to supersede it.
 
@@ -405,6 +424,9 @@ Mahoraga should make each of those states observable, preserve their provenance,
 
 ## Useful repository surfaces
 
+- Mahoraga browser workspace: <https://michaeljwilliams0123.github.io/mahoraga/>
+- Cloudflare owner gateway: <https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/>
+- Cloudflare workspace candidate: <https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev/>
 - GitHub Actions: <https://github.com/michaeljwilliams0123/mahoraga/actions>
 - Pull requests: <https://github.com/michaeljwilliams0123/mahoraga/pulls>
 - Issues / task intake: <https://github.com/michaeljwilliams0123/mahoraga/issues>
