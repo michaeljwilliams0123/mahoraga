@@ -4,7 +4,7 @@
 
 Cloudflare Workers is the designated Vercel-independent hosting candidate for the
 single `cloud-app/` browser workspace. This is a hosting migration, not a tunnel.
-The historical `https://mahoraga-workspace.vercel.app/` deployment is retired and is not a production fallback. Railway remains the canonical server-capable runtime while any replacement browser host must pass the exact-commit activation gate below.
+The historical `https://mahoraga-workspace.vercel.app/` deployment is retired and is not a production fallback. Cloudflare execution-runtime acceptance passed on exact `eabfedd95877847bc8cdf407dfe0559d7a56bcbe` in hosted run 36087031059; Railway is non-routing rollback/evidence infrastructure. This document's Workers browser-host migration gate remains separate from the accepted execution runtime and still requires an owner browser/domain proof before promotion.
 
 Vercel Git deployment is outside the active production path. Repository evolution continues in GitHub and does not depend on Vercel build or deployment status.
 

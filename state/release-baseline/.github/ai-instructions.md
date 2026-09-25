@@ -1,12 +1,12 @@
 # AI Coding Context
 
 - **Primary UI language:** TypeScript
-- **Target framework (browser UI):** Next.js in `cloud-app/`, served by the canonical Railway production service. GitHub Pages is an optional derived launcher, not runtime authority.
+- **Target framework (browser UI):** Next.js in `cloud-app/`; GitHub Pages is the current derived browser presentation. Cloudflare is the accepted execution runtime for the verified source. Browser/domain authority requires separate live evidence.
 - **Existing control plane:** Node.js (`.mjs`) on loopback. Leave it. Do not translate it to Java, to JavaScript, or to TypeScript unless the owner explicitly starts that migration.
 - **Strict rule:** Do **not** rewrite, translate, replace, or scaffold over this repository in any other language. Stick entirely to TypeScript for new UI and for `cloud-app/` / `operator-deck/` work. Never convert TypeScript UI to JavaScript because a model has guardrails or prefers JS.
 - **Do not wipe the ecosystem.** Do not delete `src/`, `cloud-app/`, `operator-deck/`, `.github/`, `mahoraga.manifest.json`, or `state/release-baseline/` in order to "start clean".
 - **Guardrails:** a ChatGPT / Copilot safety refusal is local to the disallowed action. It is not permission to generate a JavaScript substitute. See [`docs/ECOSYSTEM-LOCK.md`](../docs/ECOSYSTEM-LOCK.md).
-- **App host:** Railway service `mahoraga-runtime-main` from authoritative GitHub `main`. Google Workspace is identity, mail, and docs — not the app host.
+- **App host:** Cloudflare execution runtime behind the Access-protected owner gateway, deployed from exact verified GitHub `main`. Railway service `mahoraga-runtime-main` is retained as non-routing rollback/evidence. Google Workspace is identity, mail, and docs.
 - **Production rollback:** `3.6.0` at `397acebf16766f44e3b4317f9d8b68b10de5f821` is the protected Windows rollback predecessor, not proof of the active runtime. Current Windows state requires fresh host evidence. Do not activate a candidate from browser UI work.
 - **Singular browser UI:** `cloud-app/` is the one deployable browser UI and contains Chat, Control Center, Operations, and Connections. `operator-deck/` remains a non-deployable TypeScript reference/control-library layer; preserve it but never recreate it as a second browser app.
 - **Authority boundary:** the browser remains a client of the Mahoraga core through the authenticated owner-session or bounded recovery relay. No direct browser GitHub authority, direct provider selection, paid fallback, or automatic owner confirmation.

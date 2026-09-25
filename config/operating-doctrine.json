@@ -21,7 +21,9 @@
       "Verify (windows-latest)"
     ],
     "cloud": {
-      "canonicalProvider": "railway",
+      "canonicalProvider": "cloudflare",
+      "rollbackProvider": "railway",
+      "independentTrafficProofRequired": true,
       "requireExactMergedSha": true,
       "livenessEndpoint": "/api/live",
       "readinessEndpoint": "/api/ready"

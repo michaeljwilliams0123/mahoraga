@@ -3,9 +3,11 @@
 [![Verify Mahoraga](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/verify.yml)
 [![Static workspace export](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/michaeljwilliams0123/mahoraga/actions/workflows/pages.yml)
 
-**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. Conversation and action execution remain on Mahoraga’s encrypted relay to the authoritative runtime; Railway remains the current server-capable runtime during migration.
+**[Open Mahoraga](https://michaeljwilliams0123.github.io/mahoraga/)** — canonical GitHub Pages browser presentation. The Cloudflare execution runtime serves the accepted exact source; owner actions cross the Access-protected gateway and remain independently gated. Railway is retained for rollback/evidence and is not a production route.
 
 GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. It is the current canonical browser presentation, but browser hosting remains replaceable and never becomes execution authority.
+
+**Cutover evidence (2026-09-25):** [hosted run 36087031059, attempt 3](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36087031059) accepted exact `main` SHA `eabfedd95877847bc8cdf407dfe0559d7a56bcbe`. Its sanitized receipt proves Cloudflare execution routing, fresh hard-zero billing and provider cognition, Access protection, stale-SHA rejection, one provider execution under concurrent/replayed requests, durable replay across redeploy, and no Railway fallback. A later merge requires fresh acceptance for its new SHA. This execution-runtime receipt does not by itself prove an owner browser transaction through the gateway or a custom-domain promotion; those require separate live evidence.
 
 **Mahoraga is an owner-directed universal AI execution fabric.** One conversation can plan, route, execute, verify, recover, and continue work across registered local, cloud, repository, browser, desktop, Microsoft, agent, and model capabilities without making the owner select a provider for every step.
 
@@ -17,7 +19,7 @@ GitHub Pages is a derived static export of the canonical `cloud-app/` workspace 
 
 ## Current review baseline
 
-This README was reconciled against protected `main` on **2026-09-18** after owner-authorized squash of the residual PR stack through `#564` at `bff05087ccf54cbe9d0911c23421c35d97725425`. That SHA is an audit anchor for this review, not a permanent claim that `main` will remain there. Earlier September 15 / `#533` / `a3cdb03c` text is historical provenance only.
+The following 2026-09-18 review is historical. It was reconciled through `#564` at `bff05087ccf54cbe9d0911c23421c35d97725425`; its Railway observations are not current routing authority. Earlier September 15 / `#533` / `a3cdb03c` text is also historical provenance.
 
 At this review point:
 
@@ -52,7 +54,7 @@ The architecture is intentionally fail-closed. A provider being installed, decla
 
 | Truth domain | What establishes it | What it does **not** prove |
 | --- | --- | --- |
-| **Source truth** | Protected GitHub `main`, exact commit SHA, ruleset, exact-head CI | That Railway or Windows is running that SHA |
+| **Source truth** | Protected GitHub `main`, exact commit SHA, ruleset, exact-head CI | That Cloudflare, Railway rollback, or Windows is running that SHA |
 | **Deployment truth** | Host/provider deployment metadata plus served source provenance | That all workers/providers are healthy or authorized |
 | **Live-runtime truth** | Fresh runtime/process/listener/worker/provider observations | That source policy or CI gates were satisfied unless provenance is tied back to source |
 | **Provider readiness** | Fresh provider + canary + quota/billing evidence | Owner authority for a side effect |
@@ -164,11 +166,11 @@ Those variables describe an execution endpoint; they do **not** themselves prove
 
 A separately governed licensed question-model path may exist for explicitly permitted work. It is not an automatic fallback for zero-credit requests and must never be used to hide missing zero-credit readiness.
 
-## Cloud / Railway production model
+## Historical Railway production model (rollback reference)
 
-The intended canonical server-capable cloud service is Railway **`mahoraga-runtime-main`** in the `Mahoraga` project.
+The following Railway configuration was recorded before Cloudflare acceptance. It is retained for rollback/evidence only and does not grant current execution routing or traffic authority.
 
-Current service configuration observed during this README reconciliation:
+Service configuration observed during the 2026-09-18 README reconciliation:
 
 - source repository: `michaeljwilliams0123/mahoraga`;
 - branch/source intent: authoritative `main`;
@@ -190,7 +192,7 @@ Mahoraga's `/api/ready` is stronger and may return non-200 while the container i
 
 Railway mounts volumes at runtime. A build-time `chown` is therefore insufficient because the mounted directory can replace the image-owned path with a root-owned mount.
 
-Current source handles that boundary through [`scripts/docker-entrypoint.sh`](scripts/docker-entrypoint.sh):
+The historical Railway image handles that boundary through [`scripts/docker-entrypoint.sh`](scripts/docker-entrypoint.sh):
 
 1. resolve `${MAHORAGA_STATE_DIR:-/var/lib/mahoraga}`;
 2. create the directory if necessary;
@@ -211,13 +213,13 @@ Mahoraga itself does **not** run as root. The root bootstrap exists only to esta
 - Legacy/non-canonical Railway production services were removed from the production environment on 2026-09-15. Their immutable provider IDs remain in `config/platform-lifecycle.json` as retired, non-routable evidence so renamed or recreated labels cannot silently regain production authority.
 - The canonical Railway variable-name set did not yet expose `MAHORAGA_CLOUD_OWNER_ID` or the zero-credit model URL/model variables during this review. Fresh owner-session admission and live zero-credit model execution therefore remained unproven.
 
-This is why issue [#377](https://github.com/michaeljwilliams0123/mahoraga/issues/377) remains the deployment-convergence authority: source readiness and a running container are not enough; the canonical service must serve the intended exact `main` provenance and pass the separate live/readiness acceptance checks.
+This historical observation does not change the current Cloudflare migration gate in [#697](https://github.com/michaeljwilliams0123/mahoraga/issues/697).
 
 ## Owner session / cloud gateway
 
 A fresh browser session is not supposed to self-assert owner identity. The server-side session boundary requires the configured owner identity plus a valid signed assertion from the owner gateway.
 
-Current owner-gateway code expects `MAHORAGA_CLOUD_OWNER_ID` and signed owner headers. The Cloudflare owner-gateway implementation can proxy an HTTPS origin while keeping the runtime itself behind an authenticated owner route. Historical variable names such as `MAHORAGA_FLY_ORIGIN` are transport-era naming, not a requirement that the runtime be hosted on Fly.
+The current owner gateway requires Cloudflare Access identity and a signed assertion for the `MAHORAGA_EXECUTION_RUNTIME` service binding. It does not proxy Railway. Historical variable names such as `MAHORAGA_FLY_ORIGIN` are transport-era naming, not a requirement for the current route.
 
 The intended pattern is:
 
@@ -364,7 +366,8 @@ The following are intentionally tracked as **gates**, not papered over as succes
 
 | Gate | Current meaning |
 | --- | --- |
-| [#377 Railway convergence](https://github.com/michaeljwilliams0123/mahoraga/issues/377) | One canonical Railway production service must repeatedly deploy authoritative `main`, expose exact served provenance, keep liveness/readiness distinct, and prevent stale services from regaining authority |
+| [#697 Cloudflare migration gate](https://github.com/michaeljwilliams0123/mahoraga/issues/697) | The accepted exact-SHA execution-runtime receipt must be followed by independently observed owner-browser/gateway and hostname authority before claiming that complete user path |
+| [#732 repository homepage cleanup](https://github.com/michaeljwilliams0123/mahoraga/issues/732) | Repository metadata still points to Railway; replace it with the verified canonical browser entry while preserving Railway rollback assets |
 | [#388 Windows runtime convergence](https://github.com/michaeljwilliams0123/mahoraga/issues/388) | Repository evolution must not be confused with the paired Windows runtime; live host evidence is still required before claiming the Windows brain is current/healthy |
 | [#412 private-repo operator reads](https://github.com/michaeljwilliams0123/mahoraga/issues/412) | `operator-deck` needs authenticated server-side GitHub reads and must fail closed rather than falling back to misleading public-state assumptions |
 | [#451 zero-credit UI evidence](https://github.com/michaeljwilliams0123/mahoraga/issues/451) | UI still needs complete canonical zero-credit provider/quota/billing observability |
