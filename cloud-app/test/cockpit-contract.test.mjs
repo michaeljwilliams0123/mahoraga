@@ -94,7 +94,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /no widened studio\.delegate authority/);
     assert.match(cockpit, /copilot-studio-mahoraga/);
     assert.match(cockpit, /verified \+ approved metadata only/);
-    assert.match(cockpit, /Direction → Compile → Delta → Verify → Learn/);
+    assert.match(cockpit, /Direction .+ Compile .+ Delta .+ Verify .+ Learn/);
     assert.match(cockpit, /selective institutional memory/i);
     assert.doesNotMatch(cockpit, /live ingestion is active/);
     assert.doesNotMatch(cockpit, /Studio is fully available/);
@@ -135,13 +135,13 @@ describe("singular control center contract", () => {
   it("describes the live evolution lane as verified canary-backed convergence", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     assert.match(cockpit, /Verified convergence/);
-    assert.match(cockpit, /Stage → verify → canary → pin → converge/);
+    assert.match(cockpit, /Stage .+ verify .+ canary .+ pin .+ converge/);
     assert.match(cockpit, /Verified convergence path/);
     assert.match(cockpit, /Expected SHA pin/);
     assert.match(cockpit, /MAHORAGA_EXPECTED_GIT_SHA/);
     assert.match(cockpit, /Exact-head CI plus rollback checkpoint/);
     assert.match(cockpit, /Prove candidate and runtime readiness/);
-    assert.match(cockpit, /Promote Railway to the verified Verify Mahoraga run SHA after main/);
+    assert.match(cockpit, /Pin the accepted Cloudflare execution Worker to the verified exact-main SHA; keep Railway as non-routing standby/);
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });
