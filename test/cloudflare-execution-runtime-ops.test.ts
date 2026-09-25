@@ -49,7 +49,7 @@ test("deployment admission requires clean exact authoritative main", () => {
   }), /deploy-worktree-dirty/);
 });
 
-test("Wrangler deployment overrides the sentinel with exact SHA and rollback anchor", () => {
+test("Wrangler deployment preserves exact SHA and rollback metadata without a routable Railway origin", () => {
   const args = buildWranglerDeployArgs({
     targetSha: SHA,
     secretsFile: "/runner/temp/mahoraga-execution-runtime-secrets.json",
@@ -57,7 +57,11 @@ test("Wrangler deployment overrides the sentinel with exact SHA and rollback anc
   assert.deepEqual(args.slice(0, 4), ["--yes", "wrangler@4.132.0", "deploy", "--config"]);
   assert.ok(args.includes("deploy/cloudflare-execution-runtime/wrangler.jsonc"));
   assert.ok(args.includes(`TARGET_SHA:${SHA}`));
-  assert.ok(args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"));
+  assert.ok(args.includes("RAILWAY_ANCHOR_URL:https://railway-disabled.invalid/"));
+  assert.equal(
+    args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"),
+    false,
+  );
   assert.deepEqual(
     args.slice(args.indexOf("--secrets-file"), args.indexOf("--secrets-file") + 2),
     ["--secrets-file", "/runner/temp/mahoraga-execution-runtime-secrets.json"],

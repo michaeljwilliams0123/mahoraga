@@ -223,4 +223,46 @@ describe("ExecutionDurableObject", () => {
     expect(method.status).toBe(405);
     expect(method.headers.get("allow")).toBe("POST");
   });
+
+  it("returns a bounded diagnostic matrix when provider admission fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    const now = Date.now();
+    const response = await env.EXECUTION_DO.getByName("provider-refresh-diagnostics").fetch(
+      "https://execution.example/api/provider/refresh",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET,
+        },
+        body: JSON.stringify({
+          billingAttestation: JSON.stringify({
+            schemaVersion: 1,
+            evidenceSource: "cloudflare-account-api",
+            accountIdHash: env.ZERO_CREDIT_ACCOUNT_ID_HASH,
+            defaultUsageModel: "standard",
+            billableAccountSubscriptionCount: 0,
+            verifiedAt: now,
+            expiresAt: now + 90 * 60_000,
+          }),
+        }),
+      },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      zeroCreditEligible: false,
+      reasonCode: "provider-authentication-failed",
+      diagnostics: {
+        authentication: { status: "failed" },
+        routing: { status: "passed" },
+        dns: { status: "not-independently-observable" },
+        modelAvailability: { status: "unknown" },
+        gateway: { status: "passed" },
+        policy: { status: "passed" },
+        billing: { status: "passed" },
+        probeResponse: { status: "failed", httpStatus: 403 },
+      },
+    });
+  });
 });

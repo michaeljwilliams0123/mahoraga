@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
 import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, type ZeroCreditProviderConfig } from "./provider-invoker";
-import { probeZeroCreditProvider, providerStateForGap, providerStateFromProbe } from "./provider-admission";
+import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
@@ -114,6 +114,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       available: state.available,
       zeroCreditEligible: state.zeroCreditEligible,
       reasonCode: state.reasonCode,
+      diagnostics: providerAdmissionDiagnostics(state.reasonCode),
       verifiedAt: state.verifiedAt,
       canaryExpiresAt: state.canaryExpiresAt,
       capability: projectPersistedAssistantCapability(state),
