@@ -6,11 +6,13 @@ const worker = readFileSync(new URL("../deploy/cloudflare-owner-gateway/worker.m
 const config = readFileSync(new URL("../deploy/cloudflare-owner-gateway/wrangler.toml", import.meta.url), "utf8");
 const rootConfig = readFileSync(new URL("../wrangler.toml", import.meta.url), "utf8");
 
-test("owner gateway uses a host-neutral runtime origin contract", () => {
-  assert.match(worker, /MAHORAGA_RUNTIME_ORIGIN/);
+test("owner gateway has no external runtime-origin fallback contract", () => {
+  assert.doesNotMatch(worker, /MAHORAGA_RUNTIME_ORIGIN/);
+  assert.doesNotMatch(config, /MAHORAGA_RUNTIME_ORIGIN/);
   assert.doesNotMatch(worker, /MAHORAGA_FLY_ORIGIN/);
-  assert.match(config, /MAHORAGA_RUNTIME_ORIGIN/);
   assert.doesNotMatch(config, /MAHORAGA_FLY_ORIGIN/);
+  assert.match(worker, /cloud-native-route-required/);
+  assert.match(config, /\[\[services\]\][\s\S]*binding\s*=\s*"MAHORAGA_EXECUTION_RUNTIME"[\s\S]*service\s*=\s*"mahoraga-execution-runtime"/);
 });
 
 test("Cloudflare Builds root config preserves the native bridge deployment contract", () => {
@@ -18,9 +20,11 @@ test("Cloudflare Builds root config preserves the native bridge deployment contr
   assert.match(rootConfig, /\[\[services\]\][\s\S]*binding\s*=\s*"MAHORAGA_EXECUTION_RUNTIME"[\s\S]*service\s*=\s*"mahoraga-execution-runtime"/);
 });
 
-test("owner gateway rejects forwarding loops before proxying", () => {
-  assert.match(worker, /target\.origin\s*===\s*requestUrl\.origin/);
-  assert.match(worker, /gateway-origin-invalid/);
+test("owner gateway fails closed after native routes instead of proxying an external origin", () => {
+  assert.doesNotMatch(worker, /target\.origin\s*===\s*requestUrl\.origin/);
+  assert.doesNotMatch(worker, /gateway-origin-invalid/);
+  assert.doesNotMatch(worker, /return fetch\(new Request\(target/);
+  assert.match(worker, /return json\(\{ error: "cloud-native-route-required" \}, 404\)/);
 });
 
 test("owner gateway trusts Cloudflare Access context rather than a caller identity header", () => {
