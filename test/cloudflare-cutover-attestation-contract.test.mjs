@@ -30,6 +30,6 @@ test("exact-main deployment waits for live and durable runtime convergence befor
 
 test("exact-main deployment cannot route to Railway", async () => {
   const deploy = await read("scripts/cloudflare-execution-runtime.ts");
-  assert.match(deploy, /https:\/\/railway-disabled\.invalid\//);
-  assert.doesNotMatch(deploy, /DEFAULT_RAILWAY_ANCHOR = "https:\/\/mahoraga-runtime-main-production\.up\.railway\.app\//);
+  assert.doesNotMatch(deploy, /RAILWAY_ANCHOR_URL/);
+  assert.doesNotMatch(deploy, /mahoraga-runtime-main-production\.up\.railway\.app/);
 });
