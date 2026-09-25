@@ -38,4 +38,14 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
+
+  it("surfaces subscriptions-backed Free plan and treats usage model as metadata only", () => {
+    assert.match(cockpit, /Cloudflare billing plan/);
+    assert.match(cockpit, /billableAccountSubscriptionCount/);
+    assert.match(cockpit, /defaultUsageModel/);
+    assert.match(cockpit, /metadata only/);
+    assert.match(cockpit, /Fail-closed/);
+    assert.doesNotMatch(cockpit, /bundled as free/i);
+    assert.doesNotMatch(cockpit, /defaultUsageModel === "bundled"/);
+  });
 });
