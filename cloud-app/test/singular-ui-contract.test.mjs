@@ -40,6 +40,8 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /durableState/);
   assert.match(cockpit, /cloudflare-execution-runtime is hop identity only/);
   assert.match(cockpit, /Traffic authority/);
+  assert.match(cockpit, /Cloudflare billing plan/);
+  assert.match(cockpit, /billableAccountSubscriptionCount/);
   assert.doesNotMatch(cockpit, /GitHub Pages hosts the published static workspace/);
   assert.match(cockpit, /Expected SHA/);
   assert.match(cockpit, /Promotion mode/);
