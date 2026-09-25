@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 export const INVALID_TARGET_SHA = "UNSET";
 export const DEFAULT_CONFIG = "deploy/cloudflare-execution-runtime/wrangler.jsonc";
-export const DEFAULT_RAILWAY_ANCHOR = "https://mahoraga-runtime-main-production.up.railway.app/";
+export const DEFAULT_RAILWAY_ANCHOR = "https://railway-disabled.invalid/";
 export const DEFAULT_RUNTIME_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
 const WRANGLER_VERSION = "4.132.0";
 const DEFAULT_READY_ATTEMPTS = 37;
@@ -134,6 +134,51 @@ function executionHeaders(accessHeaders: Headers, targetSha: string, idempotency
   headers.set("x-idempotency-key", idempotencyKey);
   headers.set("x-target-sha", targetSha);
   return headers;
+}
+
+export async function waitForExactRuntimeConvergence(input: CloudflareAccessCredentials & {
+  baseUrl?: string;
+  targetSha: string;
+  fetchImpl?: typeof fetch;
+  readyAttempts?: number;
+  readyDelayMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
+}): Promise<void> {
+  const accessHeaders = cloudflareAccessHeaders(input);
+  const targetSha = normalizeSha(input.targetSha, "deploy-target-sha-invalid");
+  const baseUrl = normalizeHttpsUrl(input.baseUrl ?? DEFAULT_RUNTIME_URL, "deploy-runtime-url-invalid");
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const readyAttempts = input.readyAttempts ?? DEFAULT_READY_ATTEMPTS;
+  const readyDelayMs = input.readyDelayMs ?? DEFAULT_READY_DELAY_MS;
+  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  if (!Number.isInteger(readyAttempts) || readyAttempts < 1 || readyAttempts > 61) throw new Error("deploy-convergence-attempts-invalid");
+  if (!Number.isInteger(readyDelayMs) || readyDelayMs < 0 || readyDelayMs > 10_000) throw new Error("deploy-convergence-delay-invalid");
+
+  for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
+    try {
+      const [liveResponse, readyResponse] = await Promise.all([
+        fetchImpl(new URL("/api/live", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
+        fetchImpl(new URL("/api/ready", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
+      ]);
+      if (liveResponse.status === 200 && readyResponse.status === 200) {
+        const [liveBody, readyBody] = await Promise.all([
+          readJson(liveResponse, "deploy-live-json-invalid"),
+          readJson(readyResponse, "deploy-ready-json-invalid"),
+        ]);
+        if (
+          liveBody.status === "live"
+          && liveBody.sha === targetSha
+          && readyBody.status === "ready"
+          && readyBody.sha === targetSha
+          && readyBody.durableState === "cloudflare-do-sqlite"
+        ) return;
+      }
+    } catch {
+      // Deployment propagation can briefly make the Worker or Durable Object unreachable.
+    }
+    if (attempt < readyAttempts) await sleep(readyDelayMs);
+  }
+  throw new Error("deploy-runtime-convergence-timeout");
 }
 
 export async function runAcceptanceProbe(input: {
@@ -295,11 +340,20 @@ async function deploy(args: string[]): Promise<void> {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`deploy-wrangler-exit-${result.status ?? "unknown"}`);
 
+  await waitForExactRuntimeConvergence({
+    ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
+    targetSha,
+  });
+
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 1,
     kind: "cloudflare-execution-runtime-deploy",
     status: "deployed-exact-main",
     targetSha,
+    runtimeConverged: true,
+    railwayRoutingEnabled: false,
     observedAt: new Date().toISOString(),
   })}\n`);
 }
