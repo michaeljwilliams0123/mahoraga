@@ -49,6 +49,10 @@ export function projectZeroCreditAdmission(capabilities: CapabilityLike[] | null
   const costClass = route?.costClass ?? "unknown";
   const billingClass = route?.billingClass ?? "unknown";
   if (!route) return { state: "hold", provider, costClass, billingClass, reason: "route-unavailable", lastVerifiedAt: null };
+  const reasonCode = route.providerReasonCode ?? route.routingReason ?? "";
+  if (reasonCode === "provider-free-quota-exhausted") {
+    return { state: "deny", provider, costClass, billingClass, reason: "provider-free-quota-exhausted", lastVerifiedAt: route.lastVerifiedAt ?? null };
+  }
   if (!ZERO_CREDIT_COST_CLASSES.has(costClass)) {
     return { state: "deny", provider, costClass, billingClass, reason: "paid-execution-class-denied", lastVerifiedAt: route.lastVerifiedAt ?? null };
   }
