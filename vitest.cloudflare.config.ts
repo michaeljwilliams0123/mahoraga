@@ -14,6 +14,10 @@ export default defineConfig({
         bindings: {
           BYPASS_SECRET: "test-bypass-secret-that-is-not-production",
           CONTENT_VAULT_KEY: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+          PROVIDER_REFRESH_SECRET: "test-provider-refresh-secret",
+          ZERO_CREDIT_PROVIDER_URL: "https://zero-credit.example/",
+          ZERO_CREDIT_PROVIDER_TOKEN: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+          ZERO_CREDIT_ACCOUNT_ID_HASH: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
           TARGET_SHA: "7cb8aab1129875f798347afdb2844f963e986a65",
           RAILWAY_ANCHOR_URL: "https://mahoraga-runtime-main-production.up.railway.app/",
         },

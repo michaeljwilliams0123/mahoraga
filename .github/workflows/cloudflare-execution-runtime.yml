@@ -164,7 +164,7 @@ jobs:
           });
           const body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.zeroCreditEligible !== true) {
-            throw new Error(`provider-admission-${response.status}:${String(body.reasonCode ?? 'unverified')}`);
+            throw new Error(`provider-admission-${response.status}:${String(body.reasonCode ?? 'unverified')}:${JSON.stringify(body.diagnostics ?? null)}`);
           }
           process.stdout.write(`${JSON.stringify({
             status: 'provider-admitted',
@@ -297,7 +297,7 @@ jobs:
           });
           const body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.zeroCreditEligible !== true) {
-            throw new Error(`provider-admission-renewal-${response.status}:${String(body.reasonCode ?? 'unverified')}`);
+            throw new Error(`provider-admission-renewal-${response.status}:${String(body.reasonCode ?? 'unverified')}:${JSON.stringify(body.diagnostics ?? null)}`);
           }
           process.stdout.write(`${JSON.stringify({
             status: 'provider-admission-renewed',
