@@ -25,6 +25,17 @@ export type SanitizedAcceptanceReceipt = {
   providerId?: string;
   modelId?: string;
   "x-bypass-applied"?: boolean;
+  exactShaAttested?: boolean;
+  attestedSha?: string;
+  durableObjectUniquenessReceipt?: string;
+  admissionClosed?: boolean;
+  admissionRestored?: boolean;
+  railwayExecutionRoutePresent?: boolean;
+  atMostOneProvider?: boolean;
+  route?: string;
+  billing?: string;
+  uniqueness?: string;
+  continuity?: string;
 };
 
 export type Health = {
