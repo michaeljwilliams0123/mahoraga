@@ -18,15 +18,14 @@ test("provider admission reports operational failure classes instead of one opaq
   }
 });
 
-test("exact-main workflow waits for live and durable runtime convergence before provider refresh", async () => {
-  const workflow = await read(".github/workflows/cloudflare-execution-runtime.yml");
-  const deploy = workflow.indexOf("Deploy exact verified execution runtime");
-  const convergence = workflow.indexOf("Wait for exact runtime convergence");
-  const refresh = workflow.indexOf("Refresh hard-zero provider admission");
-  assert.ok(deploy >= 0 && convergence > deploy && refresh > convergence);
-  assert.match(workflow, /\/api\/live/);
-  assert.match(workflow, /\/api\/ready/);
-  assert.match(workflow, /VERIFIED_SHA/);
+test("exact-main deployment waits for live and durable runtime convergence before it can return", async () => {
+  const deploy = await read("scripts/cloudflare-execution-runtime.ts");
+  assert.match(deploy, /export async function waitForExactRuntimeConvergence/);
+  assert.match(deploy, /\/api\/live/);
+  assert.match(deploy, /\/api\/ready/);
+  assert.match(deploy, /readyBody\.durableState === "cloudflare-do-sqlite"/);
+  const deployFunction = deploy.slice(deploy.indexOf("async function deploy"), deploy.indexOf("async function accept"));
+  assert.match(deployFunction, /await waitForExactRuntimeConvergence\(/);
 });
 
 test("exact-main deployment cannot route to Railway", async () => {
