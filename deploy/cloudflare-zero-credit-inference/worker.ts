@@ -186,7 +186,11 @@ export default {
       const budget = await reserveBudget(env, INFER_RESERVATION_NEURONS);
       if (budget === null) return json({ error: "provider-free-budget-exhausted" }, 429);
       try {
-        const result = await env.AI.run(MODEL_ID, { messages: parsed.messages, max_tokens: MAX_OUTPUT_TOKENS });
+        const result = await env.AI.run(MODEL_ID, {
+          messages: parsed.messages,
+          max_completion_tokens: MAX_OUTPUT_TOKENS,
+          chat_template_kwargs: { enable_thinking: false },
+        });
         const answer = extractAnswer(result);
         if (answer === null || answer.length > 32_000) return json({ error: "provider-response-invalid" }, 502);
         const now = Date.now();
