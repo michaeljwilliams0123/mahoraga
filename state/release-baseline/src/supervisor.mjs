@@ -16,6 +16,15 @@ const WORKER_PROCESS = path.join(path.dirname(fileURLToPath(import.meta.url)), "
 const READINESS_RENEWAL_LEAD_MS = 60 * 1000;
 const WORKER_SHUTDOWN_GRACE_MS = 5000;
 const WORKER_SHUTDOWN_HARD_MS = 10000;
+const ZERO_CREDIT_WORKER_IDS = new Set(["codespaces-open-weight", "local-open-weight"]);
+const ZERO_CREDIT_ENV_KEYS = [
+  "MAHORAGA_ZERO_CREDIT_METERED", "MAHORAGA_ZERO_CREDIT_PRICE_USD", "MAHORAGA_ZERO_CREDIT_SPEND_USD",
+  "MAHORAGA_ZERO_CREDIT_BILLING_STATE", "MAHORAGA_ZERO_CREDIT_ZERO_DOLLAR_STOP_GUARANTEED",
+  "MAHORAGA_ZERO_CREDIT_MODEL_URL", "MAHORAGA_ZERO_CREDIT_MODEL_ID", "MAHORAGA_ZERO_CREDIT_MODEL_TOKEN",
+];
+const zeroCreditEnvironmentFingerprint = (env) => createHash("sha256")
+  .update(JSON.stringify(ZERO_CREDIT_ENV_KEYS.map((key) => env[key] ?? null)))
+  .digest("hex");
 
 export class Supervisor extends EventEmitter {
   constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
@@ -131,13 +140,14 @@ export class Supervisor extends EventEmitter {
 
   #spawn(definition, restartCount = 0) {
     let child;
+    const forkEnv = {
+      ...process.env,
+      MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
+      MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
+      MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
+    };
     try {
-      child = this.forkWorker(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: {
-        ...process.env,
-        MAHORAGA_ARTIFACT_ROOT: this.artifactRoot,
-        MAHORAGA_CONTENT_VAULT_ROOT: this.contentVaultRoot ?? undefined,
-        MAHORAGA_CONTENT_VAULT_KEY_FILE: this.contentVaultKeyFile ?? undefined,
-      } });
+      child = this.forkWorker(WORKER_PROCESS, [definition.id], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: forkEnv });
     } catch (error) {
       this.#spawnFailure(definition, restartCount, error);
       return;
@@ -145,6 +155,7 @@ export class Supervisor extends EventEmitter {
     const state = { definition, process: child, ready: false, busy: false, status: "starting", restartCount,
       lastHeartbeatAt: null, currentTaskId: null, currentTaskStartedAt: null, stderrTail: "", lastErrorCode: null, lastErrorDetail: null,
       platformAuthorityScopes: [], billingAttestationByCapability: {}, readinessRefreshInFlight: false,
+      zeroCreditEnvironmentFingerprint: ZERO_CREDIT_WORKER_IDS.has(definition.id) ? zeroCreditEnvironmentFingerprint(forkEnv) : null,
       spawned: false, terminating: false, terminated: false };
     this.workers.set(definition.id, state);
     for (const capability of definition.capabilities) this.database.setCapabilityReadiness({
@@ -402,6 +413,11 @@ export class Supervisor extends EventEmitter {
       }
       if (state.busy && state.currentTaskStartedAt && now - Date.parse(state.currentTaskStartedAt) > state.definition.timeoutMs) {
         state.status = "hung"; state.process.kill(); continue;
+      }
+      if (!state.busy && state.zeroCreditEnvironmentFingerprint !== null
+        && state.zeroCreditEnvironmentFingerprint !== zeroCreditEnvironmentFingerprint(process.env)) {
+        this.restartWorker(state.definition.id);
+        continue;
       }
       if (!state.busy) this.#refreshStaleReadiness(state, now);
       if (!state.ready || state.busy) continue;

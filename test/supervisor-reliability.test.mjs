@@ -608,7 +608,8 @@ test("failed communication send receipt never promotes the manual canary", async
 });
 test("zero-credit answer scheduler waits for provider evidence without spending an attempt, then dispatches", async (t) => {
   const { database, cleanup } = databaseFixture();
-  const child = fakeChild();
+  const children = [fakeChild(4242), fakeChild(4243)];
+  const child = children[0];
   const worker = workerDefinition({
     id: "codespaces-open-weight", label: "Zero-Credit Cloud Answer",
     healthProbe: "assistant.health", capabilities: ["assistant.health", "assistant.respond"],
@@ -642,9 +643,13 @@ test("zero-credit answer scheduler waits for provider evidence without spending 
   };
   const previous = Object.fromEntries(Object.keys(envKeys).map((key) => [key, process.env[key]]));
   Object.assign(process.env, envKeys);
+  const spawnedBillingStates = [];
   const supervisor = new Supervisor({
     manifest, database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
-    forkWorker: () => child, tickIntervalMs: 10,
+    forkWorker: (_file, _args, options) => {
+      spawnedBillingStates.push(options.env.MAHORAGA_ZERO_CREDIT_BILLING_STATE);
+      return children[spawnedBillingStates.length - 1];
+    }, tickIntervalMs: 10,
   });
   t.after(() => {
     supervisor.stop(); cleanup();
@@ -673,8 +678,23 @@ test("zero-credit answer scheduler waits for provider evidence without spending 
   assert.equal(database.getTask(submitted.id).attemptCount, 0);
   assert.equal(child.sent.some((message) => message?.type === "task" && message.taskId === submitted.id), false);
   process.env.MAHORAGA_ZERO_CREDIT_BILLING_STATE = "verified-zero";
-  await delay(80);
-  const delivery = child.sent.find((message) => message?.type === "task" && message.taskId === submitted.id);
+  for (let i = 0; i < 50 && spawnedBillingStates.length < 2; i += 1) await delay(5);
+  assert.deepEqual(spawnedBillingStates, ["unverified", "verified-zero"]);
+  assert.equal(child.killed, true);
+  assert.equal(database.getTask(submitted.id).attemptCount, 0);
+  const refreshed = children[1];
+  refreshed.emit("message", { type: "process.ready" });
+  refreshed.emit("message", { type: "readiness.complete" });
+  const refreshedAt = new Date().toISOString();
+  for (const capability of ["assistant.health", "assistant.respond"]) {
+    database.setCapabilityReadiness({
+      workerId: worker.id, capability, processStatus: "live", providerStatus: "ready",
+      canaryStatus: "verified", processObservedAt: refreshedAt, providerObservedAt: refreshedAt,
+      canaryVerifiedAt: refreshedAt, lastErrorCode: null,
+    });
+  }
+  for (let i = 0; i < 50 && !refreshed.sent.some((message) => message?.type === "task" && message.taskId === submitted.id); i += 1) await delay(5);
+  const delivery = refreshed.sent.find((message) => message?.type === "task" && message.taskId === submitted.id);
   assert.ok(delivery, "verified zero-credit task should be delivered to the selected worker");
   assert.equal(database.getTask(submitted.id).attemptCount, 1);
   assert.equal(delivery.task.idempotencyKey, submitted.idempotencyKey);
