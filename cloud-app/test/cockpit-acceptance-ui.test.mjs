@@ -19,7 +19,7 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Observed/);
     assert.match(cockpit, /Unverified/);
     assert.match(cockpit, /Unproven/);
-    assert.match(cockpit, /rollback anchor/);
+    assert.match(cockpit, /standby rollback/);
     assert.match(cockpit, /x-bypass-applied/);
     assert.match(cockpit, /never inferred from \/api\/ready/i);
   });
