@@ -38,4 +38,20 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
+
+  it("surfaces #779 cutover observational evidence and fails closed on missing packet/receipt fields", () => {
+    const command = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+    assert.match(cockpit, /Exact SHA attestation/);
+    assert.match(cockpit, /Durable Object uniqueness/);
+    assert.match(cockpit, /admissionClosed/);
+    assert.match(cockpit, /admissionRestored/);
+    assert.match(cockpit, /Railway is manual-only rollback, not live execution/);
+    assert.match(cockpit, /route\/billing\/uniqueness\/continuity required/);
+    assert.match(cockpit, /authority not invented/);
+    assert.match(cockpit, /failClosedMissing/);
+    assert.match(types, /durableObjectUniquenessReceipt/);
+    assert.match(types, /exactShaAttested/);
+    assert.match(command, /Railway is manual-only rollback/);
+    assert.doesNotMatch(cockpit, /inferred from \/api\/ready.*traffic authority granted/i);
+  });
 });
