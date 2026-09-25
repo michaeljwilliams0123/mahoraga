@@ -134,3 +134,11 @@ test("native chat and conversation reads use the execution service binding with 
     assert.match(call.signature, /^[a-f0-9]{64}$/);
   }
 });
+
+test("unknown gateway routes fail closed locally and never proxy Railway", async () => {
+  await withoutUpstream(async () => {
+    const response = await gateway.fetch(new Request(`${base}/api/legacy-or-unmigrated`), env, access);
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: "cloud-native-route-required" });
+  });
+});
