@@ -55,7 +55,9 @@ an idle provider without evidence cannot consume it. Ambiguous duplicate provide
 evidence fails closed regardless of input order.
 When provider evidence is temporarily absent, the supervisor leaves the answer
 queued with its execution attempts intact. A later admitted provider can run
-that same request without resubmission or a paid fallback.
+that same request without resubmission or a paid fallback. If protected provider
+settings change, an idle answer worker restarts with the new environment and
+must establish fresh readiness before it can receive the queued request.
 
 ## Explicit model-spend boundary
 
