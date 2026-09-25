@@ -32,6 +32,15 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(cockpit, /readyOk \? "Canonical traffic"/);
   });
 
+  it("surfaces scoped Billing Read token cutover without storing credentials", () => {
+    assert.match(cockpit, /Billing Read gate/);
+    assert.match(cockpit, /CLOUDFLARE_BILLING_READ_TOKEN/);
+    assert.match(cockpit, /cloudflare-subscriptions-billing-read-required-403/);
+    assert.match(cockpit, /Account → Billing → Read/);
+    assert.match(cockpit, /Credential values are never shown/);
+    assert.doesNotMatch(cockpit, /CLOUDFLARE_BILLING_READ_TOKEN=cf_/);
+  });
+
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
