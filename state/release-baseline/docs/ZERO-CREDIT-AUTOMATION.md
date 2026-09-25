@@ -22,10 +22,10 @@ whether work exists.
 These paths use GitHub-hosted compute or local deterministic processes. They do
 not send a prompt to ChatGPT, Codex, Copilot, or an OpenAI Platform endpoint.
 
-The Railway-hosted interface does not make inference free. General-language
-generation on the ordinary route is available only when a separately deployed
-open-weight provider has verified zero-credit billing evidence and a fresh
-capability canary. Without that evidence, Mahoraga reports
+The GitHub Pages browser and Cloudflare execution runtime do not make inference
+free by themselves. General-language generation on the ordinary route is
+available only when a separately admitted provider has verified zero-credit
+billing evidence and a fresh capability canary. Without that evidence, Mahoraga reports
 `zero-credit-provider-unavailable`; it never substitutes the installed Codex CLI
 or AI Gateway. Deterministic registered capabilities remain usable.
 
@@ -53,6 +53,9 @@ When the cloud provider is excluded or busy, a verified local provider can take
 the request. If the only verified provider is busy, the request stays queued;
 an idle provider without evidence cannot consume it. Ambiguous duplicate provider
 evidence fails closed regardless of input order.
+When provider evidence is temporarily absent, the supervisor leaves the answer
+queued with its execution attempts intact. A later admitted provider can run
+that same request without resubmission or a paid fallback.
 
 ## Explicit model-spend boundary
 
