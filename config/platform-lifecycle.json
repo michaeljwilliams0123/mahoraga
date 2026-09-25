@@ -28,14 +28,26 @@
     },
     {
       "logicalId": "runtime.production",
-      "provider": "railway",
-      "providerProjectId": "e644391a-9698-4026-b5e1-a28e07cfaf82",
-      "providerResourceId": "0498b161-a6b7-4750-8c54-8c99e0167fa7",
-      "displayName": "mahoraga-runtime-main",
+      "provider": "cloudflare",
+      "providerProjectId": "mahoraga-mjw0123",
+      "providerResourceId": "mahoraga-execution-runtime",
+      "displayName": "mahoraga-execution-runtime",
       "lifecycle": "active",
       "authorityRole": "runtime",
       "canonical": true,
       "routingEligible": true,
+      "environment": "production"
+    },
+    {
+      "logicalId": "runtime.rollback.railway",
+      "provider": "railway",
+      "providerProjectId": "e644391a-9698-4026-b5e1-a28e07cfaf82",
+      "providerResourceId": "0498b161-a6b7-4750-8c54-8c99e0167fa7",
+      "displayName": "mahoraga-runtime-main",
+      "lifecycle": "standby",
+      "authorityRole": "runtime",
+      "canonical": false,
+      "routingEligible": false,
       "environment": "fb266d3a-7214-47d5-a1a4-d615df3f1e6c"
     },
     {

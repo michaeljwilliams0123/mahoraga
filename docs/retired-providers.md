@@ -22,7 +22,7 @@ Later merged work introduced bounded Microsoft and Copilot Studio contracts. Nev
 ## Current authority
 
 - GitHub `main` is source and merge authority.
-- Railway service `mahoraga-runtime-main` is the canonical runtime.
-- Cloudflare is the staged owner-authenticated edge.
+- Cloudflare `mahoraga-execution-runtime` is the canonical execution runtime for the exact accepted source; the owner gateway is Access-protected.
+- Railway service `mahoraga-runtime-main` is retained as non-routing rollback/evidence infrastructure.
 - Vercel hosting is retired and non-routable.
 - Codex Builder, desktop, repository, and Microsoft routes remain independently gated by their current manifest state and fresh readiness evidence.

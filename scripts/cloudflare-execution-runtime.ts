@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 
 export const INVALID_TARGET_SHA = "UNSET";
 export const DEFAULT_CONFIG = "deploy/cloudflare-execution-runtime/wrangler.jsonc";
-export const DEFAULT_RAILWAY_ANCHOR = "https://mahoraga-runtime-main-production.up.railway.app/";
 export const DEFAULT_RUNTIME_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
 const WRANGLER_VERSION = "4.132.0";
 const DEFAULT_READY_ATTEMPTS = 37;
@@ -27,10 +26,22 @@ export type AcceptanceReceipt = Readonly<{
   accessProtected: true;
   ready: true;
   durableStateVerified: true;
-  trafficAuthorityVerified: false;
+  runtimeAttestationVerified: true;
+  trafficAuthorityVerified: true;
+  railwayNoRouteVerified: true;
+  railwayNoInfluenceVerified: true;
   staleShaRejected: true;
   executed: true;
   replayed: true;
+  durableContinuityVerified: boolean;
+  executionUniqueness: Readonly<{
+    logicalRequests: number;
+    providerExecutions: 1;
+    receipts: 1;
+    conflicts: number;
+    replays: number;
+    atMostOneVerified: true;
+  }>;
   observedAt: string;
 }>;
 
@@ -64,15 +75,10 @@ export function assertDeployableSource(input: DeployableSource): void {
 
 export function buildWranglerDeployArgs(input: {
   targetSha: string;
-  railwayAnchorUrl?: string;
   configPath?: string;
   secretsFile?: string;
 }): string[] {
   const targetSha = normalizeSha(input.targetSha, "deploy-target-sha-invalid");
-  const railwayAnchorUrl = normalizeHttpsUrl(
-    input.railwayAnchorUrl ?? DEFAULT_RAILWAY_ANCHOR,
-    "deploy-railway-anchor-invalid",
-  );
   const configPath = input.configPath ?? DEFAULT_CONFIG;
   const args = [
     "--yes",
@@ -82,8 +88,6 @@ export function buildWranglerDeployArgs(input: {
     configPath,
     "--var",
     `TARGET_SHA:${targetSha}`,
-    "--var",
-    `RAILWAY_ANCHOR_URL:${railwayAnchorUrl}`,
   ];
   const secretsFile = input.secretsFile?.trim();
   if (input.secretsFile !== undefined && !secretsFile) throw new Error("deploy-secrets-file-invalid");
@@ -110,6 +114,7 @@ type CloudflareAccessCredentials = {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
 };
 
 function cloudflareAccessHeaders(input: CloudflareAccessCredentials): Headers {
@@ -118,6 +123,7 @@ function cloudflareAccessHeaders(input: CloudflareAccessCredentials): Headers {
   const accessClientSecret = input.accessClientSecret?.trim() ?? "";
   if (accessToken && (accessClientId || accessClientSecret)) throw new Error("accept-access-credentials-ambiguous");
   const headers = new Headers({ "cache-control": "no-store" });
+  if (input.acceptanceRunId) headers.set("x-mahoraga-acceptance-run", input.acceptanceRunId);
   if (accessToken) {
     headers.set("cf-access-token", accessToken);
     return headers;
@@ -136,10 +142,56 @@ function executionHeaders(accessHeaders: Headers, targetSha: string, idempotency
   return headers;
 }
 
+export async function waitForExactRuntimeConvergence(input: CloudflareAccessCredentials & {
+  baseUrl?: string;
+  targetSha: string;
+  fetchImpl?: typeof fetch;
+  readyAttempts?: number;
+  readyDelayMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
+}): Promise<void> {
+  const accessHeaders = cloudflareAccessHeaders(input);
+  const targetSha = normalizeSha(input.targetSha, "deploy-target-sha-invalid");
+  const baseUrl = normalizeHttpsUrl(input.baseUrl ?? DEFAULT_RUNTIME_URL, "deploy-runtime-url-invalid");
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const readyAttempts = input.readyAttempts ?? DEFAULT_READY_ATTEMPTS;
+  const readyDelayMs = input.readyDelayMs ?? DEFAULT_READY_DELAY_MS;
+  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds)));
+  if (!Number.isInteger(readyAttempts) || readyAttempts < 1 || readyAttempts > 61) throw new Error("deploy-convergence-attempts-invalid");
+  if (!Number.isInteger(readyDelayMs) || readyDelayMs < 0 || readyDelayMs > 10_000) throw new Error("deploy-convergence-delay-invalid");
+
+  for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
+    try {
+      const [liveResponse, readyResponse] = await Promise.all([
+        fetchImpl(new URL("/api/live", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
+        fetchImpl(new URL("/api/ready", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
+      ]);
+      if (liveResponse.status === 200 && readyResponse.status === 200) {
+        const [liveBody, readyBody] = await Promise.all([
+          readJson(liveResponse, "deploy-live-json-invalid"),
+          readJson(readyResponse, "deploy-ready-json-invalid"),
+        ]);
+        if (
+          liveBody.status === "live"
+          && liveBody.sha === targetSha
+          && readyBody.status === "ready"
+          && readyBody.sha === targetSha
+          && readyBody.durableState === "cloudflare-do-sqlite"
+        ) return;
+      }
+    } catch {
+      // Deployment propagation can briefly make the Worker or Durable Object unreachable.
+    }
+    if (attempt < readyAttempts) await sleep(readyDelayMs);
+  }
+  throw new Error("deploy-runtime-convergence-timeout");
+}
+
 export async function runAcceptanceProbe(input: {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
   baseUrl?: string;
   targetSha: string;
   idempotencyKey?: string;
@@ -148,6 +200,7 @@ export async function runAcceptanceProbe(input: {
   readyAttempts?: number;
   readyDelayMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
+  afterInitialExecution?: () => Promise<void>;
 }): Promise<AcceptanceReceipt> {
   const accessHeaders = cloudflareAccessHeaders(input);
   const targetSha = normalizeSha(input.targetSha, "accept-target-sha-invalid");
@@ -205,6 +258,34 @@ export async function runAcceptanceProbe(input: {
   }
   if (!ready) throw new Error("accept-ready-provenance-mismatch");
 
+  const attestationResponse = await fetchImpl(new URL("/api/runtime/attestation", baseUrl), {
+    method: "GET",
+    headers: accessHeaders,
+    redirect: "manual",
+  });
+  if (attestationResponse.status !== 200) throw new Error(`accept-runtime-attestation-${attestationResponse.status}`);
+  const attestation = await readJson(attestationResponse, "accept-runtime-attestation-json-invalid");
+  const provider = attestation.provider !== null && typeof attestation.provider === "object" && !Array.isArray(attestation.provider)
+    ? attestation.provider as Record<string, unknown>
+    : null;
+  if (
+    attestation.schemaVersion !== 1
+    || attestation.kind !== "mahoraga-runtime-attestation"
+    || attestation.status !== "ready"
+    || attestation.targetSha !== targetSha
+    || attestation.runtime !== "cloudflare-worker"
+    || attestation.durableState !== "cloudflare-do-sqlite"
+    || attestation.trafficAuthority !== "cloudflare"
+    || attestation.railwayRoutingEnabled !== false
+    || attestation.railwayInfluence !== false
+    || provider?.providerId !== "cloudflare-workers-ai"
+    || provider.admitted !== true
+    || provider.zeroCreditEligible !== true
+  ) throw new Error("accept-runtime-attestation-mismatch");
+  if (attestationResponse.headers.get("server")?.toLowerCase() !== "cloudflare" || !attestationResponse.headers.get("cf-ray")) {
+    throw new Error("accept-cloudflare-route-authority-unverified");
+  }
+
   const staleResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
     headers: executionHeaders(accessHeaders, alternateSha(targetSha), `${idempotencyKey}-stale`),
@@ -213,27 +294,49 @@ export async function runAcceptanceProbe(input: {
   });
   if (staleResponse.status !== 412) throw new Error(`accept-stale-sha-not-rejected-${staleResponse.status}`);
 
-  const firstResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
+  const executeRequest = () => fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
     headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
     body: JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" }),
     redirect: "manual",
   });
-  if (firstResponse.status !== 200) throw new Error(`accept-execute-${firstResponse.status}`);
-  if (firstResponse.headers.get("x-idempotent-replay") !== null) throw new Error("accept-first-was-replay");
-  const firstBody = await readJson(firstResponse, "accept-execute-json-invalid");
+  const concurrentResponses = await Promise.all([executeRequest(), executeRequest(), executeRequest(), executeRequest()]);
+  const conflicts = concurrentResponses.filter((response) => response.status === 409).length;
+  const successful = concurrentResponses.filter((response) => response.status === 200);
+  if (successful.length + conflicts !== concurrentResponses.length) {
+    const rejected = concurrentResponses.find((response) => response.status !== 200 && response.status !== 409)!;
+    throw new Error(`accept-execute-${rejected.status}`);
+  }
+  const originalResponses = successful.filter((response) => response.headers.get("x-idempotent-replay") === null);
+  if (originalResponses.length !== 1) throw new Error("accept-provider-execution-not-unique");
+  let replayResponses = successful.filter((response) => response.headers.get("x-idempotent-replay") === "true");
+  const firstBody = await readJson(originalResponses[0]!, "accept-execute-json-invalid");
   if (firstBody.executed !== true) throw new Error("accept-execution-not-confirmed");
-
-  const replayResponse = await fetchImpl(new URL("/api/execute", baseUrl), {
-    method: "POST",
-    headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
-    body: JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" }),
-    redirect: "manual",
-  });
-  if (replayResponse.status !== 200) throw new Error(`accept-replay-${replayResponse.status}`);
-  if (replayResponse.headers.get("x-idempotent-replay") !== "true") throw new Error("accept-replay-header-missing");
-  const replayBody = await readJson(replayResponse, "accept-replay-json-invalid");
-  if (JSON.stringify(replayBody) !== JSON.stringify(firstBody)) throw new Error("accept-replay-payload-drift");
+  let logicalRequests = concurrentResponses.length;
+  if (replayResponses.length === 0) {
+    const replayResponse = await executeRequest();
+    logicalRequests += 1;
+    if (replayResponse.status !== 200) throw new Error(`accept-replay-${replayResponse.status}`);
+    replayResponses = [replayResponse];
+  }
+  for (const replayResponse of replayResponses) {
+    if (replayResponse.headers.get("x-idempotent-replay") !== "true") throw new Error("accept-replay-header-missing");
+    const replayBody = await readJson(replayResponse, "accept-replay-json-invalid");
+    if (JSON.stringify(replayBody) !== JSON.stringify(firstBody)) throw new Error("accept-replay-payload-drift");
+  }
+  let durableContinuityVerified = false;
+  if (input.afterInitialExecution) {
+    await input.afterInitialExecution();
+    const continuityResponse = await executeRequest();
+    logicalRequests += 1;
+    if (continuityResponse.status !== 200 || continuityResponse.headers.get("x-idempotent-replay") !== "true") {
+      throw new Error(`accept-durable-continuity-${continuityResponse.status}`);
+    }
+    const continuityBody = await readJson(continuityResponse, "accept-durable-continuity-json-invalid");
+    if (JSON.stringify(continuityBody) !== JSON.stringify(firstBody)) throw new Error("accept-durable-continuity-payload-drift");
+    replayResponses.push(continuityResponse);
+    durableContinuityVerified = true;
+  }
 
   return Object.freeze({
     schemaVersion: 1,
@@ -243,10 +346,22 @@ export async function runAcceptanceProbe(input: {
     accessProtected: true,
     ready: true,
     durableStateVerified: true,
-    trafficAuthorityVerified: false,
+    runtimeAttestationVerified: true,
+    trafficAuthorityVerified: true,
+    railwayNoRouteVerified: true,
+    railwayNoInfluenceVerified: true,
     staleShaRejected: true,
     executed: true,
     replayed: true,
+    durableContinuityVerified,
+    executionUniqueness: Object.freeze({
+      logicalRequests,
+      providerExecutions: 1 as const,
+      receipts: 1 as const,
+      conflicts,
+      replays: replayResponses.length,
+      atMostOneVerified: true as const,
+    }),
     observedAt: now(),
   });
 }
@@ -295,11 +410,20 @@ async function deploy(args: string[]): Promise<void> {
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`deploy-wrangler-exit-${result.status ?? "unknown"}`);
 
+  await waitForExactRuntimeConvergence({
+    ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
+    targetSha,
+  });
+
   process.stdout.write(`${JSON.stringify({
     schemaVersion: 1,
     kind: "cloudflare-execution-runtime-deploy",
     status: "deployed-exact-main",
     targetSha,
+    runtimeConverged: true,
+    railwayRoutingEnabled: false,
     observedAt: new Date().toISOString(),
   })}\n`);
 }

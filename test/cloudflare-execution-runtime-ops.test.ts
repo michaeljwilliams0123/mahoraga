@@ -13,6 +13,18 @@ const SHA = "6a1d51e25654eb7a5c22bab7a1c2dcaca522c2af";
 const OTHER_SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 const BASE_URL = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev";
 const readyBody = (sha: string) => ({ status: "ready", sha, durableState: "cloudflare-do-sqlite" });
+const attestationResponse = () => Response.json({
+  schemaVersion: 1,
+  kind: "mahoraga-runtime-attestation",
+  status: "ready",
+  targetSha: SHA,
+  runtime: "cloudflare-worker",
+  durableState: "cloudflare-do-sqlite",
+  trafficAuthority: "cloudflare",
+  railwayRoutingEnabled: false,
+  railwayInfluence: false,
+  provider: { providerId: "cloudflare-workers-ai", admitted: true, zeroCreditEligible: true },
+}, { headers: { server: "cloudflare", "cf-ray": "test-ray-IAD" } });
 const scriptPath = fileURLToPath(new URL("../scripts/cloudflare-execution-runtime.ts", import.meta.url));
 
 test("Cloudflare execution runtime has one governed deployment/acceptance operator", () => {
@@ -49,7 +61,7 @@ test("deployment admission requires clean exact authoritative main", () => {
   }), /deploy-worktree-dirty/);
 });
 
-test("Wrangler deployment overrides the sentinel with exact SHA and rollback anchor", () => {
+test("Wrangler deployment preserves exact SHA and rollback metadata without a routable Railway origin", () => {
   const args = buildWranglerDeployArgs({
     targetSha: SHA,
     secretsFile: "/runner/temp/mahoraga-execution-runtime-secrets.json",
@@ -57,7 +69,11 @@ test("Wrangler deployment overrides the sentinel with exact SHA and rollback anc
   assert.deepEqual(args.slice(0, 4), ["--yes", "wrangler@4.132.0", "deploy", "--config"]);
   assert.ok(args.includes("deploy/cloudflare-execution-runtime/wrangler.jsonc"));
   assert.ok(args.includes(`TARGET_SHA:${SHA}`));
-  assert.ok(args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"));
+  assert.equal(args.some((arg) => arg.startsWith("RAILWAY_ANCHOR_URL:")), false);
+  assert.equal(
+    args.includes("RAILWAY_ANCHOR_URL:https://mahoraga-runtime-main-production.up.railway.app/"),
+    false,
+  );
   assert.deepEqual(
     args.slice(args.indexOf("--secrets-file"), args.indexOf("--secrets-file") + 2),
     ["--secrets-file", "/runner/temp/mahoraga-execution-runtime-secrets.json"],
@@ -83,6 +99,7 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
     if (request.method === "GET" && request.headers.get("cf-access-token") === null) {
       return new Response("Access denied", { status: 403 });
     }
+    if (request.method === "GET" && new URL(request.url).pathname === "/api/runtime/attestation") return attestationResponse();
     if (request.method === "GET") {
       return Response.json(readyBody(SHA));
     }
@@ -110,23 +127,23 @@ test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution
   assert.equal(receipt.accessProtected, true);
   assert.equal(receipt.ready, true);
   assert.equal(receipt.durableStateVerified, true);
-  assert.equal(receipt.trafficAuthorityVerified, false);
+  assert.equal(receipt.trafficAuthorityVerified, true);
   assert.equal(receipt.staleShaRejected, true);
   assert.equal(receipt.executed, true);
   assert.equal(receipt.replayed, true);
   assert.equal(JSON.stringify(receipt).includes("secret-access-token"), false);
   assert.equal(JSON.stringify(receipt).includes("probe"), false);
 
-  assert.equal(requests.length, 5);
+  assert.equal(requests.length, 8);
   assert.equal(requests[0]?.headers.get("cf-access-token"), null);
   for (const request of requests.slice(1)) {
     assert.equal(request.headers.get("cf-access-token"), "secret-access-token");
   }
   const correctPosts = requests.filter((request) => request.method === "POST" && request.headers.get("x-target-sha") === SHA);
-  assert.equal(correctPosts.length, 2);
+  assert.equal(correctPosts.length, 4);
   assert.equal(correctPosts[0]?.headers.get("x-idempotency-key"), "acceptance-key");
   assert.equal(correctPosts[1]?.headers.get("x-idempotency-key"), "acceptance-key");
-  assert.equal(await correctPosts[0]?.clone().text(), await correctPosts[1]?.clone().text());
+  for (const request of correctPosts.slice(1)) assert.equal(await correctPosts[0]?.clone().text(), await request.clone().text());
 });
 
 
@@ -140,6 +157,7 @@ test("acceptance probe waits for the deployed Durable Object provenance to settl
     if (request.method === "GET" && request.headers.get("cf-access-token") === null) {
       return new Response("Access denied", { status: 403 });
     }
+    if (request.method === "GET" && new URL(request.url).pathname === "/api/runtime/attestation") return attestationResponse();
     if (request.method === "GET") {
       authenticatedReadyAttempts += 1;
       return Response.json(readyBody(authenticatedReadyAttempts < 3 ? OTHER_SHA : SHA));
@@ -198,6 +216,7 @@ test("acceptance probe supports Cloudflare Access service-token headers", async 
     if (request.method === "GET" && request.headers.get("cf-access-client-id") === null) {
       return new Response("Access denied", { status: 403 });
     }
+    if (request.method === "GET" && new URL(request.url).pathname === "/api/runtime/attestation") return attestationResponse();
     if (request.method === "GET") return Response.json(readyBody(SHA));
     if (request.headers.get("x-target-sha") !== SHA) return Response.json({ error: "sha" }, { status: 412 });
     const body = { executed: true };

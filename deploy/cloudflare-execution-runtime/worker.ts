@@ -1,7 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
 import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, type ZeroCreditProviderConfig } from "./provider-invoker";
-import { probeZeroCreditProvider, providerStateForGap, providerStateFromProbe } from "./provider-admission";
+import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
@@ -49,6 +49,10 @@ const extractAnswer = (value: unknown): string | null => {
 };
 const digestText = async (value: string): Promise<string> => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, "0")).join("");
 const boundedId = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value);
+const acceptanceRunId = (request: Request): string | null => {
+  const value = request.headers.get("x-mahoraga-acceptance-run") ?? "";
+  return /^[a-z0-9-]{1,160}$/i.test(value) ? value : null;
+};
 const objectValue = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const safeError = (error: unknown): string => error instanceof Error && /^content-vault-[a-z-]+$/.test(error.message) ? error.message : "cognition-provider-failed";
 
@@ -96,6 +100,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       available: state.available,
       zeroCreditEligible: state.zeroCreditEligible,
       reasonCode: state.reasonCode,
+      diagnostics: providerAdmissionDiagnostics(state.reasonCode),
       verifiedAt: state.verifiedAt,
       canaryExpiresAt: state.canaryExpiresAt,
       capability: projectPersistedAssistantCapability(state),
@@ -192,6 +197,24 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
       try { this.initialize(); this.storage.sql.exec("SELECT 1").one(); return json({ status: "ready", sha: this.env.TARGET_SHA, durableState: DURABLE_STATE }); } catch { return json({ status: "unready" }, 503); }
     }
+    if (url.pathname === "/api/runtime/attestation") {
+      if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
+      this.initialize();
+      const capability = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
+      const admitted = capability.routable === true && capability.enabled === true && capability.provider === ASSISTANT_PROVIDER_ID;
+      return json({
+        schemaVersion: 1,
+        kind: "mahoraga-runtime-attestation",
+        status: admitted ? "ready" : "degraded",
+        targetSha: this.env.TARGET_SHA,
+        runtime: "cloudflare-worker",
+        durableState: DURABLE_STATE,
+        trafficAuthority: "cloudflare",
+        railwayRoutingEnabled: false,
+        railwayInfluence: false,
+        provider: { providerId: ASSISTANT_PROVIDER_ID, admitted, zeroCreditEligible: admitted },
+      }, admitted ? 200 : 503);
+    }
     if (url.pathname === "/api/provider/refresh") {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
       const provided = request.headers.get("x-provider-refresh-token") ?? "";
@@ -214,7 +237,6 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const actualSha = request.headers.get("x-target-sha");
     if (actualSha !== this.env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: this.env.TARGET_SHA, actual: actualSha }, 412);
     if (this.env.CONTENT_VAULT_KEY.length === 0) return json({ error: "Execution environment invalid" }, 503);
-    if (request.headers.has("x-bypass-token")) return json({ error: "railway-routing-retired" }, 410);
     this.initialize();
     const key = request.headers.get("x-idempotency-key")?.trim() ?? "";
     if (key.length === 0 || key.length > MAX_IDEMPOTENCY_KEY_LENGTH) return json({ error: "Idempotency key required" }, 400);
@@ -270,9 +292,10 @@ export default {
         "x-mahoraga-verified-nonce": assertion.nonce,
       } }));
     }
-    if (url.pathname === "/api/execute" && request.method === "POST" && request.headers.has("x-bypass-token")) {
-      return json({ error: "railway-routing-retired" }, 410);
+    if (url.pathname === "/api/execute" && request.method === "POST") {
+      const actualSha = request.headers.get("x-target-sha"); if (actualSha !== env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: env.TARGET_SHA, actual: actualSha }, 412);
     }
-    return env.EXECUTION_DO.getByName("execution-v1").fetch(request);
+    const acceptance = acceptanceRunId(request);
+    return env.EXECUTION_DO.getByName(acceptance ? `acceptance-${acceptance}` : "execution-v1").fetch(request);
   },
 } satisfies ExportedHandler<Env>;

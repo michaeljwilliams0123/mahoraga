@@ -16,7 +16,6 @@ test("execution runtime fails deployment when protected secrets are missing", ()
     secrets?: { required?: string[] };
   };
   assert.deepEqual(config.secrets?.required, [
-    "BYPASS_SECRET",
     "CONTENT_VAULT_KEY",
     "OWNER_GATEWAY_SECRET",
     "PROVIDER_REFRESH_SECRET",

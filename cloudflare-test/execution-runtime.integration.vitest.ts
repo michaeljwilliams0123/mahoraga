@@ -28,8 +28,6 @@ describe("ExecutionDurableObject", () => {
     const invalidEnv = {
       EXECUTION_DO: env.EXECUTION_DO,
       TARGET_SHA: "UNSET",
-      RAILWAY_ANCHOR_URL: env.RAILWAY_ANCHOR_URL,
-      BYPASS_SECRET: env.BYPASS_SECRET,
     } as Env;
     const live = await worker.fetch(new Request("https://execution.example/api/live"), invalidEnv);
     expect(live.status).toBe(503);
@@ -49,13 +47,12 @@ describe("ExecutionDurableObject", () => {
       headers: {
         "content-type": "application/json",
         "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-idempotency-key": "outer-retired-bypass",
+        "x-idempotency-key": "outer-sha-mismatch",
         "x-target-sha": "stale-sha",
       },
       body: JSON.stringify({ mustNotRun: true }),
     }));
-    expect(response.status).toBe(410);
-    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
+    expect(response.status).toBe(412);
 
     const stub = env.EXECUTION_DO.getByName("execution-v1");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
@@ -141,6 +138,24 @@ describe("ExecutionDurableObject", () => {
     expect(response.status).toBe(409);
   });
 
+  it("does not invoke inference when hard-zero provider admission is unavailable", async () => {
+    const stub = env.EXECUTION_DO.getByName("fail-closed-zero-billing");
+    await stub.fetch("https://execution.example/api/ready");
+    const aiRun = vi.fn().mockResolvedValue({ response: "must not run" });
+    setProviderInvokerForTest(aiRun);
+    const response = await stub.fetch("https://execution.example/api/execute", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-idempotency-key": "fail-closed-zero-billing",
+        "x-target-sha": SHA,
+      },
+      body: JSON.stringify({ conversationId: "acceptance", turnId: "fail-closed", message: "must not reach inference" }),
+    });
+    expect(response.status).toBe(503);
+    expect(aiRun).not.toHaveBeenCalled();
+  });
+
   it("rolls back receipt writes when a transaction callback throws", async () => {
     const stub = env.EXECUTION_DO.getByName("rollback");
     await stub.fetch("https://execution.example/api/ready");
@@ -160,9 +175,9 @@ describe("ExecutionDurableObject", () => {
     });
   });
 
-  it("rejects the retired Railway bypass without an upstream fetch", async () => {
+  it("never routes an accepted request when a legacy Railway bypass header is supplied", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const response = await env.EXECUTION_DO.getByName("bypass-retired").fetch(
+    const response = await env.EXECUTION_DO.getByName("no-railway-route").fetch(
       "https://execution.example/api/execute?source=edge",
       {
         method: "POST",
@@ -174,26 +189,59 @@ describe("ExecutionDurableObject", () => {
         body: JSON.stringify({ route: "railway" }),
       },
     );
-    expect(response.status).toBe(410);
-    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
+    expect(response.status).not.toBe(202);
+    expect(response.headers.get("x-bypass-applied")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects former Railway loop markers without forwarding", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const response = await env.EXECUTION_DO.getByName("loop-retired").fetch("https://execution.example/api/execute", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-target-sha": SHA,
-        "x-mahoraga-forwarded-by": "railway-runtime",
-      },
-      body: JSON.stringify({ route: "cloudflare" }),
+  it("publishes a bounded runtime attestation with exact SHA and no external route", async () => {
+    const stub = env.EXECUTION_DO.getByName("runtime-attestation");
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
+      const now = Date.now();
+      instance.storage.saveProviderState({
+        providerId: "cloudflare-workers-ai",
+        available: true,
+        zeroCreditEligible: true,
+        observedAt: now,
+        verifiedAt: now,
+        canaryExpiresAt: now + 60_000,
+        reasonCode: null,
+      });
     });
-    expect(response.status).toBe(410);
-    expect(await response.json()).toEqual({ error: "railway-routing-retired" });
-    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const response = await stub.fetch("https://execution.example/api/runtime/attestation");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      schemaVersion: 1,
+      kind: "mahoraga-runtime-attestation",
+      status: "ready",
+      targetSha: SHA,
+      runtime: "cloudflare-worker",
+      durableState: "cloudflare-do-sqlite",
+      trafficAuthority: "cloudflare",
+      railwayRoutingEnabled: false,
+      railwayInfluence: false,
+      provider: {
+        providerId: "cloudflare-workers-ai",
+        admitted: true,
+        zeroCreditEligible: true,
+      },
+    });
+  });
+
+  it("routes acceptance probes to per-run Durable Object state instead of production state", async () => {
+    const response = await exports.default.fetch(new Request("https://execution.example/api/ready", {
+      headers: { "x-mahoraga-acceptance-run": "cutover-run-123" },
+    }));
+    expect(response.status).toBe(200);
+    const isolated = env.EXECUTION_DO.getByName("acceptance-cutover-run-123");
+    await runInDurableObject<ExecutionDurableObject, void>(isolated, (_instance, state) => {
+      const tables = state.storage.sql
+        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_state'")
+        .toArray();
+      expect(tables).toEqual([{ name: "provider_state" }]);
+    });
   });
 
   it("serves live and ready health routes and rejects the wrong method", async () => {
@@ -213,5 +261,47 @@ describe("ExecutionDurableObject", () => {
     const method = await stub.fetch("https://execution.example/api/execute");
     expect(method.status).toBe(405);
     expect(method.headers.get("allow")).toBe("POST");
+  });
+
+  it("returns a bounded diagnostic matrix when provider admission fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    const now = Date.now();
+    const response = await env.EXECUTION_DO.getByName("provider-refresh-diagnostics").fetch(
+      "https://execution.example/api/provider/refresh",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET,
+        },
+        body: JSON.stringify({
+          billingAttestation: JSON.stringify({
+            schemaVersion: 1,
+            evidenceSource: "cloudflare-account-api",
+            accountIdHash: env.ZERO_CREDIT_ACCOUNT_ID_HASH,
+            defaultUsageModel: "standard",
+            billableAccountSubscriptionCount: 0,
+            verifiedAt: now,
+            expiresAt: now + 90 * 60_000,
+          }),
+        }),
+      },
+    );
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({
+      zeroCreditEligible: false,
+      reasonCode: "provider-authentication-failed",
+      diagnostics: {
+        authentication: { status: "failed" },
+        routing: { status: "passed" },
+        dns: { status: "not-independently-observable" },
+        modelAvailability: { status: "unknown" },
+        gateway: { status: "passed" },
+        policy: { status: "passed" },
+        billing: { status: "passed" },
+        probeResponse: { status: "failed", httpStatus: 403 },
+      },
+    });
   });
 });

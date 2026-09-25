@@ -63,6 +63,11 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   assert.doesNotMatch(workflow, /secret put ZERO_CREDIT_PROVIDER_TOKEN/);
   assert.doesNotMatch(workflow, /secret put PROVIDER_REFRESH_SECRET/);
   assert.match(workflow, /provider-admitted/);
+  assert.equal(
+    workflow.match(/JSON\.stringify\(body\.diagnostics \?\? null\)/g)?.length,
+    2,
+    "deployment and renewal failures must surface the sanitized admission matrix",
+  );
 });
 
 test("Cloudflare billing proof renews externally before expiry without redeploying Workers", async () => {

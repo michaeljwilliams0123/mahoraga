@@ -20,6 +20,18 @@ export interface ProviderStateProjection {
   canaryExpiresAt: number | null;
 }
 
+type DiagnosticStatus = "passed" | "failed" | "unknown" | "not-independently-observable" | "not-run";
+export interface ProviderAdmissionDiagnostics {
+  authentication: { status: DiagnosticStatus };
+  routing: { status: DiagnosticStatus };
+  dns: { status: DiagnosticStatus };
+  modelAvailability: { status: DiagnosticStatus };
+  gateway: { status: DiagnosticStatus };
+  policy: { status: DiagnosticStatus };
+  billing: { status: DiagnosticStatus };
+  probeResponse: { status: DiagnosticStatus; httpStatus: number | null };
+}
+
 const objectValue = (value: unknown): Record<string, unknown> | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 
@@ -32,11 +44,14 @@ const parseBillingAttestation = (
 ): BillingAttestation | null => {
   try {
     const record = objectValue(JSON.parse(value));
+    const defaultUsageModel = record?.defaultUsageModel;
     if (
       record?.schemaVersion !== 1
       || record.evidenceSource !== "cloudflare-account-api"
       || record.accountIdHash !== accountIdHash
-      || record.defaultUsageModel !== "bundled"
+      || typeof defaultUsageModel !== "string"
+      || !defaultUsageModel.trim()
+      || defaultUsageModel.length > 64
       || record.billableAccountSubscriptionCount !== 0
       || !Number.isSafeInteger(record.verifiedAt)
       || !Number.isSafeInteger(record.expiresAt)
@@ -76,6 +91,92 @@ const providerUrl = (config: ZeroCreditProviderConfig): URL => {
   return new URL("/api/probe", origin);
 };
 
+const statusForReason = (reasonCode: string | null): number | null => {
+  if (reasonCode === "provider-authentication-failed") return 403;
+  if (reasonCode === "provider-target-mismatch") return 412;
+  if (reasonCode === "provider-free-quota-exhausted") return 429;
+  if (reasonCode === "provider-model-response-invalid") return 502;
+  if (reasonCode === "provider-model-unavailable") return 503;
+  return null;
+};
+
+export const providerAdmissionDiagnostics = (reasonCode: string | null): ProviderAdmissionDiagnostics => {
+  const httpStatus = statusForReason(reasonCode);
+  if (reasonCode === null) {
+    return {
+      authentication: { status: "passed" },
+      routing: { status: "passed" },
+      dns: { status: "not-independently-observable" },
+      modelAvailability: { status: "passed" },
+      gateway: { status: "passed" },
+      policy: { status: "passed" },
+      billing: { status: "passed" },
+      probeResponse: { status: "passed", httpStatus: 200 },
+    };
+  }
+  const matrix: ProviderAdmissionDiagnostics = {
+    authentication: { status: "unknown" },
+    routing: { status: "unknown" },
+    dns: { status: "not-independently-observable" },
+    modelAvailability: { status: "unknown" },
+    gateway: { status: "unknown" },
+    policy: { status: "passed" },
+    billing: { status: "passed" },
+    probeResponse: { status: httpStatus === null ? "unknown" : "failed", httpStatus },
+  };
+  if (reasonCode === "provider-config-invalid") {
+    matrix.policy.status = "failed";
+    matrix.billing.status = "not-run";
+    matrix.probeResponse.status = "not-run";
+  } else if (reasonCode === "provider-billing-attestation-invalid") {
+    matrix.billing.status = "failed";
+    matrix.policy.status = "failed";
+    matrix.probeResponse.status = "not-run";
+  } else if (reasonCode === "provider-authentication-failed") {
+    matrix.authentication.status = "failed";
+    matrix.routing.status = "passed";
+    matrix.gateway.status = "passed";
+  } else if (reasonCode === "provider-target-mismatch") {
+    matrix.authentication.status = "passed";
+    matrix.routing.status = "failed";
+    matrix.gateway.status = "passed";
+  } else if (reasonCode === "provider-free-quota-exhausted") {
+    matrix.authentication.status = "passed";
+    matrix.routing.status = "passed";
+    matrix.gateway.status = "passed";
+    matrix.modelAvailability.status = "passed";
+    matrix.policy.status = "failed";
+  } else if (reasonCode === "provider-model-response-invalid" || reasonCode === "provider-model-unavailable") {
+    matrix.authentication.status = "passed";
+    matrix.routing.status = "passed";
+    matrix.gateway.status = "passed";
+    matrix.modelAvailability.status = "failed";
+  } else if (reasonCode === "provider-endpoint-unavailable" || reasonCode === "provider-endpoint-unreachable") {
+    matrix.routing.status = "failed";
+    matrix.gateway.status = "failed";
+  } else if (reasonCode === "provider-identity-mismatch") {
+    matrix.authentication.status = "passed";
+    matrix.routing.status = "passed";
+    matrix.gateway.status = "passed";
+    matrix.policy.status = "failed";
+  } else if (reasonCode === "provider-zero-credit-unverified" || reasonCode === "provider-canary-stale") {
+    matrix.authentication.status = "passed";
+    matrix.routing.status = "passed";
+    matrix.gateway.status = "passed";
+    matrix.policy.status = "failed";
+  }
+  return matrix;
+};
+
+const reasonForHttpStatus = (status: number): string => {
+  if (status === 401 || status === 403) return "provider-authentication-failed";
+  if (status === 412) return "provider-target-mismatch";
+  if (status === 429) return "provider-free-quota-exhausted";
+  if (status === 502) return "provider-model-response-invalid";
+  if (status === 503) return "provider-model-unavailable";
+  return "provider-endpoint-unavailable";
+};
+
 export const probeZeroCreditProvider = async (
   config: ZeroCreditProviderConfig,
   billingAttestationValue: string,
@@ -97,9 +198,7 @@ export const probeZeroCreditProvider = async (
       },
       body: JSON.stringify({ targetSha: config.targetSha, model: ASSISTANT_MODEL_ID }),
     });
-    if (!response.ok) {
-      return unavailableProbe(now, response.status === 429 ? "provider-free-quota-exhausted" : "provider-probe-unavailable");
-    }
+    if (!response.ok) return unavailableProbe(now, reasonForHttpStatus(response.status));
     const body: unknown = await response.json();
     if (parseZeroCreditProviderEnvelope(body, config) === null) return unavailableProbe(now, "provider-identity-mismatch");
     const record = objectValue(body);
@@ -128,7 +227,7 @@ export const probeZeroCreditProvider = async (
       reasonCode: null,
     };
   } catch {
-    return unavailableProbe(now, "provider-probe-unavailable");
+    return unavailableProbe(now, "provider-endpoint-unreachable");
   }
 };
 

@@ -3,7 +3,6 @@ main = "deploy/cloudflare-owner-gateway/worker.mjs"
 compatibility_date = "2026-09-01"
 
 [vars]
-MAHORAGA_RUNTIME_ORIGIN = "https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev/"
 MAHORAGA_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io/"
 
 [[services]]

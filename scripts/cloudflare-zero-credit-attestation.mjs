@@ -4,7 +4,7 @@ import { pathToFileURL } from "node:url";
 
 const ACTIVE_STATES = new Set(["Trial", "Provisioned", "Paid", "AwaitingPayment"]);
 const TERMINAL_STATES = new Set(["Cancelled", "Failed", "Expired"]);
-const FREE_RATE_PLANS = new Set(["free", "partners_free"]);
+const DOCUMENTED_UNRELATED_FREE_ACCOUNT_PLANS = new Set(["teams_free"]);
 const ATTESTATION_TTL_MS = 90 * 60_000;
 
 const objectValue = (value) => value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -25,8 +25,9 @@ export const buildZeroCreditBillingAttestation = ({
     throw new Error("billing-attestation-input-invalid");
   }
   const settings = objectValue(envelopeResult(accountSettingsEnvelope, "account-settings"));
-  if (settings?.default_usage_model !== "bundled") {
-    throw new Error("workers-account-usage-model-not-free");
+  const defaultUsageModel = settings?.default_usage_model;
+  if (typeof defaultUsageModel !== "string" || !defaultUsageModel.trim() || defaultUsageModel.length > 64) {
+    throw new Error("cloudflare-account-settings-evidence-invalid");
   }
   const subscriptions = envelopeResult(subscriptionsEnvelope, "subscriptions");
   if (!Array.isArray(subscriptions)) throw new Error("cloudflare-subscriptions-evidence-invalid");
@@ -38,18 +39,46 @@ export const buildZeroCreditBillingAttestation = ({
     }
     if (TERMINAL_STATES.has(state)) continue;
     const ratePlan = objectValue(subscription.rate_plan);
-    const explicitlyFree = subscription.price === 0
+    const planId = typeof ratePlan?.id === "string" ? ratePlan.id.trim().toLowerCase() : "";
+    const sets = Array.isArray(ratePlan?.sets) ? ratePlan.sets : [];
+    const workersPlan = [ratePlan?.id, ratePlan?.public_name, ...sets]
+      .some((signal) => typeof signal === "string" && signal.toLowerCase().includes("workers"));
+    const knownUnrelatedFree = DOCUMENTED_UNRELATED_FREE_ACCOUNT_PLANS.has(planId)
+      && subscription.price === 0
+      && ratePlan?.externally_managed === false
+      && ratePlan?.is_contract === false;
+    if (knownUnrelatedFree) continue;
+    if (workersPlan) {
+      const safe = { state, price: subscription.price, planId: ratePlan?.id ?? null, publicName: ratePlan?.public_name ?? null, scope: ratePlan?.scope ?? null, sets: Array.isArray(ratePlan?.sets) ? ratePlan.sets : null, externallyManaged: ratePlan?.externally_managed ?? null, isContract: ratePlan?.is_contract ?? null, componentCount: Array.isArray(subscription.component_values) ? subscription.component_values.length : null };
+      throw new Error(`account-subscription-not-provably-free:${JSON.stringify(safe)}`);
+    }
+    const rawComponents = subscription.component_values;
+    if (rawComponents !== undefined && !Array.isArray(rawComponents)) {
+      throw new Error("account-subscription-not-provably-free:component-values-invalid");
+    }
+    const components = rawComponents ?? [];
+    const hasBillableComponent = components.some((value) => {
+      const component = objectValue(value);
+      if (component === null || typeof component.price !== "number" || !Number.isFinite(component.price) || component.price < 0) return true;
+      if (component.kind === "usage") return component.price > 0;
+      return component.price > 0 && (typeof component.value !== "number" || component.value > 0);
+    });
+    const explicitlyZeroDollar = subscription.price === 0
       && typeof ratePlan?.id === "string"
-      && FREE_RATE_PLANS.has(ratePlan.id)
+      && ratePlan.id.length > 0
       && ratePlan.externally_managed === false
-      && ratePlan.is_contract === false;
-    if (!explicitlyFree) throw new Error("account-subscription-not-provably-free");
+      && ratePlan.is_contract === false
+      && !hasBillableComponent;
+    if (!explicitlyZeroDollar) {
+      const safe = { state, price: subscription.price, planId: ratePlan?.id ?? null, publicName: ratePlan?.public_name ?? null, scope: ratePlan?.scope ?? null, sets: Array.isArray(ratePlan?.sets) ? ratePlan.sets : null, externallyManaged: ratePlan?.externally_managed ?? null, isContract: ratePlan?.is_contract ?? null, componentCount: components.length };
+      throw new Error(`account-subscription-not-provably-free:${JSON.stringify(safe)}`);
+    }
   }
   return {
     schemaVersion: 1,
     evidenceSource: "cloudflare-account-api",
     accountIdHash,
-    defaultUsageModel: "bundled",
+    defaultUsageModel,
     billableAccountSubscriptionCount: 0,
     verifiedAt: now,
     expiresAt: now + ATTESTATION_TTL_MS,

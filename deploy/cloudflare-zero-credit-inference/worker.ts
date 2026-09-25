@@ -16,7 +16,13 @@ const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const HASH_PATTERN = /^[a-f0-9]{64}$/i;
 
 type Message = { role: "user" | "assistant" | "system"; content: string };
-type AiBinding = { run(model: string, input: { messages: Message[]; max_tokens?: number }): Promise<unknown> };
+type AiRunInput = {
+  messages: Message[];
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  chat_template_kwargs?: { enable_thinking?: boolean };
+};
+type AiBinding = { run(model: string, input: AiRunInput): Promise<unknown> };
 interface ZeroCreditInferenceEnv {
   AI: AiBinding;
   BUDGET_DO: DurableObjectNamespace;
@@ -40,7 +46,17 @@ const objectValue = (value: unknown): Record<string, unknown> | null =>
 const extractAnswer = (value: unknown): string | null => {
   const record = objectValue(value);
   const response = record?.response;
-  return typeof response === "string" && response.trim() ? response : null;
+  if (typeof response === "string" && response.trim()) return response;
+
+  const choices = record?.choices;
+  if (!Array.isArray(choices)) return null;
+  for (const choice of choices) {
+    const choiceRecord = objectValue(choice);
+    const message = objectValue(choiceRecord?.message);
+    const content = message?.content;
+    if (typeof content === "string" && content.trim()) return content;
+  }
+  return null;
 };
 const secureEqual = async (provided: string, expected: string): Promise<boolean> => {
   if (!provided || !expected) return false;
@@ -151,7 +167,11 @@ export default {
       const budget = await reserveBudget(env, PROBE_RESERVATION_NEURONS);
       if (budget === null) return json({ error: "provider-free-budget-exhausted" }, 429);
       try {
-        const result = await env.AI.run(MODEL_ID, { messages: [{ role: "user", content: "Reply exactly READY." }], max_tokens: PROBE_MAX_OUTPUT_TOKENS });
+        const result = await env.AI.run(MODEL_ID, {
+          messages: [{ role: "user", content: "Reply exactly READY." }],
+          max_completion_tokens: PROBE_MAX_OUTPUT_TOKENS,
+          chat_template_kwargs: { enable_thinking: false },
+        });
         if (extractAnswer(result) === null) return json({ error: "provider-canary-invalid" }, 502);
         const now = Date.now();
         return json(proof(env, now, budget));
@@ -166,7 +186,11 @@ export default {
       const budget = await reserveBudget(env, INFER_RESERVATION_NEURONS);
       if (budget === null) return json({ error: "provider-free-budget-exhausted" }, 429);
       try {
-        const result = await env.AI.run(MODEL_ID, { messages: parsed.messages, max_tokens: MAX_OUTPUT_TOKENS });
+        const result = await env.AI.run(MODEL_ID, {
+          messages: parsed.messages,
+          max_completion_tokens: MAX_OUTPUT_TOKENS,
+          chat_template_kwargs: { enable_thinking: false },
+        });
         const answer = extractAnswer(result);
         if (answer === null || answer.length > 32_000) return json({ error: "provider-response-invalid" }, 502);
         const now = Date.now();

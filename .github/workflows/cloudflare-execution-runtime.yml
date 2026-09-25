@@ -164,7 +164,7 @@ jobs:
           });
           const body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.zeroCreditEligible !== true) {
-            throw new Error(`provider-admission-${response.status}:${String(body.reasonCode ?? 'unverified')}`);
+            throw new Error(`provider-admission-${response.status}:${String(body.reasonCode ?? 'unverified')}:${JSON.stringify(body.diagnostics ?? null)}`);
           }
           process.stdout.write(`${JSON.stringify({
             status: 'provider-admitted',
@@ -185,6 +185,9 @@ jobs:
           mkdir -p reports
           node scripts/cloudflare-production-acceptance.ts \
             --sha "$VERIFIED_SHA" \
+            --idempotency-key "cutover-${VERIFIED_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --redeploy-secrets-file "$RUNTIME_SECRETS_FILE" \
+            --billing-attestation-file "$BILLING_ATTESTATION_FILE" \
             --receipt reports/cloudflare-execution-runtime-acceptance.json
           {
             echo '### Cloudflare execution-runtime acceptance'
@@ -297,7 +300,7 @@ jobs:
           });
           const body = await response.json().catch(() => ({}));
           if (response.status !== 200 || body.zeroCreditEligible !== true) {
-            throw new Error(`provider-admission-renewal-${response.status}:${String(body.reasonCode ?? 'unverified')}`);
+            throw new Error(`provider-admission-renewal-${response.status}:${String(body.reasonCode ?? 'unverified')}:${JSON.stringify(body.diagnostics ?? null)}`);
           }
           process.stdout.write(`${JSON.stringify({
             status: 'provider-admission-renewed',

@@ -8,7 +8,7 @@ The browser never receives a Composio credential and cannot choose an arbitrary 
 
 Required runtime secret:
 
-- `COMPOSIO_API_KEY` — Composio project API key. Store only in the canonical Railway runtime environment.
+- `COMPOSIO_API_KEY` — Composio project API key. Store only in the protected environment of a separately admitted server-side Composio capability. The accepted Cloudflare execution runtime does not gain Composio authority from this document; Railway is non-routing rollback infrastructure.
 
 Optional routing selectors:
 

@@ -21,7 +21,6 @@
   ],
   "secrets": {
     "required": [
-      "BYPASS_SECRET",
       "CONTENT_VAULT_KEY",
       "OWNER_GATEWAY_SECRET",
       "PROVIDER_REFRESH_SECRET",
