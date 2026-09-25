@@ -1,5 +1,6 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_RUNTIME_URL, runAcceptanceProbe, type AcceptanceReceipt } from "./cloudflare-execution-runtime.ts";
@@ -9,6 +10,9 @@ const EXPECTED_PROVIDER_ID = "cloudflare-workers-ai";
 const EXPECTED_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 
 export type ProductionAcceptanceReceipt = Readonly<AcceptanceReceipt & {
+  durableContinuityVerified: true;
+  hardZeroBillingVerified: true;
+  failClosedZeroBillingVerified: true;
   providerCognitionVerified: true;
   noRailwayFallbackVerified: true;
   providerId: typeof EXPECTED_PROVIDER_ID;
@@ -59,6 +63,52 @@ function accessHeaders(input: {
   return headers;
 }
 
+export async function proveFailClosedZeroBilling(input: {
+  accessToken?: string;
+  accessClientId?: string;
+  accessClientSecret?: string;
+  baseUrl?: string;
+  targetSha: string;
+  billingAttestation: string;
+  providerRefreshSecret: string;
+  fetchImpl?: typeof fetch;
+}): Promise<void> {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const baseUrl = input.baseUrl ?? DEFAULT_RUNTIME_URL;
+  let parsed: unknown;
+  try { parsed = JSON.parse(input.billingAttestation); } catch { throw new Error("accept-billing-attestation-json-invalid"); }
+  const attestation = jsonRecord(parsed);
+  if (!attestation) throw new Error("accept-billing-attestation-json-invalid");
+  const expired = JSON.stringify({ ...attestation, verifiedAt: 0, expiresAt: 1 });
+  const refresh = async (billingAttestation: string) => {
+    const headers = accessHeaders(input);
+    headers.set("content-type", "application/json");
+    headers.set("x-provider-refresh-token", input.providerRefreshSecret);
+    return fetchImpl(new URL("/api/provider/refresh", baseUrl), {
+      method: "POST", headers, body: JSON.stringify({ billingAttestation }), redirect: "manual",
+    });
+  };
+  const denied = await refresh(expired);
+  if (denied.status !== 503) throw new Error(`accept-fail-closed-admission-${denied.status}`);
+  const deniedBody = jsonRecord(await denied.json().catch(() => null));
+  if (deniedBody?.zeroCreditEligible !== false) throw new Error("accept-fail-closed-admission-invalid");
+  const executeHeaders = accessHeaders(input);
+  executeHeaders.set("content-type", "application/json");
+  executeHeaders.set("x-target-sha", input.targetSha);
+  executeHeaders.set("x-idempotency-key", `fail-closed-${input.targetSha}`);
+  const blocked = await fetchImpl(new URL("/api/execute", baseUrl), {
+    method: "POST",
+    headers: executeHeaders,
+    body: JSON.stringify({ conversationId: "acceptance-fail-closed", turnId: `fail-closed-${input.targetSha}`, message: "This request must not reach inference" }),
+    redirect: "manual",
+  });
+  if (blocked.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) throw new Error(`accept-fail-closed-execution-${blocked.status}`);
+  const restored = await refresh(input.billingAttestation);
+  if (restored.status !== 200) throw new Error(`accept-provider-restore-${restored.status}`);
+  const restoredBody = jsonRecord(await restored.json().catch(() => null));
+  if (restoredBody?.zeroCreditEligible !== true) throw new Error("accept-provider-restore-invalid");
+}
+
 async function assertProviderAdmitted(input: {
   accessToken?: string;
   accessClientId?: string;
@@ -99,10 +149,14 @@ export async function runProductionAcceptance(input: {
   readyAttempts?: number;
   readyDelayMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
+  redeployExactRuntime?: () => Promise<void>;
+  proveFailClosedZeroBilling?: () => Promise<void>;
 }): Promise<ProductionAcceptanceReceipt> {
   const fetchImpl = input.fetchImpl ?? fetch;
+  if (!input.proveFailClosedZeroBilling) throw new Error("accept-fail-closed-proof-missing");
+  await input.proveFailClosedZeroBilling();
   await assertProviderAdmitted(input, fetchImpl);
-  let successfulCloudflareExecutions = 0;
+  let providerExecutions = 0;
 
   const evidenceFetch: typeof fetch = async (requestInput, requestInit) => {
     const request = new Request(requestInput, requestInit);
@@ -116,15 +170,20 @@ export async function runProductionAcceptance(input: {
       if (record?.executed !== true) throw new Error("accept-provider-execution-not-confirmed");
       if (record.providerId !== EXPECTED_PROVIDER_ID) throw new Error("accept-provider-id-mismatch");
       if (record.modelId !== EXPECTED_MODEL_ID) throw new Error("accept-provider-model-mismatch");
-      successfulCloudflareExecutions += 1;
+      if (response.headers.get("x-idempotent-replay") === null) providerExecutions += 1;
     }
     return response;
   };
 
-  const receipt = await runAcceptanceProbe({ ...input, fetchImpl: evidenceFetch });
-  if (successfulCloudflareExecutions !== 2) throw new Error("accept-provider-evidence-incomplete");
+  if (!input.redeployExactRuntime) throw new Error("accept-redeploy-proof-missing");
+  const receipt = await runAcceptanceProbe({ ...input, fetchImpl: evidenceFetch, afterInitialExecution: input.redeployExactRuntime });
+  if (providerExecutions !== 1) throw new Error("accept-provider-execution-not-unique");
+  if (!receipt.durableContinuityVerified) throw new Error("accept-durable-continuity-unverified");
   return Object.freeze({
     ...receipt,
+    durableContinuityVerified: true as const,
+    hardZeroBillingVerified: true as const,
+    failClosedZeroBillingVerified: true as const,
     providerCognitionVerified: true,
     noRailwayFallbackVerified: true,
     providerId: EXPECTED_PROVIDER_ID,
@@ -137,13 +196,35 @@ async function main(): Promise<void> {
   const targetSha = normalizeSha(option(args, "--sha") ?? process.env.GITHUB_SHA ?? "", "accept-target-sha-invalid");
   if (targetSha !== authoritativeMainSha()) throw new Error("accept-main-mismatch");
   const idempotencyKey = option(args, "--idempotency-key");
-  const receipt = await runProductionAcceptance({
+  const redeploySecretsFile = option(args, "--redeploy-secrets-file");
+  if (!redeploySecretsFile) throw new Error("accept-redeploy-secrets-file-missing");
+  const billingAttestationFile = option(args, "--billing-attestation-file");
+  if (!billingAttestationFile) throw new Error("accept-billing-attestation-file-missing");
+  const providerRefreshSecret = (process.env.PROVIDER_REFRESH_SECRET ?? "").trim();
+  if (!providerRefreshSecret) throw new Error("accept-provider-refresh-secret-missing");
+  const billingAttestation = await readFile(resolve(billingAttestationFile), "utf8");
+  const credentials = {
     ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
     ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
     ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
+  };
+  const receipt = await runProductionAcceptance({
+    ...credentials,
     baseUrl: option(args, "--url") ?? DEFAULT_RUNTIME_URL,
     targetSha,
     ...(idempotencyKey ? { idempotencyKey } : {}),
+    proveFailClosedZeroBilling: () => proveFailClosedZeroBilling({
+      ...credentials, baseUrl: option(args, "--url") ?? DEFAULT_RUNTIME_URL, targetSha,
+      billingAttestation, providerRefreshSecret,
+    }),
+    redeployExactRuntime: async () => {
+      const result = spawnSync(process.execPath, [
+        fileURLToPath(new URL("./cloudflare-execution-runtime.ts", import.meta.url)),
+        "deploy", "--sha", targetSha, "--secrets-file", redeploySecretsFile,
+      ], { stdio: "inherit" });
+      if (result.error) throw result.error;
+      if (result.status !== 0) throw new Error(`accept-redeploy-exit-${result.status ?? "unknown"}`);
+    },
   });
   const rendered = `${JSON.stringify(receipt, null, 2)}\n`;
   const receiptPath = option(args, "--receipt");

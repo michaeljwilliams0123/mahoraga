@@ -28,8 +28,6 @@ describe("ExecutionDurableObject", () => {
     const invalidEnv = {
       EXECUTION_DO: env.EXECUTION_DO,
       TARGET_SHA: "UNSET",
-      RAILWAY_ANCHOR_URL: env.RAILWAY_ANCHOR_URL,
-      BYPASS_SECRET: env.BYPASS_SECRET,
     } as Env;
     const live = await worker.fetch(new Request("https://execution.example/api/live"), invalidEnv);
     expect(live.status).toBe(503);
@@ -140,6 +138,24 @@ describe("ExecutionDurableObject", () => {
     expect(response.status).toBe(409);
   });
 
+  it("does not invoke inference when hard-zero provider admission is unavailable", async () => {
+    const stub = env.EXECUTION_DO.getByName("fail-closed-zero-billing");
+    await stub.fetch("https://execution.example/api/ready");
+    const aiRun = vi.fn().mockResolvedValue({ response: "must not run" });
+    setProviderInvokerForTest(aiRun);
+    const response = await stub.fetch("https://execution.example/api/execute", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-idempotency-key": "fail-closed-zero-billing",
+        "x-target-sha": SHA,
+      },
+      body: JSON.stringify({ conversationId: "acceptance", turnId: "fail-closed", message: "must not reach inference" }),
+    });
+    expect(response.status).toBe(503);
+    expect(aiRun).not.toHaveBeenCalled();
+  });
+
   it("rolls back receipt writes when a transaction callback throws", async () => {
     const stub = env.EXECUTION_DO.getByName("rollback");
     await stub.fetch("https://execution.example/api/ready");
@@ -159,17 +175,9 @@ describe("ExecutionDurableObject", () => {
     });
   });
 
-  it("proxies a valid emergency bypass without exposing the bypass secret", async () => {
-    let forwarded: Request | undefined;
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (request: RequestInfo | URL, init?: RequestInit) => {
-      forwarded = new Request(request, init);
-      return new Response(JSON.stringify({ railway: true }), {
-        status: 202,
-        headers: { "content-type": "application/json" },
-      });
-    });
-
-    const response = await env.EXECUTION_DO.getByName("bypass").fetch(
+  it("never routes an accepted request when a legacy Railway bypass header is supplied", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const response = await env.EXECUTION_DO.getByName("no-railway-route").fetch(
       "https://execution.example/api/execute?source=edge",
       {
         method: "POST",
@@ -181,28 +189,45 @@ describe("ExecutionDurableObject", () => {
         body: JSON.stringify({ route: "railway" }),
       },
     );
-    expect(response.status).toBe(202);
-    expect(response.headers.get("x-bypass-applied")).toBe("true");
-    expect(await response.json()).toEqual({ railway: true });
-    expect(forwarded?.url).toBe("https://mahoraga-runtime-main-production.up.railway.app/api/execute?source=edge");
-    expect(forwarded?.headers.get("x-bypass-token")).toBeNull();
-    expect(forwarded?.headers.get("x-mahoraga-forwarded-by")).toBe("cloudflare-execution-runtime");
+    expect(response.status).not.toBe(202);
+    expect(response.headers.get("x-bypass-applied")).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("rejects a Railway routing loop before forwarding", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const response = await env.EXECUTION_DO.getByName("loop").fetch("https://execution.example/api/execute", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-target-sha": SHA,
-        "x-mahoraga-forwarded-by": "railway-runtime",
-      },
-      body: JSON.stringify({ route: "cloudflare" }),
+  it("publishes a bounded runtime attestation with exact SHA and no external route", async () => {
+    const stub = env.EXECUTION_DO.getByName("runtime-attestation");
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
+      const now = Date.now();
+      instance.storage.saveProviderState({
+        providerId: "cloudflare-workers-ai",
+        available: true,
+        zeroCreditEligible: true,
+        observedAt: now,
+        verifiedAt: now,
+        canaryExpiresAt: now + 60_000,
+        reasonCode: null,
+      });
     });
-    expect(response.status).toBe(508);
-    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const response = await stub.fetch("https://execution.example/api/runtime/attestation");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      schemaVersion: 1,
+      kind: "mahoraga-runtime-attestation",
+      status: "ready",
+      targetSha: SHA,
+      runtime: "cloudflare-worker",
+      durableState: "cloudflare-do-sqlite",
+      trafficAuthority: "cloudflare",
+      railwayRoutingEnabled: false,
+      railwayInfluence: false,
+      provider: {
+        providerId: "cloudflare-workers-ai",
+        admitted: true,
+        zeroCreditEligible: true,
+      },
+    });
   });
 
   it("serves live and ready health routes and rejects the wrong method", async () => {
