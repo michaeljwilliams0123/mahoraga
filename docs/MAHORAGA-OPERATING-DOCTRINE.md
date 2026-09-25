@@ -31,7 +31,7 @@ SD00 is a laboratory and teacher, not source authority. It cannot override GitHu
 5. Run `git diff --check`, focused tests, and one full `npm run verify` before protected integration unless exact-head equivalent evidence is explicitly reusable under repository policy.
 6. Push an isolated branch and require exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` on that PR head.
 7. Merge only through protected-main policy. Do not force-push, bypass checks, or buy model review to replace deterministic evidence.
-8. Confirm canonical Railway deploys the exact merged SHA. `/api/live` proves liveness only; `/api/ready` is the stronger application/provenance readiness boundary.
+8. Confirm the Cloudflare execution runtime deploys and accepts the exact merged SHA. `/api/live` proves liveness only; `/api/ready` is the stronger application/provenance readiness boundary. Keep Railway non-routing for rollback and verify browser/domain authority separately.
 9. Continue useful independent work while a gate runs: inspect the next branch, deployment layer, acceptance gap, or unresolved capability instead of idling.
 10. Do not call the capability complete until its real acceptance transaction has current end-to-end evidence.
 
@@ -50,7 +50,7 @@ Do not blindly cherry-pick stale branch commits. If current `main` already conta
 
 When a gate fails, diagnose the exact layer before acting. Do not repeatedly rerun a deterministic failure, create replacement cloud services, add UI-only evidence, weaken readiness/authentication, or change providers merely to make a status indicator green.
 
-GitLab is an independent assurance plane. It may verify runners, credentials, head observation, and repair decisions, but it never becomes source authority and must not block a healthy canonical Railway deployment without a policy reason.
+GitLab is an independent assurance plane. It may verify runners, credentials, head observation, and repair decisions, but it never becomes source authority or a prerequisite for accepted Cloudflare deployment without a policy reason.
 
 ## Standing autonomy and hard stops
 

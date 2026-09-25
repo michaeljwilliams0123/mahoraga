@@ -28,12 +28,14 @@ test('SD00 is reference execution and cannot override source authority', () => {
   assert.equal(contract.referencePlane.role, 'gold-standard-reference');
   assert.equal(contract.referencePlane.mayOverrideSourceAuthority, false);
 });
-test('convergence requires exact-head cross-platform verification and exact-SHA Railway promotion', () => {
+test('convergence requires exact-head verification and Cloudflare acceptance with Railway rollback only', () => {
   const contract = loadContract();
   assert.deepEqual(contract.convergence.requiredVerifyContexts, [
     'Verify (ubuntu-latest)', 'Verify (windows-latest)',
   ]);
-  assert.equal(contract.convergence.cloud.canonicalProvider, 'railway');
+  assert.equal(contract.convergence.cloud.canonicalProvider, 'cloudflare');
+  assert.equal(contract.convergence.cloud.rollbackProvider, 'railway');
+  assert.equal(contract.convergence.cloud.independentTrafficProofRequired, true);
   assert.equal(contract.convergence.cloud.requireExactMergedSha, true);
   assert.equal(contract.convergence.zeroCredit.allowPaidFallback, false);
 });

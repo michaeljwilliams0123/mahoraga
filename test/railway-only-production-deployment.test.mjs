@@ -21,7 +21,7 @@ test("retired Vercel stays silent while GitHub Pages owns the browser UI", () =>
   assert.match(readme, /Vercel:\*\* historical\/retired from the active production-completion path/);
 });
 
-test("GitHub Pages is canonical browser presentation while Railway remains server-capable runtime", () => {
+test("GitHub Pages is canonical browser presentation while Cloudflare is the accepted execution runtime", () => {
   const references = {
     versions: read("operator-deck/src/lib/fleet/versions.ts"),
     execute: read("operator-deck/src/lib/fleet/execute.server.ts"),
@@ -33,14 +33,14 @@ test("GitHub Pages is canonical browser presentation while Railway remains serve
   assert.match(references.versions, /APP_HOST = "GitHub Pages"/);
   assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/"/);
   assert.match(references.versions, /GitHub Pages is the canonical browser presentation/);
-  assert.match(references.versions, /Railway remains the current server-capable runtime during migration/);
+  assert.match(references.versions, /Cloudflare is the accepted server-capable runtime/);
   assert.match(references.execute, /Conversation UI", value: "GitHub Pages workspace"/);
   assert.match(readme, /\[Open Mahoraga\]\(https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/\)/);
-  assert.match(readme, /encrypted relay/);
+  assert.match(readme, /Cloudflare execution runtime/);
 
   assert.match(references.allowlist, /"mahoraga-runtime-main-production\.up\.railway\.app"/);
-  assert.match(references.browserWorker, /canonical Railway workspace/);
-  assert.match(references.manifest, /canonical Railway workspace/);
+  assert.doesNotMatch(references.browserWorker, /canonical Railway workspace/);
+  assert.doesNotMatch(references.manifest, /canonical Railway workspace/);
 
   for (const [sourcePath, source] of Object.entries(references)) {
     assert.doesNotMatch(source, /mahoraga-cloud-workspace\.vercel\.app|unified Vercel workspace/, sourcePath);

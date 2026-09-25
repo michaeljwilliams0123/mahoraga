@@ -1,5 +1,7 @@
 # Cloud-only deployment inputs
 
+> Current execution authority: Cloudflare `mahoraga-execution-runtime` was accepted at exact `main` SHA `eabfedd95877847bc8cdf407dfe0559d7a56bcbe` in hosted run 36087031059. GitHub Pages is the current browser presentation, and the Access-protected owner gateway uses a service binding to reach execution. The long-running remote container/VM and optional relay described below are historical or independently gated capability paths, not the canonical Cloudflare execution hop. A new merged SHA needs new acceptance evidence; browser/custom-domain promotion remains separate. Railway is rollback/evidence only.
+
 Mahoraga presents one owner-facing browser interaction surface even though its
 private source repository and execution plane are separated for security and durability:
 
