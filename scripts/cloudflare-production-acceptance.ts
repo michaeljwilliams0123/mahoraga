@@ -47,12 +47,14 @@ function accessHeaders(input: {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
 }): Headers {
   const token = input.accessToken?.trim() ?? "";
   const clientId = input.accessClientId?.trim() ?? "";
   const clientSecret = input.accessClientSecret?.trim() ?? "";
   if (token && (clientId || clientSecret)) throw new Error("accept-access-credentials-ambiguous");
   const headers = new Headers({ "cache-control": "no-store" });
+  if (input.acceptanceRunId) headers.set("x-mahoraga-acceptance-run", input.acceptanceRunId);
   if (token) {
     headers.set("cf-access-token", token);
     return headers;
@@ -71,6 +73,7 @@ export async function proveFailClosedZeroBilling(input: {
   targetSha: string;
   billingAttestation: string;
   providerRefreshSecret: string;
+  acceptanceRunId: string;
   fetchImpl?: typeof fetch;
 }): Promise<void> {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -88,31 +91,36 @@ export async function proveFailClosedZeroBilling(input: {
       method: "POST", headers, body: JSON.stringify({ billingAttestation }), redirect: "manual",
     });
   };
-  const denied = await refresh(expired);
-  if (denied.status !== 503) throw new Error(`accept-fail-closed-admission-${denied.status}`);
-  const deniedBody = jsonRecord(await denied.json().catch(() => null));
-  if (deniedBody?.zeroCreditEligible !== false) throw new Error("accept-fail-closed-admission-invalid");
-  const executeHeaders = accessHeaders(input);
-  executeHeaders.set("content-type", "application/json");
-  executeHeaders.set("x-target-sha", input.targetSha);
-  executeHeaders.set("x-idempotency-key", `fail-closed-${input.targetSha}`);
-  const blocked = await fetchImpl(new URL("/api/execute", baseUrl), {
-    method: "POST",
-    headers: executeHeaders,
-    body: JSON.stringify({ conversationId: "acceptance-fail-closed", turnId: `fail-closed-${input.targetSha}`, message: "This request must not reach inference" }),
-    redirect: "manual",
-  });
-  if (blocked.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) throw new Error(`accept-fail-closed-execution-${blocked.status}`);
+  let proofError: unknown = null;
+  try {
+    const denied = await refresh(expired);
+    if (denied.status !== 503) throw new Error(`accept-fail-closed-admission-${denied.status}`);
+    const deniedBody = jsonRecord(await denied.json().catch(() => null));
+    if (deniedBody?.zeroCreditEligible !== false) throw new Error("accept-fail-closed-admission-invalid");
+    const executeHeaders = accessHeaders(input);
+    executeHeaders.set("content-type", "application/json");
+    executeHeaders.set("x-target-sha", input.targetSha);
+    executeHeaders.set("x-idempotency-key", `fail-closed-${input.acceptanceRunId}`);
+    const blocked = await fetchImpl(new URL("/api/execute", baseUrl), {
+      method: "POST",
+      headers: executeHeaders,
+      body: JSON.stringify({ conversationId: "acceptance-fail-closed", turnId: `fail-closed-${input.acceptanceRunId}`, message: "This request must not reach inference" }),
+      redirect: "manual",
+    });
+    if (blocked.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) throw new Error(`accept-fail-closed-execution-${blocked.status}`);
+  } catch (error) { proofError = error; }
   const restored = await refresh(input.billingAttestation);
   if (restored.status !== 200) throw new Error(`accept-provider-restore-${restored.status}`);
   const restoredBody = jsonRecord(await restored.json().catch(() => null));
   if (restoredBody?.zeroCreditEligible !== true) throw new Error("accept-provider-restore-invalid");
+  if (proofError) throw proofError;
 }
 
 async function assertProviderAdmitted(input: {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
   baseUrl?: string;
 }, fetchImpl: typeof fetch): Promise<void> {
   let url: URL;
@@ -141,6 +149,7 @@ export async function runProductionAcceptance(input: {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
   baseUrl?: string;
   targetSha: string;
   idempotencyKey?: string;
@@ -196,6 +205,7 @@ async function main(): Promise<void> {
   const targetSha = normalizeSha(option(args, "--sha") ?? process.env.GITHUB_SHA ?? "", "accept-target-sha-invalid");
   if (targetSha !== authoritativeMainSha()) throw new Error("accept-main-mismatch");
   const idempotencyKey = option(args, "--idempotency-key");
+  if (!idempotencyKey || !/^[a-z0-9-]{1,160}$/i.test(idempotencyKey)) throw new Error("accept-idempotency-key-invalid");
   const redeploySecretsFile = option(args, "--redeploy-secrets-file");
   if (!redeploySecretsFile) throw new Error("accept-redeploy-secrets-file-missing");
   const billingAttestationFile = option(args, "--billing-attestation-file");
@@ -207,6 +217,7 @@ async function main(): Promise<void> {
     ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
     ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
     ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
+    acceptanceRunId: idempotencyKey,
   };
   const receipt = await runProductionAcceptance({
     ...credentials,
@@ -215,7 +226,7 @@ async function main(): Promise<void> {
     ...(idempotencyKey ? { idempotencyKey } : {}),
     proveFailClosedZeroBilling: () => proveFailClosedZeroBilling({
       ...credentials, baseUrl: option(args, "--url") ?? DEFAULT_RUNTIME_URL, targetSha,
-      billingAttestation, providerRefreshSecret,
+      billingAttestation, providerRefreshSecret, acceptanceRunId: idempotencyKey,
     }),
     redeployExactRuntime: async () => {
       const result = spawnSync(process.execPath, [

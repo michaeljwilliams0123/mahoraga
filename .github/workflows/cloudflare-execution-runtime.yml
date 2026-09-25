@@ -185,7 +185,7 @@ jobs:
           mkdir -p reports
           node scripts/cloudflare-production-acceptance.ts \
             --sha "$VERIFIED_SHA" \
-            --idempotency-key "cutover-${VERIFIED_SHA}" \
+            --idempotency-key "cutover-${VERIFIED_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
             --redeploy-secrets-file "$RUNTIME_SECRETS_FILE" \
             --billing-attestation-file "$BILLING_ATTESTATION_FILE" \
             --receipt reports/cloudflare-execution-runtime-acceptance.json

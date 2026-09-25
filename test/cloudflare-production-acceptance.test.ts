@@ -144,6 +144,7 @@ test("fail-closed proof expires admission, blocks inference, and restores hard-z
     baseUrl: BASE_URL,
     targetSha: SHA,
     providerRefreshSecret: "refresh-secret",
+    acceptanceRunId: "cutover-test-run-1",
     billingAttestation: JSON.stringify({ schemaVersion: 1, verifiedAt: 100, expiresAt: 200 }),
     fetchImpl: async (input, init) => {
       const request = new Request(input, init);
@@ -160,5 +161,6 @@ test("fail-closed proof expires admission, blocks inference, and restores hard-z
   ]);
   assert.equal(await requests[0]!.clone().json().then((body: any) => JSON.parse(body.billingAttestation).expiresAt), 1);
   assert.equal(requests[1]!.headers.get("x-target-sha"), SHA);
+  assert.equal(requests.every((request) => request.headers.get("x-mahoraga-acceptance-run") === "cutover-test-run-1"), true);
   assert.equal(requests[2]!.headers.get("x-provider-refresh-token"), "refresh-secret");
 });

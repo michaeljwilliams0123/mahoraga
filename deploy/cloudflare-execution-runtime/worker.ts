@@ -49,6 +49,10 @@ const extractAnswer = (value: unknown): string | null => {
 };
 const digestText = async (value: string): Promise<string> => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), (byte) => byte.toString(16).padStart(2, "0")).join("");
 const boundedId = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(value);
+const acceptanceRunId = (request: Request): string | null => {
+  const value = request.headers.get("x-mahoraga-acceptance-run") ?? "";
+  return /^[a-z0-9-]{1,160}$/i.test(value) ? value : null;
+};
 const objectValue = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const safeError = (error: unknown): string => error instanceof Error && /^content-vault-[a-z-]+$/.test(error.message) ? error.message : "cognition-provider-failed";
 
@@ -291,6 +295,7 @@ export default {
     if (url.pathname === "/api/execute" && request.method === "POST") {
       const actualSha = request.headers.get("x-target-sha"); if (actualSha !== env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: env.TARGET_SHA, actual: actualSha }, 412);
     }
-    return env.EXECUTION_DO.getByName("execution-v1").fetch(request);
+    const acceptance = acceptanceRunId(request);
+    return env.EXECUTION_DO.getByName(acceptance ? `acceptance-${acceptance}` : "execution-v1").fetch(request);
   },
 } satisfies ExportedHandler<Env>;

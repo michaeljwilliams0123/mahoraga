@@ -114,6 +114,7 @@ type CloudflareAccessCredentials = {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
 };
 
 function cloudflareAccessHeaders(input: CloudflareAccessCredentials): Headers {
@@ -122,6 +123,7 @@ function cloudflareAccessHeaders(input: CloudflareAccessCredentials): Headers {
   const accessClientSecret = input.accessClientSecret?.trim() ?? "";
   if (accessToken && (accessClientId || accessClientSecret)) throw new Error("accept-access-credentials-ambiguous");
   const headers = new Headers({ "cache-control": "no-store" });
+  if (input.acceptanceRunId) headers.set("x-mahoraga-acceptance-run", input.acceptanceRunId);
   if (accessToken) {
     headers.set("cf-access-token", accessToken);
     return headers;
@@ -189,6 +191,7 @@ export async function runAcceptanceProbe(input: {
   accessToken?: string;
   accessClientId?: string;
   accessClientSecret?: string;
+  acceptanceRunId?: string;
   baseUrl?: string;
   targetSha: string;
   idempotencyKey?: string;

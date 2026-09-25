@@ -230,6 +230,20 @@ describe("ExecutionDurableObject", () => {
     });
   });
 
+  it("routes acceptance probes to per-run Durable Object state instead of production state", async () => {
+    const response = await exports.default.fetch(new Request("https://execution.example/api/ready", {
+      headers: { "x-mahoraga-acceptance-run": "cutover-run-123" },
+    }));
+    expect(response.status).toBe(200);
+    const isolated = env.EXECUTION_DO.getByName("acceptance-cutover-run-123");
+    await runInDurableObject<ExecutionDurableObject, void>(isolated, (_instance, state) => {
+      const tables = state.storage.sql
+        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_state'")
+        .toArray();
+      expect(tables).toEqual([{ name: "provider_state" }]);
+    });
+  });
+
   it("serves live and ready health routes and rejects the wrong method", async () => {
     const stub = env.EXECUTION_DO.getByName("health");
     const live = await stub.fetch("https://execution.example/api/live");
