@@ -1,6 +1,6 @@
 # Mahoraga production and repository status — 2026-09-02
 
-> Historical snapshot: this file preserves the 2026-09-02 observation. For current authority use `README.md`, `docs/ECOSYSTEM-LOCK.md`, `config/platform-lifecycle.json`, and fresh live probes. PR #458 later retired Vercel deployment; Railway is the canonical runtime.
+> Historical snapshot: this file preserves the 2026-09-02 observation. For current authority use `README.md`, `docs/ECOSYSTEM-LOCK.md`, `config/platform-lifecycle.json`, and fresh live probes. PR #458 later retired Vercel deployment; the current accepted execution runtime is Cloudflare and Railway is non-routing rollback infrastructure.
 
 This record deliberately separates **repository truth**, **GitHub verification**, and **live Windows production truth**. A manifest declaration, merged pull request, or green hosted-runner check does not prove which Mahoraga build is currently running on the Windows host. Live production claims require fresh process, listener, worker, provider, canary, and runtime-version evidence from that machine.
 

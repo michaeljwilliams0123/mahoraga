@@ -3,7 +3,7 @@
 **Tranche:** 1 — TypeScript foundation and assistant-answer vertical slice  
 **Branch:** `feature/polyglot-runtime-architecture` (merged)  
 **Source base:** `a5261cb` via PR `#586`; current protected `main` moved on through the 2026-09-18 squash stack  
-**Status:** merged to protected `main`; live Railway promotion is a separate evidence domain
+**Status:** historical tranche merged to protected `main`; its Railway promotion observations do not describe current Cloudflare authority
 
 ## Completed in tranche 1
 
@@ -72,4 +72,4 @@ That cluster maximizes compile-time value around routing/authority without yet f
 
 ## Standing invariants
 
-GitHub `main` remains source authority; Railway remains canonical cloud production; protected Windows/Ubuntu exact-head verification remains mandatory; zero-credit routing stays fail-closed; no paid fallback, public raw runtime listener, owner-sovereignty weakening, or parallel UI is introduced by this migration.
+GitHub `main` remains source authority; the current Cloudflare runtime requires independent exact-main acceptance; Railway is non-routing rollback infrastructure. Protected Windows/Ubuntu exact-head verification remains mandatory; zero-credit routing stays fail-closed; no paid fallback, public raw runtime listener, owner-sovereignty weakening, or parallel UI is introduced by this migration.
