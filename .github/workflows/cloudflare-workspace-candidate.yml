@@ -1,6 +1,7 @@
 name: Publish Mahoraga Cloudflare Workspace Candidate
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["Verify Mahoraga"]
     types: [completed]
@@ -16,21 +17,26 @@ jobs:
   publish:
     name: Publish exact verified main as a candidate UI
     if: >-
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'main' &&
-      github.event.workflow_run.head_repository.full_name == github.repository &&
-      github.event.workflow_run.actor.login == github.repository_owner
+      (github.event_name == 'workflow_dispatch' &&
+       github.actor == github.repository_owner &&
+       github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == github.repository_owner)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      VERIFIED_SHA: ${{ github.event.workflow_run.head_sha }}
+      VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       MAHORAGA_DEPLOYMENT_PROVIDER: cloudflare-workers
       MAHORAGA_DEPLOYMENT_ENV: candidate
       MAHORAGA_DEPLOYMENT_URL: https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev
-      MAHORAGA_GIT_COMMIT_SHA: ${{ github.event.workflow_run.head_sha }}
+      MAHORAGA_GIT_COMMIT_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       MAHORAGA_GIT_COMMIT_REF: main
 
     steps:
