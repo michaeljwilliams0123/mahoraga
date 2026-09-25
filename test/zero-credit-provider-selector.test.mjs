@@ -16,6 +16,16 @@ test("continues deterministically and waits without a paid fallback", () => {
   assert.deepEqual(selectZeroCreditProvider({ cloudModeEnabled: true, requiresGeneration: true, providers: [] }), { status: "waiting", providerId: "waiting-zero-credit-provider", costClass: null });
 });
 
+test("duplicate provider evidence fails closed regardless of ordering and allows an unambiguous fallback", () => {
+  const good = ready("codespaces-open-weight");
+  const paid = { ...good, metered: true };
+  for (const cloudEvidence of [[good, paid], [paid, good]]) {
+    const options = { cloudModeEnabled: true, requiresGeneration: true, providers: cloudEvidence };
+    assert.equal(selectZeroCreditProvider(options).status, "waiting");
+    assert.equal(selectZeroCreditProvider({ ...options, providers: [...cloudEvidence, ready("local-open-weight")] }).providerId, "local-open-weight");
+  }
+});
+
 test("rejects incomplete, metered, unknown-billing, stale-canary, and unready provider evidence", () => {
   for (const provider of [
     { ...ready("codespaces-open-weight"), metered: true }, { ...ready("codespaces-open-weight"), billingState: "unknown" },

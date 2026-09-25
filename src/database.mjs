@@ -876,7 +876,8 @@ export class RuntimeDatabase {
 
   reconcileObjectives() {
     const released = []; const completed = []; const failed = [];
-    const candidates = this.listObjectives(500).filter((item) => ["planned", "running"].includes(item.status));
+    const candidates = this.db.prepare("SELECT * FROM objectives WHERE status IN ('planned','running') ORDER BY updated_at, created_at, id LIMIT 500")
+      .all().map((row) => normalizeObjective(row, this.#objectiveTasks(row.id)));
     const objectives = this.objectiveReleaseAuthority ? this.objectiveReleaseAuthority.filterObjectives(this, candidates) : candidates;
     for (const objective of objectives) {
       const taskById = new Map(objective.tasks.map((task) => [task.localTaskId, task]));
@@ -884,7 +885,7 @@ export class RuntimeDatabase {
       for (const task of objective.tasks.filter((item) => item.status === "planned")) {
         if (!task.definition.dependsOn.every((dependency) => taskById.get(dependency)?.status === "completed")) continue;
         const created = this.#submitObjectiveTask(objective, task);
-        released.push(created);
+        if (created) released.push(created);
       }
       const refreshed = this.getObjective(objective.id);
       for (const task of refreshed.tasks.filter((item) => item.status === "released" && item.task?.status === "failed")) {
@@ -901,8 +902,18 @@ export class RuntimeDatabase {
 
   #submitObjectiveTask(objective, objectiveTask) {
     const definition = objectiveTask.definition;
+    const excludedWorkerIds = [...new Set([
+      ...(definition.excludedWorkerIds ?? []),
+      ...(objectiveTask.task?.excludedWorkerIds ?? []),
+      ...(objectiveTask.lastWorkerId ? [objectiveTask.lastWorkerId] : []),
+    ])];
+    if (excludedWorkerIds.length > 16) {
+      this.#setObjectiveTask(objectiveTask.id, { status: "failed" });
+      this.#event("objective.task.recovery-exhausted", objectiveTask.id, { objectiveId: objective.id, reason: "worker-exclusion-limit" });
+      return null;
+    }
     const overlapWith = this.listTasks(500).filter((task) => task.taskArea === definition.taskArea && !["completed", "failed", "cancelled"].includes(task.status)).map((task) => task.id);
-    const task = this.submitTask({ ...definition, correlationId: objective.correlationId, idempotencyKey: `${objective.id}:${objectiveTask.localTaskId}:r${objectiveTask.replanCount}`, requestedOutcome: definition.requestedOutcome ?? objective.title, taskArea: definition.taskArea, excludedWorkerIds: objectiveTask.lastWorkerId ? [objectiveTask.lastWorkerId] : [] });
+    const task = this.submitTask({ ...definition, correlationId: objective.correlationId, idempotencyKey: `${objective.id}:${objectiveTask.localTaskId}:r${objectiveTask.replanCount}`, requestedOutcome: definition.requestedOutcome ?? objective.title, taskArea: definition.taskArea, excludedWorkerIds });
     this.#setObjectiveTask(objectiveTask.id, { status: "released", taskId: task.id });
     this.#event("objective.task.released", objectiveTask.id, { objectiveId: objective.id, taskId: task.id, overlapWith });
     return { objectiveId: objective.id, objectiveTaskId: objectiveTask.id, taskId: task.id, overlapWith };
@@ -1134,15 +1145,20 @@ export class RuntimeDatabase {
     }));
   }
 
-  claimNext({ workerId, capabilities, leaseMs }) {
+  claimNext({ workerId, capabilities, leaseMs, acceptTask = () => true }) {
     bounded(workerId, 64, "worker id");
+    if (typeof acceptTask !== "function") throw new TypeError("Task admission predicate is invalid.");
     if (!Array.isArray(capabilities) || capabilities.length === 0) return null;
     capabilities.forEach(validateCapability);
     const placeholders = capabilities.map(() => "?").join(",");
     const transaction = () => this.#transaction(() => {
-      const row = this.db.prepare(`SELECT * FROM tasks WHERE status = 'queued' AND attempt_count < maximum_attempts
+      const rows = this.db.prepare(`SELECT * FROM tasks WHERE status = 'queued' AND attempt_count < maximum_attempts
         AND capability IN (${placeholders}) ORDER BY CASE priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1
-        WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, created_at LIMIT 1`).get(...capabilities);
+        WHEN 'normal' THEN 2 WHEN 'low' THEN 3 ELSE 4 END, created_at, id`).iterate(...capabilities);
+      let row = null;
+      for (const candidate of rows) {
+        if (acceptTask(normalizeTask(candidate)) === true) { row = candidate; break; }
+      }
       if (!row) return null;
       const now = new Date();
       const lease = new Date(now.getTime() + leaseMs).toISOString();
@@ -1798,6 +1814,10 @@ function validateDataClass(value) { if (!new Set(["synthetic", "personal", "ente
 function validateObjectiveTask(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new TypeError("Objective task is invalid.");
   validateCapability(value.capability); validateDataClass(value.dataClass);
+  if (value.excludedWorkerIds !== undefined) {
+    if (!Array.isArray(value.excludedWorkerIds) || value.excludedWorkerIds.length > 16) throw new TypeError("Excluded worker IDs are invalid.");
+    value.excludedWorkerIds.forEach((item) => slug(item, "excluded worker id"));
+  }
   if (!Array.isArray(value.dependsOn) || value.dependsOn.length > 16) throw new TypeError("Objective dependencies are invalid.");
   value.dependsOn.forEach((item) => slug(item, "objective dependency"));
   slug(value.taskArea, "objective task area");

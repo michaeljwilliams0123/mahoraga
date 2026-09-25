@@ -61,6 +61,59 @@ function fakeChild(pid = 4242) {
   return child;
 }
 
+test("concurrent requests reach their authorized workers without spending attempts on other workers", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const children = [fakeChild(4242), fakeChild(4243)];
+  const workers = [workerDefinition({ id: "worker-a" }), workerDefinition({ id: "worker-b" })];
+  let spawned = 0;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ workers, repair: { enabled: false } }), database,
+    artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => children[spawned++], tickIntervalMs: 5,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  for (const child of children) {
+    child.emit("message", { type: "process.ready" });
+    child.emit("message", { type: "provider.readiness", receipt: createCapabilityReceipt("system.health", { verified: true, summary: "Ready." }) });
+    child.emit("message", { type: "readiness.complete" });
+  }
+  const first = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", maximumAttempts: 1, priority: "high", allowedWorkerIds: ["worker-b"] });
+  const second = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", maximumAttempts: 1, allowedWorkerIds: ["worker-a"] });
+  for (let i = 0; i < 50 && children.some((child) => !child.sent.some((message) => message.type === "task")); i += 1) await delay(10);
+  assert.deepEqual(children.map((child) => child.sent.filter((message) => message.type === "task").map((message) => message.taskId)), [[second.id], [first.id]]);
+  for (const task of [first, second]) {
+    assert.equal(database.getTask(task.id).status, "running");
+    assert.equal(database.getTask(task.id).attemptCount, 1);
+  }
+});
+
+test("available agents take concurrent requests while busy authorized routes stay queued", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const children = [fakeChild(4242), fakeChild(4243)];
+  const workers = [workerDefinition({ id: "worker-a" }), workerDefinition({ id: "worker-b", costClass: "local-model" })];
+  let spawned = 0;
+  const supervisor = new Supervisor({
+    manifest: manifestFixture({ workers, repair: { enabled: false }, costModes: { local: ["deterministic", "local-model"] } }), database,
+    artifactRoot: os.tmpdir(), syncCoordinationMailbox: false,
+    forkWorker: () => children[spawned++], tickIntervalMs: 5,
+  });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  for (const child of children) {
+    child.emit("message", { type: "process.ready" });
+    child.emit("message", { type: "provider.readiness", receipt: createCapabilityReceipt("system.health", { verified: true, summary: "Ready." }) });
+    child.emit("message", { type: "readiness.complete" });
+  }
+  const first = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", maximumAttempts: 1, priority: "critical" });
+  const pinned = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", maximumAttempts: 1, priority: "high", allowedWorkerIds: ["worker-a"] });
+  const parallel = database.submitTask({ capability: "system.health", dataClass: "synthetic", requestedMode: "local", maximumAttempts: 1 });
+  for (let i = 0; i < 50 && children.some((child) => !child.sent.some((message) => message.type === "task")); i += 1) await delay(10);
+  assert.deepEqual(children.map((child) => child.sent.filter((message) => message.type === "task").map((message) => message.taskId)), [[first.id], [parallel.id]]);
+  assert.equal(database.getTask(pinned.id).status, "queued");
+  assert.equal(database.getTask(pinned.id).attemptCount, 0);
+});
+
 test("scheduled work waits for verified live readiness and remains deduplicated", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();
@@ -668,4 +721,19 @@ test("graceful supervisor stop accepts process exit without waiting for delayed 
     new Promise((resolve) => setImmediate(() => resolve(false))),
   ]);
   assert.equal(resolved, true, "process exit must satisfy the teardown barrier even if stdio close is delayed");
+});
+
+test("timed-out shutdown releases tracking while preserving the shutdown failure", async (t) => {
+  const { database, cleanup } = databaseFixture();
+  const child = fakeChild();
+  child.exitCode = null;
+  const supervisor = new Supervisor({ manifest: manifestFixture(), database, artifactRoot: os.tmpdir(), syncCoordinationMailbox: false, forkWorker: () => child, tickIntervalMs: 1000 });
+  t.after(() => { supervisor.stop(); cleanup(); });
+  supervisor.start();
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const stopped = assert.rejects(supervisor.stop({ waitForWorkers: true }), /worker-shutdown-timeout/);
+  t.mock.timers.tick(10000);
+  await stopped;
+  assert.equal(supervisor.status().length, 0);
+  child.emit("exit", 1, null);
 });

@@ -29,6 +29,31 @@ capability canary. Without that evidence, Mahoraga reports
 `zero-credit-provider-unavailable`; it never substitutes the installed Codex CLI
 or AI Gateway. Deterministic registered capabilities remain usable.
 
+## Request dispatch and recovery
+
+The supervisor checks the canonical route before claiming a request. Requests
+assigned to other workers keep their execution attempts. Available authorized
+workers can handle independent requests concurrently; a request whose eligible
+workers are all busy stays queued until capacity returns. The supervisor checks
+authority and readiness again after claiming and before dispatch.
+
+Objective reconciliation selects active objectives before applying its bounded
+500-objective batch, ordered by least recent update. Completed history cannot
+hide active work. Replanning preserves original exclusions and every previously
+failed worker. If recovery would exceed the 16-worker exclusion bound, the
+objective fails with recovery evidence instead of cycling back to rejected
+workers.
+
+## Zero-credit answer admission
+
+Zero-credit policy applies whether supplied by the request mode or routing
+context. Answer admission binds billing and readiness evidence to the selected
+provider identity. A matching cost class alone cannot admit a different worker.
+When the cloud provider is excluded or busy, a verified local provider can take
+the request. If the only verified provider is busy, the request stays queued;
+an idle provider without evidence cannot consume it. Ambiguous duplicate provider
+evidence fails closed regardless of input order.
+
 ## Explicit model-spend boundary
 
 A model may run only after one of these deliberate actions:
