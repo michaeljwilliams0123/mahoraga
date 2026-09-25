@@ -38,4 +38,18 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
+
+  it("surfaces canary-aligned GLM live inference controls, not max_tokens", () => {
+    const command = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+    assert.match(cockpit, /max_completion_tokens/);
+    assert.match(cockpit, /enable_thinking:false/);
+    assert.match(command, /max_completion_tokens/);
+    assert.match(command, /enable_thinking:false/);
+    assert.match(cockpit, /Live \/api\/infer GLM contract/);
+    assert.doesNotMatch(cockpit, /max_tokens is the production inference/);
+    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(cockpit, /Stale SHA after deploy is not traffic authority/);
+    assert.match(cockpit, /502 after successful budget reserve is fail-closed response-path evidence/);
+  });
 });
