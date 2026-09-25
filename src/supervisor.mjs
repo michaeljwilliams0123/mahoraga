@@ -409,7 +409,9 @@ export class Supervisor extends EventEmitter {
         workerId: state.definition.id, capabilities: state.definition.capabilities, leaseMs: this.manifest.runtime.taskLeaseMs,
         acceptTask: (candidate) => {
           const route = routeTask(this.manifest, candidate, this.#routingContext(candidate, { dispatch: true }));
-          if (route.reason === "workers-at-capacity") return false;
+          // Transient provider admission and worker capacity must not consume
+          // the task's only execution attempt before a provider is eligible.
+          if (route.reason === "workers-at-capacity" || route.reason === "waiting-zero-credit-provider") return false;
           return route.status !== "routable" || route.worker.id === state.definition.id;
         },
       });

@@ -606,7 +606,7 @@ test("failed communication send receipt never promotes the manual canary", async
   assert.equal(readiness.canaryStatus, "never");
   assert.equal(readiness.canaryVerifiedAt, null);
 });
-test("zero-credit answer scheduler preserves verified provider admission", async (t) => {
+test("zero-credit answer scheduler waits for provider evidence without spending an attempt, then dispatches", async (t) => {
   const { database, cleanup } = databaseFixture();
   const child = fakeChild();
   const worker = workerDefinition({
@@ -637,7 +637,7 @@ test("zero-credit answer scheduler preserves verified provider admission", async
   });
   const envKeys = {
     MAHORAGA_ZERO_CREDIT_METERED: "false", MAHORAGA_ZERO_CREDIT_PRICE_USD: "0",
-    MAHORAGA_ZERO_CREDIT_SPEND_USD: "0", MAHORAGA_ZERO_CREDIT_BILLING_STATE: "verified-zero",
+    MAHORAGA_ZERO_CREDIT_SPEND_USD: "0", MAHORAGA_ZERO_CREDIT_BILLING_STATE: "unverified",
     MAHORAGA_ZERO_CREDIT_ZERO_DOLLAR_STOP_GUARANTEED: "true",
   };
   const previous = Object.fromEntries(Object.keys(envKeys).map((key) => [key, process.env[key]]));
@@ -669,8 +669,15 @@ test("zero-credit answer scheduler preserves verified provider admission", async
     maximumAttempts: 1,
   });
   await delay(80);
+  assert.equal(database.getTask(submitted.id).status, "queued");
+  assert.equal(database.getTask(submitted.id).attemptCount, 0);
+  assert.equal(child.sent.some((message) => message?.type === "task" && message.taskId === submitted.id), false);
+  process.env.MAHORAGA_ZERO_CREDIT_BILLING_STATE = "verified-zero";
+  await delay(80);
   const delivery = child.sent.find((message) => message?.type === "task" && message.taskId === submitted.id);
   assert.ok(delivery, "verified zero-credit task should be delivered to the selected worker");
+  assert.equal(database.getTask(submitted.id).attemptCount, 1);
+  assert.equal(delivery.task.idempotencyKey, submitted.idempotencyKey);
   assert.equal(delivery.admission?.providerDecision?.providerId, "codespaces-open-weight");
   assert.equal(delivery.admission?.providerDecision?.status, "selected");
   assert.equal(delivery.admission?.billingDecision?.required, true);
