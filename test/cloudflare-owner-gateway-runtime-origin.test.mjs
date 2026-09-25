@@ -15,8 +15,10 @@ test("owner gateway has no external runtime-origin fallback contract", () => {
   assert.match(config, /\[\[services\]\][\s\S]*binding\s*=\s*"MAHORAGA_EXECUTION_RUNTIME"[\s\S]*service\s*=\s*"mahoraga-execution-runtime"/);
 });
 
-test("Cloudflare Builds root config preserves the native bridge deployment contract", () => {
+test("Cloudflare Builds root config preserves only the native bridge deployment contract", () => {
   assert.match(rootConfig, /MAHORAGA_PAGES_ORIGIN\s*=\s*"https:\/\/michaeljwilliams0123\.github\.io\/"/);
+  assert.doesNotMatch(rootConfig, /MAHORAGA_RUNTIME_ORIGIN/);
+  assert.doesNotMatch(rootConfig, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.match(rootConfig, /\[\[services\]\][\s\S]*binding\s*=\s*"MAHORAGA_EXECUTION_RUNTIME"[\s\S]*service\s*=\s*"mahoraga-execution-runtime"/);
 });
 
