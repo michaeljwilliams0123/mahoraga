@@ -1,8 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
-import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, type ZeroCreditProviderConfig } from "./provider-invoker";
+import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, providerMessagesWithinLimit, type ProviderMessage, type ZeroCreditProviderConfig } from "./provider-invoker";
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
-import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageReceipt } from "./storage";
+import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -11,6 +11,7 @@ const MAX_IDEMPOTENCY_KEY_LENGTH = 200;
 const MAX_BILLING_ATTESTATION_BYTES = 8_192;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const DURABLE_STATE = "cloudflare-do-sqlite";
+const MAX_CONTEXT_TURNS = 6;
 
 type ChatPayload = { conversationId: string; turnId: string; message: string };
 type ReceiptPayload = { executed: true; providerId: string; modelId: string; assistantContentId: string; timestamp: number };
@@ -55,6 +56,27 @@ const acceptanceRunId = (request: Request): string | null => {
 };
 const objectValue = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const safeError = (error: unknown): string => error instanceof Error && /^content-vault-[a-z-]+$/.test(error.message) ? error.message : "cognition-provider-failed";
+
+async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
+  const current: ProviderMessage = { role: "user", content: message };
+  const selected: ProviderMessage[] = [current];
+  const completed = storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant !== null).slice(-MAX_CONTEXT_TURNS);
+  for (const turn of completed.reverse()) {
+    const user = storage.getContentRecord(turn.contentIdUser);
+    const assistant = storage.getContentRecord(turn.contentIdAssistant!);
+    if (!user || !assistant || user.conversationId !== conversationId || assistant.conversationId !== conversationId || user.role !== "user" || assistant.role !== "assistant") {
+      throw new Error("content-vault-decryption-failed");
+    }
+    const [userText, assistantText] = await Promise.all([
+      decryptConversationContent(user, vaultKey),
+      decryptConversationContent(assistant, vaultKey),
+    ]);
+    const next: ProviderMessage[] = [{ role: "user", content: userText }, { role: "assistant", content: assistantText }, ...selected];
+    if (!providerMessagesWithinLimit(next)) break;
+    selected.splice(0, selected.length, ...next);
+  }
+  return selected;
+}
 
 async function verifyGatewayAssertion(request: Request, body: string, secret: string): Promise<{ owner: string; nonce: string } | null> {
   const owner = request.headers.get("x-mahoraga-owner") ?? "";
@@ -171,7 +193,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (raced?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" } });
       const state = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
-      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: message }] });
+      const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
+      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();

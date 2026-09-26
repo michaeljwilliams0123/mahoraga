@@ -145,6 +145,9 @@ const messagesWithinLimit = (messages: ProviderMessage[]): boolean => {
   return true;
 };
 
+export const providerMessagesWithinLimit = (messages: ProviderMessage[]): boolean =>
+  messagesWithinLimit([groundingMessage(DEFAULT_BROWSER_RUNTIME_CONTEXT), ...messages]);
+
 const jsonAction = (answer: string): Record<string, unknown> | null => {
   let candidate = answer.trim();
   if (candidate.startsWith("```")) {

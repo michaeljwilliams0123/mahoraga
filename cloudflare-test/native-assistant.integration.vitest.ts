@@ -95,4 +95,44 @@ describe("native assistant bridge", () => {
       expect(rows.every((row) => !row.ciphertext.includes("Question") && !row.ciphertext.includes("answer"))).toBe(true);
     });
   });
+
+  it("uses completed turns from the same owner's conversation for follow-up cognition", async () => {
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
+      instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, reasonCode: null, observedAt: Date.now(), verifiedAt: Date.now(), canaryExpiresAt: Date.now() + 60_000 });
+    });
+    const run = vi.fn().mockResolvedValueOnce({ response: "The code word is violet." }).mockResolvedValueOnce({ response: "Violet." }).mockResolvedValueOnce({ response: "New conversation." });
+    setProviderInvokerForTest(run);
+    const base = { conversationId: "recall-conversation", mode: "ask", creditPolicy: "zero-codex" };
+    expect((await post("chat", { ...base, content: "Remember the code word violet in this conversation.", idempotencyKey: "recall-first" })).status).toBe(200);
+    expect((await post("chat", { ...base, content: "What was the code word?", idempotencyKey: "recall-second" })).status).toBe(200);
+    expect(run.mock.calls[1]?.[1].messages).toEqual([
+      { role: "user", content: "Remember the code word violet in this conversation." },
+      { role: "assistant", content: "The code word is violet." },
+      { role: "user", content: "What was the code word?" },
+    ]);
+    expect((await post("chat", { ...base, conversationId: "separate-conversation", content: "And here?", idempotencyKey: "recall-other" })).status).toBe(200);
+    expect(run.mock.calls[2]?.[1].messages).toEqual([{ role: "user", content: "And here?" }]);
+    expect((await post("chat", { ...base, content: "Intruder", idempotencyKey: "recall-intruder" }, "intruder@example.com")).status).toBe(404);
+    expect(run).toHaveBeenCalledTimes(3);
+  });
+
+  it("keeps only recent complete turns within the provider input budget", async () => {
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
+      instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, reasonCode: null, observedAt: Date.now(), verifiedAt: Date.now(), canaryExpiresAt: Date.now() + 60_000 });
+    });
+    const run = vi.fn().mockResolvedValue({ response: "a".repeat(2100) }); setProviderInvokerForTest(run);
+    const base = { conversationId: "bounded-recall", mode: "ask", creditPolicy: "zero-codex" };
+    for (let index = 0; index < 5; index += 1) {
+      expect((await post("chat", { ...base, content: `Earlier ${index}`, idempotencyKey: `bounded-${index}` })).status).toBe(200);
+    }
+    expect((await post("chat", { ...base, content: "Latest question", idempotencyKey: "bounded-last" })).status).toBe(200);
+    const messages = run.mock.calls[5]?.[1].messages as Array<{ role: string; content: string }>;
+    expect(messages.at(-1)).toEqual({ role: "user", content: "Latest question" });
+    expect(messages.length).toBeGreaterThan(1);
+    expect(messages.length).toBeLessThan(11);
+    expect(messages[0]?.content).not.toBe("Earlier 0");
+    expect(messages.reduce((total, message) => total + new TextEncoder().encode(message.content).byteLength, 0)).toBeLessThan(8_000);
+  });
 });
