@@ -32,6 +32,17 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(cockpit, /readyOk \? "Canonical traffic"/);
   });
 
+  it("surfaces provider admission restoration retry as bounded observational evidence", () => {
+    assert.match(cockpit, /Provider admission restore retry/);
+    assert.match(cockpit, /Provider restoration retry/);
+    assert.match(cockpit, /Retry only transient 503 responses/);
+    assert.match(cockpit, /same verified hard-zero billing attestation/);
+    assert.match(cockpit, /bounded attempts and validated delay/);
+    assert.match(cockpit, /persistent failure remains fail-closed/);
+    assert.match(cockpit, /accept-provider-restore-503 is not traffic authority/);
+    assert.match(cockpit, /Observational \/ fail-closed/);
+  });
+
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
