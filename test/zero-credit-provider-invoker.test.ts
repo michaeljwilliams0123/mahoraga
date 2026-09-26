@@ -75,7 +75,7 @@ test("assistant inference is grounded as Mahoraga with live capability truth and
       receipts: [],
       connectionState: "connected",
     },
-  } as never, fetchImpl);
+  }, fetchImpl);
 
   assert.equal(observedMessages[0]?.role, "system");
   assert.match(observedMessages[0]?.content ?? "", /You are Mahoraga/i);
@@ -87,21 +87,51 @@ test("assistant inference is grounded as Mahoraga with live capability truth and
   assert.equal(observedMessages.at(-1)?.content, "What can you do right now?");
 });
 
-test("provider identity cannot replace Mahoraga identity in the grounding contract", async () => {
+test("production default context exposes the browser runtime capability boundary", async () => {
   let systemMessage = "";
   const fetchImpl: typeof fetch = async (_input, init) => {
     const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
     systemMessage = body.messages?.find((message) => message.role === "system")?.content ?? "";
-    return Response.json(providerEnvelope("I am GLM, trained by Z.ai."));
+    return Response.json(providerEnvelope("Mahoraga is connected."));
   };
 
-  await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+  await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: "What can you do?" }] }, fetchImpl);
+
+  assert.match(systemMessage, /assistant\.respond=routable/i);
+  assert.match(systemMessage, /repository\.inspect=unavailable/i);
+  assert.match(systemMessage, /browser\.execute=unavailable/i);
+  assert.match(systemMessage, /image\.generate=unavailable/i);
+  assert.match(systemMessage, /memory\.write=unavailable/i);
+});
+
+test("provider identity cannot replace Mahoraga identity in the final answer", async () => {
+  let systemMessage = "";
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
+    systemMessage = body.messages?.find((message) => message.role === "system")?.content ?? "";
+    return Response.json(providerEnvelope("I am GLM, a large language model trained by Z.ai."));
+  };
+
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
     messages: [{ role: "user", content: "What is your name?" }],
     runtimeContext: { capabilities: { "assistant.respond": "routable" }, receipts: [], connectionState: "connected" },
-  } as never, fetchImpl);
+  }, fetchImpl) as { response?: string };
 
   assert.match(systemMessage, /identity is Mahoraga/i);
   assert.match(systemMessage, /do not identify yourself as GLM|do not present.*provider/i);
+  assert.equal(result.response, "I am Mahoraga.");
+  assert.doesNotMatch(result.response ?? "", /\bGLM\b|Z\.ai/i);
+});
+
+test("unverified durable-memory claims are replaced with truthful runtime status", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope("I have committed your name to memory. It is absolute."));
+
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "Your name is Mahoraga, commit it to memory." }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /durable memory is not currently connected/i);
+  assert.doesNotMatch(result.response ?? "", /committed your name to memory/i);
 });
 
 test("raw text_to_image action envelopes are intercepted and fail closed when image generation is unavailable", async () => {
@@ -118,7 +148,7 @@ test("raw text_to_image action envelopes are intercepted and fail closed when im
       receipts: [],
       connectionState: "connected",
     },
-  } as never, fetchImpl) as { response?: string; action?: { type?: string; status?: string } };
+  }, fetchImpl) as { response?: string; action?: { type?: string; status?: string } };
 
   assert.equal(result.action?.type, "text_to_image");
   assert.equal(result.action?.status, "unavailable");
