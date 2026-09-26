@@ -212,3 +212,34 @@ test("fail-closed proof waits for the acceptance Durable Object to converge befo
   assert.deepEqual(readyAcceptanceHeaders, [null, null, "cutover-convergence-run"]);
   assert.equal(paths.indexOf("/api/provider/refresh") > paths.lastIndexOf("/api/ready"), true);
 });
+
+test("fail-closed proof retries transient hard-zero admission restoration", async () => {
+  let refreshes = 0;
+  const sleeps: number[] = [];
+  await proveFailClosedZeroBilling({
+    accessToken: "access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    providerRefreshSecret: "refresh-secret",
+    acceptanceRunId: "cutover-restore-retry-run",
+    billingAttestation: JSON.stringify({ schemaVersion: 1, verifiedAt: 100, expiresAt: 200 }),
+    providerRestoreAttempts: 2,
+    providerRestoreDelayMs: 25,
+    sleep: async (milliseconds) => { sleeps.push(milliseconds); },
+    fetchImpl: async (input, init) => {
+      const request = new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path === "/api/live") return Response.json({ status: "live", sha: SHA });
+      if (path === "/api/ready") return Response.json({ status: "ready", sha: SHA, durableState: "cloudflare-do-sqlite" });
+      if (path === "/api/provider/refresh") {
+        refreshes += 1;
+        if (refreshes < 3) return Response.json({ zeroCreditEligible: false }, { status: 503 });
+        return Response.json({ zeroCreditEligible: true }, { status: 200 });
+      }
+      return Response.json({ error: "Cognition provider unavailable" }, { status: 503 });
+    },
+  });
+
+  assert.equal(refreshes, 3);
+  assert.deepEqual(sleeps, [25]);
+});

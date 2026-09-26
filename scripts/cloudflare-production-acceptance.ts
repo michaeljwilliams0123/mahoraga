@@ -77,6 +77,8 @@ export async function proveFailClosedZeroBilling(input: {
   fetchImpl?: typeof fetch;
   readyAttempts?: number;
   readyDelayMs?: number;
+  providerRestoreAttempts?: number;
+  providerRestoreDelayMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<void> {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -128,7 +130,16 @@ export async function proveFailClosedZeroBilling(input: {
     });
     if (blocked.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) throw new Error(`accept-fail-closed-execution-${blocked.status}`);
   } catch (error) { proofError = error; }
-  const restored = await refresh(input.billingAttestation);
+  const restoreAttempts = input.providerRestoreAttempts ?? 6;
+  const restoreDelayMs = input.providerRestoreDelayMs ?? 1_000;
+  if (!Number.isInteger(restoreAttempts) || restoreAttempts < 1 || restoreAttempts > 30) throw new Error("accept-provider-restore-attempts-invalid");
+  if (!Number.isInteger(restoreDelayMs) || restoreDelayMs < 0 || restoreDelayMs > 30_000) throw new Error("accept-provider-restore-delay-invalid");
+  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolveSleep) => setTimeout(resolveSleep, milliseconds)));
+  let restored = await refresh(input.billingAttestation);
+  for (let attempt = 1; restored.status === 503 && attempt < restoreAttempts; attempt += 1) {
+    await sleep(restoreDelayMs);
+    restored = await refresh(input.billingAttestation);
+  }
   if (restored.status !== 200) throw new Error(`accept-provider-restore-${restored.status}`);
   const restoredBody = jsonRecord(await restored.json().catch(() => null));
   if (restoredBody?.zeroCreditEligible !== true) throw new Error("accept-provider-restore-invalid");
