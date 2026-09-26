@@ -107,15 +107,22 @@ export function CockpitView({
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const promotionMode = health?.deployment?.promotion ?? "unverified";
   const deploymentUrl = health?.deployment?.url ?? "unavailable";
-  const cloudflareNative = deploymentProvider.startsWith("cloudflare") || promotionMode === "exact-main-cloudflare";
+  const cloudflareProvider = deploymentProvider.startsWith("cloudflare");
+  const cloudflareExactMain = cloudflareProvider
+    && promotionMode === "exact-main-cloudflare"
+    && deploymentConvergence === "Current";
   const railwayRetired = deploymentProvider === "railway";
-  const deploymentTruthLabel = cloudflareNative
+  const deploymentTruthLabel = cloudflareExactMain
     ? "Cloudflare exact-main"
+    : cloudflareProvider
+      ? "Cloudflare candidate"
     : railwayRetired
       ? "Railway retired"
       : deploymentProvider;
-  const deploymentDetail = cloudflareNative
+  const deploymentDetail = cloudflareExactMain
     ? `Exact-main deployment and acceptance require Ubuntu + Windows Verify · traffic authority remains separate · ${deploymentEnvironment}`
+    : cloudflareProvider
+      ? `Non-authoritative presentation candidate · exact-main deployment and acceptance not proven · ${deploymentEnvironment}`
     : railwayRetired
       ? `Retired non-routing rollback/evidence only · never production traffic authority · ${deploymentEnvironment}`
       : deploymentProvider === "vercel"
@@ -195,7 +202,7 @@ export function CockpitView({
       <div className="eclipse-status-grid">
         <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
-        <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareNative && deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
+        <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
@@ -203,9 +210,9 @@ export function CockpitView({
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
-        <StatusCard label="Deployment" value={cloudflareNative ? "Cloudflare native runtime" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareNative ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
+        <StatusCard label="Deployment" value={cloudflareExactMain ? "Cloudflare native runtime" : cloudflareProvider ? "Cloudflare candidate" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareExactMain ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
         <StatusCard label="Deployment convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
-        <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="MAHORAGA_EXPECTED_GIT_SHA · deploy and accept exact main on Cloudflare only after Ubuntu and Windows Verify; mismatch fails closed." tone={expectedDeploymentCommit ? (cloudflareNative && deploymentConvergence === "Current" ? "good" : "warn") : "warn"} />
+        <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="MAHORAGA_EXPECTED_GIT_SHA · deploy and accept exact main on Cloudflare only after Ubuntu and Windows Verify; mismatch fails closed." tone={expectedDeploymentCommit ? (cloudflareExactMain ? "good" : "warn") : "warn"} />
         <StatusCard label="Owner login" value="AUTH_NO_STORE_#486" detail="Cache-Control: no-store · failure and success responses are not cached" tone="good" />
         <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />

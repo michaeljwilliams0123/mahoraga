@@ -36,6 +36,9 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /Cloudflare is the native browser and execution surface/);
   assert.match(cockpit, /mahoraga-workspace-candidate\.mahoraga-mjw0123\.workers\.dev/);
   assert.match(cockpit, /exact-main provenance is unverified/);
+  assert.match(cockpit, /const cloudflareExactMain = cloudflareProvider[\s\S]*promotionMode === "exact-main-cloudflare"[\s\S]*deploymentConvergence === "Current"/);
+  assert.match(cockpit, /Cloudflare candidate/);
+  assert.doesNotMatch(cockpit, /const cloudflareNative = deploymentProvider\.startsWith\("cloudflare"\) \|\|/);
   assert.match(cockpit, /response\.json/);
   assert.match(cockpit, /durableState/);
   assert.match(cockpit, /cloudflare-execution-runtime is hop identity only/);
