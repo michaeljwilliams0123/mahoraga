@@ -258,14 +258,14 @@ export function ChatView(props: ChatViewProps) {
           </div>
         </div>
 
-        <div className="runtime-strip">
-          <span className={`runtime-light ${coreReady ? "online" : "offline"}`} />
-          <span>{brainState}</span>
-          <span>·</span>
-          <span>{assistantReady ? "assistant route ready" : "assistant route held"}</span>
-          <span>·</span>
-          <span>{healthError ? "health unavailable" : health?.source?.commit ? `source ${health.source.commit.slice(0, 8)}` : "source pending"}</span>
-          {coreReady && <button type="button" onClick={() => void revokeRuntime()}><Unplug size={13} /> Disconnect</button>}
+        <div className="status-line" aria-live="polite">
+          {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
+            : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
+              : brainState === "Ready" ? <><Check size={14} /> Ready to pair</>
+                : <><Check size={14} /> {brainState}</>}
+          {voiceListening && <span> · listening</span>}
+          {healthError && <span> · workspace health unavailable</span>}
+          {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}
         </div>
       </section>
     </div>
