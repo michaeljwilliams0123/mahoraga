@@ -61,6 +61,8 @@ test("brain stack remains Node-owned and Cloudflare does not fake the cognitive 
   assert.match(cognitiveLoop, /simulateCounterfactual/);
   assert.match(cognitiveLoop, /planWorldStateActions/);
   assert.match(individual, /explicit-promotion-only/);
+  assert.match(individual, /external-capability-fabric/);
+  assert.match(individual, /projectPublicCognitiveProfile/);
   assert.match(evolution, /candidate-created/);
   assert.match(evolution, /canary-passed/);
   assert.match(evolution, /rollback/);

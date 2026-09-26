@@ -38,7 +38,7 @@ test("GitHub Pages is canonical browser presentation while Cloudflare is the acc
   assert.match(readme, /\[Open Mahoraga\]\(https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/\)/);
   assert.match(readme, /Cloudflare execution runtime/);
 
-  assert.match(references.allowlist, /"mahoraga-runtime-main-production\.up\.railway\.app"/);
+  assert.doesNotMatch(references.allowlist, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.doesNotMatch(references.browserWorker, /canonical Railway workspace/);
   assert.doesNotMatch(references.manifest, /canonical Railway workspace/);
 

@@ -63,7 +63,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Cloudflare root-path workspace is a non-authoritative candidate. GitHub Pages remains an export fallback; Railway remains rollback evidence, not the new browser entry point.",
+      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is retired non-routing rollback/evidence only.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -72,7 +72,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
-        { label: "railwayPromote", value: "after Verify Mahoraga on main; verified run SHA (#656)" },
+        { label: "railwayStatus", value: "retired · non-routing rollback/evidence only" },
       ],
       actionable: false,
     };
@@ -191,7 +191,7 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
-            <span className="cockpit-pill ok">RAILWAY_PROMOTE_#656</span>
+            <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
           </div>
         </header>
 
@@ -202,7 +202,7 @@ export function CommandCockpit({
             Owner login failures use <code>Cache-Control: no-store</code> (#486). Bounded artifact bridge live (#505). Brain-routed; no lane or port selection required for talk/build/handoff/create/report/ship. The active Windows runtime is reported from live core status; 3.6.0 is retained only as the legacy rollback predecessor.
           </p>
           <p role="status">
-            Cloudflare candidate browser: {CLOUDFLARE_WORKSPACE_CANDIDATE} · promotion unverified-cloudflare-static. GitHub Pages remains a presentation/export fallback. Runtime execution and traffic authority remain independently gated.
+            Cloudflare workspace: {CLOUDFLARE_WORKSPACE_CANDIDATE} · provenance is unverified until exact-main publish and acceptance are tied to the merged SHA. Runtime execution and traffic authority remain independently gated.
           </p>
           <p>
             Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here.
@@ -211,7 +211,7 @@ export function CommandCockpit({
             Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
           </p>
           <p>
-            7.0.0-alpha.2 mutations through the owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; the trusted mutation origin is rewritten to the canonical Railway upstream (#550). github.io is presentation only and must not call authenticated APIs.
+            7.0.0-alpha.2 mutations through the Cloudflare owner gateway are same-origin only. Cross-origin mutations fail closed with <code>403 gateway-same-origin-required</code>; only the current request origin is trusted, and legacy hosting environment variables grant no origin authority. github.io is presentation only and must not call authenticated APIs.
           </p>
           <p>
             Cloudflare Workers Builds now detects the owner gateway from repo root via root <code>wrangler.toml</code> pointing at <code>deploy/cloudflare-owner-gateway/worker.mjs</code> (#562). Production <code>npx wrangler deploy</code> and preview <code>npx wrangler versions upload</code> resolve the same live Worker. Nested config remains valid. No Worker logic or secret values changed.
@@ -220,7 +220,7 @@ export function CommandCockpit({
             CI publish and steward jobs use the self-hosted Linux/X64 lane. Informational copy only. This does not activate 7.0.0-alpha.2 on Windows and does not change cognition or paid fallback.
           </p>
           <p>
-            Railway exact-SHA promotion (#656) runs only after a successful owner-authored Verify Mahoraga on main. Checkout and promoter bind to the verified run SHA, not the Railway GitHub status context. Wait for CI stays disabled to avoid a pre-deploy circular dependency. Liveness/readiness provenance probe and rollback remain.
+            Railway is retired as <strong>non-routing rollback/evidence</strong>. No Railway promotion workflow, reconstruction controller, login-origin grant, operator target, traffic route, or fallback is active. Exact-main Cloudflare deployment and acceptance require successful Ubuntu and Windows Verify for the merged main SHA.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
@@ -235,7 +235,7 @@ export function CommandCockpit({
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
-            <div><dt>railway promote</dt><dd>PR 656 after Verify Mahoraga on main; verified run SHA; Wait for CI disabled</dd></div>
+            <div><dt>railway status</dt><dd>retired · non-routing rollback/evidence only · no promotion or reconstruction path</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
@@ -246,7 +246,7 @@ export function CommandCockpit({
           <p>Foundation #665 keeps source, deployment, and live-runtime claims separate. A green observation in one plane does not manufacture evidence in another.</p>
           <dl>
             <div><dt>Source Truth</dt><dd>protected GitHub main · required exact-head Verify (ubuntu-latest + windows-latest)</dd></div>
-            <div><dt>Deployment Truth</dt><dd>Railway exact-SHA promotion/pin state · verified main SHA only</dd></div>
+            <div><dt>Deployment Truth</dt><dd>exact-main Cloudflare deployment plus acceptance · fail closed unless tied to the merged main SHA</dd></div>
             <div><dt>Live-Runtime Truth</dt><dd>{liveOk ? "observed /api/live" : healthError ? "unavailable" : "pending"} · observational, not source authority</dd></div>
             <div><dt>Ready</dt><dd>{readyOk ? "execution ready + paired core" : "not proven"} · SHA {shortReadinessSha(readiness?.sha)} · durableState {readiness?.durableState ?? "unavailable"}</dd></div>
             <div><dt>Traffic authority</dt><dd>separate / unverified · never inferred from /api/ready</dd></div>
@@ -310,7 +310,7 @@ export function CommandCockpit({
           </section>
 
           <section className="cockpit-gateways" aria-label="Integration gateways">
-            <article><header><strong>Railway exact-SHA runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "IDLE"}</span></header><p>Promotion happens after GitHub Verify Mahoraga on main using the verified run SHA, not the Railway GitHub status context. Wait for CI stays disabled (no pre-deploy circular dependency). Liveness/readiness provenance probe and rollback remain. Pages is the published static workspace. Fake rollback APIs are hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
+            <article><header><strong>Cloudflare exact-main runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "UNVERIFIED"}</span></header><p>Deployment and acceptance must bind to the merged main SHA after Ubuntu and Windows Verify. Readiness never grants traffic authority. Railway is retained only as non-routing rollback/evidence, and fake rollback APIs remain hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>

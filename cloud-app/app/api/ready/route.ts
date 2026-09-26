@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const gitSha = process.env.RAILWAY_GIT_COMMIT_SHA?.trim() ?? "";
+  const gitSha = process.env.MAHORAGA_GIT_COMMIT_SHA?.trim() ?? "";
   const expectedGitSha = process.env.MAHORAGA_EXPECTED_GIT_SHA?.trim() ?? "";
   if (process.env.NODE_ENV === "production") {
     if (!validSha(gitSha) || !validSha(expectedGitSha)) {

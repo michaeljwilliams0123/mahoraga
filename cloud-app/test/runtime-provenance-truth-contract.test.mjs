@@ -18,10 +18,11 @@ test("unpaired cloud health reports runtime provenance as unknown until the pair
   assert.match(route, /source:\s*"paired-core-required"/);
 });
 
-test("Railway expected SHA stays deployment metadata and cannot overwrite actual commit identity", () => {
+test("Cloudflare expected SHA stays deployment metadata and cannot overwrite actual commit identity", () => {
   assert.match(route, /expectedCommitSha:\s*process\.env\.MAHORAGA_EXPECTED_GIT_SHA/);
-  assert.match(route, /commitSha:\s*process\.env\.MAHORAGA_GIT_COMMIT_SHA\s*\?\?\s*process\.env\.RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(route, /commitSha:\s*process\.env\.MAHORAGA_GIT_COMMIT_SHA\s*\?\?\s*process\.env\.COMMIT_REF/);
   assert.doesNotMatch(route, /commitSha:\s*process\.env\.MAHORAGA_EXPECTED_GIT_SHA/);
+  assert.doesNotMatch(route, /RAILWAY_/);
 });
 
 test("health evaluates deployment identity at request time instead of freezing it at build", () => {
@@ -30,11 +31,11 @@ test("health evaluates deployment identity at request time instead of freezing i
   assert.doesNotMatch(route, /force-static/);
 });
 
-test("health does not report false local when Railway runtime markers are absent or present", () => {
-  assert.match(route, /function railwayRuntimePresent/);
-  assert.match(route, /if \(railwayRuntimePresent\(\)\) return "railway"/);
+test("health uses explicit deployment metadata and otherwise stays unknown", () => {
+  assert.match(route, /MAHORAGA_DEPLOYMENT_PROVIDER/);
   assert.match(route, /return "unknown"/);
   assert.doesNotMatch(route, /return "local"/);
   assert.doesNotMatch(route, /process\.env\.CONTEXT \?\? "local"/);
+  assert.doesNotMatch(route, /railwayRuntimePresent/);
   assert.doesNotMatch(route, /VERCEL_/);
 });
