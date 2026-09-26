@@ -154,8 +154,8 @@ export function ChatView(props: ChatViewProps) {
 
         {runtimeBusy && (
           <div className="live-work-card" aria-live="polite">
-            <div className="live-work-head"><span className="work-pulse" /><strong>{activeActionLabel ? `${activeActionLabel} in progress` : "Mahoraga is working"}</strong><LoaderCircle className="spin" size={17} /></div>
-            <p>The paired brain is choosing the lane, executing the work, and collecting evidence. Open Work or Advanced only if you want more detail.</p>
+            <div className="live-work-head"><span className="work-pulse" /><strong>{activeActionLabel ? `${activeActionLabel} in progress` : "Thinking / recovering answer"}</strong><LoaderCircle className="spin" size={17} /></div>
+            <p>{activeActionLabel ? "The paired brain is choosing the lane, executing the work, and collecting evidence. Open Work or Advanced only if you want more detail." : "The authenticated brain remains connected while this browser waits for the same durable answer. A delayed reply does not start a fallback or duplicate execution."}</p>
             <div className="work-flow" aria-hidden="true"><span>Understand</span><i /><span>Route</span><i /><span>Execute</span><i /><span>Verify</span></div>
           </div>
         )}
@@ -258,14 +258,14 @@ export function ChatView(props: ChatViewProps) {
           </div>
         </div>
 
-        <div className="status-line" aria-live="polite">
-          {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
-            : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
-              : brainState === "Ready" ? <><Check size={14} /> Ready to pair</>
-                : <><Check size={14} /> {brainState}</>}
-          {voiceListening && <span> · listening</span>}
-          {healthError && <span> · workspace health unavailable</span>}
-          {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}
+        <div className="runtime-strip">
+          <span className={`runtime-light ${coreReady ? "online" : "offline"}`} />
+          <span>{brainState}</span>
+          <span>·</span>
+          <span>{assistantReady ? "assistant route ready" : "assistant route held"}</span>
+          <span>·</span>
+          <span>{healthError ? "health unavailable" : health?.source?.commit ? `source ${health.source.commit.slice(0, 8)}` : "source pending"}</span>
+          {coreReady && <button type="button" onClick={() => void revokeRuntime()}><Unplug size={13} /> Disconnect</button>}
         </div>
       </section>
     </div>
