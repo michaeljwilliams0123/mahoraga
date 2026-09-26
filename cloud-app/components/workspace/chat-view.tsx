@@ -154,8 +154,8 @@ export function ChatView(props: ChatViewProps) {
 
         {runtimeBusy && (
           <div className="live-work-card" aria-live="polite">
-            <div className="live-work-head"><span className="work-pulse" /><strong>{activeActionLabel ? `${activeActionLabel} in progress` : "Mahoraga is working"}</strong><LoaderCircle className="spin" size={17} /></div>
-            <p>The paired brain is choosing the lane, executing the work, and collecting evidence. Open Work or Advanced only if you want more detail.</p>
+            <div className="live-work-head"><span className="work-pulse" /><strong>{activeActionLabel ? `${activeActionLabel} in progress` : "Thinking / recovering answer"}</strong><LoaderCircle className="spin" size={17} /></div>
+            <p>{activeActionLabel ? "The paired brain is choosing the lane, executing the work, and collecting evidence. Open Work or Advanced only if you want more detail." : "The authenticated brain remains connected while this browser waits for the same durable answer. A delayed reply does not start a fallback or duplicate execution."}</p>
             <div className="work-flow" aria-hidden="true"><span>Understand</span><i /><span>Route</span><i /><span>Execute</span><i /><span>Verify</span></div>
           </div>
         )}

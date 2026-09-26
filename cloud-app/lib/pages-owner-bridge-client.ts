@@ -3,6 +3,10 @@
 type BridgeReply = { protocolVersion: 1; requestId: string; ok: boolean; result?: unknown; error?: string };
 type Pending = { resolve: (value: unknown) => void; reject: (reason: Error) => void; timer: ReturnType<typeof setTimeout> };
 
+const FRAME_TIMEOUT_MS = 10_000;
+const REQUEST_TIMEOUT_MS = 10_000;
+const ACTION_TIMEOUT_MS = 60_000;
+
 export function validatePublicBridgeOrigin(value: string | undefined) {
   if (!value?.trim()) return null;
   try {
@@ -68,7 +72,7 @@ export class PagesOwnerBridgeClient {
     iframe.tabIndex = -1;
     this.frame = iframe;
     this.frameReady = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(bridgeError("cloud-session-unreachable")), 10_000);
+      const timer = setTimeout(() => reject(bridgeError("cloud-session-unreachable")), FRAME_TIMEOUT_MS);
       iframe.addEventListener("load", () => { clearTimeout(timer); resolve(); }, { once: true });
       iframe.addEventListener("error", () => { clearTimeout(timer); reject(bridgeError("cloud-session-unreachable")); }, { once: true });
       document.body.appendChild(iframe);
@@ -81,8 +85,9 @@ export class PagesOwnerBridgeClient {
     if (!target) return Promise.reject(bridgeError("cloud-session-unreachable"));
     const requestId = `breq-${crypto.randomUUID()}`;
     const request = { protocolVersion: 1, requestId, ...body };
+    const timeoutMs = body.type === "bridge.action" ? ACTION_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
     const result = new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => { this.pending.delete(requestId); reject(bridgeError("cloud-session-unreachable")); }, 10_000);
+      const timer = setTimeout(() => { this.pending.delete(requestId); reject(bridgeError("cloud-session-unreachable")); }, timeoutMs);
       this.pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject, timer });
     });
     target.postMessage(request, this.bridgeOrigin);
