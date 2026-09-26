@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   ASSISTANT_MODEL_ID,
+  ASSISTANT_PROVIDER_ID,
   MAX_PROVIDER_INPUT_BYTES,
   invokeZeroCreditProvider,
   providerGapReasonFromError,
@@ -16,6 +17,17 @@ const config: ZeroCreditProviderConfig = {
   accountIdHash: "a".repeat(64),
   targetSha: "b".repeat(40),
 };
+
+const providerEnvelope = (answer: string) => ({
+  providerId: ASSISTANT_PROVIDER_ID,
+  modelId: ASSISTANT_MODEL_ID,
+  targetSha: config.targetSha,
+  accountIdHash: config.accountIdHash,
+  billingBoundary: "daily-free-allocation-budget",
+  freeAllocationNeurons: 10_000,
+  dailyBudgetNeurons: 9_000,
+  answer,
+});
 
 test("provider input limit is enforced in UTF-8 bytes", () => {
   assert.equal(providerInputWithinLimit("a".repeat(MAX_PROVIDER_INPUT_BYTES)), true);
@@ -40,4 +52,106 @@ test("ordinary provider failures do not masquerade as quota exhaustion", async (
       && error.message === "cognition-provider-failed"
       && providerGapReasonFromError(error) === null,
   );
+});
+
+test("assistant inference is grounded as Mahoraga with live capability truth and receipt-gated claims", async () => {
+  let observedMessages: Array<{ role?: string; content?: string }> = [];
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
+    observedMessages = body.messages ?? [];
+    return Response.json(providerEnvelope("I am Mahoraga."));
+  };
+
+  await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "What can you do right now?" }],
+    runtimeContext: {
+      capabilities: {
+        "assistant.respond": "routable",
+        "repository.inspect": "unavailable",
+        "browser.execute": "unavailable",
+        "image.generate": "unavailable",
+        "memory.write": "unavailable",
+      },
+      receipts: [],
+      connectionState: "connected",
+    },
+  }, fetchImpl);
+
+  assert.equal(observedMessages[0]?.role, "system");
+  assert.match(observedMessages[0]?.content ?? "", /You are Mahoraga/i);
+  assert.match(observedMessages[0]?.content ?? "", /provider.*implementation detail/i);
+  assert.match(observedMessages[0]?.content ?? "", /repository\.inspect=unavailable/i);
+  assert.match(observedMessages[0]?.content ?? "", /image\.generate=unavailable/i);
+  assert.match(observedMessages[0]?.content ?? "", /connectionState=connected/i);
+  assert.match(observedMessages[0]?.content ?? "", /verified receipt/i);
+  assert.equal(observedMessages.at(-1)?.content, "What can you do right now?");
+});
+
+test("production default context exposes the browser runtime capability boundary", async () => {
+  let systemMessage = "";
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
+    systemMessage = body.messages?.find((message) => message.role === "system")?.content ?? "";
+    return Response.json(providerEnvelope("Mahoraga is connected."));
+  };
+
+  await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: "What can you do?" }] }, fetchImpl);
+
+  assert.match(systemMessage, /assistant\.respond=routable/i);
+  assert.match(systemMessage, /repository\.inspect=unavailable/i);
+  assert.match(systemMessage, /browser\.execute=unavailable/i);
+  assert.match(systemMessage, /image\.generate=unavailable/i);
+  assert.match(systemMessage, /memory\.write=unavailable/i);
+});
+
+test("provider identity cannot replace Mahoraga identity in the final answer", async () => {
+  let systemMessage = "";
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
+    systemMessage = body.messages?.find((message) => message.role === "system")?.content ?? "";
+    return Response.json(providerEnvelope("I am GLM, a large language model trained by Z.ai."));
+  };
+
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "What is your name?" }],
+    runtimeContext: { capabilities: { "assistant.respond": "routable" }, receipts: [], connectionState: "connected" },
+  }, fetchImpl) as { response?: string };
+
+  assert.match(systemMessage, /identity is Mahoraga/i);
+  assert.match(systemMessage, /do not identify yourself as GLM|do not present.*provider/i);
+  assert.equal(result.response, "I am Mahoraga.");
+  assert.doesNotMatch(result.response ?? "", /\bGLM\b|Z\.ai/i);
+});
+
+test("unverified durable-memory claims are replaced with truthful runtime status", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope("I have committed your name to memory. It is absolute."));
+
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "Your name is Mahoraga, commit it to memory." }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /durable memory is not currently connected/i);
+  assert.doesNotMatch(result.response ?? "", /committed your name to memory/i);
+});
+
+test("raw text_to_image action envelopes are intercepted and fail closed when image generation is unavailable", async () => {
+  const rawAction = JSON.stringify({
+    action: "text_to_image",
+    detail: JSON.stringify({ prompt: "Mahoraga from JJK", aspect_ratio: "ar_9_16" }),
+  });
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope(rawAction));
+
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "create an image of Mahoraga from JJK" }],
+    runtimeContext: {
+      capabilities: { "assistant.respond": "routable", "image.generate": "unavailable" },
+      receipts: [],
+      connectionState: "connected",
+    },
+  }, fetchImpl) as { response?: string; action?: { type?: string; status?: string } };
+
+  assert.equal(result.action?.type, "text_to_image");
+  assert.equal(result.action?.status, "unavailable");
+  assert.match(result.response ?? "", /image generation is not currently connected/i);
+  assert.doesNotMatch(result.response ?? "", /"action"\s*:\s*"text_to_image"/);
 });
