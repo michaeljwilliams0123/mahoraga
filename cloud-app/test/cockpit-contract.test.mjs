@@ -141,7 +141,7 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /MAHORAGA_EXPECTED_GIT_SHA/);
     assert.match(cockpit, /Exact-head CI plus rollback checkpoint/);
     assert.match(cockpit, /Prove candidate and runtime readiness/);
-    assert.match(cockpit, /Promote Railway to the verified Verify Mahoraga run SHA after main/);
+    assert.match(cockpit, /Deploy and accept exact main on Cloudflare after both Verify contexts pass/);
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });

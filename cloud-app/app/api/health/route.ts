@@ -3,21 +3,9 @@ import path from "node:path";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function railwayRuntimePresent() {
-  return Boolean(
-    process.env.RAILWAY_ENVIRONMENT
-      || process.env.RAILWAY_PROJECT_ID
-      || process.env.RAILWAY_GIT_COMMIT_SHA
-      || process.env.RAILWAY_PUBLIC_DOMAIN
-      || process.env.RAILWAY_ENVIRONMENT_NAME,
-  );
-}
-
 function deploymentUrl() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_URL?.trim();
   if (explicit) return explicit;
-  const railway = process.env.RAILWAY_PUBLIC_DOMAIN?.trim();
-  if (railway) return `https://${railway}`;
   const netlify = process.env.DEPLOY_PRIME_URL?.trim() || process.env.URL?.trim();
   if (netlify) return netlify;
   return null;
@@ -31,7 +19,6 @@ function runtimeDatabaseTarget() {
 function deploymentProvider() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_PROVIDER?.trim();
   if (explicit) return explicit;
-  if (railwayRuntimePresent()) return "railway";
   if (process.env.NETLIFY === "true") return "netlify";
   return "unknown";
 }
@@ -39,9 +26,6 @@ function deploymentProvider() {
 function deploymentEnvironment() {
   const explicit = process.env.MAHORAGA_DEPLOYMENT_ENV?.trim();
   if (explicit) return explicit;
-  const railway = process.env.RAILWAY_ENVIRONMENT_NAME?.trim();
-  if (railway) return railway;
-  if (railwayRuntimePresent()) return "production";
   return "unknown";
 }
 
@@ -55,10 +39,10 @@ export async function GET() {
         provider: deploymentProvider(),
         environment: deploymentEnvironment(),
         url: deploymentUrl(),
-        commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.RAILWAY_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? null,
+        commitSha: process.env.MAHORAGA_GIT_COMMIT_SHA ?? process.env.COMMIT_REF ?? null,
         expectedCommitSha: process.env.MAHORAGA_EXPECTED_GIT_SHA ?? null,
-        gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.RAILWAY_GIT_BRANCH ?? process.env.BRANCH ?? null,
-        promotion: process.env.MAHORAGA_EXPECTED_GIT_SHA ? "exact-sha-railway" : null,
+        gitRef: process.env.MAHORAGA_GIT_COMMIT_REF ?? process.env.BRANCH ?? null,
+        promotion: process.env.MAHORAGA_EXPECTED_GIT_SHA ? "exact-main-cloudflare" : null,
       },
       runtime: {
         databaseTarget: {

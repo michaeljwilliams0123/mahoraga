@@ -11,6 +11,7 @@ const OWNER_LOGIN_WINDOW_MS = 5 * 60 * 1000;
 const OWNER_LOGIN_LOCK_MS = 15 * 60 * 1000;
 
 export function hasTrustedRequestOrigin(request: Request, env: NodeJS.ProcessEnv = process.env) {
+  void env;
   const origin = request.headers.get("origin");
   if (!origin) return false;
   let receivedOrigin: string;
@@ -18,11 +19,6 @@ export function hasTrustedRequestOrigin(request: Request, env: NodeJS.ProcessEnv
 
   const allowedOrigins = new Set<string>();
   try { allowedOrigins.add(new URL(request.url).origin); } catch { /* malformed internal URL is not trusted */ }
-  const railwayPublicDomain = env.RAILWAY_PUBLIC_DOMAIN?.trim().toLowerCase();
-  if (railwayPublicDomain && /^[a-z0-9.-]+$/.test(railwayPublicDomain) && railwayPublicDomain.includes(".")
-    && !railwayPublicDomain.includes("..") && !railwayPublicDomain.startsWith(".") && !railwayPublicDomain.endsWith(".")) {
-    allowedOrigins.add(`https://${railwayPublicDomain}`);
-  }
   return allowedOrigins.has(receivedOrigin);
 }
 

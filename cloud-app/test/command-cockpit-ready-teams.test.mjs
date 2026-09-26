@@ -46,9 +46,17 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /ORIGIN_BOUNDARY_#550/);
     assert.match(cockpit, /same-origin only/i);
     assert.match(cockpit, /gateway-same-origin-required/);
-    assert.match(cockpit, /trusted mutation origin is rewritten to the canonical Railway upstream/i);
+    assert.match(cockpit, /only the current request origin is trusted/i);
+    assert.match(cockpit, /legacy hosting environment variables grant no origin authority/i);
     assert.match(cockpit, /Cloudflare owner gateway same-origin mutation boundary/i);
     assert.doesNotMatch(cockpit, /onClick=\{.*(?:gateway|origin).*mutation/i);
+  });
+
+  it("reports Railway as retired non-routing evidence and Cloudflare as fail-closed deployment truth", () => {
+    assert.match(cockpit, /RAILWAY_RETIRED/);
+    assert.match(cockpit, /non-routing rollback\/evidence/i);
+    assert.match(cockpit, /exact-main Cloudflare deployment plus acceptance/i);
+    assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
   });
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);

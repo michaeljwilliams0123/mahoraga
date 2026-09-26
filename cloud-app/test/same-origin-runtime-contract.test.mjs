@@ -26,7 +26,8 @@ test("gateway exposes bounded liveness and readiness without model invocation", 
 
 test("production readiness fails closed when deployment provenance is missing or stale", async () => {
   const ready = await read("app/api/ready/route.ts");
-  assert.match(ready, /RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(ready, /MAHORAGA_GIT_COMMIT_SHA/);
+  assert.doesNotMatch(ready, /RAILWAY_GIT_COMMIT_SHA/);
   assert.match(ready, /MAHORAGA_EXPECTED_GIT_SHA/);
   assert.match(ready, /deployment-provenance-missing/);
   assert.match(ready, /deployment-provenance-mismatch/);

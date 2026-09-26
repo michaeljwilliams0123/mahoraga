@@ -107,10 +107,25 @@ export function CockpitView({
   const deploymentEnvironment = health?.deployment?.environment ?? "unknown";
   const promotionMode = health?.deployment?.promotion ?? "unverified";
   const deploymentUrl = health?.deployment?.url ?? "unavailable";
-  const railwayExactSha = deploymentProvider === "railway" || promotionMode === "exact-sha-railway";
-  const deploymentDetail = railwayExactSha
-    ? `Promote after Verify Mahoraga on main · verified run SHA (#656) · Wait for CI disabled · ${deploymentEnvironment}`
-    : deploymentProvider === "vercel"
+  const cloudflareProvider = deploymentProvider.startsWith("cloudflare");
+  const cloudflareExactMain = cloudflareProvider
+    && promotionMode === "exact-main-cloudflare"
+    && deploymentConvergence === "Current";
+  const railwayRetired = deploymentProvider === "railway";
+  const deploymentTruthLabel = cloudflareExactMain
+    ? "Cloudflare exact-main"
+    : cloudflareProvider
+      ? "Cloudflare candidate"
+    : railwayRetired
+      ? "Railway retired"
+      : deploymentProvider;
+  const deploymentDetail = cloudflareExactMain
+    ? `Exact-main deployment and acceptance require Ubuntu + Windows Verify · traffic authority remains separate · ${deploymentEnvironment}`
+    : cloudflareProvider
+      ? `Non-authoritative presentation candidate · exact-main deployment and acceptance not proven · ${deploymentEnvironment}`
+    : railwayRetired
+      ? `Retired non-routing rollback/evidence only · never production traffic authority · ${deploymentEnvironment}`
+      : deploymentProvider === "vercel"
       ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
   const paidFallback = health?.routing?.automaticPaidFallback === true;
@@ -156,7 +171,7 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>Cloudflare root-path candidate is the migration browser surface; GitHub Pages remains a presentation/export fallback. Execution readiness, cognition readiness, and traffic authority remain separate. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
+          <p>Cloudflare is the native browser and execution surface. Source, deployment, execution readiness, cognition readiness, and traffic authority remain separate and fail closed. Railway is retired non-routing rollback/evidence only. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
@@ -165,7 +180,7 @@ export function CockpitView({
       </header>
 
       <p className="eclipse-readiness-note" role="status">
-        Cloudflare candidate browser: {CLOUDFLARE_WORKSPACE_CANDIDATE} · promotion unverified-cloudflare-static. GitHub Pages remains a presentation/export fallback. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
+        Cloudflare workspace: {CLOUDFLARE_WORKSPACE_CANDIDATE} · exact-main provenance is unverified until deployment and acceptance bind to the merged SHA. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
       </p>
 
       {healthError && (
@@ -187,7 +202,7 @@ export function CockpitView({
       <div className="eclipse-status-grid">
         <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
-        <StatusCard label="Deployment Truth" value={railwayExactSha ? "Railway exact-SHA" : deploymentProvider} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
+        <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
@@ -195,9 +210,9 @@ export function CockpitView({
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
-        <StatusCard label="Deployment" value={railwayExactSha ? "Railway exact-SHA runtime" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && railwayExactSha ? "good" : health?.ok ? "neutral" : "warn"} />
+        <StatusCard label="Deployment" value={cloudflareExactMain ? "Cloudflare native runtime" : cloudflareProvider ? "Cloudflare candidate" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareExactMain ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
         <StatusCard label="Deployment convergence" value={deploymentConvergence} detail={`actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={deploymentConvergence === "Current" ? "good" : deploymentConvergence === "Drift" ? "warn" : "neutral"} />
-        <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="MAHORAGA_EXPECTED_GIT_SHA · promote after Verify Mahoraga on main using the verified run SHA, not Railway GitHub status. Wait for CI disabled." tone={expectedDeploymentCommit ? (deploymentConvergence === "Current" ? "good" : "warn") : "warn"} />
+        <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="MAHORAGA_EXPECTED_GIT_SHA · deploy and accept exact main on Cloudflare only after Ubuntu and Windows Verify; mismatch fails closed." tone={expectedDeploymentCommit ? (cloudflareExactMain ? "good" : "warn") : "warn"} />
         <StatusCard label="Owner login" value="AUTH_NO_STORE_#486" detail="Cache-Control: no-store · failure and success responses are not cached" tone="good" />
         <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
@@ -227,16 +242,16 @@ export function CockpitView({
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
-            <div><dt>Host provider</dt><dd>{railwayExactSha ? "railway (server-capable runtime)" : deploymentProvider}</dd></div>
+            <div><dt>Host provider</dt><dd>{railwayRetired ? "railway (retired; non-routing rollback/evidence only)" : deploymentProvider}</dd></div>
             <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
-            <div><dt>Promotion mode</dt><dd>{promotionMode}</dd></div>
+            <div><dt>Deployment mode</dt><dd>{promotionMode}</dd></div>
             <div><dt>Source Truth</dt><dd>protected GitHub main · exact-head Verify contexts</dd></div>
             <div><dt>Deployment Truth</dt><dd>{deploymentProvider} · actual {shortSha(deploymentCommit)} · expected {shortSha(expectedDeploymentCommit)}</dd></div>
             <div><dt>Live-Runtime Truth</dt><dd>{liveOk ? "observed /api/live" : healthError ? "unavailable" : "pending"} · observational only</dd></div>
             <div><dt>Deployment convergence</dt><dd>{deploymentConvergence}</dd></div>
-            <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · after Verify Mahoraga on main; verified run SHA; not Railway GitHub status; Wait for CI disabled</dd></div>
+            <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · exact-main Cloudflare deployment and acceptance after Ubuntu + Windows Verify · mismatch fails closed</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway rollback anchor · x-bypass-applied fail-closed</dd></div>
@@ -265,7 +280,7 @@ export function CockpitView({
             <li><span>1</span><div><strong>Stage</strong><small>Isolated candidate or feature branch</small></div></li>
             <li><span>2</span><div><strong>Verify</strong><small>Exact-head CI plus rollback checkpoint</small></div></li>
             <li><span>3</span><div><strong>Canary</strong><small>Prove candidate and runtime readiness</small></div></li>
-            <li><span>4</span><div><strong>Pin</strong><small>Promote Railway to the verified Verify Mahoraga run SHA after main</small></div></li>
+            <li><span>4</span><div><strong>Pin</strong><small>Deploy and accept exact main on Cloudflare after both Verify contexts pass</small></div></li>
             <li><span>5</span><div><strong>Converge</strong><small>Activate through the verified boundary and retain rollback</small></div></li>
           </ol>
         </section>
