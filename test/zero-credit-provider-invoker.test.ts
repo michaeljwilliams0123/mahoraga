@@ -55,9 +55,10 @@ test("ordinary provider failures do not masquerade as quota exhaustion", async (
 });
 
 test("assistant inference is grounded as Mahoraga with live capability truth and receipt-gated claims", async () => {
-  let observedBody: Record<string, unknown> | null = null;
+  let observedMessages: Array<{ role?: string; content?: string }> = [];
   const fetchImpl: typeof fetch = async (_input, init) => {
-    observedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    const body = JSON.parse(String(init?.body ?? "{}")) as { messages?: Array<{ role?: string; content?: string }> };
+    observedMessages = body.messages ?? [];
     return Response.json(providerEnvelope("I am Mahoraga."));
   };
 
@@ -76,15 +77,14 @@ test("assistant inference is grounded as Mahoraga with live capability truth and
     },
   } as never, fetchImpl);
 
-  const messages = (observedBody?.messages ?? []) as Array<{ role?: string; content?: string }>;
-  assert.equal(messages[0]?.role, "system");
-  assert.match(messages[0]?.content ?? "", /You are Mahoraga/i);
-  assert.match(messages[0]?.content ?? "", /provider.*implementation detail/i);
-  assert.match(messages[0]?.content ?? "", /repository\.inspect=unavailable/i);
-  assert.match(messages[0]?.content ?? "", /image\.generate=unavailable/i);
-  assert.match(messages[0]?.content ?? "", /connectionState=connected/i);
-  assert.match(messages[0]?.content ?? "", /verified receipt/i);
-  assert.equal(messages.at(-1)?.content, "What can you do right now?");
+  assert.equal(observedMessages[0]?.role, "system");
+  assert.match(observedMessages[0]?.content ?? "", /You are Mahoraga/i);
+  assert.match(observedMessages[0]?.content ?? "", /provider.*implementation detail/i);
+  assert.match(observedMessages[0]?.content ?? "", /repository\.inspect=unavailable/i);
+  assert.match(observedMessages[0]?.content ?? "", /image\.generate=unavailable/i);
+  assert.match(observedMessages[0]?.content ?? "", /connectionState=connected/i);
+  assert.match(observedMessages[0]?.content ?? "", /verified receipt/i);
+  assert.equal(observedMessages.at(-1)?.content, "What can you do right now?");
 });
 
 test("provider identity cannot replace Mahoraga identity in the grounding contract", async () => {
