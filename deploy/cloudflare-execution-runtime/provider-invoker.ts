@@ -177,6 +177,17 @@ const interceptAction = (
   };
 };
 
+const guardProviderIdentityLeak = (answer: string): string => {
+  const normalized = answer.trim();
+  if (
+    /^I(?:'m| am)\s+GLM\b/i.test(normalized)
+    || /^My name is GLM\b/i.test(normalized)
+    || /^I(?:'m| am)\s+(?:a\s+)?(?:large language model|LLM)\b[^.]{0,160}\b(?:Z\.ai|ZAI)\b/i.test(normalized)
+    || /^I\b[^.]{0,160}\btrained by\s+(?:Z\.ai|ZAI)\b/i.test(normalized)
+  ) return "I am Mahoraga.";
+  return answer;
+};
+
 const guardUnverifiedCompletionClaim = (answer: string, runtimeContext: ProviderRuntimeContext): string => {
   if (
     runtimeContext.capabilities["memory.write"] !== "routable"
@@ -224,8 +235,9 @@ export const invokeZeroCreditProvider = async (
   if (typeof answer !== "string" || !answer.trim()) throw new Error("cognition-provider-response-invalid");
   const intercepted = interceptAction(answer, runtimeContext);
   if (intercepted !== null) return { ...intercepted, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID };
+  const identityGroundedAnswer = guardProviderIdentityLeak(answer);
   return {
-    response: guardUnverifiedCompletionClaim(answer, runtimeContext),
+    response: guardUnverifiedCompletionClaim(identityGroundedAnswer, runtimeContext),
     providerId: ASSISTANT_PROVIDER_ID,
     modelId: ASSISTANT_MODEL_ID,
   };
