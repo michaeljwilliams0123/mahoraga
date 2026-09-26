@@ -107,8 +107,10 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .connect-controls button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 10px; background: #171717; color: #fff; padding: 9px 12px; font-size: 9px; cursor: pointer; }
 .one-composer { max-width: 850px; margin: 0 auto; border: 1px solid var(--border-strong); border-radius: 22px; background: rgba(255,255,255,.92); box-shadow: 0 22px 55px rgba(0,0,0,.10), inset 0 1px 0 #fff; transition: border-color .15s ease, box-shadow .15s ease; }
 .one-composer:focus-within { border-color: rgba(56,95,210,.33); box-shadow: 0 22px 60px rgba(53,75,135,.12), 0 0 0 4px rgba(70,105,210,.05); }
-.one-composer textarea { display: block; width: 100%; min-height: 67px; max-height: 190px; resize: none; border: 0; outline: 0; background: transparent; padding: 17px 17px 8px; color: #171717; font-size: 14px; line-height: 1.5; }
+.one-composer textarea { display: block; width: 100%; min-height: 52px; max-height: 300px; overflow-y: hidden; resize: none; border: 0; outline: 0; background: transparent; padding: 17px 17px 8px; color: #171717; font-size: 14px; line-height: 1.5; }
 .one-composer textarea::placeholder { color: #999a97; }
+.composer-count { flex: 0 0 auto; color: #8a8b87; font: 600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.composer-count.near-limit { color: #a5482d; }
 .file-strip { display: flex; gap: 7px; overflow: auto; padding: 9px 10px 0; } .file-strip > span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; padding: 7px 8px; border-radius: 10px; background: #f1f1ef; color: #50514e; font-size: 9px; } .file-strip small { color: #949592; } .file-strip button { border: 0; background: transparent; cursor: pointer; }
 .composer-actions { display: flex; align-items: center; gap: 6px; padding: 6px 9px 9px; }
 .composer-tool { width: 34px; height: 34px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: #666764; cursor: pointer; } .composer-tool:hover:not(:disabled) { background: #f0f0ed; color: #111; } .composer-tool.listening { background: #171717; color: #fff; } .composer-tool:disabled { opacity: .32; cursor: not-allowed; }
