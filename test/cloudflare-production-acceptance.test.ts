@@ -149,7 +149,10 @@ test("fail-closed proof expires admission, blocks inference, and restores hard-z
     fetchImpl: async (input, init) => {
       const request = new Request(input, init);
       requests.push(request);
-      if (new URL(request.url).pathname === "/api/provider/refresh") {
+      const path = new URL(request.url).pathname;
+      if (path === "/api/live") return Response.json({ status: "live", sha: SHA });
+      if (path === "/api/ready") return Response.json({ status: "ready", sha: SHA, durableState: "cloudflare-do-sqlite" });
+      if (path === "/api/provider/refresh") {
         refreshes += 1;
         return Response.json({ zeroCreditEligible: refreshes > 1 }, { status: refreshes === 1 ? 503 : 200 });
       }
@@ -157,10 +160,55 @@ test("fail-closed proof expires admission, blocks inference, and restores hard-z
     },
   });
   assert.deepEqual(requests.map((request) => new URL(request.url).pathname), [
+    "/api/live", "/api/ready", "/api/live", "/api/ready",
     "/api/provider/refresh", "/api/execute", "/api/provider/refresh",
   ]);
-  assert.equal(await requests[0]!.clone().json().then((body: any) => JSON.parse(body.billingAttestation).expiresAt), 1);
-  assert.equal(requests[1]!.headers.get("x-target-sha"), SHA);
-  assert.equal(requests.every((request) => request.headers.get("x-mahoraga-acceptance-run") === "cutover-test-run-1"), true);
-  assert.equal(requests[2]!.headers.get("x-provider-refresh-token"), "refresh-secret");
+  assert.equal(requests[0]!.headers.get("x-mahoraga-acceptance-run"), null);
+  assert.equal(requests[1]!.headers.get("x-mahoraga-acceptance-run"), null);
+  assert.equal(await requests[4]!.clone().json().then((body: any) => JSON.parse(body.billingAttestation).expiresAt), 1);
+  assert.equal(requests[5]!.headers.get("x-target-sha"), SHA);
+  assert.equal(requests.slice(2).every((request) => request.headers.get("x-mahoraga-acceptance-run") === "cutover-test-run-1"), true);
+  assert.equal(requests[6]!.headers.get("x-provider-refresh-token"), "refresh-secret");
+});
+
+test("fail-closed proof waits for the acceptance Durable Object to converge before changing admission", async () => {
+  const paths: string[] = [];
+  const readyAcceptanceHeaders: Array<string | null> = [];
+  let productionReadyCalls = 0;
+  let refreshes = 0;
+  await proveFailClosedZeroBilling({
+    accessToken: "access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    providerRefreshSecret: "refresh-secret",
+    acceptanceRunId: "cutover-convergence-run",
+    billingAttestation: JSON.stringify({ schemaVersion: 1, verifiedAt: 100, expiresAt: 200 }),
+    readyAttempts: 2,
+    readyDelayMs: 0,
+    sleep: async () => {},
+    fetchImpl: async (input, init) => {
+      const request = new Request(input, init);
+      const path = new URL(request.url).pathname;
+      paths.push(path);
+      if (path === "/api/live") return Response.json({ status: "live", sha: SHA });
+      if (path === "/api/ready") {
+        const acceptanceHeader = request.headers.get("x-mahoraga-acceptance-run");
+        readyAcceptanceHeaders.push(acceptanceHeader);
+        if (acceptanceHeader === null) productionReadyCalls += 1;
+        return Response.json({
+          status: "ready",
+          sha: acceptanceHeader === null && productionReadyCalls === 1 ? `0${SHA.slice(1)}` : SHA,
+          durableState: "cloudflare-do-sqlite",
+        });
+      }
+      if (path === "/api/provider/refresh") {
+        refreshes += 1;
+        return Response.json({ zeroCreditEligible: refreshes > 1 }, { status: refreshes === 1 ? 503 : 200 });
+      }
+      return Response.json({ error: "Cognition provider unavailable" }, { status: 503 });
+    },
+  });
+
+  assert.deepEqual(readyAcceptanceHeaders, [null, null, "cutover-convergence-run"]);
+  assert.equal(paths.indexOf("/api/provider/refresh") > paths.lastIndexOf("/api/ready"), true);
 });

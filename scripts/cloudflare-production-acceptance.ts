@@ -3,7 +3,7 @@ import { writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_RUNTIME_URL, runAcceptanceProbe, type AcceptanceReceipt } from "./cloudflare-execution-runtime.ts";
+import { DEFAULT_RUNTIME_URL, runAcceptanceProbe, waitForExactRuntimeConvergence, type AcceptanceReceipt } from "./cloudflare-execution-runtime.ts";
 
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const EXPECTED_PROVIDER_ID = "cloudflare-workers-ai";
@@ -75,9 +75,28 @@ export async function proveFailClosedZeroBilling(input: {
   providerRefreshSecret: string;
   acceptanceRunId: string;
   fetchImpl?: typeof fetch;
+  readyAttempts?: number;
+  readyDelayMs?: number;
+  sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<void> {
   const fetchImpl = input.fetchImpl ?? fetch;
   const baseUrl = input.baseUrl ?? DEFAULT_RUNTIME_URL;
+  await waitForExactRuntimeConvergence({
+    ...(input.accessToken ? { accessToken: input.accessToken } : {}),
+    ...(input.accessClientId ? { accessClientId: input.accessClientId } : {}),
+    ...(input.accessClientSecret ? { accessClientSecret: input.accessClientSecret } : {}),
+    baseUrl,
+    targetSha: input.targetSha,
+    fetchImpl,
+    ...(input.readyAttempts !== undefined ? { readyAttempts: input.readyAttempts } : {}),
+    ...(input.readyDelayMs !== undefined ? { readyDelayMs: input.readyDelayMs } : {}),
+    ...(input.sleep ? { sleep: input.sleep } : {}),
+  });
+  await waitForExactRuntimeConvergence({
+    ...input,
+    baseUrl,
+    fetchImpl,
+  });
   let parsed: unknown;
   try { parsed = JSON.parse(input.billingAttestation); } catch { throw new Error("accept-billing-attestation-json-invalid"); }
   const attestation = jsonRecord(parsed);
