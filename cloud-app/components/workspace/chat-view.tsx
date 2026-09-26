@@ -21,6 +21,7 @@ import {
   WandSparkles,
   X,
 } from "lucide-react";
+import { useLayoutEffect } from "react";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
@@ -87,6 +88,15 @@ export function ChatView(props: ChatViewProps) {
 
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
   const cloudBridgeOrigin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ?? "";
+
+  useLayoutEffect(() => {
+    const element = composer.current;
+    if (!element) return;
+    element.style.height = "auto";
+    const nextHeight = Math.min(element.scrollHeight, 300);
+    element.style.height = `${nextHeight}px`;
+    element.style.overflowY = element.scrollHeight > 300 ? "auto" : "hidden";
+  }, [composer, input]);
 
   function openCloudSignIn() {
     if (!cloudBridgeOrigin) return;
@@ -237,7 +247,9 @@ export function ChatView(props: ChatViewProps) {
           <textarea
             ref={composer}
             value={input}
+            rows={1}
             maxLength={MAX_INPUT_TEXT_CHARS}
+            aria-describedby="composer-character-count"
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
@@ -250,6 +262,7 @@ export function ChatView(props: ChatViewProps) {
             <button className="composer-tool" type="button" onClick={() => void runQuickAction("upload")} aria-label="Upload files" title="Upload"><Paperclip size={18} /></button>
             <button className={voiceListening ? "composer-tool listening" : "composer-tool"} type="button" onClick={toggleVoice} disabled={!voiceSupported} aria-label={voiceListening ? "Stop microphone" : "Voice chat"} title={voiceSupported ? "Voice chat" : "Voice unavailable"}>{voiceListening ? <MicOff size={18} /> : <Mic size={18} />}</button>
             <span className="composer-hint">{files.length > 0 ? `${files.length} staged · ${readableBytes(totalBytes)}` : health?.routing?.automaticPaidFallback === false ? "Brain-routed · no paid fallback" : "Brain-routed"}</span>
+            <span id="composer-character-count" className={input.length >= MAX_INPUT_TEXT_CHARS * 0.9 ? "composer-count near-limit" : "composer-count"} aria-live="polite">{input.length.toLocaleString()} / {MAX_INPUT_TEXT_CHARS.toLocaleString()}</span>
             {busy ? (
               <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={15} /></button>
             ) : (
