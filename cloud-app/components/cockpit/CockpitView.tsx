@@ -208,6 +208,12 @@ export function CockpitView({
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
+        <StatusCard
+          label="Provider admission restore retry"
+          value="Observational / fail-closed"
+          detail="Retry only transient 503 responses while restoring the same verified hard-zero billing attestation after fail-closed proof · bounded attempts and validated delay · persistent failure remains fail-closed · accept-provider-restore-503 is not traffic authority"
+          tone="neutral"
+        />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={cloudflareExactMain ? "Cloudflare native runtime" : cloudflareProvider ? "Cloudflare candidate" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareExactMain ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
@@ -255,6 +261,7 @@ export function CockpitView({
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway rollback anchor · x-bypass-applied fail-closed</dd></div>
+            <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
             <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
