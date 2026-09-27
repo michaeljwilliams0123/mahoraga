@@ -23,14 +23,21 @@ export function scorePredictionOutcome(receipt, observedState, { observedAt = ()
   const timestamp = canonicalTimestamp(observedAt());
   if (Date.parse(timestamp) < Date.parse(prediction.predictedAt)) fail('prediction-outcome-before-prediction');
   const fieldErrors = {};
+  const fieldNormalizedErrors = {};
   let total = 0;
+  let normalizedTotal = 0;
   for (const key of Object.keys(prediction.predictedState).sort()) {
     const absoluteError = Number(Math.abs(prediction.predictedState[key] - observed[key]).toFixed(12));
+    const scale = Math.max(Math.abs(prediction.predictedState[key]), Math.abs(observed[key]), Number.EPSILON);
+    const normalizedError = Number((absoluteError / scale).toFixed(12));
     fieldErrors[key] = absoluteError;
+    fieldNormalizedErrors[key] = normalizedError;
     total += absoluteError;
+    normalizedTotal += normalizedError;
   }
   const meanAbsoluteError = Number((total / Object.keys(fieldErrors).length).toFixed(12));
-  const observedAccuracy = Number((1 / (1 + meanAbsoluteError)).toFixed(12));
+  const normalizedMeanAbsoluteError = Number((normalizedTotal / Object.keys(fieldNormalizedErrors).length).toFixed(12));
+  const observedAccuracy = Number((1 - normalizedMeanAbsoluteError).toFixed(12));
   const predictedConfidence = Number((1 - prediction.predictedUncertainty).toFixed(12));
   const calibrationGap = Number(Math.abs(predictedConfidence - observedAccuracy).toFixed(12));
   const core = {
@@ -45,6 +52,8 @@ export function scorePredictionOutcome(receipt, observedState, { observedAt = ()
     observedState: observed,
     fieldAbsoluteErrors: deepFreeze(fieldErrors),
     meanAbsoluteError,
+    fieldNormalizedErrors: deepFreeze(fieldNormalizedErrors),
+    normalizedMeanAbsoluteError,
     predictedConfidence,
     observedAccuracy,
     calibrationGap,

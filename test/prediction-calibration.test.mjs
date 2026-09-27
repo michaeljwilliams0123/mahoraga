@@ -26,9 +26,11 @@ test('later observation produces deterministic error and calibration receipt', (
   assert.deepEqual(first, second);
   assert.deepEqual(first.fieldAbsoluteErrors, { failureRate: 0.02, queueDepth: 1 });
   assert.equal(first.meanAbsoluteError, 0.51);
+  assert.deepEqual(first.fieldNormalizedErrors, { failureRate: 0.117647058824, queueDepth: 0.333333333333 });
+  assert.equal(first.normalizedMeanAbsoluteError, 0.225490196079);
   assert.equal(first.predictedConfidence, 0.8);
-  assert.equal(first.observedAccuracy, 0.662251655629);
-  assert.equal(first.calibrationGap, 0.137748344371);
+  assert.equal(first.observedAccuracy, 0.774509803921);
+  assert.equal(first.calibrationGap, 0.025490196079);
   assert.equal(Object.isFrozen(first), true);
 });
 
