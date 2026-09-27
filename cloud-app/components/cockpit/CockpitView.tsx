@@ -214,6 +214,12 @@ export function CockpitView({
           detail="Retry only transient 503 responses while restoring the same verified hard-zero billing attestation after fail-closed proof · bounded attempts and validated delay · persistent failure remains fail-closed · accept-provider-restore-503 is not traffic authority"
           tone="neutral"
         />
+        <StatusCard
+          label="Codespaces development environment"
+          value="Optional / non-authoritative"
+          detail="Node 24 developer convenience from #812 · locked dependencies only · exposes no ports · starts no Mahoraga service · GitHub metering and quota apply · GitHub and Cloudflare remain production authority · GitLab read-only · Railway non-routing"
+          tone="neutral"
+        />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={cloudflareExactMain ? "Cloudflare native runtime" : cloudflareProvider ? "Cloudflare candidate" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareExactMain ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
@@ -262,6 +268,7 @@ export function CockpitView({
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway rollback anchor · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
+            <div><dt>Codespaces</dt><dd>Observational developer convenience only · not a production host, inference provider, lifecycle automation, self-patching authority, deployment lane, or routing change · supplies no production authentication material</dd></div>
             <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>

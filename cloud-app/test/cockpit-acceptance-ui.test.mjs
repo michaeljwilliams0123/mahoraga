@@ -43,6 +43,21 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Observational \/ fail-closed/);
   });
 
+  it("surfaces the optional Codespaces environment without granting authority", () => {
+    assert.match(cockpit, /Codespaces development environment/);
+    assert.match(cockpit, /Optional \/ non-authoritative/);
+    assert.match(cockpit, /Node 24 developer convenience from #812/);
+    assert.match(cockpit, /locked dependencies only/);
+    assert.match(cockpit, /exposes no ports/);
+    assert.match(cockpit, /starts no Mahoraga service/);
+    assert.match(cockpit, /GitHub metering and quota apply/);
+    assert.match(cockpit, /GitHub and Cloudflare remain production authority/);
+    assert.match(cockpit, /GitLab read-only/);
+    assert.match(cockpit, /Railway non-routing/);
+    assert.match(cockpit, /not a production host, inference provider, lifecycle automation, self-patching authority, deployment lane, or routing change/);
+    assert.match(cockpit, /supplies no production authentication material/);
+  });
+
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
