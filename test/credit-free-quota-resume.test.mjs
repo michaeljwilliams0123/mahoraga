@@ -86,20 +86,56 @@ test("Unified Billing, Workers Paid, prepaid credits, and paid fallback all refu
   }
 });
 
-test("queued work resumes after UTC reset under the same idempotency key", () => {
+test("queued work without durable hold provenance stays held", () => {
+  const held = resumeQueuedHardZeroWork({
+    ...FREE,
+    now: new Date("2026-09-27T00:00:01.000Z"),
+    neuronsUsedToday: 0,
+    queue: [{ idempotencyKey: "obj-missing-proof", provider: ADMITTED_HARD_ZERO_PROVIDER, modelId: ADMITTED_HARD_ZERO_MODEL }],
+  });
+  assert.equal(held.nextAction, QUOTA_HOLD_ACTION);
+  assert.equal(held.admitted.length, 0);
+  assert.equal(held.held[0].reason, "hard-zero-hold-provenance-missing");
+});
+
+test("queued work cannot resume before its persisted UTC reset boundary", () => {
+  const held = resumeQueuedHardZeroWork({
+    ...FREE,
+    now: new Date("2026-09-26T23:59:59.000Z"),
+    neuronsUsedToday: 0,
+    queue: [{
+      idempotencyKey: "obj-late-answer",
+      provider: ADMITTED_HARD_ZERO_PROVIDER,
+      modelId: ADMITTED_HARD_ZERO_MODEL,
+      heldUtcDay: "2026-09-26",
+      heldResumeAt: "2026-09-27T00:00:00.000Z",
+    }],
+  });
+  assert.equal(held.nextAction, QUOTA_HOLD_ACTION);
+  assert.equal(held.admitted.length, 0);
+  assert.equal(held.held[0].reason, "hard-zero-hold-boundary-not-reached");
+});
+
+test("queued work resumes after persisted UTC reset under the same idempotency key", () => {
   const nextDay = new Date("2026-09-27T00:00:01.000Z");
+  const queued = {
+    idempotencyKey: "obj-late-answer",
+    provider: ADMITTED_HARD_ZERO_PROVIDER,
+    modelId: ADMITTED_HARD_ZERO_MODEL,
+    heldUtcDay: "2026-09-26",
+    heldResumeAt: "2026-09-27T00:00:00.000Z",
+  };
   const resumed = resumeQueuedHardZeroWork({
     ...FREE,
     now: nextDay,
     neuronsUsedToday: 0,
-    queue: [
-      { idempotencyKey: "obj-late-answer", provider: ADMITTED_HARD_ZERO_PROVIDER, modelId: ADMITTED_HARD_ZERO_MODEL },
-      { idempotencyKey: "obj-late-answer", provider: ADMITTED_HARD_ZERO_PROVIDER, modelId: ADMITTED_HARD_ZERO_MODEL },
-    ],
+    queue: [queued, queued],
   });
   assert.equal(resumed.nextAction, RESUME_QUEUED_ACTION);
   assert.equal(resumed.admitted.length, 1);
   assert.equal(resumed.admitted[0].idempotencyKey, "obj-late-answer");
+  assert.equal(resumed.admitted[0].heldUtcDay, "2026-09-26");
+  assert.equal(resumed.admitted[0].heldResumeAt, "2026-09-27T00:00:00.000Z");
   assert.equal(resumed.admitted[0].nextAction, RESUME_QUEUED_ACTION);
   assert.equal(resumed.held.length, 1);
   assert.equal(resumed.held[0].reason, "hard-zero-duplicate-idempotency");
@@ -111,7 +147,13 @@ test("resume still holds when the new UTC day is already at the ceiling", () => 
     ...FREE,
     now: new Date("2026-09-27T00:00:01.000Z"),
     neuronsUsedToday: MAHORAGA_INTERNAL_CEILING,
-    queue: [{ idempotencyKey: "obj-2", provider: ADMITTED_HARD_ZERO_PROVIDER, modelId: ADMITTED_HARD_ZERO_MODEL }],
+    queue: [{
+      idempotencyKey: "obj-2",
+      provider: ADMITTED_HARD_ZERO_PROVIDER,
+      modelId: ADMITTED_HARD_ZERO_MODEL,
+      heldUtcDay: "2026-09-26",
+      heldResumeAt: "2026-09-27T00:00:00.000Z",
+    }],
   });
   assert.equal(held.nextAction, QUOTA_HOLD_ACTION);
   assert.equal(held.admitted.length, 0);

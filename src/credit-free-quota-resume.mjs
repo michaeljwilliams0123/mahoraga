@@ -94,6 +94,8 @@ export function evaluateHardZeroQuota({
       status: "hold",
       reason: "hard-zero-daily-ceiling-reached",
       nextAction: QUOTA_HOLD_ACTION,
+      heldUtcDay: day,
+      heldResumeAt: resumeAt,
       ...envelope,
     });
   }
@@ -178,7 +180,31 @@ export function resumeQueuedHardZeroWork({
       prepaidCreditsUsd,
       now,
     });
-    if (decision.nextAction === RESUME_QUEUED_ACTION || decision.nextAction === "dispatch-hard-zero") {
+    if (decision.nextAction === RESUME_QUEUED_ACTION) {
+      const provenance = validateHoldProvenance(item, now);
+      if (provenance.ok !== true) {
+        held.push(Object.freeze({
+          ok: false,
+          status: "hold",
+          reason: provenance.reason,
+          nextAction: QUOTA_HOLD_ACTION,
+          idempotencyKey: key,
+          heldUtcDay: provenance.heldUtcDay,
+          heldResumeAt: provenance.heldResumeAt,
+          creditCost: 0,
+          paidFallback: false,
+        }));
+        continue;
+      }
+      admitted.push(Object.freeze({
+        ...decision,
+        heldUtcDay: provenance.heldUtcDay,
+        heldResumeAt: provenance.heldResumeAt,
+      }));
+      used += Number(reservation);
+      continue;
+    }
+    if (decision.nextAction === "dispatch-hard-zero") {
       admitted.push(decision);
       used += Number(reservation);
       continue;
@@ -245,6 +271,52 @@ export function maintainCreditFreeAutonomyWithQuota({
     nextAction,
     creditCost: 0,
     paidFallback: false,
+  });
+}
+
+function validateHoldProvenance(item, now) {
+  const heldUtcDay = String(item?.heldUtcDay ?? "").trim();
+  const heldResumeAt = String(item?.heldResumeAt ?? "").trim();
+  if (!heldUtcDay || !heldResumeAt) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-hold-provenance-missing",
+      heldUtcDay: heldUtcDay || null,
+      heldResumeAt: heldResumeAt || null,
+    });
+  }
+
+  const heldDayStart = Date.parse(`${heldUtcDay}T00:00:00.000Z`);
+  const heldResumeMs = parseTime(heldResumeAt);
+  const expectedResumeMs = heldDayStart + 24 * 60 * 60 * 1000;
+  const dayIsCanonical = /^\d{4}-\d{2}-\d{2}$/.test(heldUtcDay)
+    && Number.isFinite(heldDayStart)
+    && new Date(heldDayStart).toISOString().slice(0, 10) === heldUtcDay;
+  if (!dayIsCanonical || !Number.isFinite(heldResumeMs) || heldResumeMs !== expectedResumeMs) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-hold-provenance-invalid",
+      heldUtcDay,
+      heldResumeAt,
+    });
+  }
+
+  const nowMs = parseTime(now);
+  const canonicalResumeAt = new Date(heldResumeMs).toISOString();
+  if (!Number.isFinite(nowMs) || nowMs < heldResumeMs) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-hold-boundary-not-reached",
+      heldUtcDay,
+      heldResumeAt: canonicalResumeAt,
+    });
+  }
+
+  return Object.freeze({
+    ok: true,
+    reason: "hard-zero-hold-provenance-valid",
+    heldUtcDay,
+    heldResumeAt: canonicalResumeAt,
   });
 }
 
