@@ -31,9 +31,10 @@ test("owner login never trusts RAILWAY_PUBLIC_DOMAIN as an origin grant", () => 
   assert.equal(hasTrustedRequestOrigin(request, { RAILWAY_PUBLIC_DOMAIN: railway }), false);
 });
 
-test("operator and cockpit surfaces describe Railway as retired non-routing evidence", () => {
+test("operator, cockpit, and current provider docs describe Railway as retired non-routing evidence", () => {
   const allowlist = read("operator-deck/src/lib/fleet/allowlist.ts");
   const cockpit = read("cloud-app/components/cockpit/CommandCockpit.tsx");
+  const retiredProviders = read("docs/retired-providers.md");
   assert.doesNotMatch(allowlist, /mahoraga-runtime-main-production\.up\.railway\.app/i);
   assert.match(cockpit, /RAILWAY_RETIRED/);
   assert.match(cockpit, /legacy evidence only/i);
@@ -42,6 +43,9 @@ test("operator and cockpit surfaces describe Railway as retired non-routing evid
   assert.match(cockpit, /VERCEL_RETIRED/);
   assert.match(cockpit, /observation-only/i);
   assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
+  assert.match(retiredProviders, /legacy evidence only/i);
+  assert.match(retiredProviders, /zero-route, zero-influence, zero-fallback, zero-authority/i);
+  assert.doesNotMatch(retiredProviders, /rollback\/evidence/i);
 });
 
 test("brain stack remains Node-owned and Cloudflare does not fake the cognitive loop", () => {
