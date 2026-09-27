@@ -190,12 +190,20 @@ export function resumeQueuedHardZeroWork({
     refused.push(decision);
   }
 
+  const nextAction = refused.length
+    ? "refuse-paid-route"
+    : admitted.length
+      ? RESUME_QUEUED_ACTION
+      : held.length
+        ? QUOTA_HOLD_ACTION
+        : RESUME_QUEUED_ACTION;
+
   return Object.freeze({
     schemaVersion: 1,
     ok: refused.length === 0,
-    status: refused.length ? "blocked" : held.length ? "hold" : "resume",
-    reason: refused[0]?.reason ?? held[0]?.reason ?? "hard-zero-queue-resumed",
-    nextAction: refused.length ? "refuse-paid-route" : held.length ? QUOTA_HOLD_ACTION : RESUME_QUEUED_ACTION,
+    status: refused.length ? "blocked" : admitted.length ? "resume" : held.length ? "hold" : "resume",
+    reason: refused[0]?.reason ?? (admitted.length ? "hard-zero-queue-resumed" : held[0]?.reason ?? "hard-zero-queue-resumed"),
+    nextAction,
     admitted: Object.freeze(admitted),
     held: Object.freeze(held),
     refused: Object.freeze(refused),
