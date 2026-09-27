@@ -174,6 +174,11 @@ export function CockpitView({
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
+  const predictiveRoute = runtimeCapabilities.find((capability) => capability.capability === "cognitive.predict");
+  const predictiveRouteReady = coreReady
+    && predictiveRoute?.enabled !== false
+    && predictiveRoute?.routable === true
+    && predictiveRoute?.costClass === "deterministic";
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
   const acceptance = parseSanitizedAcceptance(health);
@@ -248,6 +253,14 @@ export function CockpitView({
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
+        <StatusCard
+          label="Predictive scenario route"
+          value={predictiveRouteReady ? "Paired deterministic route" : "Unavailable / unobserved"}
+          detail={predictiveRouteReady
+            ? "cognitive.predict · explicit /predict only · zero-credit deterministic hypothetical transition with predicted state + uncertainty · not a measured forecast · no traffic-authority grant · Cloudflare-native predictive execution remains unpromoted"
+            : "Requires an observed paired deterministic cognitive.predict route · ordinary chat remains assistant.respond · Cloudflare-native /predict remains unavailable and must not fall through to the generative provider"}
+          tone={predictiveRouteReady ? "good" : "neutral"}
+        />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard
