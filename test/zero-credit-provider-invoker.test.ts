@@ -112,6 +112,9 @@ test("assistant inference is grounded as Mahoraga with live capability truth and
 
   assert.equal(observedMessages[0]?.role, "system");
   assert.match(observedMessages[0]?.content ?? "", /You are Mahoraga/i);
+  assert.match(observedMessages[0]?.content ?? "", /not the Jujutsu Kaisen character/i);
+  assert.match(observedMessages[0]?.content ?? "", /GitHub.*source.*evolution authority/i);
+  assert.match(observedMessages[0]?.content ?? "", /Cloudflare.*canonical runtime.*control edge/i);
   assert.match(observedMessages[0]?.content ?? "", /provider.*implementation detail/i);
   assert.match(observedMessages[0]?.content ?? "", /repository\.inspect=unavailable/i);
   assert.match(observedMessages[0]?.content ?? "", /image\.generate=unavailable/i);
@@ -187,4 +190,44 @@ test("raw text_to_image action envelopes are intercepted and fail closed when im
   assert.equal(result.action?.status, "unavailable");
   assert.match(result.response ?? "", /image generation is not currently connected/i);
   assert.doesNotMatch(result.response ?? "", /"action"\s*:\s*"text_to_image"/);
+});
+
+
+test("direct image requests fail closed before provider inference when image generation is unavailable", async () => {
+  let fetchCalls = 0;
+  const fetchImpl: typeof fetch = async () => {
+    fetchCalls += 1;
+    return Response.json(providerEnvelope("should-not-run"));
+  };
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "send me a picture of your face" }],
+  }, fetchImpl) as { response?: string; action?: { type?: string; status?: string } };
+
+  assert.equal(fetchCalls, 0);
+  assert.equal(result.action?.type, "text_to_image");
+  assert.equal(result.action?.status, "unavailable");
+  assert.match(result.response ?? "", /capability_unavailable:image\.generate/i);
+});
+
+test("operational questions cannot collapse into an unsolicited fictional JJK persona", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope(
+    "I am the Eightfold Asura. Shutara gave me the Great Wheel, Six Arrows, chakra, and Dao.",
+  ));
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "what can you design and build to enhance yourself?" }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /planner|capability router|verifier/i);
+  assert.doesNotMatch(result.response ?? "", /Eightfold Asura|Shutara|Six Arrows|chakra|\bDao\b/i);
+});
+
+test("GitHub source authority is distinguished from direct repository tool availability", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope("I am not connected to GitHub."));
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "how are you connected to github?" }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /GitHub is Mahoraga's authoritative source\/evolution plane/i);
+  assert.match(result.response ?? "", /repository\.inspect.*not currently routable/i);
+  assert.doesNotMatch(result.response ?? "", /^I am not connected to GitHub\.?$/i);
 });

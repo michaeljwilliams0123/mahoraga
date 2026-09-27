@@ -37,3 +37,12 @@ test("workspace never turns assistant prose or browser-stored tokens into execut
   assert.match(relay, /this\.call<RuntimeChatResult>\("chat"/);
   assert.match(relay, /x-mahoraga-request-nonce/);
 });
+
+
+test("chat renders assistant markdown once and shows a single visible user label", async () => {
+  const chat = await read("components/workspace/chat-view.tsx");
+  assert.match(chat, /import \{ Streamdown \} from "streamdown"/);
+  assert.match(chat, /message\.role === "assistant"[\s\S]*?<Streamdown[\s\S]*?skipHtml/);
+  assert.match(chat, /UserRound/);
+  assert.doesNotMatch(chat, /message-avatar">\{message\.role === "assistant" \? <Sparkles size=\{15\} \/> : "You"\}/);
+});

@@ -33,7 +33,7 @@ test("isolated Workers AI binding is bounded below Cloudflare's daily free alloc
   assert.match(providerWorker, /DAILY_BUDGET_NEURONS = 9_000/);
   assert.match(providerWorker, /INFER_RESERVATION_NEURONS = 128/);
   assert.match(providerWorker, /MAX_INPUT_BYTES = 8_000/);
-  assert.match(providerWorker, /MAX_OUTPUT_TOKENS = 256/);
+  assert.match(providerWorker, /MAX_OUTPUT_TOKENS = 1_024/);
   assert.match(providerWorker, /storage\.transaction/);
   assert.match(providerWorker, /reserveBudget\(env, INFER_RESERVATION_NEURONS\)/);
   assert.match(providerWorker, /max_completion_tokens:\s*MAX_OUTPUT_TOKENS/);

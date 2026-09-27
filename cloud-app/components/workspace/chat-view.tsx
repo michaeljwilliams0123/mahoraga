@@ -17,11 +17,13 @@ import {
   Square,
   Unplug,
   Upload,
+  UserRound,
   Volume2,
   WandSparkles,
   X,
 } from "lucide-react";
 import { useLayoutEffect } from "react";
+import { Streamdown } from "streamdown";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
@@ -149,13 +151,17 @@ export function ChatView(props: ChatViewProps) {
           <div className="message-list one-message-list">
             {messages.map((message) => (
               <article key={message.id} className={`message-row message-${message.role}`}>
-                <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={15} /> : "You"}</div>
+                <div className="message-avatar">{message.role === "assistant" ? <Sparkles size={15} /> : <UserRound size={15} />}</div>
                 <div className="message-body">
                   <div className="message-author">
                     {message.role === "assistant" ? "Mahoraga" : "You"}
                     {message.role === "assistant" && message.instantLocal ? <span className="instant-local-cue">Instant · local</span> : null}
                   </div>
-                  <div className="message-text" style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                  {message.role === "assistant" ? (
+                    <Streamdown className="message-text" skipHtml>{message.text}</Streamdown>
+                  ) : (
+                    <div className="message-text" style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
+                  )}
                 </div>
               </article>
             ))}
