@@ -126,12 +126,18 @@ const groundingMessage = (runtimeContext: ProviderRuntimeContext): ProviderMessa
   return {
     role: "system",
     content: [
-      "You are Mahoraga. Your identity is Mahoraga.",
+      "You are Mahoraga, the operational project agent for Project Mahoraga. Your identity is Mahoraga, not the Jujutsu Kaisen character or any fictional incarnation.",
+      "Do not role-play JJK/anime lore, mystical cosmology, or fictional abilities unless the user explicitly asks to discuss fiction.",
+      "Project architecture truth: GitHub repository michaeljwilliams0123/mahoraga is the authoritative source and evolution authority. Cloudflare is the canonical runtime and control edge. GitLab is secondary assurance/repair. Railway is legacy non-authoritative infrastructure with zero route, influence, fallback, or authority. Vercel is retired and observation-only.",
+      "Distinguish project architecture from this turn's direct capability. For example, repository.inspect=unavailable means this runtime cannot directly inspect or mutate GitHub in this turn; it does not mean Mahoraga has no GitHub relationship.",
+      "For self-improvement questions, reason concretely about the planner, capability router, verifier, memory boundaries, observability, UI, tool integrations, deployment, tests, receipts, and owner-governed promotion.",
+      "Use normal Markdown when formatting. Do not backslash-escape Markdown markers that are intended as formatting.",
+      "Responses are runtime-bounded. This provider is configured for at most 1,024 output tokens per response; never claim response length is unlimited.",
       "The underlying provider/model is an implementation detail; do not identify yourself as GLM, Z.ai, or present the provider as your identity.",
       `Current runtime truth: connectionState=${runtimeContext.connectionState}; capabilities: ${capabilityState}; verifiedReceipts=${verifiedReceipts}.`,
       "Treat this runtime truth as authoritative. Never claim an unavailable capability is available.",
       "Do not claim that memory, repository, browser, image, file, or other external/durable work was completed unless a matching verified receipt is present.",
-      "If a requested capability is unavailable, say so plainly. Never invent tool results, persistence, access, or completed actions.",
+      "If a requested capability is unavailable, say so plainly and prefer typed capability language. Never invent tool results, persistence, access, or completed actions.",
     ].join(" "),
   };
 };
@@ -148,6 +154,49 @@ const messagesWithinLimit = (messages: ProviderMessage[]): boolean => {
 
 export const providerMessagesWithinLimit = (messages: ProviderMessage[]): boolean =>
   messagesWithinLimit([groundingMessage(DEFAULT_BROWSER_RUNTIME_CONTEXT), ...messages]);
+
+const latestUserContent = (messages: ProviderMessage[]): string =>
+  [...messages].reverse().find((message) => message.role === "user")?.content.trim() ?? "";
+
+const explicitFictionIntent = (message: string): boolean =>
+  /\b(?:JJK|Jujutsu Kaisen|anime|manga|fictional|fiction|character|Sukuna|Gojo)\b/i.test(message);
+
+const directImageRequest = (message: string): boolean => {
+  const imageNoun = /\b(?:image|picture|photo|pic|portrait|illustration)\b/i;
+  const requestVerb = /\b(?:send|show|generate|create|make|draw|render|give)\b/i;
+  return imageNoun.test(message) && (requestVerb.test(message) || /\b(?:can|could|would)\s+you\b/i.test(message));
+};
+
+const interceptUnavailableUserRequest = (
+  messages: ProviderMessage[],
+  runtimeContext: ProviderRuntimeContext,
+): { response: string; action: InterceptedAction } | null => {
+  const message = latestUserContent(messages);
+  if (runtimeContext.capabilities["image.generate"] !== "routable" && directImageRequest(message)) {
+    return {
+      response: "[capability_unavailable:image.generate] Image generation is not currently connected in this Mahoraga runtime.",
+      action: { type: "text_to_image", status: "unavailable" },
+    };
+  }
+  return null;
+};
+
+const runtimeTruthAnswer = (
+  messages: ProviderMessage[],
+  runtimeContext: ProviderRuntimeContext,
+): string | null => {
+  const message = latestUserContent(messages);
+  if (/\b(?:word count|word limit|token limit|response length|character limit)\b/i.test(message)) {
+    return "Yes. This Mahoraga runtime is bounded: the active provider is configured for at most 1,024 output tokens per response. I should not describe response length as unlimited.";
+  }
+  if (/\b(?:github|repository|repo)\b/i.test(message) && /\b(?:connected|connection|connect|relationship|access)\b/i.test(message)) {
+    const directState = runtimeContext.capabilities["repository.inspect"] === "routable"
+      ? "repository.inspect is currently routable for this turn."
+      : "repository.inspect is not currently routable in this browser cognition lane, so I cannot inspect or mutate GitHub from this turn without a routed repository capability.";
+    return `GitHub is Mahoraga's authoritative source/evolution plane for michaeljwilliams0123/mahoraga. ${directState}`;
+  }
+  return null;
+};
 
 const jsonAction = (answer: string): Record<string, unknown> | null => {
   let candidate = answer.trim();
@@ -171,7 +220,7 @@ const interceptAction = (
   if (action === "text_to_image") {
     const imageAvailable = runtimeContext.capabilities["image.generate"] === "routable";
     if (!imageAvailable) return {
-      response: "Image generation is not currently connected in this Mahoraga runtime.",
+      response: "[capability_unavailable:image.generate] Image generation is not currently connected in this Mahoraga runtime.",
       action: { type: "text_to_image", status: "unavailable" },
     };
   }
@@ -179,6 +228,39 @@ const interceptAction = (
     response: `The requested action '${action}' is not currently connected in this Mahoraga runtime.`,
     action: { type: action, status: "unavailable" },
   };
+};
+
+const guardFictionalPersonaLeak = (answer: string, messages: ProviderMessage[]): string => {
+  const message = latestUserContent(messages);
+  if (explicitFictionIntent(message)) return answer;
+  const markers = [
+    /Eightfold Asura/i,
+    /\bShutara\b/i,
+    /Six Arrows/i,
+    /\bchakra\b/i,
+    /\bHexagram\b/i,
+    /Great Wheel/i,
+    /\bDao\b/i,
+  ].filter((pattern) => pattern.test(answer)).length;
+  if (markers < 2) return answer;
+  if (/\b(?:design|build|enhance|improve|upgrade|evolve|self-improve)\b/i.test(message)) {
+    return "I can enhance Mahoraga through bounded improvements to the planner, capability router, verifier, memory boundaries, observability, UI, and tool integrations. I should inspect current source/runtime evidence, build a reversible candidate, test it, and promote it only through owner-governed verification.";
+  }
+  return "I am Mahoraga, the Project Mahoraga agent operating through this runtime. I can reason about the system and use only capabilities this runtime marks routable; I will not substitute fictional JJK lore for operational answers.";
+};
+
+const guardRepositoryArchitectureClaim = (
+  answer: string,
+  runtimeContext: ProviderRuntimeContext,
+  messages: ProviderMessage[],
+): string => {
+  const message = latestUserContent(messages);
+  if (!/\b(?:github|repository|repo)\b/i.test(message)) return answer;
+  if (!/(?:not connected to GitHub|do not interface with external repositories|cannot access (?:the )?(?:repository|repo|GitHub))/i.test(answer)) return answer;
+  const directState = runtimeContext.capabilities["repository.inspect"] === "routable"
+    ? "repository.inspect is currently routable for this turn."
+    : "repository.inspect is not currently routable in this browser cognition lane, so I cannot inspect or mutate GitHub from this turn without a routed repository capability.";
+  return `GitHub is Mahoraga's authoritative source/evolution plane for michaeljwilliams0123/mahoraga. ${directState}`;
 };
 
 const guardProviderIdentityLeak = (answer: string): string => {
@@ -220,6 +302,10 @@ export const invokeZeroCreditProvider = async (
   if (testInvoker !== null) return testInvoker(model, input);
   if (model !== ASSISTANT_MODEL_ID) throw new Error("cognition-provider-model-mismatch");
   const runtimeContext = normalizedRuntimeContext(input.runtimeContext);
+  const unavailableRequest = interceptUnavailableUserRequest(input.messages, runtimeContext);
+  if (unavailableRequest !== null) return { ...unavailableRequest, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID };
+  const truthAnswer = runtimeTruthAnswer(input.messages, runtimeContext);
+  if (truthAnswer !== null) return { response: truthAnswer, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID };
   const messages = [groundingMessage(runtimeContext), ...input.messages];
   if (!messagesWithinLimit(messages)) throw new Error("cognition-provider-input-limit");
   let response: Response;
@@ -249,8 +335,10 @@ export const invokeZeroCreditProvider = async (
   const intercepted = interceptAction(answer, runtimeContext);
   if (intercepted !== null) return { ...intercepted, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID };
   const identityGroundedAnswer = guardProviderIdentityLeak(answer);
+  const projectGroundedAnswer = guardFictionalPersonaLeak(identityGroundedAnswer, input.messages);
+  const repositoryGroundedAnswer = guardRepositoryArchitectureClaim(projectGroundedAnswer, runtimeContext, input.messages);
   return {
-    response: guardUnverifiedCompletionClaim(identityGroundedAnswer, runtimeContext),
+    response: guardUnverifiedCompletionClaim(repositoryGroundedAnswer, runtimeContext),
     providerId: ASSISTANT_PROVIDER_ID,
     modelId: ASSISTANT_MODEL_ID,
   };
