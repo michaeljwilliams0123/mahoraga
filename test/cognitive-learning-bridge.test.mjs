@@ -17,3 +17,12 @@ import { executeCognitiveCapability } from '../src/cognitive-worker.mjs';
 test('cognitive.learn is an executable bounded capability',async()=>{const cycle=runCognitiveLoop(base);const result=await executeCognitiveCapability('cognitive.learn',{capabilityInput:{learningInput:{cycle,verification:{verified:true,sourceFingerprint:cycle.fingerprint,evidenceRefs:['verify:receipt']},observedAt:now}}});assert.equal(result.verified,true);assert.equal(result.learning.promotable,true);assert.equal(result.receiptMetadata.routeWorker,'cognitive-core');});
 
 test('manifest routes cognitive.learn through the existing cognitive core only',()=>{const manifest=JSON.parse(readFileSync(new URL('../mahoraga.manifest.json',import.meta.url),'utf8'));const workers=manifest.workers.filter(w=>w.capabilities.includes('cognitive.learn'));assert.equal(workers.length,1);assert.equal(workers[0].id,'cognitive-core');assert.equal(workers[0].costClass,'deterministic');assert.equal(workers[0].routing.requiresAttendedDesktop,false);});
+
+
+import { calibratePredictionOutcome } from '../src/cognitive-learning-bridge.mjs';
+
+test('prediction calibration compares forecast to realized outcome and lowers calibration after a miss',()=>{const cycle=runCognitiveLoop(base);const out=calibratePredictionOutcome({cycle,observedState:{queueDepth:5},priorCalibration:0.9});assert.equal(out.kind,'prediction-calibration-receipt');assert.equal(out.predictedState.queueDepth,2);assert.equal(out.observedState.queueDepth,5);assert.ok(out.normalizedError>0);assert.ok(out.adjustedCalibration<0.9);assert.equal(out.direction,'decrease');assert.equal(out.sourceFingerprint,cycle.fingerprint);});
+
+test('prediction calibration raises calibration after an exact realized outcome',()=>{const cycle=runCognitiveLoop(base);const out=calibratePredictionOutcome({cycle,observedState:{queueDepth:2},priorCalibration:0.4});assert.equal(out.normalizedError,0);assert.equal(out.outcomeAccuracy,1);assert.ok(out.adjustedCalibration>0.4);assert.equal(out.direction,'increase');});
+
+test('prediction calibration fails closed on malformed realized state',()=>{const cycle=runCognitiveLoop(base);assert.throws(()=>calibratePredictionOutcome({cycle,observedState:{queueDepth:'unknown'},priorCalibration:0.5}),{code:'prediction-calibration-observed-state-invalid'});});
