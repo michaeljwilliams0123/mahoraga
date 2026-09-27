@@ -6,7 +6,7 @@ on:
     workflows: ["Verify Mahoraga"]
     types: [completed]
   schedule:
-    - cron: "17 * * * *"
+    - cron: "7,37 * * * *"
 
 permissions:
   contents: read

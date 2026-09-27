@@ -27,7 +27,7 @@ test("Cloudflare exact-main workflow preserves SHA authority and fails closed on
   assert.match(workflow, /node scripts\/verify-exact-head\.mjs/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
   assert.equal((workflow.match(/CLOUDFLARE_BILLING_READ_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_BILLING_READ_TOKEN \}\}/g) ?? []).length, 2,
-    "deployment and hourly renewal must both receive the billing read token");
+    "deployment and scheduled renewal must both receive the billing read token");
   assert.match(workflow, /CLOUDFLARE_ACCOUNT_ID:\s*\$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/);
   assert.match(workflow, /CLOUDFLARE_ACCESS_CLIENT_ID:\s*\$\{\{ secrets\.CLOUDFLARE_ACCESS_CLIENT_ID \}\}/);
   assert.match(workflow, /CLOUDFLARE_ACCESS_CLIENT_SECRET:\s*\$\{\{ secrets\.CLOUDFLARE_ACCESS_CLIENT_SECRET \}\}/);
@@ -76,11 +76,11 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
     readFile(runtimeWorkerPath, "utf8"),
     readFile(runtimeWranglerPath, "utf8"),
   ]);
-  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"17 \* \* \* \*"/);
+  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"7,37 \* \* \* \*"/);
   const renewalJob = workflow.indexOf("renew-provider-admission:");
   const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);
   const refreshCall = workflow.indexOf("/api/provider/refresh", renewalJob);
-  assert.ok(renewalJob >= 0, "hourly external renewal job must exist");
+  assert.ok(renewalJob >= 0, "twice-hourly external renewal job must exist");
   assert.ok(billingProof > renewalJob, "renewal must re-prove account billing");
   assert.ok(refreshCall > billingProof, "fresh attestation must be submitted only after billing proof");
   const renewalBlock = workflow.slice(renewalJob);
