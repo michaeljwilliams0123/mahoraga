@@ -42,3 +42,32 @@ function deepFreeze(value) {
   return value;
 }
 function fail(code) { const error = new TypeError(code); error.code = code; throw error; }
+
+
+export function calibratePredictionOutcome({ cycle, observedState, priorCalibration = 0.5 } = {}) {
+  assertCycle(cycle);
+  if (!cycle.prediction || typeof cycle.prediction !== 'object' || !cycle.prediction.predictedState) fail('prediction-calibration-prediction-invalid');
+  if (!observedState || typeof observedState !== 'object' || Array.isArray(observedState)) fail('prediction-calibration-observed-state-invalid');
+  if (typeof priorCalibration !== 'number' || !Number.isFinite(priorCalibration) || priorCalibration < 0 || priorCalibration > 1) fail('prediction-calibration-prior-invalid');
+  const predicted = cycle.prediction.predictedState;
+  const keys = Object.keys(predicted).sort();
+  if (keys.length < 1 || keys.some((key) => typeof observedState[key] !== 'number' || !Number.isFinite(observedState[key]))) fail('prediction-calibration-observed-state-invalid');
+  const absoluteErrors = keys.map((key) => Math.abs(predicted[key] - observedState[key]));
+  const scales = keys.map((key) => Math.max(1, Math.abs(predicted[key]), Math.abs(observedState[key])));
+  const normalizedError = Number((absoluteErrors.reduce((sum, error, index) => sum + error / scales[index], 0) / keys.length).toFixed(12));
+  const outcomeAccuracy = Number(Math.max(0, 1 - Math.min(1, normalizedError)).toFixed(12));
+  const adjustedCalibration = Number(((priorCalibration * 0.5) + (outcomeAccuracy * 0.5)).toFixed(12));
+  return deepFreeze({
+    schemaVersion: 1,
+    kind: 'prediction-calibration-receipt',
+    sourceFingerprint: cycle.fingerprint,
+    actionId: cycle.prediction.actionId,
+    predictedState: { ...predicted },
+    observedState: Object.fromEntries(keys.map((key) => [key, observedState[key]])),
+    normalizedError,
+    outcomeAccuracy,
+    priorCalibration,
+    adjustedCalibration,
+    direction: adjustedCalibration > priorCalibration ? 'increase' : adjustedCalibration < priorCalibration ? 'decrease' : 'unchanged',
+  });
+}
