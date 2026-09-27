@@ -55,7 +55,11 @@ const acceptanceRunId = (request: Request): string | null => {
   return /^[a-z0-9-]{1,160}$/i.test(value) ? value : null;
 };
 const objectValue = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
-const safeError = (error: unknown): string => error instanceof Error && /^content-vault-[a-z-]+$/.test(error.message) ? error.message : "cognition-provider-failed";
+const safeError = (error: unknown): string => {
+  if (!(error instanceof Error)) return "cognition-provider-failed";
+  if (error.message === "cognition-provider-timeout" || /^content-vault-[a-z-]+$/.test(error.message)) return error.message;
+  return "cognition-provider-failed";
+};
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };

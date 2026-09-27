@@ -54,6 +54,39 @@ test("ordinary provider failures do not masquerade as quota exhaustion", async (
   );
 });
 
+test("provider inference carries a bounded deadline shorter than the UI bridge budget", async () => {
+  const originalTimeout = AbortSignal.timeout;
+  const controller = new AbortController();
+  let observedTimeoutMs: number | null = null;
+  AbortSignal.timeout = (milliseconds: number) => {
+    observedTimeoutMs = milliseconds;
+    return controller.signal;
+  };
+  try {
+    const fetchImpl: typeof fetch = async (_input, init) => {
+      assert.equal(init?.signal, controller.signal);
+      return Response.json(providerEnvelope("Mahoraga is connected."));
+    };
+    await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: "pressure check" }] }, fetchImpl);
+  } finally {
+    AbortSignal.timeout = originalTimeout;
+  }
+  assert.equal(typeof observedTimeoutMs, "number");
+  assert.ok(observedTimeoutMs! > 0 && observedTimeoutMs! < 60_000);
+});
+
+test("provider deadline expiry is reported as a distinct recoverable timeout", async () => {
+  const fetchImpl: typeof fetch = async () => {
+    throw new DOMException("The operation timed out.", "TimeoutError");
+  };
+  await assert.rejects(
+    invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: "pressure check" }] }, fetchImpl),
+    (error: unknown) => error instanceof Error
+      && error.message === "cognition-provider-timeout"
+      && providerGapReasonFromError(error) === null,
+  );
+});
+
 test("assistant inference is grounded as Mahoraga with live capability truth and receipt-gated claims", async () => {
   let observedMessages: Array<{ role?: string; content?: string }> = [];
   const fetchImpl: typeof fetch = async (_input, init) => {

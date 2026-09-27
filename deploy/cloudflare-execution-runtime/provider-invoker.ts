@@ -14,6 +14,7 @@ export const FREE_ALLOCATION_NEURONS = 10_000;
 export const MAHORAGA_DAILY_BUDGET_NEURONS = 9_000;
 export const MAX_PROVIDER_INPUT_BYTES = 8_000;
 export const PROVIDER_FREE_QUOTA_EXHAUSTED = "provider-free-quota-exhausted";
+const PROVIDER_REQUEST_TIMEOUT_MS = 45_000;
 
 export const DEFAULT_BROWSER_RUNTIME_CONTEXT: ProviderRuntimeContext = Object.freeze({
   capabilities: Object.freeze({
@@ -221,14 +222,23 @@ export const invokeZeroCreditProvider = async (
   const runtimeContext = normalizedRuntimeContext(input.runtimeContext);
   const messages = [groundingMessage(runtimeContext), ...input.messages];
   if (!messagesWithinLimit(messages)) throw new Error("cognition-provider-input-limit");
-  const response = await fetchImpl(endpoint(config, "/api/infer"), {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${config.token}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({ targetSha: config.targetSha, model, messages }),
-  });
+  let response: Response;
+  try {
+    response = await fetchImpl(endpoint(config, "/api/infer"), {
+      method: "POST",
+      signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+      headers: {
+        authorization: `Bearer ${config.token}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ targetSha: config.targetSha, model, messages }),
+    });
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
+      throw new Error("cognition-provider-timeout");
+    }
+    throw error;
+  }
   if (response.status === 429) throw new ProviderGapError(PROVIDER_FREE_QUOTA_EXHAUSTED);
   if (!response.ok) throw new Error("cognition-provider-failed");
   const body: unknown = await response.json();

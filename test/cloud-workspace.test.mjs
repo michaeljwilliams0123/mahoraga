@@ -77,3 +77,10 @@ test("terminal runtime work cannot silently return the chat to idle without a re
   assert.match(workspace, /runtime-response-missing/);
   assert.match(workspace, /setRuntimeError\(runtimeErrorMessage\("runtime-response-missing"\)\)/);
 });
+
+test("provider deadline expiry is presented as recoverable brain latency", async () => {
+  const workspace = await read("cloud-app/components/workspace.tsx");
+  assert.match(workspace, /"cognition-provider-timeout"/);
+  assert.match(workspace, /brain did not answer within the bounded response window/i);
+  assert.match(workspace, /try again/i);
+});

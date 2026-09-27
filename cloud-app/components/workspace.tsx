@@ -49,6 +49,7 @@ function runtimeErrorMessage(code: string) {
     "relay-request-timeout": "Mahoraga did not answer before the bounded timeout. No paid fallback was attempted.",
     "relay-pairing-offer-invalid": "Recovery pairing offer is invalid. Do not enter the owner PIN here; use Cloudflare sign-in above.",
     "runtime-response-missing": "Mahoraga finished the task, but its reply did not reach this conversation. Try again or open Work for the task state.",
+    "cognition-provider-timeout": "Mahoraga's brain did not answer within the bounded response window. The request stopped safely; try again.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
     "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Sign in to the canonical cloud workspace or use the recovery connection only if needed.",
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
