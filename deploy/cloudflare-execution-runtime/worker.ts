@@ -179,6 +179,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversationId = payload.conversationId ?? crypto.randomUUID();
     const key = payload.idempotencyKey;
     if (!boundedId(conversationId) || !boundedId(key) || typeof message !== "string" || !message.trim() || !providerInputWithinLimit(message) || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "chat-payload-invalid" }, 400);
+    if (/^\/predict(?:\s|$)/i.test(message.trim())) return json({ error: "predictive-route-unavailable" }, 409);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
     const existingConversation = this.storage.getConversation(conversationId);

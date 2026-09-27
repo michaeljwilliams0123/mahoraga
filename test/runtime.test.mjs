@@ -107,6 +107,43 @@ test("cloud runtime preserves zero-credit chat rejection semantics", async (t) =
     },
   });
 });
+test("paired chat executes a bounded predictive simulation and preserves its receipt", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  await waitFor(async () => {
+    const { capabilities } = await (await fetch(`${base}/api/status`)).json();
+    return capabilities.some((item) => item.capability === "cognitive.predict" && item.routable);
+  });
+  const content = '/predict {"observedState":{"queueDepth":4},"stateUncertainty":0.2,"action":{"actionId":"add-capacity","effects":{"queueDepth":-2},"uncertainty":0.1}}';
+  const post = (message, idempotencyKey = "prediction-1") => fetch(`${base}/api/chat`, {
+    method: "POST", headers: { ...AUTH, "content-type": "application/json" },
+    body: JSON.stringify({ content: message, mode: "auto", creditPolicy: "zero-codex", idempotencyKey }),
+  });
+  const malformed = await post('/predict {"observedState":{}}', "prediction-invalid");
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, "predictive-chat-input-invalid");
+  const first = await post(content);
+  assert.equal(first.status, 202);
+  const accepted = await first.json();
+  assert.equal(accepted.task.capability, "cognitive.predict");
+  assert.equal(accepted.task.dataClass, "local-only");
+  const replay = await post(content);
+  assert.equal((await replay.json()).task.id, accepted.task.id);
+  const conflicting = await post(content.replace("-2", "-3"));
+  assert.equal(conflicting.status, 409);
+  assert.equal((await conflicting.json()).error, "idempotency-conflict");
+  assert.equal(runtime.database.listConversations().filter((item) => item.id === accepted.conversation.id).length, 1);
+  const completed = await waitFor(async () => {
+    const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
+    return tasks.tasks.find((task) => task.id === accepted.task.id && task.status === "completed");
+  }, 30_000);
+  const summary = runtime.contentVault.get(completed.resultSummaryReference, {
+    ownerType: "task-result", ownerId: completed.id, classification: completed.dataClass,
+  }).toString("utf8");
+  assert.match(summary, /Scenario simulation/);
+  assert.match(summary, /queueDepth: 2/);
+  assert.match(summary, /predicted uncertainty: 0.3/);
+});
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;

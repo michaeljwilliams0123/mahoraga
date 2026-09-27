@@ -128,7 +128,7 @@ export function taskPolicyVersion() {
 
 function deriveDataClass(intent, request) {
   if (intent.startsWith("m365.") || intent.startsWith("studio.") || intent.startsWith("powerplatform.") || intent === "provider.gap") return "enterprise";
-  if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.") || intent.startsWith("self.")) return "local-only";
+  if (intent.startsWith("repository.") || intent.startsWith("desktop.") || intent.startsWith("codex.") || intent.startsWith("self.") || intent === "cognitive.predict") return "local-only";
   if (intent === "assistant.respond" || intent === "communication.send") return "personal";
   if (intent === "artifact.inspect") return request.contentReferences?.length ? "local-only" : "synthetic";
   return "synthetic";

@@ -68,6 +68,14 @@ describe("native assistant bridge", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("keeps predictive scenario requests off the cloud answer provider", async () => {
+    const run = vi.fn(); setProviderInvokerForTest(run);
+    const response = await post("chat", { content: '/predict {"observedState":{"load":1}}', mode: "auto", creditPolicy: "zero-codex", idempotencyKey: "predictive-cloud-denied" });
+    expect(response.status).toBe(409);
+    expect((await response.json() as { error: string }).error).toBe("predictive-route-unavailable");
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("persists encrypted turns, replays once, and enforces conversation ownership", async () => {
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {

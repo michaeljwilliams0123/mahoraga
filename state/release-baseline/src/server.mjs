@@ -26,6 +26,8 @@ import { autonomyAllowedPaths } from "./autonomy-execution-scope.mjs";
 import { readRepositoryHead } from "./repository-worker.mjs";
 import { createConversationGateway } from "./conversation-gateway.mjs";
 import { chatConversationTitle, classifyChatTurn } from "./chat-intake.mjs";
+import { parsePredictiveChatIntent } from "./predictive-chat-intent.ts";
+import { simulateCounterfactual } from "./cognitive-world-model.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
 import { readGithubRepositoryViaComposio } from "./composio-tool-client.mjs";
@@ -659,6 +661,42 @@ async function executeChatTurn({ database, manifest, supervisor, artifactStore, 
   const creditPolicy = chatCreditPolicy(body.creditPolicy);
   const attachments = await artifactStore.resolve(body.attachmentIds ?? []);
   const capabilityRoutes = capabilityIndex(manifest, supervisor?.status?.() ?? []);
+  let prediction = null;
+  try {
+    prediction = parsePredictiveChatIntent(body.content);
+    if (prediction) simulateCounterfactual(prediction);
+  } catch {
+    return { status: 400, value: { error: "predictive-chat-input-invalid" } };
+  }
+  if (prediction) {
+    if (attachments.length || creditPolicy === "licensed-approved" || !zeroCreditChatRouteAvailable(capabilityRoutes, "cognitive.predict")) {
+      return { status: 409, value: { error: "predictive-route-unavailable" } };
+    }
+    const decision = { mode: "ask", execution: "task", capability: "cognitive.predict", intentKind: "scenario-simulation", reasonCode: "explicit-scenario-simulation" };
+    const prior = body.idempotencyKey ? database.getTaskByIdempotencyKey(body.idempotencyKey) : null;
+    if (prior) {
+      if (prior.capability !== "cognitive.predict" || prior.requestedOutcomeSha256 !== createHash("sha256").update(body.content).digest("hex")
+        || (body.conversationId && prior.conversationId !== body.conversationId)) {
+        return { status: 409, value: { error: "idempotency-conflict" } };
+      }
+      return { status: 202, value: { decision, conversation: database.getConversation(prior.conversationId), task: prior, objective: null } };
+    }
+    const title = "Scenario simulation";
+    let conversation;
+    if (body.conversationId) {
+      conversation = database.getConversation(body.conversationId);
+      if (!conversation) return { status: 404, value: { error: "conversation-not-found" } };
+      database.addConversationMessage({ conversationId: conversation.id, role: "user", content: body.content, classification: "local-only" });
+    } else {
+      conversation = database.createConversation({ title, initialMessage: body.content, classification: "local-only" });
+    }
+    const task = submitTask(database, manifest, {
+      intent: "cognitive.predict", requestedOutcome: body.content, capabilityInput: { counterfactual: prediction },
+      priority: "high", maximumAttempts: 1, taskArea: "scenario-simulation",
+      conversationId: conversation.id, idempotencyKey: body.idempotencyKey,
+    }, { source: "owner-predictive-chat", internal: true, attendedSession: context.attendedSession ?? null, requestedMode: "zero-credit" });
+    return { status: 202, value: { decision, conversation, task, objective: null } };
+  }
   const priorTasks = body.conversationId ? database.listTasks(500).filter((task) => task.conversationId === body.conversationId) : [];
   const ucfPlan = planConversationCapabilities({ content: body.content, attachmentCount: attachments.length, capabilityRoutes, priorTasks });
   const availableCapabilities = [...new Set(capabilityRoutes.filter((item) => item.enabled !== false).map((item) => item.capability))];
