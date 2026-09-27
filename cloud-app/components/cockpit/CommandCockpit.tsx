@@ -72,7 +72,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
-        { label: "railwayStatus", value: "retired · non-routing rollback/evidence only" },
+        { label: "railwayStatus", value: "legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority" },
       ],
       actionable: false,
     };
@@ -235,7 +235,7 @@ export function CommandCockpit({
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
-            <div><dt>railway status</dt><dd>retired · non-routing rollback/evidence only · no promotion or reconstruction path</dd></div>
+            <div><dt>railway status</dt><dd>legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · no promotion or reconstruction path</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>

@@ -57,6 +57,7 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /legacy evidence only/i);
     assert.match(cockpit, /zero-route, zero-influence, zero-fallback, zero-authority/i);
     assert.match(cockpit, /do not repair or revive it/i);
+    assert.doesNotMatch(cockpit, /rollback\/evidence|rollback anchor/i);
     assert.match(cockpit, /exact-main Cloudflare deployment plus acceptance/i);
     assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
   });
