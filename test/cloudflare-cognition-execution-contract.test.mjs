@@ -16,6 +16,7 @@ test("Cloudflare execution runtime cannot synthesize SUCCESS or call paid-accoun
   assert.match(source, /providerInputWithinLimit\(candidate\.message\)/, "direct execution must enforce the provider UTF-8 byte limit");
   assert.match(source, /saveProviderState\(providerStateForGap\(reasonCode\)\)/, "runtime quota exhaustion must revoke durable provider admission");
   assert.match(source, /encryptConversationContent/, "prompt and answer content must be vaulted rather than persisted in plaintext receipts");
+  assert.match(source, /cognition-provider-timeout/, "provider deadline expiry must survive the runtime error boundary");
 });
 
 test("Workers AI is bound only to isolated Free-account inference and SUCCESS follows provider execution", async () => {
