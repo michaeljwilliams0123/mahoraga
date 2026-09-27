@@ -24,7 +24,6 @@ const WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 const SECRET = /(?:\bsk-[A-Za-z0-9_-]{16,}|\bgithub_pat_[A-Za-z0-9_]{16,}|\bgh[pousr]_[A-Za-z0-9]{16,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|\bBearer\s+[A-Za-z0-9._~-]{12,}|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}|\b(?:api[_-]?key|password|secret|access[_-]?token|refresh[_-]?token)\s*[:=])/i;
 const PRIVATE_ECHO = /(?:prompt|answer|transcript|chat|conversation|credential|password|browser history)/i;
 const ALLOWED_ORIGINS = new Set([
-  "https://mahoraga-cloud-workspace.vercel.app",
   "https://michaeljwilliams0123.github.io",
 ]);
 
