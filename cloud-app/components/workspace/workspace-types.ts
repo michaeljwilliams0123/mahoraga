@@ -27,13 +27,29 @@ export type SanitizedAcceptanceReceipt = {
   "x-bypass-applied"?: boolean;
 };
 
+export type HardZeroQuotaAction =
+  | "dispatch-hard-zero"
+  | "quota-hold-until-utc-reset"
+  | "resume-queued"
+  | "refuse-paid-route";
+
+export type HardZeroQuotaReceipt = {
+  nextAction?: HardZeroQuotaAction;
+  status?: string;
+  reason?: string;
+  resumeAt?: string | null;
+  idempotencyKey?: string | null;
+  creditCost?: number;
+  paidFallback?: boolean;
+};
+
 export type Health = {
   ok: boolean;
   product?: string;
   version?: string;
   build?: { version?: string };
   deployment?: { provider?: string; environment?: string; url?: string | null; commitSha?: string | null; expectedCommitSha?: string | null; gitRef?: string | null; promotion?: string | null };
-  runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string } } & SanitizedAcceptanceReceipt;
+  runtime?: { databaseTarget?: { basename?: string | null; source?: string }; provenance?: { state?: string; expectedSourceCommit?: string | null; source?: string }; hardZeroQuota?: HardZeroQuotaReceipt; creditFreeQuota?: HardZeroQuotaReceipt; workersAi?: HardZeroQuotaReceipt } & SanitizedAcceptanceReceipt;
   capabilities?: { runtimeRelay?: boolean; directConversationExecution?: boolean; directProviderSelection?: boolean };
   boundaries?: { executionPlane?: string; localExtensionRequired?: boolean; localDeviceMutationAllowed?: boolean; relaySeesPlaintext?: boolean };
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
@@ -43,6 +59,9 @@ export type Health = {
   productionAcceptance?: SanitizedAcceptanceReceipt;
   cloudflareAcceptance?: SanitizedAcceptanceReceipt;
   receipt?: SanitizedAcceptanceReceipt;
+  hardZeroQuota?: HardZeroQuotaReceipt;
+  creditFreeQuota?: HardZeroQuotaReceipt;
+  autonomy?: { hardZeroQuota?: HardZeroQuotaReceipt; creditFreeQuota?: HardZeroQuotaReceipt; workersAi?: HardZeroQuotaReceipt };
   providerCognitionVerified?: boolean;
   noRailwayFallbackVerified?: boolean;
   trafficAuthorityVerified?: boolean;

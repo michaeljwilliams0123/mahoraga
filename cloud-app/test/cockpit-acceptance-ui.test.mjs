@@ -64,4 +64,22 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
+
+  it("surfaces the hard-zero quota decision without implying promotion", () => {
+    assert.match(types, /HardZeroQuotaReceipt/);
+    assert.match(types, /quota-hold-until-utc-reset/);
+    assert.match(types, /dispatch-hard-zero/);
+    assert.match(types, /resume-queued/);
+    assert.match(types, /refuse-paid-route/);
+    assert.match(cockpit, /Hard-zero quota route/);
+    assert.match(cockpit, /Next UTC reset/);
+    assert.match(cockpit, /Same idempotency key/);
+    assert.match(cockpit, /creditCost/);
+    assert.match(cockpit, /paidFallback/);
+    assert.match(cockpit, /Hold until UTC reset/);
+    assert.match(cockpit, /Resume queued/);
+    assert.match(cockpit, /Refuse paid route/);
+    assert.match(cockpit, /Dispatch hard-zero/);
+    assert.match(cockpit, /does not grant traffic authority/);
+  });
 });

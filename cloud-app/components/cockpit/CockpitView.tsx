@@ -5,13 +5,19 @@ import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
-import type { CockpitViewProps, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
+import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
 const EXPECTED_PROVIDER_ID = "cloudflare-workers-ai";
 const EXPECTED_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
+const HARD_ZERO_ACTIONS = new Set<HardZeroQuotaAction>([
+  "dispatch-hard-zero",
+  "quota-hold-until-utc-reset",
+  "resume-queued",
+  "refuse-paid-route",
+]);
 
 function parseReadinessObservation(value: unknown): ReadinessObservation | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
@@ -71,6 +77,33 @@ function parseSanitizedAcceptance(health: Health | null): SanitizedAcceptanceRec
     "x-bypass-applied": bypassApplied,
     bypassApplied,
   };
+}
+
+function parseHardZeroQuota(health: Health | null): HardZeroQuotaReceipt | null {
+  const candidates = [
+    health?.hardZeroQuota,
+    health?.creditFreeQuota,
+    health?.runtime?.hardZeroQuota,
+    health?.runtime?.creditFreeQuota,
+    health?.runtime?.workersAi,
+    health?.autonomy?.hardZeroQuota,
+    health?.autonomy?.creditFreeQuota,
+    health?.autonomy?.workersAi,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate || !HARD_ZERO_ACTIONS.has(candidate.nextAction as HardZeroQuotaAction)) continue;
+    if (candidate.creditCost !== 0 || candidate.paidFallback !== false) continue;
+    return candidate;
+  }
+  return null;
+}
+
+function hardZeroActionLabel(action: HardZeroQuotaAction | undefined) {
+  if (action === "dispatch-hard-zero") return "Dispatch hard-zero";
+  if (action === "quota-hold-until-utc-reset") return "Hold until UTC reset";
+  if (action === "resume-queued") return "Resume queued";
+  if (action === "refuse-paid-route") return "Refuse paid route";
+  return "Unobserved";
 }
 
 function shortSha(value: string | null | undefined) {
@@ -141,6 +174,9 @@ export function CockpitView({
   const learning = projectCognitiveLearningSurface(health?.cognitiveLearning);
   const liveOk = Boolean(health?.ok) && !healthError;
   const acceptance = parseSanitizedAcceptance(health);
+  const hardZeroQuota = parseHardZeroQuota(health);
+  const hardZeroAction = hardZeroQuota?.nextAction;
+  const quotaHolding = hardZeroAction === "quota-hold-until-utc-reset";
   const cognitionObserved = acceptance.providerCognitionVerified === true;
   const noRailwayVerified = acceptance.noRailwayFallbackVerified === true;
   const cognitionDetail = cognitionObserved
@@ -229,6 +265,14 @@ export function CockpitView({
         <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
         <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
+        <StatusCard
+          label="Hard-zero quota route"
+          value={hardZeroActionLabel(hardZeroAction)}
+          detail={hardZeroQuota
+            ? `Next UTC reset ${hardZeroQuota.resumeAt ?? "unavailable"} · Same idempotency key ${hardZeroQuota.idempotencyKey ?? "unavailable"} · creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)} · does not grant traffic authority`
+            : "No verified hard-zero quota receipt · creditCost and paidFallback unverified · does not grant traffic authority"}
+          tone={hardZeroAction === "dispatch-hard-zero" || hardZeroAction === "resume-queued" ? "good" : quotaHolding || hardZeroAction === "refuse-paid-route" ? "warn" : "neutral"}
+        />
         <StatusCard label="Model fabric" value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`} tone={routable.length > 0 ? "good" : "neutral"} />
         <StatusCard
           label="Institutional learning"
@@ -278,6 +322,10 @@ export function CockpitView({
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
+            <div><dt>Hard-zero quota action</dt><dd>{hardZeroActionLabel(hardZeroAction)} · {hardZeroQuota?.reason ?? "receipt unavailable"}</dd></div>
+            <div><dt>Next UTC reset</dt><dd>{hardZeroQuota?.resumeAt ?? "unavailable"}</dd></div>
+            <div><dt>Same idempotency key</dt><dd>{hardZeroQuota?.idempotencyKey ?? "unavailable"}</dd></div>
+            <div><dt>Hard-zero cost truth</dt><dd>{hardZeroQuota ? `creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)}` : "unverified until a sanitized hard-zero receipt is present"}</dd></div>
             <div><dt>Liveness/readiness</dt><dd>{readiness?.status ?? "unobserved"} · SHA {shortSha(readiness?.sha)} · durableState {readiness?.durableState ?? "unavailable"} · execution observation only</dd></div>
           </dl>
         </section>
