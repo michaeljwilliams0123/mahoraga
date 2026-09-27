@@ -101,6 +101,7 @@ export type ChatViewProps = {
   ownerLoginPin: string;
   ownerLoginBusy: boolean;
   routableCapabilities: RuntimeCapability[];
+  runtimeCapabilities: RuntimeCapability[];
   starters: Starter[];
   quickActions: QuickAction[];
   activeActionLabel: string | null;

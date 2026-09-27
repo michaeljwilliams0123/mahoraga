@@ -4,6 +4,7 @@ import { Link2, ShieldCheck, Unplug } from "lucide-react";
 import { useState } from "react";
 import type { RuntimeCapability, RuntimeComposioRepositoryProbe } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
+import { projectCapabilityFamilies } from "@/lib/capability-families";
 
 type DisplayCapability = RuntimeCapability & { providerReasonCode?: string | null };
 
@@ -54,6 +55,16 @@ export function ConnectionsView({
         Provider and worker readiness comes only from the paired Mahoraga core. This browser does not select providers, hold GitHub authority,
         or create an alternate execution path.
       </p>
+
+      <div className="capability-list" aria-label="Agentic, generative, and predictive readiness">
+        {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
+          <div key={family.id}>
+            <strong>{family.label}</strong>
+            <span>{family.state === "routable" ? `Routable · ${family.route} · ${family.evidence}` : family.state === "unobserved" ? "Not observed · pair runtime to inspect" : `Unavailable · ${family.route ?? "no route reported"} · ${family.reason}`}</span>
+          </div>
+        ))}
+        <div><strong>Collective advantage</strong><span>Not measured · requires held-out benchmark receipts against the strongest individual route</span></div>
+      </div>
 
       <div className="capability-list" style={{ marginTop: 16 }}>
         <div>
