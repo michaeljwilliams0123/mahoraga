@@ -138,6 +138,23 @@ test("production default context exposes the browser runtime capability boundary
   assert.match(systemMessage, /browser\.execute=unavailable/i);
   assert.match(systemMessage, /image\.generate=unavailable/i);
   assert.match(systemMessage, /memory\.write=unavailable/i);
+  assert.match(systemMessage, /cognitive\.predict=unavailable/i);
+  assert.match(systemMessage, /codex\.execute=unavailable/i);
+  assert.match(systemMessage, /collective advantage.*held-out.*evidence/i);
+});
+
+test("capability self-description uses runtime truth and does not assert AGI or benchmark superiority", async () => {
+  let calls = 0;
+  const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(providerEnvelope("I am stronger than every agent.")); };
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "What are your agentic, generative, and predictive capabilities?" }],
+  }, fetchImpl) as { response?: string };
+  assert.equal(calls, 0);
+  assert.match(result.response ?? "", /assistant\.respond.*routable/i);
+  assert.match(result.response ?? "", /codex\.execute.*unavailable/i);
+  assert.match(result.response ?? "", /cognitive\.predict.*unavailable/i);
+  assert.match(result.response ?? "", /collective advantage.*not measured/i);
+  assert.doesNotMatch(result.response ?? "", /level 6 agi achieved|stronger than every agent/i);
 });
 
 test("provider identity cannot replace Mahoraga identity in the final answer", async () => {

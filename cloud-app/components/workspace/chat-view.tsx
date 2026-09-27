@@ -25,6 +25,7 @@ import {
 import { useLayoutEffect } from "react";
 import { Streamdown } from "streamdown";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
+import { projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
 
@@ -52,6 +53,7 @@ export function ChatView(props: ChatViewProps) {
     busy,
     coreReady,
     assistantReady,
+    runtimeCapabilities,
     brainLabel,
     brainState,
     licensedRetryAvailable,
@@ -127,6 +129,15 @@ export function ChatView(props: ChatViewProps) {
             <span className="one-kicker">Mahoraga</span>
             <h1>Say what you want.<br /><em>Mahoraga handles the lanes.</em></h1>
             <p>Talk, build, hand off, create, report, or ship from one conversation. The brain chooses the route and keeps the machinery out of your way.</p>
+
+            <div className="capability-family-summary" aria-label="Observed capability readiness">
+              {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
+                <div key={family.id} className={`capability-family ${family.state}`}>
+                  <strong>{family.label}</strong>
+                  <span>{family.state === "routable" ? "Routable" : family.state === "unobserved" ? "Not observed" : "Unavailable"}</span>
+                </div>
+              ))}
+            </div>
 
             <div className="quick-action-grid" aria-label="Quick actions">
               {quickActions.map((action) => {

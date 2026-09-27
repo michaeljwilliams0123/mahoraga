@@ -38,6 +38,8 @@ export type HardZeroQuotaReceipt = {
   status?: string;
   reason?: string;
   resumeAt?: string | null;
+  heldUtcDay?: string | null;
+  heldResumeAt?: string | null;
   idempotencyKey?: string | null;
   creditCost?: number;
   paidFallback?: boolean;
@@ -101,6 +103,7 @@ export type ChatViewProps = {
   ownerLoginPin: string;
   ownerLoginBusy: boolean;
   routableCapabilities: RuntimeCapability[];
+  runtimeCapabilities: RuntimeCapability[];
   starters: Starter[];
   quickActions: QuickAction[];
   activeActionLabel: string | null;

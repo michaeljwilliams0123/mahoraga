@@ -47,7 +47,8 @@ test("control center exposes deployment identity and paired-core capability read
   assert.match(cockpit, /Expected SHA/);
   assert.match(cockpit, /Deployment mode/);
   assert.match(cockpit, /Deployment URL/);
-  assert.match(cockpit, /non-authoritative preview/);
+  assert.match(cockpit, /Vercel retired/);
+  assert.match(cockpit, /observation-only/);
   assert.match(cockpit, /deployment\?\.environment/);
   assert.match(cockpit, /runtimeCapabilities/);
   assert.match(cockpit, /automaticPaidFallback/);

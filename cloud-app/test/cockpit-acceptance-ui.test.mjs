@@ -19,7 +19,8 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Observed/);
     assert.match(cockpit, /Unverified/);
     assert.match(cockpit, /Unproven/);
-    assert.match(cockpit, /rollback anchor/);
+    assert.match(cockpit, /zero-route \/ zero-influence \/ zero-fallback \/ zero-authority/);
+    assert.doesNotMatch(cockpit, /rollback\/evidence|rollback anchor/i);
     assert.match(cockpit, /x-bypass-applied/);
     assert.match(cockpit, /never inferred from \/api\/ready/i);
   });
@@ -81,5 +82,16 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Refuse paid route/);
     assert.match(cockpit, /Dispatch hard-zero/);
     assert.match(cockpit, /does not grant traffic authority/);
+    assert.match(types, /heldUtcDay/);
+    assert.match(types, /heldResumeAt/);
+    assert.match(cockpit, /projectHardZeroHold/);
+    assert.match(cockpit, /Hold provenance/);
+  });
+
+  it("marks Vercel retired without granting gateway or traffic authority", () => {
+    assert.match(cockpit, /Vercel retired/);
+    assert.match(cockpit, /observation-only/);
+    assert.match(cockpit, /Vercel status/);
+    assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
   });
 });
