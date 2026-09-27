@@ -479,7 +479,7 @@ export function Workspace() {
         <ChatView
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
           busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
-          relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} starters={starters} quickActions={quickActions}
+          relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} runtimeCapabilities={runtimeCapabilities} starters={starters} quickActions={quickActions}
           ownerLoginRequired={ownerLoginRequired} ownerLoginPin={ownerLoginPin} ownerLoginBusy={ownerLoginBusy}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}

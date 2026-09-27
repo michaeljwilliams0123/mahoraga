@@ -61,6 +61,13 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.match(cockpit, /exact-main Cloudflare deployment plus acceptance/i);
     assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
   });
+  it("reports retired Vercel as observation only across the cockpit", () => {
+    assert.match(cockpit, /VERCEL_RETIRED/);
+    assert.match(cockpit, /vercelStatus/);
+    assert.match(cockpit, /vercel status/i);
+    assert.match(cockpit, /observation-only/);
+    assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
+  });
   it("preserves CONVERGED_#460 language", () => {
     assert.match(cockpit, /CONVERGED_#460/);
     assert.match(cockpit, /7\.0\.0-alpha\.2/);

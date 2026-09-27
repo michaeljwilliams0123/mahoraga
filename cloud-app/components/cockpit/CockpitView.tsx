@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
+import { projectHardZeroHold } from "@/lib/hard-zero-hold";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
@@ -129,7 +130,7 @@ export function CockpitView({
   onOpenOperations,
   onOpenConnections,
 }: CockpitViewProps) {
-  const routable = runtimeCapabilities.filter((capability) => capability.routable);
+  const routable = runtimeCapabilities.filter((capability) => capability.routable && capability.enabled !== false);
   const workers = new Set(runtimeCapabilities.flatMap((capability) => capability.workerIds));
   const deploymentProvider = health?.deployment?.provider ?? "unknown";
   const deploymentCommit = health?.deployment?.commitSha;
@@ -151,6 +152,8 @@ export function CockpitView({
       ? "Cloudflare candidate"
     : railwayRetired
       ? "Railway retired"
+      : deploymentProvider === "vercel"
+        ? "Vercel retired"
       : deploymentProvider;
   const deploymentDetail = cloudflareExactMain
     ? `Exact-main deployment and acceptance require Ubuntu + Windows Verify · traffic authority remains separate · ${deploymentEnvironment}`
@@ -159,7 +162,7 @@ export function CockpitView({
     : railwayRetired
       ? `Legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · do not repair or revive · ${deploymentEnvironment}`
       : deploymentProvider === "vercel"
-      ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
+      ? `Retired · observation-only · no origin, gateway, traffic, or runtime authority · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
   const paidFallback = health?.routing?.automaticPaidFallback === true;
   const routeCoverage = runtimeCapabilities.length === 0 ? 0 : Math.round((routable.length / runtimeCapabilities.length) * 100);
@@ -175,7 +178,9 @@ export function CockpitView({
   const liveOk = Boolean(health?.ok) && !healthError;
   const acceptance = parseSanitizedAcceptance(health);
   const hardZeroQuota = parseHardZeroQuota(health);
-  const hardZeroAction = hardZeroQuota?.nextAction;
+  const holdProvenance = projectHardZeroHold(hardZeroQuota ?? null);
+  const hardZeroAction = holdProvenance.status === "unverified" ? undefined : hardZeroQuota?.nextAction;
+  const hardZeroLabel = holdProvenance.status === "unverified" ? "Hold provenance unverified" : hardZeroActionLabel(hardZeroAction);
   const quotaHolding = hardZeroAction === "quota-hold-until-utc-reset";
   const cognitionObserved = acceptance.providerCognitionVerified === true;
   const noRailwayVerified = acceptance.noRailwayFallbackVerified === true;
@@ -244,6 +249,7 @@ export function CockpitView({
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
+        <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard
           label="Provider admission restore retry"
           value="Observational / fail-closed"
@@ -267,13 +273,13 @@ export function CockpitView({
         <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
         <StatusCard
           label="Hard-zero quota route"
-          value={hardZeroActionLabel(hardZeroAction)}
+          value={hardZeroLabel}
           detail={hardZeroQuota
-            ? `Next UTC reset ${hardZeroQuota.resumeAt ?? "unavailable"} · Same idempotency key ${hardZeroQuota.idempotencyKey ?? "unavailable"} · creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)} · does not grant traffic authority`
+            ? `Next UTC reset ${hardZeroQuota.resumeAt ?? "unavailable"} · Held UTC day ${holdProvenance.heldUtcDay ?? "unverified"} · Held resume at ${holdProvenance.heldResumeAt ?? "unverified"} · Same idempotency key ${hardZeroQuota.idempotencyKey ?? "unavailable"} · creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)} · does not grant traffic authority`
             : "No verified hard-zero quota receipt · creditCost and paidFallback unverified · does not grant traffic authority"}
           tone={hardZeroAction === "dispatch-hard-zero" || hardZeroAction === "resume-queued" ? "good" : quotaHolding || hardZeroAction === "refuse-paid-route" ? "warn" : "neutral"}
         />
-        <StatusCard label="Model fabric" value={`${routable.length} verified route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}`} tone={routable.length > 0 ? "good" : "neutral"} />
+        <StatusCard label="Capability routes" value={`${routable.length} reported routable route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"} · execution requires separate authority and receipt`} tone={routable.length > 0 ? "good" : "neutral"} />
         <StatusCard
           label="Institutional learning"
           value={learning.status === "promoted" ? "verified-outcome" : learning.status === "refused" ? "refused" : "no receipt"}
@@ -299,6 +305,7 @@ export function CockpitView({
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>Host provider</dt><dd>{railwayRetired ? "railway (legacy evidence only; zero-route / zero-influence / zero-fallback / zero-authority)" : deploymentProvider}</dd></div>
+            <div><dt>Vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
             <div><dt>Deployment URL</dt><dd>{deploymentUrl}</dd></div>
             <div><dt>Git identity</dt><dd><GitBranch size={14} /> {health?.deployment?.gitRef ?? "unknown-ref"} · {shortSha(deploymentCommit)}</dd></div>
             <div><dt>Expected SHA</dt><dd>{shortSha(expectedDeploymentCommit)}</dd></div>
@@ -322,8 +329,9 @@ export function CockpitView({
             <div><dt>Interaction readiness</dt><dd>{interaction.ready ? "ready" : "blocked"} · {interaction.provider} · {interaction.canary}</dd></div>
             <div><dt>Zero-credit admission</dt><dd>{zeroCredit.state} · {zeroCredit.costClass} · no paid fallback</dd></div>
             <div><dt>Billing evidence</dt><dd>{zeroCredit.billingClass} · {zeroCredit.lastVerifiedAt ?? "verification unavailable"}</dd></div>
-            <div><dt>Hard-zero quota action</dt><dd>{hardZeroActionLabel(hardZeroAction)} · {hardZeroQuota?.reason ?? "receipt unavailable"}</dd></div>
+            <div><dt>Hard-zero quota action</dt><dd>{hardZeroLabel} · {hardZeroQuota?.reason ?? "receipt unavailable"}</dd></div>
             <div><dt>Next UTC reset</dt><dd>{hardZeroQuota?.resumeAt ?? "unavailable"}</dd></div>
+            <div><dt>Hold provenance</dt><dd>{holdProvenance.status} · heldUtcDay {holdProvenance.heldUtcDay ?? "unverified"} · heldResumeAt {holdProvenance.heldResumeAt ?? "unverified"}</dd></div>
             <div><dt>Same idempotency key</dt><dd>{hardZeroQuota?.idempotencyKey ?? "unavailable"}</dd></div>
             <div><dt>Hard-zero cost truth</dt><dd>{hardZeroQuota ? `creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)}` : "unverified until a sanitized hard-zero receipt is present"}</dd></div>
             <div><dt>Liveness/readiness</dt><dd>{readiness?.status ?? "unobserved"} · SHA {shortSha(readiness?.sha)} · durableState {readiness?.durableState ?? "unavailable"} · execution observation only</dd></div>

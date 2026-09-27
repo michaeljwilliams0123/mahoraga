@@ -63,7 +63,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is legacy evidence only with zero route, influence, fallback, or authority; do not repair or revive it.",
+      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is legacy evidence only with zero route, influence, fallback, or authority; do not repair or revive it. Vercel is retired and observation-only.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -73,6 +73,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
         { label: "railwayStatus", value: "legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority" },
+        { label: "vercelStatus", value: "retired · observation-only · no origin, gateway, traffic, or runtime authority" },
       ],
       actionable: false,
     };
@@ -192,6 +193,7 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
             <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
+            <span className="cockpit-pill steel">VERCEL_RETIRED</span>
           </div>
         </header>
 
@@ -222,6 +224,9 @@ export function CommandCockpit({
           <p>
             Railway is <strong>legacy evidence only</strong>: zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. No Railway promotion workflow, reconstruction controller, login-origin grant, operator target, traffic route, or fallback is active. Exact-main Cloudflare deployment and acceptance require successful Ubuntu and Windows Verify for the merged main SHA.
           </p>
+          <p>
+            Vercel is retired and observation-only. It is outside the executable origin allowlist and grants no origin, gateway, traffic, or runtime authority. GitHub Pages remains a presentation origin; Cloudflare remains the execution boundary.
+          </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
             <div><dt>browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
@@ -236,6 +241,7 @@ export function CommandCockpit({
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>railway status</dt><dd>legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · no promotion or reconstruction path</dd></div>
+            <div><dt>vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>

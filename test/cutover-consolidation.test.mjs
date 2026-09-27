@@ -36,7 +36,11 @@ test("operator and cockpit surfaces describe Railway as retired non-routing evid
   const cockpit = read("cloud-app/components/cockpit/CommandCockpit.tsx");
   assert.doesNotMatch(allowlist, /mahoraga-runtime-main-production\.up\.railway\.app/i);
   assert.match(cockpit, /RAILWAY_RETIRED/);
-  assert.match(cockpit, /non-routing rollback\/evidence/i);
+  assert.match(cockpit, /legacy evidence only/i);
+  assert.match(cockpit, /zero-route, zero-influence, zero-fallback, zero-authority/i);
+  assert.doesNotMatch(cockpit, /non-routing rollback\/evidence/i);
+  assert.match(cockpit, /VERCEL_RETIRED/);
+  assert.match(cockpit, /observation-only/i);
   assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
 });
 
