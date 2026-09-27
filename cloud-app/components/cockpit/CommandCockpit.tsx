@@ -74,6 +74,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
         { label: "railwayStatus", value: "legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority" },
         { label: "vercelStatus", value: "retired · observation-only · no origin, gateway, traffic, or runtime authority" },
+        { label: "predictiveRoute", value: "paired deterministic cognitive.predict only when observed · explicit /predict · Cloudflare-native predictive execution unpromoted" },
       ],
       actionable: false,
     };
@@ -226,6 +227,9 @@ export function CommandCockpit({
           </p>
           <p>
             Vercel is retired and observation-only. It is outside the executable origin allowlist and grants no origin, gateway, traffic, or runtime authority. GitHub Pages remains a presentation origin; Cloudflare remains the execution boundary.
+          </p>
+          <p>
+            Predictive scenario execution is observational and paired-core only: an explicit <code>/predict</code> request may use the zero-credit deterministic <code>cognitive.predict</code> route when that route is observed as routable. Its result is a hypothetical transition with predicted state and uncertainty, not a measured forecast. Cloudflare-native predictive execution remains unavailable/unpromoted and predictive requests must never fall through to the generative answer provider or imply traffic authority.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
