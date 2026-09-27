@@ -54,7 +54,9 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
 
   it("reports Railway as retired non-routing evidence and Cloudflare as fail-closed deployment truth", () => {
     assert.match(cockpit, /RAILWAY_RETIRED/);
-    assert.match(cockpit, /non-routing rollback\/evidence/i);
+    assert.match(cockpit, /legacy evidence only/i);
+    assert.match(cockpit, /zero-route, zero-influence, zero-fallback, zero-authority/i);
+    assert.match(cockpit, /do not repair or revive it/i);
     assert.match(cockpit, /exact-main Cloudflare deployment plus acceptance/i);
     assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
   });

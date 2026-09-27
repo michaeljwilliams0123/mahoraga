@@ -63,7 +63,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is retired non-routing rollback/evidence only.",
+      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is legacy evidence only with zero route, influence, fallback, or authority; do not repair or revive it.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
@@ -220,7 +220,7 @@ export function CommandCockpit({
             CI publish and steward jobs use the self-hosted Linux/X64 lane. Informational copy only. This does not activate 7.0.0-alpha.2 on Windows and does not change cognition or paid fallback.
           </p>
           <p>
-            Railway is retired as <strong>non-routing rollback/evidence</strong>. No Railway promotion workflow, reconstruction controller, login-origin grant, operator target, traffic route, or fallback is active. Exact-main Cloudflare deployment and acceptance require successful Ubuntu and Windows Verify for the merged main SHA.
+            Railway is <strong>legacy evidence only</strong>: zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. No Railway promotion workflow, reconstruction controller, login-origin grant, operator target, traffic route, or fallback is active. Exact-main Cloudflare deployment and acceptance require successful Ubuntu and Windows Verify for the merged main SHA.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
@@ -310,7 +310,7 @@ export function CommandCockpit({
           </section>
 
           <section className="cockpit-gateways" aria-label="Integration gateways">
-            <article><header><strong>Cloudflare exact-main runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "UNVERIFIED"}</span></header><p>Deployment and acceptance must bind to the merged main SHA after Ubuntu and Windows Verify. Readiness never grants traffic authority. Railway is retained only as non-routing rollback/evidence, and fake rollback APIs remain hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
+            <article><header><strong>Cloudflare exact-main runtime</strong><span className={`cockpit-pill ${healthCard?.ok ? "ok" : "steel"}`}>{healthCard?.ok ? "OBSERVED" : "UNVERIFIED"}</span></header><p>Deployment and acceptance must bind to the merged main SHA after Ubuntu and Windows Verify. Readiness never grants traffic authority. Railway is legacy evidence only—zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. Fake rollback APIs remain hard-denied.</p><p className="cockpit-muted">{HARD_DENIES.fakeRollbackApi}</p></article>
             <article><header><strong>Workspace Gateway</strong><span className="cockpit-pill warn">FAIL_CLOSED</span></header><p>Google OAuth on this console is hard-denied. Task ingest stays off this surface.</p><p className="cockpit-muted">{HARD_DENIES.googleOAuthOnConsole}</p></article>
             <article><header><strong>Owner login</strong><span className="cockpit-pill ok">NO_STORE_#486</span></header><p>Owner login failure and success responses are not cached (<code>Cache-Control: no-store</code>).</p></article>
             <article><header><strong>Bounded Artifact Bridge</strong><span className="cockpit-pill ok">LIVE_#505</span></header><p>Same-origin owner session + CSRF/replay. <code>MAX_FILE_BYTES</code> on received bytes, not Content-Length. Attachment IDs only via authenticated cloud session. Primary Codex token remains server-only. No caller-selected destination, provider, executable, or paid fallback.</p><p className="cockpit-muted">Validated artifacts relay to loopback <code>/api/artifacts</code>. Legacy relay stays fail-closed.</p></article>

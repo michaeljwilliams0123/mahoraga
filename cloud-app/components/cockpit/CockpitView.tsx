@@ -157,7 +157,7 @@ export function CockpitView({
     : cloudflareProvider
       ? `Non-authoritative presentation candidate · exact-main deployment and acceptance not proven · ${deploymentEnvironment}`
     : railwayRetired
-      ? `Retired non-routing rollback/evidence only · never production traffic authority · ${deploymentEnvironment}`
+      ? `Legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · do not repair or revive · ${deploymentEnvironment}`
       : deploymentProvider === "vercel"
       ? `non-authoritative preview - historical only - not production · ${deploymentEnvironment}`
       : `${deploymentProvider} · ${deploymentEnvironment}`;
@@ -183,8 +183,8 @@ export function CockpitView({
     ? `${acceptance.providerId ?? EXPECTED_PROVIDER_ID} · ${acceptance.modelId ?? EXPECTED_MODEL_ID} · receipt-gated`
     : "Unverified until providerCognitionVerified is true on sanitized health/runtime metadata; never inferred from /api/ready";
   const noRailwayDetail = noRailwayVerified
-    ? "Verified no Railway fallback on sanitized receipt; Railway remains rollback/evidence anchor"
-    : "Unproven; Railway remains the rollback/evidence anchor until noRailwayFallbackVerified is true";
+    ? "Verified no Railway fallback on sanitized receipt; Railway remains legacy evidence only with zero route, influence, fallback, or authority"
+    : "Unproven until noRailwayFallbackVerified is true; Railway still has zero route, influence, fallback, or authority";
   const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
 
@@ -207,7 +207,7 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>Cloudflare is the native browser and execution surface. Source, deployment, execution readiness, cognition readiness, and traffic authority remain separate and fail closed. Railway is retired non-routing rollback/evidence only. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
+          <p>Cloudflare is the native browser and execution surface. Source, deployment, execution readiness, cognition readiness, and traffic authority remain separate and fail closed. Railway is legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
@@ -310,7 +310,7 @@ export function CockpitView({
             <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · exact-main Cloudflare deployment and acceptance after Ubuntu + Windows Verify · mismatch fails closed</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
-            <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway rollback anchor · x-bypass-applied fail-closed</dd></div>
+            <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway zero-route / zero-influence / zero-fallback / zero-authority · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
             <div><dt>Codespaces</dt><dd>Observational developer convenience only · not a production host, inference provider, lifecycle automation, self-patching authority, deployment lane, or routing change · supplies no production authentication material</dd></div>
             <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
