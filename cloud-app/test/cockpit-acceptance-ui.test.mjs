@@ -82,4 +82,16 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Dispatch hard-zero/);
     assert.match(cockpit, /does not grant traffic authority/);
   });
+
+  it("surfaces #818 cognition grounding and chat render as observational only", () => {
+    assert.match(cockpit, /Cognition grounding \/ chat render/);
+    assert.match(cockpit, /Project Mahoraga operational agent, not the JJK character/);
+    assert.match(cockpit, /capability_unavailable:image\.generate/);
+    assert.match(cockpit, /Streamdown/);
+    assert.match(cockpit, /1,024 tokens/);
+    assert.match(cockpit, /128-neuron reservation/);
+    assert.match(cockpit, /Merge #818 is not traffic authority/);
+    assert.match(cockpit, /repository\.inspect unavailability is not/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
 });
