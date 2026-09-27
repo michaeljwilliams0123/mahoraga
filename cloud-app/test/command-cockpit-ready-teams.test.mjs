@@ -88,3 +88,18 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
     assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
   });
 });
+
+it("surfaces bounded predictive execution without promoting Cloudflare or traffic authority", () => {
+  assert.match(cockpitView, /Predictive scenario route/);
+  assert.match(cockpitView, /cognitive\.predict/);
+  assert.match(cockpitView, /explicit \/predict only/);
+  assert.match(cockpitView, /hypothetical transition with predicted state \+ uncertainty/);
+  assert.match(cockpitView, /not a measured forecast/);
+  assert.match(cockpitView, /Cloudflare-native predictive execution remains unpromoted/);
+  assert.match(cockpit, /paired deterministic cognitive\.predict only when observed/);
+  assert.match(cockpit, /explicit <code>\/predict<\/code>/);
+  assert.match(cockpit, /hypothetical transition with predicted state and uncertainty/);
+  assert.match(cockpit, /Cloudflare-native predictive execution remains unavailable\/unpromoted/);
+  assert.match(cockpit, /must never fall through to the generative answer provider/);
+  assert.match(cockpit, /traffic authority/);
+});
