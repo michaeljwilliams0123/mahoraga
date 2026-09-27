@@ -37,3 +37,25 @@ test('outcome scoring fails closed on mismatched or temporally invalid observati
   assert.throws(() => scorePredictionOutcome(receipt, { queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T20:05:00.000Z') }), /prediction-outcome-state-mismatch/);
   assert.throws(() => scorePredictionOutcome(receipt, { failureRate: 0.15, queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T19:59:59.000Z') }), /prediction-outcome-before-prediction/);
 });
+
+test('calibration error is scale-normalized for equivalent relative misses', () => {
+  const smallPrediction = simulateCounterfactual({
+    observedState: { load: 2 },
+    stateUncertainty: 0.1,
+    action: { actionId: 'hold-small', effects: { load: 0 }, uncertainty: 0.1 },
+  });
+  const largePrediction = simulateCounterfactual({
+    observedState: { load: 200 },
+    stateUncertainty: 0.1,
+    action: { actionId: 'hold-large', effects: { load: 0 }, uncertainty: 0.1 },
+  });
+  const now = { now: () => new Date('2026-09-27T20:00:00.000Z') };
+  const observedAt = { observedAt: () => new Date('2026-09-27T20:05:00.000Z') };
+  const small = scorePredictionOutcome(createPredictionReceipt(smallPrediction, now), { load: 2.2 }, observedAt);
+  const large = scorePredictionOutcome(createPredictionReceipt(largePrediction, now), { load: 220 }, observedAt);
+
+  assert.equal(small.normalizedMeanAbsoluteError, large.normalizedMeanAbsoluteError);
+  assert.equal(small.normalizedMeanAbsoluteError, 0.090909090909);
+  assert.equal(small.observedAccuracy, 0.909090909091);
+  assert.equal(small.calibrationGap, 0.109090909091);
+});
