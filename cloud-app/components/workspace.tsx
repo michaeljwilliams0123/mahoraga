@@ -4,6 +4,7 @@ import { Calculator, Database, Menu, MonitorUp, Radar, Search } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
+import { canSubmitPredictiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
@@ -254,7 +255,7 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
-    if (!assistantReady) {
+    if (!assistantReady && !canSubmitPredictiveChat(coreReady, runtimeCapabilities, text, files.length)) {
       setRuntimeError("Mahoraga's assistant route is not currently routable.");
       return;
     }

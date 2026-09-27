@@ -380,3 +380,5 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
   .eclipse-status-grid { grid-template-columns: 1fr; }
   .eclipse-metrics > div { grid-template-columns: 1fr; gap: 4px; }
 }
+.scenario-starter { border: 1px solid var(--border, #667); border-radius: 10px; padding: 10px 14px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
+.scenario-starter:hover { border-color: currentColor; }

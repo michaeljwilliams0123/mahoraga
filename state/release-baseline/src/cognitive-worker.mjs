@@ -21,7 +21,10 @@ export async function executeCognitiveCapability(capability, task = {}) {
     }
     case 'cognitive.predict': {
       const prediction = simulateCounterfactual(required(input, 'counterfactual'));
-      return empirical(task, input, { verified: true, summary: `Counterfactual ${prediction.actionId} simulated.`, prediction });
+      const entries = Object.entries(prediction.predictedState);
+      const values = entries.slice(0, 4).map(([key, value]) => `${key.slice(0, 32)}: ${String(value).slice(0, 24)}`).join(', ');
+      const remainder = entries.length > 4 ? `; ${entries.length - 4} additional state values in the receipt` : '';
+      return empirical(task, input, { verified: true, summary: `Scenario simulation for ${prediction.actionId}: ${values}${remainder}; predicted uncertainty: ${prediction.predictedUncertainty}. Hypothetical transition from supplied effects, not a measured forecast.`, prediction });
     }
     case 'cognitive.transfer': {
       const transfer = evaluateTransferGeneralization(required(input, 'transfer'));

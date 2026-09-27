@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { projectCapabilityFamilies } from "../lib/capability-families.ts";
+import { canSubmitPredictiveChat, projectCapabilityFamilies } from "../lib/capability-families.ts";
 
 test("unpaired workspace never advertises runtime capability", () => {
   const families = projectCapabilityFamilies(false, [{ capability: "assistant.respond", routable: true, workerIds: [] }]);
@@ -27,4 +27,21 @@ test("disabled and unreported routes remain unavailable; no benchmark strength i
   ]);
   assert.deepEqual(families.map((family) => family.state), ["unavailable", "unavailable", "unavailable"]);
   assert.equal(families[1].reason, "route-not-reported");
+});
+
+test("licensed agentic route is visible without implying zero-credit chat authority", () => {
+  const families = projectCapabilityFamilies(true, [
+    { capability: "codex.execute", routable: true, enabled: true, costClass: "licensed-cloud", workerIds: ["builder"] },
+  ]);
+  assert.equal(families[1].state, "core-only");
+  assert.equal(families[1].reason, "non-zero-credit-route");
+});
+
+test("prediction remains sendable without an answer route, but normal chat and attachments do not", () => {
+  const routes = [{ capability: "cognitive.predict", routable: true, enabled: true, costClass: "deterministic", workerIds: ["cognitive-core"] }];
+  assert.equal(canSubmitPredictiveChat(true, routes, '/predict {"observedState":{}}', 0), true);
+  assert.equal(canSubmitPredictiveChat(true, routes, "Predict tomorrow's demand", 0), false);
+  assert.equal(canSubmitPredictiveChat(true, routes, "/predict {}", 1), false);
+  assert.equal(canSubmitPredictiveChat(false, routes, "/predict {}", 0), false);
+  assert.equal(canSubmitPredictiveChat(true, [{ ...routes[0], costClass: "licensed-cloud" }], "/predict {}", 0), false);
 });

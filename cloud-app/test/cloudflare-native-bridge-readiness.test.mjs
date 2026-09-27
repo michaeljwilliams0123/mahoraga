@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 const root = new URL("../", import.meta.url);
 const read = (file) => readFile(new URL(file, root), "utf8");
 
-test("connected Cloudflare transport does not enable chat until assistant.respond is routable", async () => {
+test("connected transport gates normal chat on assistant.respond and explicit simulation on its deterministic route", async () => {
   const [workspace, chat] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/chat-view.tsx"),
@@ -15,10 +15,11 @@ test("connected Cloudflare transport does not enable chat until assistant.respon
   assert.match(workspace, /capability === "assistant\.respond"/);
   assert.match(workspace, /item\.routable/);
   assert.match(workspace, /item\.enabled !== false/);
-  assert.match(workspace, /if \(!assistantReady\)/);
+  assert.match(workspace, /if \(!assistantReady && !canSubmitPredictiveChat\(coreReady, runtimeCapabilities, text, files\.length\)\)/);
   assert.match(chat, /assistantReady/);
   assert.match(chat, /Brain route unavailable/);
-  assert.match(chat, /disabled=\{!assistantReady/);
+  assert.match(chat, /const canSend = assistantReady \|\| canSubmitPredictiveChat\(coreReady, runtimeCapabilities, input, files\.length\)/);
+  assert.match(chat, /disabled=\{!canSend/);
 });
 
 test("sidebar brain readiness follows the assistant route and describes cloud bridge precedence truthfully", async () => {
