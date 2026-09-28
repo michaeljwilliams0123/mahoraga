@@ -33,6 +33,11 @@ export function validateWorkerAttestation(value, now = new Date()) {
   if (observed > current + FUTURE_SKEW_MS) return { ok:false, reason:"attestation-future" };
   if (expires <= current) return { ok:false, reason:"attestation-stale" };
   if (expires - observed > MAX_ATTESTATION_MS) return { ok:false, reason:"attestation-overlong" };
+  if ((value.observedLatencyMs !== undefined && (!Number.isFinite(value.observedLatencyMs) || value.observedLatencyMs < 0))
+    || (value.queueDepth !== undefined && (!Number.isInteger(value.queueDepth) || value.queueDepth < 0))
+    || (value.reliabilityScore !== undefined && (!Number.isFinite(value.reliabilityScore) || value.reliabilityScore < 0 || value.reliabilityScore > 1))) {
+    return { ok:false, reason:"attestation-metrics-invalid" };
+  }
   return { ok:true, attestation:value };
 }
 
@@ -103,6 +108,12 @@ function compareTuple(a, b) {
 }
 
 export function selectWorkerRoute(request, attestations, now = new Date()) {
+  const current = timeOf(now);
+  if (request?.deadlineAt) {
+    const deadline = Date.parse(request.deadlineAt);
+    if (!Number.isFinite(deadline)) return { ok:false, reason:"execution-deadline-invalid", eligible:[] };
+    if (deadline <= current) return { ok:false, reason:"execution-deadline-exceeded", eligible:[] };
+  }
   const eligible = eligibleWorkerRoutes(request, attestations, now);
   if (eligible.length === 0) return { ok:false, reason:"no-eligible-route", eligible:[] };
   eligible.sort((a, b) => compareTuple(rankTuple(request, a), rankTuple(request, b)));
@@ -124,8 +135,8 @@ export function issueRouteLease(request, selected, now = new Date()) {
     workerId:selected.workerId,
     provider:selected.provider,
     capability:selected.capability,
-    permissionClass:selected.permissionClass,
-    authorityScopes:[...(request.authorityScopes ?? [])],
+    permissionClass:request.requestedPermission,
+    authorityScopes:[...(selected.authorityScopes ?? []).filter((scope) => (request.authorityScopes ?? []).includes(scope))],
     expiresAt:new Date(expiresAtMs).toISOString(),
   };
 }
