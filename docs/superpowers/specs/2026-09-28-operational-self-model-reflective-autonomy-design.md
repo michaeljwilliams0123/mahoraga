@@ -1,6 +1,6 @@
 # Operational Self-Model + Reflective Autonomy — Design
 
-**Status:** Architecture approved by owner on 2026-09-28; written spec pending owner review.
+**Status:** Architecture and written spec approved by owner on 2026-09-28; implementation plan prepared.
 
 **Date:** 2026-09-28  
 **Baseline:** protected `main` at `4c492adf0850cef060b2dd17e3eb86b3e5e31bfe`  
