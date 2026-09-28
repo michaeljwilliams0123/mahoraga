@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 import { dirname, join } from "node:path";
@@ -28,7 +29,8 @@ describe("Objective Planner v2 cockpit evidence",()=>{
   const observed=(planner)=>projectObjectivePlannerSurface({planner});
   it("projects real HOLD, ESCALATE, EXECUTE, calibration, and replan evidence",()=>{
     const initial=plan([{id:"foundation",status:"pending"}]);
-    const calibrationProfile={schemaVersion:1,kind:"prediction-calibration-summary",sampleCount:3,meanObservedAccuracy:0.8,meanPredictedConfidence:0.8,meanCalibrationGap:0.1,meanNormalizedError:0.2,plannerTrust:0,evidenceSufficient:true,sourceFingerprints:["1".repeat(64),"2".repeat(64),"3".repeat(64)],fingerprint:"b".repeat(64)};
+    const calibrationCore={schemaVersion:1,kind:"prediction-calibration-summary",sampleCount:3,meanObservedAccuracy:0.8,meanPredictedConfidence:0.8,meanCalibrationGap:0.1,meanNormalizedError:0.2,plannerTrust:0,evidenceSufficient:true,sourceFingerprints:["1".repeat(64),"2".repeat(64),"3".repeat(64)]};
+    const calibrationProfile={...calibrationCore,fingerprint:createHash("sha256").update(JSON.stringify(calibrationCore)).digest("hex")};
     const planner=plan([
       {id:"foundation",status:"running"},
       {id:"dependent",status:"pending",dependsOn:["foundation"]},
