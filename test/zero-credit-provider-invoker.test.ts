@@ -138,7 +138,8 @@ test("production default context exposes the browser runtime capability boundary
   assert.match(systemMessage, /browser\.execute=unavailable/i);
   assert.match(systemMessage, /image\.generate=unavailable/i);
   assert.match(systemMessage, /memory\.write=unavailable/i);
-  assert.match(systemMessage, /cognitive\.predict=unavailable/i);
+  assert.match(systemMessage, /cognitive\.predict=routable/i);
+  assert.match(systemMessage, /cognitive\.cycle=routable/i);
   assert.match(systemMessage, /codex\.execute=unavailable/i);
   assert.match(systemMessage, /collective advantage.*held-out.*evidence/i);
 });
@@ -152,7 +153,9 @@ test("capability self-description uses runtime truth and does not assert AGI or 
   assert.equal(calls, 0);
   assert.match(result.response ?? "", /assistant\.respond.*routable/i);
   assert.match(result.response ?? "", /codex\.execute.*unavailable/i);
-  assert.match(result.response ?? "", /cognitive\.predict.*unavailable/i);
+  assert.match(result.response ?? "", /cognitive\.predict.*routable/i);
+  assert.match(result.response ?? "", /cognitive\.cycle.*routable/i);
+  assert.match(result.response ?? "", /does not execute its proposed action/i);
   assert.match(result.response ?? "", /collective advantage.*not measured/i);
   assert.doesNotMatch(result.response ?? "", /level 6 agi achieved|stronger than every agent/i);
 });

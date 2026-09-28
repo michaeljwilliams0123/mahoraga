@@ -75,10 +75,13 @@ function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pen
 
 function boundedCapability(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  if (value.capability !== "assistant.respond" || typeof value.routable !== "boolean" || typeof value.enabled !== "boolean") return null;
+  const deterministic = value.capability === "cognitive.predict" || value.capability === "cognitive.cycle";
+  if (value.capability !== "assistant.respond" && !deterministic) return null;
+  if (typeof value.routable !== "boolean" || typeof value.enabled !== "boolean") return null;
   if (value.routable !== value.enabled) return null;
   if (typeof value.provider !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(value.provider)) return null;
-  if (value.evidenceLevel !== "runtime-probe") return null;
+  if (value.evidenceLevel !== (deterministic ? "runtime-execution" : "runtime-probe")) return null;
+  if (deterministic && (value.costClass !== "deterministic" || value.provider !== "mahoraga-cognitive-core" || !value.routable)) return null;
   const routingReason = value.routingReason === null ? null : value.routingReason;
   const providerReasonCode = value.providerReasonCode === null ? null : value.providerReasonCode;
   if (routingReason !== null && (typeof routingReason !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(routingReason))) return null;
@@ -86,14 +89,15 @@ function boundedCapability(value) {
   if (value.routable && (routingReason !== null || providerReasonCode !== null)) return null;
   if (!value.routable && routingReason === null) return null;
   return {
-    capability: "assistant.respond",
+    capability: value.capability,
     routable: value.routable,
     enabled: value.enabled,
     provider: value.provider,
-    workerIds: [],
+    workerIds: deterministic ? ["cognitive-core"] : [],
+    ...(deterministic ? { costClass: "deterministic" } : {}),
     routingReason,
     providerReasonCode,
-    evidenceLevel: "runtime-probe",
+    evidenceLevel: deterministic ? "runtime-execution" : "runtime-probe",
   };
 }
 
@@ -112,8 +116,9 @@ async function runtimeCapabilities(env) {
     if (!body || typeof body !== "object" || Array.isArray(body) || !Array.isArray(body.capabilities)) {
       return { capabilities: [pendingAssistantCapability("execution-runtime-evidence-invalid")] };
     }
-    const capability = boundedCapability(body.capabilities.find((entry) => entry?.capability === "assistant.respond"));
-    return { capabilities: [capability ?? pendingAssistantCapability("execution-runtime-evidence-invalid")] };
+    const projected = body.capabilities.map(boundedCapability).filter(Boolean);
+    const assistant = projected.find((entry) => entry.capability === "assistant.respond");
+    return { capabilities: [assistant ?? pendingAssistantCapability("execution-runtime-evidence-invalid"), ...projected.filter((entry) => entry.capability !== "assistant.respond")] };
   } catch {
     return { capabilities: [pendingAssistantCapability("execution-runtime-unavailable")] };
   }

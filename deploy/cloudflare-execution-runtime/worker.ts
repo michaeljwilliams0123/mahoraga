@@ -3,6 +3,14 @@ import { encryptConversationContent, decryptConversationContent } from "./conten
 import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, providerMessagesWithinLimit, type ProviderMessage, type ZeroCreditProviderConfig } from "./provider-invoker";
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
+// Canonical deterministic cognition is shared with the local cognitive worker.
+// @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
+import { simulateCounterfactual } from "../../src/cognitive-world-model.mjs";
+// @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
+import { runCognitiveLoop } from "../../src/cognitive-loop.mjs";
+// @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
+import { createCognitiveIndividual } from "../../src/cognitive-individual.mjs";
+import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -23,6 +31,7 @@ const json = (body: Record<string, unknown>, status = 200, headers?: HeadersInit
   return new Response(JSON.stringify(body), { status, headers: responseHeaders });
 };
 const pendingAssistantCapability = (provider = "cloudflare-native", reasonCode = "cloudflare-native-provider-pending") => ({ capability: "assistant.respond", routable: false, enabled: false, provider, workerIds: [] as string[], routingReason: "provider.gap", providerReasonCode: reasonCode, evidenceLevel: "runtime-probe" });
+const deterministicCapability = (capability: "cognitive.predict" | "cognitive.cycle") => ({ capability, routable: true, enabled: true, provider: "mahoraga-cognitive-core", workerIds: ["cognitive-core"], costClass: "deterministic", routingReason: null, providerReasonCode: null, evidenceLevel: "runtime-execution" });
 const projectPersistedAssistantCapability = (state: ProviderStateRecord | null, now = Date.now()) => {
   if (state === null) return pendingAssistantCapability();
   if (state.verifiedAt === null || state.canaryExpiresAt === null || state.canaryExpiresAt <= now) return pendingAssistantCapability(state.providerId, "provider-canary-stale");
@@ -60,11 +69,12 @@ const safeError = (error: unknown): string => {
   if (error.message === "cognition-provider-timeout" || /^content-vault-[a-z-]+$/.test(error.message)) return error.message;
   return "cognition-provider-failed";
 };
+const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };
   const selected: ProviderMessage[] = [current];
-  const completed = storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant !== null).slice(-MAX_CONTEXT_TURNS);
+  const completed = storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && turn.providerId === ASSISTANT_PROVIDER_ID && turn.contentIdAssistant !== null).slice(-MAX_CONTEXT_TURNS);
   for (const turn of completed.reverse()) {
     const user = storage.getContentRecord(turn.contentIdUser);
     const assistant = storage.getContentRecord(turn.contentIdAssistant!);
@@ -159,7 +169,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversation = this.storage.getConversation(conversationId);
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
-    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : "waiting", capability: "assistant.respond", errorCode: null })) });
+    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: null })) });
     if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant ? [
       { id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser },
       { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant },
@@ -179,7 +189,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversationId = payload.conversationId ?? crypto.randomUUID();
     const key = payload.idempotencyKey;
     if (!boundedId(conversationId) || !boundedId(key) || typeof message !== "string" || !message.trim() || !providerInputWithinLimit(message) || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "chat-payload-invalid" }, 400);
-    if (/^\/predict(?:\s|$)/i.test(message.trim())) return json({ error: "predictive-route-unavailable" }, 409);
+    if (/^\/(?:predict|cycle)(?:\s|$)/i.test(message.trim())) return this.nativeCognitiveChat(payload, ownerHash, conversationId, key, message);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
     const existingConversation = this.storage.getConversation(conversationId);
@@ -215,6 +225,58 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" } });
     } catch (error) { return this.providerGapResponse(error) ?? json({ error: safeError(error) }, 502); }
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
+  }
+  private async nativeCognitiveChat(payload: Record<string, unknown>, ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
+    if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto") ||
+      (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "cognitive-policy-not-allowed" }, 400);
+    const isPrediction = /^\/predict(?:\s|$)/i.test(message.trim());
+    const capability = isPrediction ? "cognitive.predict" : "cognitive.cycle";
+    let receipt: Record<string, unknown>;
+    try {
+      if (isPrediction) {
+        const input = parsePredictiveChatIntent(message);
+        if (!input) throw new TypeError("predictive-chat-input-invalid");
+        receipt = simulateCounterfactual(input) as Record<string, unknown>;
+      } else {
+        const source = message.trim().replace(/^\/cycle\s*/i, "");
+        if (!source || new TextEncoder().encode(source).byteLength > 24_000) throw new TypeError("cognitive-cycle-input-invalid");
+        const input = objectValue(JSON.parse(source));
+        if (!input) throw new TypeError("cognitive-cycle-input-invalid");
+        const now = Date.now();
+        if (!Array.isArray(input.members)) throw new TypeError("cognitive-cycle-input-invalid");
+        const members = input.members.map((member) => {
+          const value = objectValue(member);
+          return value?.schemaVersion === 1 && value.kind === "cognitive-individual"
+            ? value
+            : createCognitiveIndividual(value, { observedAt: new Date(now).toISOString() });
+        });
+        receipt = runCognitiveLoop({ ...input, members }, { now }) as Record<string, unknown>;
+      }
+    } catch { return json({ error: isPrediction ? "predictive-chat-input-invalid" : "cognitive-cycle-input-invalid" }, 400); }
+    const answer = `${isPrediction ? "Predictive scenario receipt" : "Cognitive cycle receipt"}\n\n\`\`\`json\n${JSON.stringify(receipt, null, 2)}\n\`\`\``;
+    if (answer.length > 32_000) return json({ error: "cognitive-receipt-too-large" }, 413);
+    const existingConversation = this.storage.getConversation(conversationId);
+    if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
+    const requestDigest = await digestText(`${ownerHash}\n${conversationId}\n${message}`);
+    const turnId = await digestText(`${ownerHash}\n${key}`);
+    const prior = this.storage.getTurn(turnId);
+    if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || cognitiveCapability(prior.providerId) !== capability)) return json({ error: "idempotency-conflict" }, 409);
+    if (prior?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability } });
+    const holder = crypto.randomUUID();
+    if (!this.storage.acquireLease(`turn:${turnId}`, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
+    try {
+      const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
+      const [userContent, assistantContent] = await Promise.all([
+        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+      ]);
+      this.storage.executeTransaction(() => {
+        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
+        this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+      });
+      return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability } });
+    } finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
@@ -258,7 +320,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
-      try { this.initialize(); return json({ capabilities: [projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID))] }); } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
+      try { this.initialize(); return json({ capabilities: [projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)), deterministicCapability("cognitive.predict"), deterministicCapability("cognitive.cycle")] }); } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
     }
     if (url.pathname !== "/api/execute") return json({ error: "Not Found" }, 404);
     if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });

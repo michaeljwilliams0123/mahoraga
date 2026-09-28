@@ -25,7 +25,7 @@ import {
 import { useLayoutEffect } from "react";
 import { Streamdown } from "streamdown";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
-import { canSubmitPredictiveChat, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
+import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
 
@@ -93,7 +93,8 @@ export function ChatView(props: ChatViewProps) {
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
   const cloudBridgeOrigin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ?? "";
   const localPredictionReady = predictiveChatAvailable(coreReady, runtimeCapabilities);
-  const canSend = assistantReady || canSubmitPredictiveChat(coreReady, runtimeCapabilities, input, files.length);
+  const cognitiveCycleReady = cognitiveCycleAvailable(coreReady, runtimeCapabilities);
+  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
 
   useLayoutEffect(() => {
     const element = composer.current;
@@ -136,13 +137,18 @@ export function ChatView(props: ChatViewProps) {
               {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
                 <div key={family.id} className={`capability-family ${family.state}`}>
                   <strong>{family.label}</strong>
-                  <span>{family.state === "routable" ? "Routable" : family.state === "core-only" ? "Core route · outside zero-credit chat" : family.state === "unobserved" ? "Not observed" : "Unavailable"}{family.id === "predictive" ? " · closed-loop calibration is canonical; live learning evidence is receipt-gated" : ""}</span>
+                  <span>{family.state === "routable" ? "Routable" : family.state === "core-only" ? "Core route · outside zero-credit chat" : family.state === "unobserved" ? "Not observed" : "Unavailable"}{family.id === "agentic" && family.route === "cognitive.cycle" ? " · deliberates, assesses, plans, and decides with no automatic mutation" : family.id === "predictive" ? " · closed-loop calibration is canonical; live learning evidence is receipt-gated" : ""}</span>
                 </div>
               ))}
             </div>
             {localPredictionReady ? (
               <button type="button" className="scenario-starter" onClick={() => setInput('/predict {"observedState":{"queueDepth":4},"stateUncertainty":0.2,"action":{"actionId":"add-capacity","effects":{"queueDepth":-2},"uncertainty":0.1}}')}>
                 Try a scenario simulation · edit the numbers and effects before sending
+              </button>
+            ) : null}
+            {cognitiveCycleReady ? (
+              <button type="button" className="scenario-starter" onClick={() => setInput('/cycle {"members":[{"individualId":"builder","parentAgentId":"mahoraga-core","displayName":"Builder","archetype":"builder-mind","perspective":"implementation","communicationStyle":"evidence-first","traits":{"curiosity":0.7},"epistemicPosture":{"evidenceThreshold":0.8,"uncertaintyTolerance":0.4,"dissentDisposition":"surface-material-dissent"},"perspectiveTags":["engineering"],"privateEpisodicRefs":[]}],"requiredPerspectiveTags":["engineering"],"positions":[{"individualId":"builder","conclusion":"hold","confidence":0.8,"evidenceRefs":["owner:scenario"],"assumptions":[],"unknowns":[],"dissentTags":[]}],"metacognition":{"evidenceCoverage":0.9,"calibratedConfidence":0.8,"knownUnknowns":[],"materialConflictCount":0,"reversible":true},"observedState":{"queueDepth":4},"stateUncertainty":0.2,"proposedAction":{"actionId":"add-capacity","effects":{"queueDepth":-2},"uncertainty":0.1},"plannerSnapshot":{"workers":[],"activeLeases":[],"taskCounts":{},"objectives":[],"repository":{"verified":true},"providers":[]}}')}>
+                Run the full cognitive loop · deliberate, assess, plan, predict, and emit a receipt
               </button>
             ) : null}
 

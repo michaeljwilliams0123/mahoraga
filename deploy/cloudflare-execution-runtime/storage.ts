@@ -1,6 +1,8 @@
 import type { EncryptedContentRecord, ConversationContentRole } from "./content-vault";
 import type { AssistantCostClass } from "./provider-policy";
 
+type ExecutionCostClass = AssistantCostClass | "deterministic";
+
 export type ReceiptStatus = "SUCCESS" | "FAILED";
 export type AssistantTurnStatus = "PENDING" | "SUCCESS" | "FAILED";
 export type AssistantCreditPolicy = "zero-codex" | "licensed-approved";
@@ -26,7 +28,7 @@ export interface AssistantTurnRecord {
   requestDigest: string;
   responseDigest: string | null;
   providerId: string | null;
-  costClass: AssistantCostClass | null;
+  costClass: ExecutionCostClass | null;
   creditPolicy: AssistantCreditPolicy;
   status: AssistantTurnStatus;
   contentIdUser: string;
@@ -84,7 +86,7 @@ type TurnRow = Record<string, SqlStorageValue> & {
   request_digest: string;
   response_digest: string | null;
   provider_id: string | null;
-  cost_class: AssistantCostClass | null;
+  cost_class: ExecutionCostClass | null;
   credit_policy: AssistantCreditPolicy;
   status: AssistantTurnStatus;
   content_id_user: string;

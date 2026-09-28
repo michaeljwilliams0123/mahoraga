@@ -259,8 +259,8 @@ export function CockpitView({
           label="Predictive scenario route"
           value={predictiveRouteReady ? "Paired deterministic route" : "Unavailable / unobserved"}
           detail={predictiveRouteReady
-            ? "cognitive.predict · explicit /predict only · zero-credit deterministic hypothetical transition with predicted state + uncertainty · not a measured forecast · no traffic-authority grant · Cloudflare-native predictive execution remains unpromoted"
-            : "Requires an observed paired deterministic cognitive.predict route · ordinary chat remains assistant.respond · Cloudflare-native /predict remains unavailable and must not fall through to the generative provider"}
+            ? "cognitive.predict · explicit /predict only · zero-credit deterministic hypothetical transition with predicted state + uncertainty · not a measured forecast · no traffic-authority grant"
+            : "Requires an observed deterministic cognitive.predict route · ordinary chat remains assistant.respond · predictive requests never fall through to the generative provider"}
           tone={predictiveRouteReady ? "good" : "neutral"}
         />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
