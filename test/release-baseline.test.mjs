@@ -54,3 +54,8 @@ test("release baseline includes the Composio client imported by the core server"
 test("release baseline includes the dissent resolver imported by the cognitive loop", () => {
   assert.ok(ESSENTIAL_FILES.includes("src/collective-dissent-resolution.mjs"));
 });
+
+test("release baseline governs prediction calibration and held-out backtesting", () => {
+  assert.ok(ESSENTIAL_FILES.includes("src/prediction-calibration.mjs"));
+  assert.ok(ESSENTIAL_FILES.includes("src/prediction-backtest.mjs"));
+});
