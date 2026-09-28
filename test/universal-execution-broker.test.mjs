@@ -62,3 +62,12 @@ test("specialized workers may use a subset of a multi-provider authority envelop
   const envelope = req({ authorityScopes:["repo:mahoraga:read","cloud:read"] });
   assert.equal(eligibleWorkerRoutes(envelope, [att()], NOW).length, 1);
 });
+
+test("handoff may change step permission within an explicit maximum permission envelope", () => {
+  const request = req({ requestedPermission:"read", authorityPermission:"contained" });
+  const handoff = { schemaVersion:1, taskId:"task-1", chainId:"chain-1", fromWorkerId:"github-1", requiredNextCapability:"codex.execute", requestedPermission:"contained", authorityScopes:["repo:mahoraga:read"], evidenceRefs:[], hopCount:1 };
+  const result = validateHandoff(request, handoff, [], NOW);
+  assert.equal(result.ok, true);
+  assert.equal(result.request.requestedPermission, "contained");
+  assert.equal(result.request.authorityPermission, "contained");
+});

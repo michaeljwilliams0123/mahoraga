@@ -1,7 +1,7 @@
-import { adaptLegacyConnectorAttestation } from "./legacy-connector-adapter";
-import { invokeProvider, providerBinding } from "./provider-adapter";
-import { attestationAllowedForBinding, type ProviderBindingName } from "./provider-registry";
-import { createExecutionChain, executionReceipt, handoffReceipt, selectionReceipt } from "./execution-chain";
+import { adaptLegacyConnectorAttestation } from "./legacy-connector-adapter.ts";
+import { invokeProvider, providerBinding } from "./provider-adapter.ts";
+import { attestationAllowedForBinding, type ProviderBindingName } from "./provider-registry.ts";
+import { createExecutionChain, executionReceipt, handoffReceipt, selectionReceipt } from "./execution-chain.ts";
 // @ts-ignore Runtime-neutral ESM broker core is shared with Node tests.
 import { issueRouteLease, selectWorkerRoute, validateHandoff, validateWorkerAttestation } from "../../src/universal-execution-broker.mjs";
 

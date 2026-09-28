@@ -41,6 +41,12 @@ function permissionSufficient(advertised, requested) {
   return (PERMISSIONS.get(advertised) ?? 0) >= (PERMISSIONS.get(requested) ?? 99);
 }
 
+function permissionWithinAuthority(authority, requested) {
+  if (authority === "contained") return PERMISSIONS.has(requested);
+  if (requested === "contained") return false;
+  return (PERMISSIONS.get(authority) ?? 0) >= (PERMISSIONS.get(requested) ?? 99);
+}
+
 function localityEligible(dataClass, locality) {
   return dataClass !== "local-only" || locality === "local" || locality === "desktop";
 }
@@ -129,7 +135,8 @@ export function validateHandoff(request, handoff, history = [], now = new Date()
   const current = timeOf(now);
   if (request.deadlineAt && Date.parse(request.deadlineAt) <= current) return { ok:false, reason:"execution-deadline-exceeded" };
   if (!Number.isInteger(handoff.hopCount) || handoff.hopCount >= request.maxHops) return { ok:false, reason:"handoff-hop-limit" };
-  if (!permissionSufficient(request.requestedPermission, handoff.requestedPermission)) return { ok:false, reason:"authority-scope-mismatch" };
+  const authorityPermission = request.authorityPermission ?? request.requestedPermission;
+  if (!permissionWithinAuthority(authorityPermission, handoff.requestedPermission)) return { ok:false, reason:"authority-scope-mismatch" };
   if (!subset(handoff.authorityScopes ?? [], request.authorityScopes ?? [])) return { ok:false, reason:"authority-scope-mismatch" };
   if (history.some((entry) => entry.workerId === handoff.fromWorkerId && entry.capability === handoff.requiredNextCapability)) return { ok:false, reason:"handoff-loop-detected" };
   if (handoff.errorFingerprint && history.filter((entry) => entry.errorFingerprint === handoff.errorFingerprint).length >= 2) return { ok:false, reason:"handoff-loop-detected" };

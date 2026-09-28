@@ -105,7 +105,7 @@ it("hands a task to another eligible worker without changing chain identity", as
 
 it("rejects provider attestations outside their registered capability family", async () => {
   const browserClaim = universal("repo-claiming-browser");
-  browserClaim.capabilities = [{ ...browserClaim.capabilities[0], capability:"browser.execute", permissionClass:"execute" }];
+  browserClaim.capabilities = [{ capability:"browser.execute", permissionClass:"execute", healthy:true, zeroCreditEligible:true, costClass:"zero-credit", dataClassesAllowed:["synthetic","personal","enterprise"], authorityScopes:["repo:mahoraga:read"] }];
   const broker = createExecutionBroker({ REPOSITORY_PROVIDER: provider(browserClaim) }, () => NOW);
   const body = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json() as { routes: unknown[] };
   expect(body.routes).toEqual([]);
@@ -114,7 +114,7 @@ it("rejects provider attestations outside their registered capability family", a
 it("requires contained permission for codex execution", async () => {
   const claim = universal("codex-worker");
   claim.provider = "codex"; claim.locality = "local";
-  claim.capabilities = [{ ...claim.capabilities[0], capability:"codex.execute", permissionClass:"execute" }];
+  claim.capabilities = [{ capability:"codex.execute", permissionClass:"execute", healthy:true, zeroCreditEligible:true, costClass:"zero-credit", dataClassesAllowed:["synthetic","personal","enterprise"], authorityScopes:["repo:mahoraga:read"] }];
   const broker = createExecutionBroker({ CODEX_PROVIDER: provider(claim) }, () => NOW);
   const body = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json() as { routes: unknown[] };
   expect(body.routes).toEqual([]);

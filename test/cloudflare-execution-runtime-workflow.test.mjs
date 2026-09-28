@@ -146,3 +146,17 @@ test("execution runtime bridges owner-authenticated execute actions to the unive
   assert.match(runtimeWorker, /MAHORAGA_EXECUTION_BROKER/);
   assert.match(runtimeWorker, /mahoraga-execution-broker\/api\/execute/);
 });
+
+
+test("universal execution broker is private and deploys before execution runtime", async () => {
+  const [workflow, brokerConfig] = await Promise.all([
+    readFile(workflowPath, "utf8"),
+    readFile(path.join(root, "deploy/cloudflare-execution-broker/wrangler.jsonc"), "utf8"),
+  ]);
+  const brokerDeploy = workflow.indexOf("cloudflare:execution-broker:deploy");
+  const runtimeDeploy = workflow.indexOf("cloudflare-execution-runtime.ts deploy");
+  assert.ok(brokerDeploy >= 0 && runtimeDeploy > brokerDeploy);
+  assert.match(brokerConfig, /"workers_dev"\s*:\s*false/);
+  assert.match(brokerConfig, /"preview_urls"\s*:\s*false/);
+  assert.doesNotMatch(brokerConfig, /"routes?"\s*:/);
+});

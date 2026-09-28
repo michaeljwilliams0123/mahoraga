@@ -1,4 +1,4 @@
-import type { BrokerBinding, BrokerEnv } from "./worker";
+import type { BrokerBinding, BrokerEnv } from "./worker.ts";
 
 const PROVIDER_BINDING: Readonly<Record<string, keyof BrokerEnv>> = Object.freeze({
   github: "REPOSITORY_PROVIDER",
