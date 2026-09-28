@@ -125,6 +125,7 @@ export function createControlServer({
         const context = { mechanism: "owner-server-gateway", attendedSession: { active: true, sessionId: "cloud-owner-gateway" } };
         if (body?.type === "status") return json(response, 200, statusPayload(manifest, database, supervisor));
         if (body?.type === "capabilities") return json(response, 200, { capabilities: gateway.capabilities() });
+        if (body?.type === "world-state") { const worldState = await observeWorldState({ manifest, database, supervisor }); return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) }); }
         if (body?.type === "chat") return json(response, 200, await relayHandlers.chat(input, context));
         if (body?.type === "tasks") return json(response, 200, { tasks: relayHandlers.tasks(input.conversationId) });
         if (body?.type === "messages") return json(response, 200, { messages: relayHandlers.messages(input.conversationId) });
