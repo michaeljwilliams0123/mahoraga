@@ -88,3 +88,94 @@ test("objective planner rejects invalid world state and clock", () => {
   assert.throws(() => planWorldStateActions(null), /world-state-invalid/);
   assert.throws(() => planWorldStateActions({}, { now: Number.NaN }), /planner-clock-invalid/);
 });
+
+test("objective planner holds pending objectives until dependencies complete", () => {
+  const plan = planWorldStateActions({
+    workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+    objectives: [
+      { id: "foundation", status: "running" },
+      { id: "deploy", status: "pending", dependsOn: ["foundation"] },
+    ],
+  }, { now: Date.parse("2026-09-27T20:00:00Z") });
+
+  const hold = plan.actions.find((item) => item.reasonCode === "objective-dependencies-blocked");
+  assert.ok(hold);
+  assert.equal(hold.disposition, "hold");
+  assert.deepEqual(hold.evidence, { objectiveId: "deploy", blockedBy: ["foundation"] });
+});
+
+test("objective planner chooses the best risk-adjusted alternative once dependencies are satisfied", () => {
+  const plan = planWorldStateActions({
+    workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+    objectives: [
+      { id: "foundation", status: "completed" },
+      {
+        id: "deploy",
+        status: "pending",
+        dependsOn: ["foundation"],
+        deadline: "2026-09-28T00:00:00Z",
+        alternatives: [
+          { id: "fast-risky", expectedValue: 0.9, risk: 0.4 },
+          { id: "safe-value", expectedValue: 0.8, risk: 0.1 },
+        ],
+      },
+    ],
+  }, { now: Date.parse("2026-09-27T20:00:00Z") });
+
+  const execute = plan.actions.find((item) => item.reasonCode === "objective-ready");
+  assert.ok(execute);
+  assert.equal(execute.disposition, "execute");
+  assert.equal(execute.evidence.objectiveId, "deploy");
+  assert.equal(execute.evidence.selectedAlternativeId, "safe-value");
+  assert.equal(execute.evidence.riskAdjustedValue, 0.7);
+});
+
+test("objective planner escalates an overdue pending objective", () => {
+  const plan = planWorldStateActions({
+    workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+    objectives: [{ id: "deploy", status: "pending", deadline: "2026-09-27T19:00:00Z" }],
+  }, { now: Date.parse("2026-09-27T20:00:00Z") });
+
+  const escalation = plan.actions.find((item) => item.reasonCode === "objective-overdue");
+  assert.ok(escalation);
+  assert.equal(escalation.disposition, "escalate");
+  assert.equal(escalation.evidence.objectiveId, "deploy");
+});
+
+test("objective planner rejects dependency cycles fail-closed", () => {
+  const snapshot = {
+    workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+    objectives: [
+      { id: "a", status: "pending", dependsOn: ["b"] },
+      { id: "b", status: "pending", dependsOn: ["a"] },
+    ],
+  };
+
+  assert.throws(
+    () => planWorldStateActions(snapshot, { now: Date.parse("2026-09-27T20:00:00Z") }),
+    /planner-dependency-cycle/,
+  );
+});
+
+test("objective planner emits deterministic plan and replan receipts", () => {
+  const now = Date.parse("2026-09-27T20:00:00Z");
+  const snapshot = {
+    workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+    objectives: [{ id: "deploy", status: "pending" }],
+  };
+
+  const first = planWorldStateActions(snapshot, { now });
+  const replay = planWorldStateActions(snapshot, { now });
+  assert.match(first.planReceipt.fingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(first.planReceipt.fingerprint, replay.planReceipt.fingerprint);
+
+  const replanned = planWorldStateActions({ ...snapshot, taskCounts: { failed: 1 } }, {
+    now,
+    priorPlanFingerprint: first.planReceipt.fingerprint,
+    replanTrigger: "world-state-changed",
+  });
+  assert.equal(replanned.replanReceipt.priorPlanFingerprint, first.planReceipt.fingerprint);
+  assert.equal(replanned.replanReceipt.newPlanFingerprint, replanned.planReceipt.fingerprint);
+  assert.equal(replanned.replanReceipt.reasonCode, "world-state-changed");
+  assert.notEqual(replanned.replanReceipt.newPlanFingerprint, first.planReceipt.fingerprint);
+});
