@@ -24,5 +24,5 @@ export default defineConfig({
       },
     }),
   ],
-  test: { include: ["cloudflare-test/**/*.vitest.ts"] },
+  test: { include: ["cloudflare-test/**/*.vitest.ts"], exclude: ["cloudflare-test/curious-lifecycle-worker.integration.vitest.ts"] },
 });

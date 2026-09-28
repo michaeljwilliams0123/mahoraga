@@ -1,0 +1,75 @@
+name: Cloudflare lifecycle evaluation
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Exact verified 40-character commit SHA
+        required: true
+        type: string
+      confirmation:
+        description: Type CREATE_AND_RETIRE_DISPOSABLE_WORKERS
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: read
+
+jobs:
+  lifecycle:
+    if: github.actor == github.repository_owner && inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      TARGET_SHA: ${{ inputs.target_sha }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_TEST_ACCOUNT_ID }}
+      CLOUDFLARE_TEST_SUBDOMAIN: ${{ vars.CLOUDFLARE_TEST_SUBDOMAIN }}
+      LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
+    steps:
+      - name: Validate exact target
+        shell: bash
+        run: |
+          [[ "$TARGET_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.target_sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Verify exact checkout
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$TARGET_SHA/check-runs?per_page=100" | TARGET_SHA="$TARGET_SHA" jq -e '
+            [.check_runs[] | select((.name == "Verify (ubuntu-latest)" or .name == "Verify (windows-latest)")
+              and .head_sha == env.TARGET_SHA and .conclusion == "success") | .name] | unique | length == 2'
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm run typecheck:lifecycle
+          npm run verify:lifecycle-boundary
+          npm run test:lifecycle
+      - name: Live lifecycle
+        run: npm run cloudflare:lifecycle:run
+      - name: Receipt-bound cleanup and inventory proof
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$LIFECYCLE_RUN_RECORD"; then
+            npm run cloudflare:lifecycle:cleanup
+          fi
+      - name: Upload sanitized receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: curious-lifecycle-${{ inputs.target_sha }}
+          path: |
+            ${{ runner.temp }}/curious-lifecycle/final-receipt.json
+            ${{ runner.temp }}/curious-lifecycle/orphan-receipt.json
+            ${{ runner.temp }}/curious-lifecycle/cleanup-receipt.json
+          if-no-files-found: ignore
