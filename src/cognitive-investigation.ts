@@ -149,6 +149,8 @@ export function recordInvestigationStep(state: InvestigationState, step: Investi
       break;
     case "confidence-update":
       requireHypothesis(next, step.hypothesisId);
+      if (step.before !== (next.confidenceUpdates.filter((item) => item.hypothesisId === step.hypothesisId).at(-1)?.after ?? next.hypotheses.find((item) => item.id === step.hypothesisId)!.confidence)) fail("investigation-confidence-before-mismatch");
+      if (!Array.isArray(step.evidenceRefs) || step.evidenceRefs.some((ref) => !next.observations.some((item) => item.evidenceRef === ref) && !next.counterevidence.some((item) => item.evidenceRef === ref))) fail("investigation-confidence-evidence-unobserved");
       next.confidenceUpdates.push(freeze({ hypothesisId: step.hypothesisId, before: metric(step.before), after: metric(step.after), evidenceRefs: refs(step.evidenceRefs), reasonCode: slug(step.reasonCode, "investigation-confidence-update-invalid") }));
       break;
     case "model-delta":
@@ -169,10 +171,15 @@ export function recordInvestigationStep(state: InvestigationState, step: Investi
 export function completeInvestigation(state: InvestigationState, input: InvestigationCompletion): CognitiveInvestigationReceipt {
   const current = validateState(state);
   if (input.stopReason === "evidence-sufficient") {
+    if (current.questions.length === 0) fail("investigation-question-required");
     if (current.hypotheses.length < 2) fail("investigation-hypotheses-required");
     if (current.behaviorImplicated && !current.hypotheses.some((item) => item.selfFault)) fail("investigation-self-fault-hypothesis-required");
     if (current.hypotheses.some((item) => !current.predictedEvidence.some((prediction) => prediction.hypothesisId === item.id))) fail("investigation-predicted-evidence-required");
     if (current.counterevidence.length === 0) fail("investigation-counterevidence-required");
+    if (current.observations.length === 0) fail("investigation-observation-required");
+    if (current.confidenceUpdates.length === 0) fail("investigation-confidence-update-required");
+    if (current.modelDelta === null) fail("investigation-model-delta-required");
+    if (input.unknowns.length === 0) fail("investigation-unknowns-required");
     if (!input.selectedConclusion) fail("investigation-conclusion-required");
   }
   const proposal = input.nextCapabilityProposal === undefined ? null : freeze({
@@ -202,7 +209,17 @@ export function validateInvestigationReceipt(value: unknown): CognitiveInvestiga
   if (!/^[a-f0-9]{64}$/.test(fingerprint) || digest(core) !== fingerprint) fail("investigation-fingerprint-invalid");
   if (record.schemaVersion !== 1 || record.kind !== "cognitive-investigation-receipt") fail("investigation-receipt-invalid");
   sha(record.sourceSha); sha256(record.predecessorFingerprint); slug(record.runId, "investigation-receipt-invalid");
+  if (![record.questions, record.hypotheses, record.predictedEvidence, record.observations, record.counterevidence, record.confidenceUpdates, record.requestedExperiments, record.rejectedAlternatives, record.unknowns].every(Array.isArray)) fail("investigation-receipt-invalid");
   if (record.questions.length > 8 || record.hypotheses.length > 6 || record.observations.length + record.counterevidence.length > 12 || record.requestedExperiments.length > 8) fail("investigation-receipt-invalid");
+  const latestConfidence = new Map(record.hypotheses.map((hypothesis) => [hypothesis.id, hypothesis.confidence]));
+  const inspectedEvidence = new Set([...record.observations.map((item) => item.evidenceRef), ...record.counterevidence.map((item) => item.evidenceRef)]);
+  for (const update of record.confidenceUpdates) {
+    if (!update || latestConfidence.get(update.hypothesisId) !== update.before || !Array.isArray(update.evidenceRefs) || update.evidenceRefs.length === 0 || update.evidenceRefs.some((ref) => !inspectedEvidence.has(ref)) || !Number.isFinite(update.after) || update.after < 0 || update.after > 1) fail("investigation-receipt-invalid");
+    latestConfidence.set(update.hypothesisId, update.after);
+  }
+  if (record.stopReason === "evidence-sufficient") {
+    if (record.decision !== "accept" || !record.selectedConclusion || record.questions.length === 0 || record.hypotheses.length < 2 || record.observations.length === 0 || record.counterevidence.length === 0 || record.confidenceUpdates.length === 0 || record.modelDelta === null || record.unknowns.length === 0 || record.hypotheses.some((hypothesis) => !record.predictedEvidence.some((prediction) => prediction.hypothesisId === hypothesis.id))) fail("investigation-receipt-invalid");
+  } else if (!["budget-exhausted", "authority-unavailable", "uncertainty-unresolved"].includes(record.stopReason) || record.decision !== "hold") fail("investigation-receipt-invalid");
   return freeze(record);
 }
 

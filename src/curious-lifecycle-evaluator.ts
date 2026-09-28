@@ -66,7 +66,7 @@ export function evaluateGenerativeScenario(input: Readonly<{ claims: readonly Re
 
 export function evaluatePredictiveScenario(input: Readonly<{ observedState: Readonly<Record<string, number>>; effects: Readonly<Record<string, number>>; predictedState: Readonly<Record<string, number>>; simulationOnly: boolean }>): ScenarioEvaluation {
   const keys = Object.keys(input.observedState).sort();
-  const mismatch = keys.length === 0 || keys.some((key) => !finite(input.observedState[key]) || !finite(input.effects[key]) || input.predictedState[key] !== Number((input.observedState[key]! + input.effects[key]!).toFixed(12)));
+  const mismatch = keys.length === 0 || Object.keys(input.effects).length !== keys.length || Object.keys(input.predictedState).length !== keys.length || keys.some((key) => !finite(input.observedState[key]) || !finite(input.effects[key]) || input.predictedState[key] !== Number((input.observedState[key]! + input.effects[key]!).toFixed(12)));
   const reasons = sorted([...(mismatch ? ["prediction-transition-mismatch"] : []), ...(input.simulationOnly ? [] : ["prediction-execution-conflated"])]);
   return scenario("predictive", reasons.length === 0 ? 1 : 0, reasons);
 }
@@ -89,12 +89,13 @@ export function compareReconstruction(input: ReconstructionComparisonInput): Rec
   const newAuthority = input.candidateAuthority.some((capability) => !input.baselineAuthority.includes(capability));
   const regressions = dimensions.filter((dimension) => input.candidate[dimension] + 0.000001 < input.baseline[dimension]);
   const improvements = dimensions.filter((dimension) => input.candidate[dimension] > input.baseline[dimension] + 0.000001);
+  const heldOutImprovements = improvements.filter((dimension) => dimension === "researchTransfer" || dimension === "counterevidenceUse");
   const reasons = sorted([
     ...(newAuthority ? ["authority-expanded"] : []), ...(!input.provenanceComplete ? ["provenance-incomplete"] : []),
-    ...(input.quarantinedEvidenceCount > 0 ? ["quarantined-evidence-present"] : []), ...(regressions.includes("invariants") ? ["invariant-regression"] : []),
-    ...(!input.independentVerification ? ["independent-verification-missing"] : []), ...(improvements.length < 2 ? ["held-out-improvement-insufficient"] : []),
+    ...(input.quarantinedEvidenceCount > 0 ? ["quarantined-evidence-present"] : []), ...(regressions.includes("invariants") ? ["invariant-regression"] : []), ...(regressions.includes("provenance") ? ["provenance-regression"] : []),
+    ...(!input.independentVerification ? ["independent-verification-missing"] : []), ...(heldOutImprovements.length < 2 ? ["held-out-improvement-insufficient"] : []),
   ]);
-  const rejectReasons = new Set(["authority-expanded", "provenance-incomplete", "quarantined-evidence-present", "invariant-regression", "independent-verification-missing"]);
+  const rejectReasons = new Set(["authority-expanded", "provenance-incomplete", "quarantined-evidence-present", "invariant-regression", "provenance-regression", "independent-verification-missing"]);
   const decision: ReconstructionComparison["decision"] = reasons.some((reason) => rejectReasons.has(reason)) ? "reject" : reasons.length > 0 ? "hold" : "graduation-ready";
   const core = {
     ...common(), kind: "reconstruction-comparison" as const, runId: slug(input.runId), sourceSha: sha(input.sourceSha), decision,

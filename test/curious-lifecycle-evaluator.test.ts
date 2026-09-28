@@ -28,6 +28,11 @@ test("predictive evaluation requires bound numeric transition and simulation sta
   assert.deepEqual(evaluatePredictiveScenario({ ...PREDICTIVE_FIXTURE, simulationOnly: false }).reasons, ["prediction-execution-conflated"]);
 });
 
+test("predictive evaluation rejects unbound effect and prediction dimensions", () => {
+  assert.deepEqual(evaluatePredictiveScenario({ ...PREDICTIVE_FIXTURE, effects: { ...PREDICTIVE_FIXTURE.effects, unobserved: 100 } }).reasons, ["prediction-transition-mismatch"]);
+  assert.deepEqual(evaluatePredictiveScenario({ ...PREDICTIVE_FIXTURE, predictedState: { ...PREDICTIVE_FIXTURE.predictedState, unobserved: 100 } }).reasons, ["prediction-transition-mismatch"]);
+});
+
 test("agentic evaluation preserves material dissent and separates plan from execution", () => {
   assert.equal(evaluateAgenticScenario(AGENTIC_FIXTURE).accepted, true);
   assert.deepEqual(evaluateAgenticScenario({ ...AGENTIC_FIXTURE, preservedDissent: [] }).reasons, ["material-dissent-lost"]);
@@ -69,6 +74,18 @@ test("reconstruction comparison requires held-out gains and independent verifica
   const selfVerified = compareReconstruction({ ...validComparison, independentVerification: false });
   assert.equal(selfVerified.decision, "reject");
   assert.deepEqual(selfVerified.reasons, ["independent-verification-missing"]);
+});
+
+test("invariant gains cannot substitute for held-out research improvement", () => {
+  const comparison = compareReconstruction({ ...validComparison, candidate: { invariants: 0.95, provenance: 0.95, researchTransfer: 0.5, counterevidenceUse: 0.5 } });
+  assert.equal(comparison.decision, "hold");
+  assert.deepEqual(comparison.reasons, ["held-out-improvement-insufficient"]);
+});
+
+test("a provenance regression blocks graduation despite research gains", () => {
+  const comparison = compareReconstruction({ ...validComparison, candidate: { ...validComparison.candidate, provenance: 0.85 } });
+  assert.equal(comparison.decision, "reject");
+  assert.deepEqual(comparison.reasons, ["provenance-regression"]);
 });
 
 test("absorption requires graduation comparison and rollback description", () => {

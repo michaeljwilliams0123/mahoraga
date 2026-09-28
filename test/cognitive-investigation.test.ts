@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import {
   completeInvestigation,
@@ -51,6 +52,7 @@ test("investigation requires two hypotheses including self-fault when behavior i
 
 test("investigation requires predicted support and weakening evidence", () => {
   let state = start();
+  state = recordInvestigationStep(state, { kind: "question", id: "q-route", text: "Why is the route absent?", target: "route-gap" });
   state = recordInvestigationStep(state, { kind: "hypothesis", id: "h-self", statement: "My projection failed.", confidence: 0.5, selfFault: true });
   state = recordInvestigationStep(state, { kind: "hypothesis", id: "h-source", statement: "The source omitted evidence.", confidence: 0.5, selfFault: false });
   assert.throws(() => completeInvestigation(state, completion), /investigation-predicted-evidence-required/);
@@ -109,4 +111,42 @@ test("receipt rejects tampering and preserves predecessor fingerprints", () => {
   assert.throws(() => validateInvestigationReceipt({ ...receipt, selectedConclusion: "Fabricated replacement." }), /investigation-fingerprint-invalid/);
   assert.deepEqual(validateInvestigationReceipt(receipt), receipt);
   assert.equal(Object.isFrozen(receipt), true);
+});
+
+test("evidence-sufficient completion requires the full question, observation, revision, and uncertainty trail", () => {
+  const cases = [
+    { questions: [] },
+    { observations: [] },
+    { confidenceUpdates: [] },
+    { modelDelta: null },
+  ];
+  for (const missing of cases) {
+    assert.throws(() => completeInvestigation({ ...ready(), ...missing }, completion), /investigation-(question|observation|confidence-update|model-delta)-required/);
+  }
+  assert.throws(() => completeInvestigation(ready(), { ...completion, unknowns: [] }), /investigation-unknowns-required/);
+});
+
+test("confidence revisions must refer to inspected evidence and start at the recorded confidence", () => {
+  const state = ready();
+  assert.throws(() => recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.45, after: 0.3, evidenceRefs: ["evidence:invented"], reasonCode: "new-evidence" }), /investigation-confidence-evidence-unobserved/);
+  assert.throws(() => recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.8, after: 0.3, evidenceRefs: ["evidence:complete-manifest"], reasonCode: "new-evidence" }), /investigation-confidence-before-mismatch/);
+});
+
+test("a rehashed receipt with an incomplete curiosity trail is rejected at the controller boundary", () => {
+  const receipt = completeInvestigation(ready(), completion);
+  for (const patch of [{ observations: [] }, { counterevidence: [] }, { confidenceUpdates: [] }, { modelDelta: null }, { decision: "hold" }]) {
+    const { fingerprint: _fingerprint, ...core } = { ...receipt, ...patch };
+    const rehashed = { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
+    assert.throws(() => validateInvestigationReceipt(rehashed), /investigation-receipt-invalid/);
+  }
+});
+
+test("a rehashed confidence change cannot cite evidence absent from the investigation", () => {
+  const receipt = completeInvestigation(ready(), completion);
+  const { fingerprint: _fingerprint, ...core } = {
+    ...receipt,
+    confidenceUpdates: [{ ...receipt.confidenceUpdates[0]!, evidenceRefs: ["evidence:invented"] }],
+  };
+  const rehashed = { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
+  assert.throws(() => validateInvestigationReceipt(rehashed), /investigation-receipt-invalid/);
 });
