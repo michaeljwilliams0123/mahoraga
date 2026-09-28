@@ -337,7 +337,7 @@ function validateCalibrationProfile(value) {
   ) {
     throw plannerError("planner-calibration-profile-invalid");
   }
-  return Object.freeze({
+  const normalized = {
     schemaVersion: value.schemaVersion,
     kind: value.kind,
     sampleCount: value.sampleCount,
@@ -348,8 +348,12 @@ function validateCalibrationProfile(value) {
     plannerTrust: value.plannerTrust,
     evidenceSufficient: value.evidenceSufficient,
     sourceFingerprints: Object.freeze([...value.sourceFingerprints]),
-    fingerprint: value.fingerprint,
-  });
+  };
+  const expectedFingerprint = sha256(JSON.stringify(normalized));
+  if (expectedFingerprint !== value.fingerprint) {
+    throw plannerError("planner-calibration-profile-fingerprint-mismatch");
+  }
+  return Object.freeze({ ...normalized, fingerprint: value.fingerprint });
 }
 
 function assertAcyclicDependencies(objectives) {

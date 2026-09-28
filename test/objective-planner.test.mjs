@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { objectivePlannerVersion, planWorldStateActions } from "../src/objective-planner.mjs";
 import { createPredictionReceipt, scorePredictionOutcome, summarizePredictionCalibration } from "../src/prediction-calibration.mjs";
 
@@ -181,9 +182,9 @@ test("objective planner emits deterministic plan and replan receipts", () => {
   assert.notEqual(replanned.replanReceipt.newPlanFingerprint, first.planReceipt.fingerprint);
 });
 
-const calibrationProfile = ({ plannerTrust = 0.9, evidenceSufficient = true, fingerprint = "b".repeat(64) } = {}) => {
+const calibrationProfile = ({ plannerTrust = 0.9, evidenceSufficient = true } = {}) => {
   const sampleCount = evidenceSufficient ? 3 : 2;
-  return Object.freeze({
+  const core = {
     schemaVersion: 1,
     kind: "prediction-calibration-summary",
     sampleCount,
@@ -194,8 +195,9 @@ const calibrationProfile = ({ plannerTrust = 0.9, evidenceSufficient = true, fin
     plannerTrust,
     evidenceSufficient,
     sourceFingerprints: ["1".repeat(64), "2".repeat(64), "3".repeat(64)].slice(0, sampleCount),
-    fingerprint,
-  });
+  };
+  const fingerprint = createHash("sha256").update(JSON.stringify(core)).digest("hex");
+  return Object.freeze({ ...core, fingerprint });
 };
 
 const calibratedSnapshot = () => ({
@@ -234,6 +236,19 @@ test("malformed calibration profiles fail closed", () => {
     now: Date.parse("2026-09-27T20:00:00Z"),
     calibrationProfile: { ...calibrationProfile(), ownerAuthority: true },
   }), /planner-calibration-profile-invalid/);
+});
+
+test("calibration profile fingerprint is content-bound before planner ranking", () => {
+  const snapshot = calibratedSnapshot();
+  const valid = calibrationProfile({ plannerTrust: 0.9 });
+  assert.doesNotThrow(() => planWorldStateActions(snapshot, {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: valid,
+  }));
+  assert.throws(() => planWorldStateActions(snapshot, {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: { ...valid, plannerTrust: 0 },
+  }), /planner-calibration-profile-fingerprint-mismatch/);
 });
 
 test("low empirical trust penalizes risk enough to select the safer alternative without widening authority", () => {
