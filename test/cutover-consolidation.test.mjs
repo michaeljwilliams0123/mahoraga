@@ -48,7 +48,7 @@ test("operator, cockpit, and current provider docs describe Railway as retired n
   assert.doesNotMatch(retiredProviders, /rollback\/evidence/i);
 });
 
-test("brain stack remains Node-owned and Cloudflare does not fake the cognitive loop", () => {
+test("Cloudflare reuses canonical bounded cognition without gaining learning or general execution authority", () => {
   const manifest = read("mahoraga.manifest.json");
   const workerProcess = read("src/worker-process.mjs");
   const cognitiveWorker = read("src/cognitive-worker.mjs");
@@ -74,5 +74,7 @@ test("brain stack remains Node-owned and Cloudflare does not fake the cognitive 
   assert.match(evolution, /candidate-created/);
   assert.match(evolution, /canary-passed/);
   assert.match(evolution, /rollback/);
-  assert.doesNotMatch(cloudflareRuntime, /runCognitiveLoop|executeCognitiveCapability|cognitive\.cycle|cognitive\.learn/);
+  assert.match(cloudflareRuntime, /import \{ runCognitiveLoop \} from "\.\.\/\.\.\/src\/cognitive-loop\.mjs"/);
+  assert.match(cloudflareRuntime, /receipt = runCognitiveLoop\(\{ \.\.\.input, members \}, \{ now \}\)/);
+  assert.doesNotMatch(cloudflareRuntime, /executeCognitiveCapability|cognitive\.learn|promoteVerifiedCognitiveLearning/);
 });
