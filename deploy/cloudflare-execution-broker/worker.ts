@@ -86,13 +86,14 @@ async function routeRequest(env: BrokerEnv, input: unknown, now: number) {
     taskId:lease.taskId, chainId:lease.chainId, capability:lease.capability,
     selected:{ workerId:lease.workerId, provider:lease.provider }, eligibleWorkers:selected.eligible.map((item: {workerId:string}) => item.workerId) } } };
 }
-async function executeRequest(env: BrokerEnv, input: unknown, now: number) {
+async function executeRequest(env: BrokerEnv, input: unknown, nowFn: () => number) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return { status:400, body:{ error:"request-invalid" } };
   const envelope = input as { request?: Record<string,unknown>; payload?: unknown };
   if (!envelope.request || typeof envelope.request.taskId !== "string" || typeof envelope.request.chainId !== "string") return { status:400, body:{ error:"request-invalid" } };
   let currentRequest = envelope.request;
   const chain = createExecutionChain(currentRequest.taskId as string, currentRequest.chainId as string);
   while (true) {
+    const now = nowFn();
     const attestations = await collectAttestations(env, now);
     const selection = selectWorkerRoute(currentRequest, attestations, new Date(now));
     if (!selection.ok) return { status:503, body:{ error:selection.reason, chainId:chain.chainId, receipts:chain.receipts } };
@@ -102,11 +103,16 @@ async function executeRequest(env: BrokerEnv, input: unknown, now: number) {
     chain.receipts.push(selectionReceipt(lease, selection.eligible.map((item: {workerId:string}) => item.workerId)));
     chain.history.push({ workerId:selection.selected.workerId, capability:selection.selected.capability });
     const result = await invokeProvider(binding, lease, envelope.payload, Array.isArray(currentRequest.evidenceRefs) ? currentRequest.evidenceRefs as string[] : []);
+    const completedAt = nowFn();
+    if (Date.parse(lease.expiresAt as string) <= completedAt) {
+      return { status:409, body:{ error:"execution-lease-expired", chainId:chain.chainId, receipts:chain.receipts } };
+    }
     if (result.status === "failed") return { status:502, body:{ error:result.error, chainId:chain.chainId, receipts:chain.receipts } };
     if (result.status === "complete") {
       chain.receipts.push(executionReceipt(lease, result.receipt));
       return { status:200, body:{ status:"complete", taskId:chain.taskId, chainId:chain.chainId, handoffCount:chain.handoffCount, receipts:chain.receipts } };
-    }    const validation = validateHandoff(currentRequest, result.handoff, chain.history, new Date(now));
+    }
+    const validation = validateHandoff(currentRequest, result.handoff, chain.history, new Date(completedAt));
     if (!validation.ok) return { status:409, body:{ error:validation.reason, chainId:chain.chainId, receipts:chain.receipts } };
     chain.receipts.push(handoffReceipt(result.handoff));
     chain.handoffCount += 1;
@@ -133,7 +139,7 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
       if (url.pathname === "/api/execute") {
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
         let input: unknown; try { input = await request.json(); } catch { return json({ error:"request-invalid" }, 400); }
-        const result = await executeRequest(env, input, now);
+        const result = await executeRequest(env, input, nowFn);
         return json(result.body, result.status);
       }
       if (url.pathname === "/api/handoff") {
