@@ -61,7 +61,7 @@ export function ConnectionsView({
         {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
           <div key={family.id}>
             <strong>{family.label}</strong>
-            <span>{family.state === "routable" ? `Routable · ${family.route} · ${family.evidence}` : family.state === "core-only" ? `Core route · ${family.route} · outside zero-credit chat; separate authority and spend approval required` : family.state === "unobserved" ? "Not observed · pair runtime to inspect" : `Unavailable · ${family.route ?? "no route reported"} · ${family.reason}`}</span>
+            <span>{family.state === "routable" ? `Routable · ${family.route} · ${family.evidence}` : family.state === "core-only" ? `Core route · ${family.route} · outside zero-credit chat; separate authority and spend approval required` : family.state === "unobserved" ? "Not observed · pair runtime to inspect" : `Unavailable · ${family.route ?? "no route reported"} · ${family.reason}`}{family.id === "predictive" ? " · prediction→outcome→calibration→institutional learning→planner feedback is canonical; live metrics remain receipt-gated" : ""}</span>
           </div>
         ))}
         <div><strong>Collective advantage</strong><span>Not measured · requires held-out benchmark receipts against the strongest individual route</span></div>

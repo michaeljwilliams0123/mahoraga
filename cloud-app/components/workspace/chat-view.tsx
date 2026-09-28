@@ -136,7 +136,7 @@ export function ChatView(props: ChatViewProps) {
               {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
                 <div key={family.id} className={`capability-family ${family.state}`}>
                   <strong>{family.label}</strong>
-                  <span>{family.state === "routable" ? "Routable" : family.state === "core-only" ? "Core route · outside zero-credit chat" : family.state === "unobserved" ? "Not observed" : "Unavailable"}</span>
+                  <span>{family.state === "routable" ? "Routable" : family.state === "core-only" ? "Core route · outside zero-credit chat" : family.state === "unobserved" ? "Not observed" : "Unavailable"}{family.id === "predictive" ? " · closed-loop calibration is canonical; live learning evidence is receipt-gated" : ""}</span>
                 </div>
               ))}
             </div>
