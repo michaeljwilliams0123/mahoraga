@@ -32,6 +32,7 @@ describe("permissioned connector capability routing UI", () => {
     assert.match(cards, /not the universal external-action gate/);
     assert.match(cards, /Capability family projection/);
     assert.match(cards, /fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged/);
+    assert.doesNotMatch(cards, /<div className="eclipse-status-grid"/);
     assert.match(command, /CONNECTOR_ROUTING_OBS/);
     assert.match(command, /CODEX_EXECUTE_SEPARATE/);
     assert.match(command, /FAMILY_SPLIT_AGENTIC_EXEC/);
