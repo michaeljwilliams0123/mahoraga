@@ -76,21 +76,29 @@ function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pen
 function boundedCapability(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const deterministic = value.capability === "cognitive.predict" || value.capability === "cognitive.cycle";
-  const connectorPermissions = {
-    "repository.inspect": "read",
-    "repository.write": "write",
-    "cloud.inspect": "read",
-    "cloud.execute": "execute",
-    "integration.execute": "execute",
+  const executionPermissions = {
+    "repository.inspect":"read", "repository.write":"write", "repository.verify":"read",
+    "cloud.inspect":"read", "cloud.execute":"execute",
+    "integration.inspect":"read", "integration.execute":"execute",
+    "browser.inspect":"read", "browser.execute":"execute",
+    "desktop.inspect":"read", "desktop.execute":"execute",
+    "codex.inspect":"read", "codex.execute":"contained",
+    "memory.read":"read", "memory.write":"write",
+    "artifact.inspect":"read", "artifact.write":"write",
+    "image.generate":"execute", "workspace-agent.trigger":"execute", "self.evolve":"contained",
   };
-  const connector = Object.hasOwn(connectorPermissions, value.capability);
-  if (value.capability !== "assistant.respond" && !deterministic && !connector) return null;
-  if (typeof value.routable !== "boolean" || typeof value.enabled !== "boolean") return null;
-  if (value.routable !== value.enabled) return null;
+  const execution = Object.hasOwn(executionPermissions, value.capability);
+  if (value.capability !== "assistant.respond" && !deterministic && !execution) return null;
+  if (typeof value.routable !== "boolean" || typeof value.enabled !== "boolean" || value.routable !== value.enabled) return null;
   if (typeof value.provider !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(value.provider)) return null;
-  if (value.evidenceLevel !== (deterministic || connector ? "runtime-execution" : "runtime-probe")) return null;
+  if (value.evidenceLevel !== (deterministic || execution ? "runtime-execution" : "runtime-probe")) return null;
   if (deterministic && (value.costClass !== "deterministic" || value.provider !== "mahoraga-cognitive-core" || !value.routable)) return null;
-  if (connector && (value.costClass !== "deterministic" || value.permissionClass !== connectorPermissions[value.capability] || !value.routable)) return null;
+  if (execution && value.permissionClass !== executionPermissions[value.capability]) return null;
+  if (execution && !["deterministic","zero-credit","licensed-cloud","metered-cloud"].includes(value.costClass)) return null;
+  const workerIds = execution
+    ? (Array.isArray(value.workerIds) ? value.workerIds.filter((id) => typeof id === "string" && /^[a-z0-9._-]{1,120}$/i.test(id)) : [])
+    : deterministic ? ["cognitive-core"] : [];
+  if (execution && value.routable && workerIds.length === 0) return null;
   const routingReason = value.routingReason === null ? null : value.routingReason;
   const providerReasonCode = value.providerReasonCode === null ? null : value.providerReasonCode;
   if (routingReason !== null && (typeof routingReason !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(routingReason))) return null;
@@ -98,16 +106,10 @@ function boundedCapability(value) {
   if (value.routable && (routingReason !== null || providerReasonCode !== null)) return null;
   if (!value.routable && routingReason === null) return null;
   return {
-    capability: value.capability,
-    routable: value.routable,
-    enabled: value.enabled,
-    provider: value.provider,
-    workerIds: deterministic ? ["cognitive-core"] : connector ? [`connector-${value.provider}`] : [],
-    ...(deterministic || connector ? { costClass: "deterministic" } : {}),
-    ...(connector ? { permissionClass: value.permissionClass } : {}),
-    routingReason,
-    providerReasonCode,
-    evidenceLevel: deterministic || connector ? "runtime-execution" : "runtime-probe",
+    capability:value.capability, routable:value.routable, enabled:value.enabled, provider:value.provider, workerIds,
+    ...(deterministic ? { costClass:"deterministic" } : execution ? { costClass:value.costClass, permissionClass:value.permissionClass } : {}),
+    routingReason, providerReasonCode,
+    evidenceLevel: deterministic || execution ? "runtime-execution" : "runtime-probe",
   };
 }
 
@@ -134,7 +136,7 @@ async function runtimeCapabilities(env) {
   }
 }
 
-const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content"]);
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
   if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);
