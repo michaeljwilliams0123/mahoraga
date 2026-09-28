@@ -24,7 +24,7 @@ export function PlannerReceiptPanel() {
   }, [revision]);
   const tone = surface.status === "observed" ? "tone-ok" : "tone-warn";
   return (
-    <aside className={`cockpit-panel ${tone}`} aria-label="Objective Planner v2 receipts">
+    <aside className={`cockpit-panel planner-receipt ${tone}`} aria-label="Objective Planner v2 receipts">
       <h3>OBJECTIVE_PLANNER_V2</h3>
       <p aria-live="polite">{loading ? "Loading World-State planner receipt…" : surface.status === "observed" ? "Planner receipt structure observed from World-State. Actions below are recommendations." : "Planner receipt unverified; cockpit remains fail-closed."}</p>
       <button type="button" onClick={refresh} disabled={loading} aria-label="Refresh planner receipt">Refresh receipt</button>

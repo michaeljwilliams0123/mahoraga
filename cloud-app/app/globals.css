@@ -382,3 +382,10 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 }
 .scenario-starter { border: 1px solid var(--border, #667); border-radius: 10px; padding: 10px 14px; background: transparent; color: inherit; cursor: pointer; text-align: left; }
 .scenario-starter:hover { border-color: currentColor; }
+
+.planner-receipt > button { border: 1px solid #30333a; border-radius: 8px; background: #181a1e; color: #c8cdc9; padding: 7px 9px; cursor: pointer; }
+.planner-receipt > button:disabled { cursor: default; opacity: .55; }
+.planner-receipt details { margin: 12px 0; }
+.planner-receipt summary { cursor: pointer; }
+.planner-receipt dd, .planner-receipt code { overflow-wrap: anywhere; }
+@media (max-width: 620px) { .planner-receipt dl > div { grid-template-columns: 1fr; } }
