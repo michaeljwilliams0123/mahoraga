@@ -6,6 +6,13 @@ import { projectObjectivePlannerSurface, type PlannerSurface } from "@/lib/objec
 const EMPTY = projectObjectivePlannerSurface(null);
 const short = (value: string | null) => value ? value.slice(0, 12) : "unverified";
 
+function bindLabel(surface: PlannerSurface) {
+  if (surface.calibrationBind === "match") return "fingerprint match · content bind verified";
+  if (surface.calibrationBind === "mismatch") return "fingerprint mismatch · fail-closed · planner-calibration-profile-fingerprint-mismatch";
+  if (surface.calibrationBind === "unbound") return "no calibration fingerprint reported · plannerTrust withheld";
+  return "unverified · fail-closed · plannerTrust withheld";
+}
+
 export function PlannerReceiptPanel() {
   const [surface, setSurface] = useState<PlannerSurface>(EMPTY);
   const [loading, setLoading] = useState(true);
@@ -22,7 +29,8 @@ export function PlannerReceiptPanel() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [revision]);
-  const tone = surface.status === "observed" ? "tone-ok" : "tone-warn";
+  const tone = surface.status === "observed" && surface.calibrationBind !== "mismatch" ? "tone-ok" : "tone-warn";
+  const trustShown = surface.calibrationBind === "match" && surface.plannerTrust !== null;
   return (
     <aside className={`cockpit-panel planner-receipt ${tone}`} aria-label="Objective Planner v2 receipts">
       <h3>OBJECTIVE_PLANNER_V2</h3>
@@ -35,6 +43,8 @@ export function PlannerReceiptPanel() {
         <div><dt>overdue ESCALATE</dt><dd>{surface.escalate ? `objective-overdue · ${surface.escalate.objectiveId ?? "objective unreported"}` : "none observed"}</dd></div>
         <div><dt>ready EXECUTE</dt><dd>{surface.execute ? `${surface.execute.objectiveId} · ${surface.execute.selectedAlternativeId ?? "no ranked alternative"} · riskAdjustedValue ${surface.execute.riskAdjustedValue ?? "n/a"}${surface.execute.experienceAdjustedValue !== null ? ` · experienceAdjustedValue ${surface.execute.experienceAdjustedValue} · calibrationPenalty ${surface.execute.calibrationPenalty}` : " · no experience-adjusted ranking"}` : "none observed"}</dd></div>
         <div><dt>calibration source</dt><dd>{surface.calibrationSummaryFingerprint ? <code title={surface.calibrationSummaryFingerprint}>{short(surface.calibrationSummaryFingerprint)}</code> : "not reported"}</dd></div>
+        <div><dt>calibration bind</dt><dd>{bindLabel(surface)}</dd></div>
+        <div><dt>plannerTrust</dt><dd>{trustShown ? surface.plannerTrust : "withheld until verified content bind"}</dd></div>
         <div><dt>replanReceipt</dt><dd>{surface.replan ? `${short(surface.replan.priorPlanFingerprint)} → ${short(surface.replan.newPlanFingerprint)} · ${surface.replan.reasonCode}` : "not reported for this observation"}</dd></div>
       </dl>
       {surface.status === "observed" && <details><summary>Full receipt fingerprints</summary>
@@ -44,7 +54,7 @@ export function PlannerReceiptPanel() {
           {surface.calibrationSummaryFingerprint && <div><dt>calibration summary</dt><dd><code>{surface.calibrationSummaryFingerprint}</code></dd></div>}
         </dl>
       </details>}
-      <p className="cockpit-muted">Read-only evidence only. HOLD / ESCALATE / EXECUTE does not grant mutation authority or prove an action ran. The browser checks receipt structure and provenance links; it cannot independently recompute the plan hash. The planner reports at most one objective per disposition.</p>
+      <p className="cockpit-muted">Read-only evidence only. HOLD / ESCALATE / EXECUTE does not grant mutation authority or prove an action ran. plannerTrust is shown only after verified content bind. Fingerprint mismatch fail-closes ranking display. The browser checks receipt structure and provenance links; it cannot independently recompute the plan hash. The planner reports at most one objective per disposition. Mahoraga product name unchanged; 7.0.0-alpha.2 is build provenance only.</p>
     </aside>
   );
 }
