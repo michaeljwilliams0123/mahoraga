@@ -1,5 +1,6 @@
 import { adaptLegacyConnectorAttestation } from "./legacy-connector-adapter";
 import { invokeProvider, providerBinding } from "./provider-adapter";
+import { attestationAllowedForBinding, type ProviderBindingName } from "./provider-registry";
 import { createExecutionChain, executionReceipt, handoffReceipt, selectionReceipt } from "./execution-chain";
 // @ts-ignore Runtime-neutral ESM broker core is shared with Node tests.
 import { issueRouteLease, selectWorkerRoute, validateHandoff, validateWorkerAttestation } from "../../src/universal-execution-broker.mjs";
@@ -44,7 +45,10 @@ async function collectAttestations(env: BrokerEnv, now: number): Promise<Univers
     const candidates = value && typeof value === "object" && !Array.isArray(value) && Array.isArray((value as {attestations?: unknown[]}).attestations)
       ? (value as {attestations: unknown[]}).attestations : [value];
     for (const candidate of candidates) {
-      if (validateWorkerAttestation(candidate, new Date(now)).ok) attestations.push(candidate as UniversalAttestation);
+      if (validateWorkerAttestation(candidate, new Date(now)).ok
+        && attestationAllowedForBinding(name as ProviderBindingName, candidate)) {
+        attestations.push(candidate as UniversalAttestation);
+      }
     }
   }
   if (env.CONNECTOR_CAPABILITY_BROKER) {
