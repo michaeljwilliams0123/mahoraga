@@ -1,13 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { simulateCounterfactual } from '../src/cognitive-world-model.mjs';
-import { createPredictionReceipt, scorePredictionOutcome } from '../src/prediction-calibration.mjs';
+import { createPredictionReceipt, scorePredictionOutcome, summarizePredictionCalibration } from '../src/prediction-calibration.mjs';
 
 const prediction = simulateCounterfactual({
   observedState: { failureRate: 0.2, queueDepth: 4 },
   stateUncertainty: 0.1,
   action: { actionId: 'recover-capacity', effects: { failureRate: -0.05, queueDepth: -2 }, uncertainty: 0.1 },
 });
+
+function calibrationOutcomes() {
+  const receipt = createPredictionReceipt(prediction, { now: () => new Date('2026-09-27T20:00:00.000Z') });
+  return [
+    scorePredictionOutcome(receipt, { failureRate: 0.15, queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T20:05:00.000Z') }),
+    scorePredictionOutcome(receipt, { failureRate: 0.15, queueDepth: 4 }, { observedAt: () => new Date('2026-09-27T20:06:00.000Z') }),
+    scorePredictionOutcome(receipt, { failureRate: 0.3, queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T20:07:00.000Z') }),
+  ];
+}
 
 test('prediction receipt is immutable and binds the counterfactual fingerprint', () => {
   const receipt = createPredictionReceipt(prediction, { now: () => new Date('2026-09-27T20:00:00.000Z') });
@@ -60,4 +69,44 @@ test('calibration error is scale-normalized for equivalent relative misses', () 
   assert.equal(small.normalizedMeanAbsoluteError, 0.090909090909);
   assert.equal(small.observedAccuracy, 0.909090909091);
   assert.equal(small.calibrationGap, 0.109090909091);
+});
+
+test('calibration summary is deterministic, bounded, and order-independent', () => {
+  const outcomes = calibrationOutcomes();
+  const first = summarizePredictionCalibration(outcomes);
+  const second = summarizePredictionCalibration([...outcomes].reverse());
+
+  assert.deepEqual(first, second);
+  assert.equal(first.kind, 'prediction-calibration-summary');
+  assert.equal(first.sampleCount, 3);
+  assert.equal(first.meanObservedAccuracy, 0.833333333333);
+  assert.equal(first.meanPredictedConfidence, 0.8);
+  assert.equal(first.meanCalibrationGap, 0.1);
+  assert.equal(first.meanNormalizedError, 0.166666666667);
+  assert.equal(first.plannerTrust, 0.75);
+  assert.equal(first.evidenceSufficient, true);
+  assert.deepEqual(first.sourceFingerprints, outcomes.map((item) => item.fingerprint).sort());
+  assert.match(first.fingerprint, /^[a-f0-9]{64}$/);
+  assert.equal(Object.isFrozen(first), true);
+  assert.equal(Object.isFrozen(first.sourceFingerprints), true);
+});
+
+test('calibration summary rejects duplicate outcomes and invalid sample bounds', () => {
+  const outcomes = calibrationOutcomes();
+
+  assert.throws(() => summarizePredictionCalibration([outcomes[0], outcomes[0], outcomes[1]]), /prediction-calibration-duplicate-outcome/);
+  assert.throws(() => summarizePredictionCalibration(outcomes, { maximumSamples: 2 }), /prediction-calibration-sample-limit/);
+  assert.throws(() => summarizePredictionCalibration(outcomes, { minimumSamples: 0 }), /prediction-calibration-summary-invalid/);
+  assert.throws(() => summarizePredictionCalibration(outcomes, { maximumSamples: 257 }), /prediction-calibration-summary-invalid/);
+  assert.throws(() => summarizePredictionCalibration(outcomes, { minimumSamples: 4, maximumSamples: 3 }), /prediction-calibration-summary-invalid/);
+});
+
+test('calibration summary marks sparse evidence insufficient without discarding empirical trust', () => {
+  const outcomes = calibrationOutcomes().slice(0, 2);
+  const summary = summarizePredictionCalibration(outcomes, { minimumSamples: 3 });
+
+  assert.equal(summary.sampleCount, 2);
+  assert.equal(summary.evidenceSufficient, false);
+  assert.equal(summary.plannerTrust, 0.765625);
+  assert.deepEqual(summary.sourceFingerprints, outcomes.map((item) => item.fingerprint).sort());
 });
