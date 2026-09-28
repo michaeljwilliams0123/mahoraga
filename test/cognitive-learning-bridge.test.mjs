@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createCognitiveIndividual } from '../src/cognitive-individual.mjs';
 import { runCognitiveLoop } from '../src/cognitive-loop.mjs';
-import { promoteVerifiedCognitiveLearning } from '../src/cognitive-learning-bridge.mjs';
+import { promoteVerifiedCognitiveLearning, promoteVerifiedPredictionLearning } from '../src/cognitive-learning-bridge.mjs';
+import { createPredictionReceipt, scorePredictionOutcome } from '../src/prediction-calibration.mjs';
 const now='2026-09-15T09:00:00.000Z';
 const member=(id,tags)=>createCognitiveIndividual({individualId:id,parentAgentId:'mahoraga-core',displayName:id,archetype:`${id}-mind`,perspective:`${id} perspective`,communicationStyle:'evidence-first',traits:{curiosity:0.7},epistemicPosture:{evidenceThreshold:0.8,uncertaintyTolerance:0.4,dissentDisposition:'surface-material-dissent'},perspectiveTags:tags,privateEpisodicRefs:[]},{observedAt:now});
 const members=[member('builder-agent',['engineering']),member('skeptic-agent',['risk']),member('research-agent',['evidence'])];
@@ -12,6 +13,62 @@ test('verified admitted cognition becomes institutional learning without private
 test('hold or dissent escalation cannot promote even with a verified receipt',()=>{const cycle=runCognitiveLoop({...base,stateUncertainty:0.65});const out=promoteVerifiedCognitiveLearning({cycle,verification:{verified:true,sourceFingerprint:cycle.fingerprint,evidenceRefs:['verify:receipt']},observedAt:now});assert.equal(out.promotable,false);assert.equal(out.reason,'cycle-not-promotable');assert.equal(out.record,null);});
 test('verification must bind the exact immutable cognitive receipt',()=>{const cycle=runCognitiveLoop(base);assert.throws(()=>promoteVerifiedCognitiveLearning({cycle,verification:{verified:true,sourceFingerprint:'0'.repeat(64),evidenceRefs:['verify:receipt']},observedAt:now}),{code:'cognitive-learning-verification-mismatch'});});
 test('unverified cognition fails closed instead of manufacturing institutional memory',()=>{const cycle=runCognitiveLoop(base);const out=promoteVerifiedCognitiveLearning({cycle,verification:{verified:false,sourceFingerprint:cycle.fingerprint,evidenceRefs:[]},observedAt:now});assert.equal(out.promotable,false);assert.equal(out.reason,'verification-required');assert.equal(out.record,null);});
+
+const predictionOutcome=(observedQueueDepth)=>{
+  const prediction=createPredictionReceipt({kind:'counterfactual-transition',fingerprint:'a'.repeat(64),actionId:'repair-capacity',predictedState:{queueDepth:100},predictedUncertainty:0.1},{now:()=>new Date('2026-09-15T08:00:00.000Z')});
+  return scorePredictionOutcome(prediction,{queueDepth:observedQueueDepth},{observedAt:()=>new Date(now)});
+};
+const predictionVerification=(outcome,verified=true)=>({verified,sourceFingerprint:outcome.fingerprint,evidenceRefs:['verify:prediction']});
+
+test('strong verified prediction outcome becomes outcome memory with empirical confidence',()=>{
+  const outcome=predictionOutcome(90);
+  const result=promoteVerifiedPredictionLearning({outcome,verification:predictionVerification(outcome),objectiveIds:['obj-b','obj-a'],observedAt:now});
+  assert.equal(result.promotable,true);
+  assert.equal(result.reason,'verified-prediction-outcome');
+  assert.equal(result.sourceFingerprint,outcome.fingerprint);
+  assert.equal(result.record.memoryClass,'outcome');
+  assert.equal(result.record.provenance,'verified-outcome');
+  assert.equal(result.record.confidence,0.9);
+  assert.equal(result.record.capability,'prediction-calibration');
+  assert.deepEqual(result.record.objectiveIds,['obj-a','obj-b']);
+  assert.deepEqual(result.record.evidenceRefs,[outcome.predictionReceiptFingerprint,outcome.fingerprint,'verify:prediction'].sort());
+  assert.equal(Object.isFrozen(result),true);
+  assert.equal(Object.isFrozen(result.record),true);
+});
+
+test('poor or materially miscalibrated verified prediction becomes negative memory',()=>{
+  const outcome=predictionOutcome(40);
+  const result=promoteVerifiedPredictionLearning({outcome,verification:predictionVerification(outcome),observedAt:now});
+  assert.equal(outcome.observedAccuracy,0.4);
+  assert.equal(outcome.calibrationGap,0.5);
+  assert.equal(result.promotable,true);
+  assert.equal(result.record.memoryClass,'negative-memory');
+  assert.equal(result.record.confidence,0.4);
+});
+
+test('intermediate verified prediction becomes system-pattern memory',()=>{
+  const outcome=predictionOutcome(75);
+  const result=promoteVerifiedPredictionLearning({outcome,verification:predictionVerification(outcome),observedAt:now});
+  assert.equal(outcome.observedAccuracy,0.75);
+  assert.equal(outcome.calibrationGap,0.15);
+  assert.equal(result.promotable,true);
+  assert.equal(result.record.memoryClass,'system-pattern');
+  assert.equal(result.record.confidence,0.75);
+});
+
+test('prediction learning verification must bind the exact outcome receipt',()=>{
+  const outcome=predictionOutcome(90);
+  assert.throws(()=>promoteVerifiedPredictionLearning({outcome,verification:{verified:true,sourceFingerprint:'0'.repeat(64),evidenceRefs:['verify:prediction']},observedAt:now}),{code:'prediction-learning-verification-mismatch'});
+});
+
+test('unverified prediction learning is held without manufacturing memory',()=>{
+  const outcome=predictionOutcome(90);
+  const result=promoteVerifiedPredictionLearning({outcome,verification:predictionVerification(outcome,false),observedAt:now});
+  assert.equal(result.promotable,false);
+  assert.equal(result.reason,'verification-required');
+  assert.equal(result.sourceFingerprint,outcome.fingerprint);
+  assert.equal(result.record,null);
+});
 
 import { executeCognitiveCapability } from '../src/cognitive-worker.mjs';
 test('cognitive.learn is an executable bounded capability',async()=>{const cycle=runCognitiveLoop(base);const result=await executeCognitiveCapability('cognitive.learn',{capabilityInput:{learningInput:{cycle,verification:{verified:true,sourceFingerprint:cycle.fingerprint,evidenceRefs:['verify:receipt']},observedAt:now}}});assert.equal(result.verified,true);assert.equal(result.learning.promotable,true);assert.equal(result.receiptMetadata.routeWorker,'cognitive-core');});
