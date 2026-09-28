@@ -57,6 +57,7 @@ export type Health = {
   routing?: { authority?: string; automaticPaidFallback?: boolean; browserMaySelectProvider?: boolean };
   studio?: { managementPlaneReady?: boolean; delegationRuntimeReady?: boolean };
   cognitiveLearning?: CognitiveLearningPromotionReceipt | null;
+  predictionLearning?: unknown;
   acceptance?: SanitizedAcceptanceReceipt;
   productionAcceptance?: SanitizedAcceptanceReceipt;
   cloudflareAcceptance?: SanitizedAcceptanceReceipt;
