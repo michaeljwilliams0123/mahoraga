@@ -11,7 +11,7 @@ export type CapabilityFamily = {
 
 const FAMILIES = [
   { id: "generative", label: "Generative", routes: ["assistant.respond"] },
-  { id: "agentic", label: "Agentic", routes: ["codex.execute", "workspace-agent.trigger", "self.evolve"] },
+  { id: "agentic", label: "Agentic", routes: ["cognitive.cycle", "codex.execute", "workspace-agent.trigger", "self.evolve"] },
   { id: "predictive", label: "Predictive", routes: ["cognitive.predict"] },
 ] as const;
 
@@ -41,4 +41,15 @@ export function predictiveChatAvailable(coreReady: boolean, capabilities: readon
 
 export function canSubmitPredictiveChat(coreReady: boolean, capabilities: readonly RuntimeCapability[], text: string, fileCount: number): boolean {
   return fileCount === 0 && /^\/predict(?:\s|$)/i.test(text.trim()) && predictiveChatAvailable(coreReady, capabilities);
+}
+
+export function cognitiveCycleAvailable(coreReady: boolean, capabilities: readonly RuntimeCapability[]): boolean {
+  return coreReady && capabilities.some((route) => route.capability === "cognitive.cycle"
+    && route.enabled !== false && route.routable === true && route.costClass === "deterministic");
+}
+
+export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabilities: readonly RuntimeCapability[], text: string, fileCount: number): boolean {
+  if (fileCount !== 0) return false;
+  return canSubmitPredictiveChat(coreReady, capabilities, text, fileCount)
+    || (/^\/cycle(?:\s|$)/i.test(text.trim()) && cognitiveCycleAvailable(coreReady, capabilities));
 }

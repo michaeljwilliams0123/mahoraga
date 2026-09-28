@@ -33,6 +33,25 @@ listener, expose Chrome/CDP/debugging, bypass Mahoraga authentication/authority,
 or embed credentials in the repository. Router port forwarding to 4782/4783 is
 not a substitute for an authenticated tunnel.
 
+## Browser-callable cognitive routes
+
+The owner gateway service binding exposes three separately reported capability
+routes from the Cloudflare execution runtime:
+
+- `assistant.respond` remains gated by a fresh zero-credit provider admission.
+- `cognitive.predict` executes an explicit `/predict` numeric scenario through
+  the canonical counterfactual world model and returns a fingerprinted receipt.
+- `cognitive.cycle` executes an explicit `/cycle` payload through the canonical
+  collective deliberation, metacognition, objective planning, prediction, and
+  decision loop and returns its fingerprinted receipt.
+
+The two cognitive routes are deterministic and do not invoke the language model.
+Their user and receipt messages use the existing encrypted conversation vault.
+A cognitive cycle can recommend HOLD, ESCALATE, or EXECUTE and can report whether
+the planner found mutation authority, but the browser route does not execute the
+proposed action or grant traffic authority. Capability discovery reports these
+routes from live execution-runtime code rather than from repository presence.
+
 Cloudflare Workers may still host the browser application. Runtime pairing can
 continue over the existing authenticated encrypted relay, or use an approved
 authenticated tunnel as the bounded transport to that gateway.

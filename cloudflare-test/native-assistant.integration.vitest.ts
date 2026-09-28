@@ -68,11 +68,34 @@ describe("native assistant bridge", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
-  it("keeps predictive scenario requests off the cloud answer provider", async () => {
+  it("executes canonical prediction in the deterministic lane without invoking the answer provider", async () => {
     const run = vi.fn(); setProviderInvokerForTest(run);
-    const response = await post("chat", { content: '/predict {"observedState":{"load":1}}', mode: "auto", creditPolicy: "zero-codex", idempotencyKey: "predictive-cloud-denied" });
-    expect(response.status).toBe(409);
-    expect((await response.json() as { error: string }).error).toBe("predictive-route-unavailable");
+    const conversationId = "predictive-cloud-native";
+    const response = await post("chat", { conversationId, content: '/predict {"observedState":{"load":4},"stateUncertainty":0.2,"action":{"actionId":"add-capacity","effects":{"load":-2},"uncertainty":0.1}}', mode: "auto", creditPolicy: "zero-codex", idempotencyKey: "predictive-cloud-native-turn" });
+    expect(response.status).toBe(200);
+    expect((await response.json() as { task: { capability: string } }).task.capability).toBe("cognitive.predict");
+    const tasks = await (await post("tasks", { conversationId })).json() as { tasks: Array<{ capability: string }> };
+    expect(tasks.tasks[0]?.capability).toBe("cognitive.predict");
+    const messages = await (await post("messages", { conversationId })).json() as { messages: Array<{ id: string; contentReference: string }> };
+    const assistant = messages.messages[1]!;
+    const content = await (await post("message-content", { conversationId, messageId: assistant.id, contentReference: assistant.contentReference })).json() as { content: string };
+    expect(content.content).toContain('"predictedState"');
+    expect(content.content).toContain('"load": 2');
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it("runs the canonical collective cognitive cycle as a receipt-only deterministic task", async () => {
+    const run = vi.fn(); setProviderInvokerForTest(run);
+    const input = {
+      members: [{ individualId: "builder", parentAgentId: "mahoraga-core", displayName: "Builder", archetype: "builder-mind", perspective: "implementation", communicationStyle: "evidence-first", traits: { curiosity: 0.7 }, epistemicPosture: { evidenceThreshold: 0.8, uncertaintyTolerance: 0.4, dissentDisposition: "surface-material-dissent" }, perspectiveTags: ["engineering"], privateEpisodicRefs: [] }],
+      requiredPerspectiveTags: ["engineering"], positions: [{ individualId: "builder", conclusion: "hold", confidence: 0.8, evidenceRefs: ["owner:scenario"], assumptions: [], unknowns: [], dissentTags: [] }],
+      metacognition: { evidenceCoverage: 0.9, calibratedConfidence: 0.8, knownUnknowns: [], materialConflictCount: 0, reversible: true },
+      observedState: { queueDepth: 4 }, stateUncertainty: 0.2, proposedAction: { actionId: "add-capacity", effects: { queueDepth: -2 }, uncertainty: 0.1 },
+      plannerSnapshot: { workers: [], activeLeases: [], taskCounts: {}, objectives: [], repository: { verified: true }, providers: [] },
+    };
+    const response = await post("chat", { conversationId: "cycle-cloud-native", content: `/cycle ${JSON.stringify(input)}`, mode: "auto", creditPolicy: "zero-codex", idempotencyKey: "cycle-cloud-native-turn" });
+    expect(response.status).toBe(200);
+    expect((await response.json() as { task: { capability: string } }).task.capability).toBe("cognitive.cycle");
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -98,7 +121,7 @@ describe("native assistant bridge", () => {
     const tasks = await (await post("tasks", { conversationId: payload.conversationId })).json() as { tasks: Array<{ status: string }> };
     expect(tasks.tasks[0]?.status).toBe("completed");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
-      const rows = state.storage.sql.exec<{ ciphertext: string }>("SELECT ciphertext FROM conversation_content").toArray();
+      const rows = state.storage.sql.exec<{ ciphertext: string }>("SELECT ciphertext FROM conversation_content WHERE conversation_id = ?", payload.conversationId).toArray();
       expect(rows).toHaveLength(2);
       expect(rows.every((row) => !row.ciphertext.includes("Question") && !row.ciphertext.includes("answer"))).toBe(true);
     });

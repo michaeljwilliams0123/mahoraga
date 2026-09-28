@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canSubmitPredictiveChat, projectCapabilityFamilies } from "../lib/capability-families.ts";
+import { canSubmitDeterministicCognitiveChat, canSubmitPredictiveChat, projectCapabilityFamilies } from "../lib/capability-families.ts";
 
 test("unpaired workspace never advertises runtime capability", () => {
   const families = projectCapabilityFamilies(false, [{ capability: "assistant.respond", routable: true, workerIds: [] }]);
@@ -44,4 +44,14 @@ test("prediction remains sendable without an answer route, but normal chat and a
   assert.equal(canSubmitPredictiveChat(true, routes, "/predict {}", 1), false);
   assert.equal(canSubmitPredictiveChat(false, routes, "/predict {}", 0), false);
   assert.equal(canSubmitPredictiveChat(true, [{ ...routes[0], costClass: "licensed-cloud" }], "/predict {}", 0), false);
+});
+
+test("a reported deterministic cognitive cycle activates agentic reasoning without implying mutation", () => {
+  const routes = [{ capability: "cognitive.cycle", routable: true, enabled: true, costClass: "deterministic", evidenceLevel: "runtime-execution", workerIds: ["cognitive-core"] }];
+  const families = projectCapabilityFamilies(true, routes);
+  assert.equal(families[1].state, "routable");
+  assert.equal(families[1].route, "cognitive.cycle");
+  assert.equal(canSubmitDeterministicCognitiveChat(true, routes, "/cycle {}", 0), true);
+  assert.equal(canSubmitDeterministicCognitiveChat(true, routes, "run a cycle", 0), false);
+  assert.equal(canSubmitDeterministicCognitiveChat(true, routes, "/cycle {}", 1), false);
 });

@@ -28,6 +28,10 @@ describe("Cloudflare assistant capability projection", () => {
       providerReasonCode: "cloudflare-native-provider-pending",
       evidenceLevel: "runtime-probe",
     });
+    expect(body.capabilities.slice(1)).toEqual([
+      expect.objectContaining({ capability: "cognitive.predict", routable: true, costClass: "deterministic", evidenceLevel: "runtime-execution" }),
+      expect.objectContaining({ capability: "cognitive.cycle", routable: true, costClass: "deterministic", evidenceLevel: "runtime-execution" }),
+    ]);
   });
 
   it("projects a fresh admitted provider as routable", async () => {

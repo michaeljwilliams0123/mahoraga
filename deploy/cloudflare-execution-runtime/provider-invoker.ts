@@ -20,7 +20,8 @@ export const DEFAULT_BROWSER_RUNTIME_CONTEXT: ProviderRuntimeContext = Object.fr
   capabilities: Object.freeze({
     "assistant.respond": "routable",
     "codex.execute": "unavailable",
-    "cognitive.predict": "unavailable",
+    "cognitive.predict": "routable",
+    "cognitive.cycle": "routable",
     "cognitive.deliberate": "unavailable",
     "browser.execute": "unavailable",
     "image.generate": "unavailable",
@@ -139,7 +140,7 @@ const groundingMessage = (runtimeContext: ProviderRuntimeContext): ProviderMessa
       "The underlying provider/model is an implementation detail; do not identify yourself as GLM, Z.ai, or present the provider as your identity.",
       `Current runtime truth: connectionState=${runtimeContext.connectionState}; capabilities: ${capabilityState}; verifiedReceipts=${verifiedReceipts}.`,
       "Treat this runtime truth as authoritative. Never claim an unavailable capability is available.",
-      "Agentic work is codex.execute; generative response is assistant.respond; predictive simulation is cognitive.predict. Collective deliberation is cognitive.deliberate. Capability in the repository is not direct runtime access. Collective advantage requires held-out comparative evidence; never claim an AGI level or superiority without it.",
+      "Agentic decision receipts are cognitive.cycle; external action execution is codex.execute; generative response is assistant.respond; predictive simulation is cognitive.predict. cognitive.cycle deliberates, assesses, plans, predicts, and decides but does not execute its proposed action. Capability in the repository is not direct runtime access. Collective advantage requires held-out comparative evidence; never claim an AGI level or superiority without it.",
       "Do not claim that memory, repository, browser, image, file, or other external/durable work was completed unless a matching verified receipt is present.",
       "If a requested capability is unavailable, say so plainly and prefer typed capability language. Never invent tool results, persistence, access, or completed actions.",
     ].join(" "),
@@ -195,7 +196,7 @@ const runtimeTruthAnswer = (
   }
   if (/\b(?:agentic|generative|predictive|level 6|level six)\b/i.test(message) && /\b(?:capabilit(?:y|ies)|can you|are you|level 6|level six)\b/i.test(message)) {
     const state = (capability: string) => runtimeContext.capabilities[capability] === "routable" ? "routable" : "unavailable";
-    return `In this browser runtime: generative assistant.respond is ${state("assistant.respond")}; agentic codex.execute is ${state("codex.execute")}; predictive cognitive.predict is ${state("cognitive.predict")}; collective cognitive.deliberate is ${state("cognitive.deliberate")}. Other repository components may exist without being callable from this turn. Collective advantage is not measured; it requires held-out comparative receipts. I cannot claim an AGI level from route availability.`;
+    return `In this browser runtime: generative assistant.respond is ${state("assistant.respond")}; agentic decision loop cognitive.cycle is ${state("cognitive.cycle")}; external action codex.execute is ${state("codex.execute")}; predictive cognitive.predict is ${state("cognitive.predict")}; collective cognitive.deliberate is ${state("cognitive.deliberate")}. cognitive.cycle emits a receipt and does not execute its proposed action. Other repository components may exist without being callable from this turn. Collective advantage is not measured; it requires held-out comparative receipts. I cannot claim an AGI level from route availability.`;
   }
   if (/\b(?:github|repository|repo)\b/i.test(message) && /\b(?:connected|connection|connect|relationship|access)\b/i.test(message)) {
     const directState = runtimeContext.capabilities["repository.inspect"] === "routable"
