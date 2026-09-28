@@ -5,7 +5,7 @@ import { canSubmitDeterministicCognitiveChat, canSubmitPredictiveChat, projectCa
 
 test("unpaired workspace never advertises runtime capability", () => {
   const families = projectCapabilityFamilies(false, [{ capability: "assistant.respond", routable: true, workerIds: [] }]);
-  assert.deepEqual(families.map((family) => family.state), ["unobserved", "unobserved", "unobserved"]);
+  assert.deepEqual(families.map((family) => family.state), ["unobserved", "unobserved", "unobserved", "unobserved"]);
 });
 
 test("live route evidence distinguishes generative, agentic, and predictive availability", () => {
@@ -14,10 +14,10 @@ test("live route evidence distinguishes generative, agentic, and predictive avai
     { capability: "codex.execute", routable: false, enabled: true, routingReason: "canary-stale", workerIds: ["builder"] },
     { capability: "cognitive.predict", routable: true, enabled: true, workerIds: ["cognitive-core"] },
   ]);
-  assert.deepEqual(families.map((family) => family.state), ["routable", "unavailable", "routable"]);
+  assert.deepEqual(families.map((family) => family.state), ["routable", "unavailable", "unavailable", "routable"]);
   assert.equal(families[0].evidence, "runtime-probe");
-  assert.equal(families[1].reason, "canary-stale");
-  assert.equal(families[2].route, "cognitive.predict");
+  assert.equal(families[2].reason, "canary-stale");
+  assert.equal(families[3].route, "cognitive.predict");
 });
 
 test("disabled and unreported routes remain unavailable; no benchmark strength is inferred", () => {
@@ -25,7 +25,7 @@ test("disabled and unreported routes remain unavailable; no benchmark strength i
     { capability: "assistant.respond", routable: true, enabled: false, workerIds: [] },
     { capability: "cognitive.deliberate", routable: true, workerIds: [] },
   ]);
-  assert.deepEqual(families.map((family) => family.state), ["unavailable", "unavailable", "unavailable"]);
+  assert.deepEqual(families.map((family) => family.state), ["unavailable", "unavailable", "unavailable", "unavailable"]);
   assert.equal(families[1].reason, "route-not-reported");
 });
 
@@ -33,8 +33,19 @@ test("licensed agentic route is visible without implying zero-credit chat author
   const families = projectCapabilityFamilies(true, [
     { capability: "codex.execute", routable: true, enabled: true, costClass: "licensed-cloud", workerIds: ["builder"] },
   ]);
-  assert.equal(families[1].state, "core-only");
-  assert.equal(families[1].reason, "non-zero-credit-route");
+  assert.equal(families[2].state, "core-only");
+  assert.equal(families[2].reason, "non-zero-credit-route");
+});
+
+test("permissioned connector execution is visible independently of codex execution", () => {
+  const families = projectCapabilityFamilies(true, [
+    { capability: "repository.inspect", routable: true, enabled: true, costClass: "deterministic", permissionClass: "read", evidenceLevel: "runtime-execution", workerIds: ["connector-github"] },
+    { capability: "codex.execute", routable: false, enabled: false, routingReason: "builder-unavailable", workerIds: ["builder"] },
+  ]);
+  assert.equal(families[2].label, "Execution");
+  assert.equal(families[2].state, "routable");
+  assert.equal(families[2].route, "repository.inspect");
+  assert.equal(families[2].evidence, "runtime-execution");
 });
 
 test("prediction remains sendable without an answer route, but normal chat and attachments do not", () => {

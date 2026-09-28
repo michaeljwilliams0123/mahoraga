@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { encryptConversationContent, decryptConversationContent } from "./content-vault";
-import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, providerMessagesWithinLimit, type ProviderMessage, type ZeroCreditProviderConfig } from "./provider-invoker";
+import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, providerMessagesWithinLimit, type ProviderMessage, type ProviderRuntimeContext, type ZeroCreditProviderConfig } from "./provider-invoker";
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
 // Canonical deterministic cognition is shared with the local cognitive worker.
@@ -11,6 +11,7 @@ import { runCognitiveLoop } from "../../src/cognitive-loop.mjs";
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
 import { createCognitiveIndividual } from "../../src/cognitive-individual.mjs";
 import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
+import { collectConnectorCapabilityRoutes, type ConnectorBrokerBinding } from "./connector-capability-router";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -38,6 +39,41 @@ const projectPersistedAssistantCapability = (state: ProviderStateRecord | null, 
   if (!state.available || !state.zeroCreditEligible) return pendingAssistantCapability(state.providerId, state.reasonCode ?? "provider-not-admitted");
   return { capability: "assistant.respond", routable: true, enabled: true, provider: state.providerId, workerIds: [] as string[], routingReason: null, providerReasonCode: null, evidenceLevel: "runtime-probe" };
 };
+type RuntimeCapabilityProjection = {
+  capability: string;
+  routable: boolean;
+  enabled: boolean;
+  provider: string;
+  workerIds: string[];
+  costClass?: string;
+  permissionClass?: string;
+  routingReason: string | null;
+  providerReasonCode: string | null;
+  evidenceLevel: string;
+};
+export async function projectRuntimeCapabilities({ assistant, connectorBroker, now = Date.now() }: {
+  assistant: ReturnType<typeof pendingAssistantCapability> | ReturnType<typeof projectPersistedAssistantCapability>;
+  connectorBroker?: ConnectorBrokerBinding | undefined;
+  now?: number;
+}): Promise<RuntimeCapabilityProjection[]> {
+  const connectorRoutes = await collectConnectorCapabilityRoutes(connectorBroker, now);
+  return [assistant, deterministicCapability("cognitive.predict"), deterministicCapability("cognitive.cycle"), ...connectorRoutes];
+}
+export function runtimeContextFromCapabilities(routes: RuntimeCapabilityProjection[]): ProviderRuntimeContext {
+  const capabilities: Record<string, "routable" | "unavailable"> = {
+    "assistant.respond": "unavailable",
+    "codex.execute": "unavailable",
+    "cognitive.predict": "unavailable",
+    "cognitive.cycle": "unavailable",
+    "cognitive.deliberate": "unavailable",
+    "browser.execute": "unavailable",
+    "image.generate": "unavailable",
+    "memory.write": "unavailable",
+    "repository.inspect": "unavailable",
+  };
+  for (const route of routes) capabilities[route.capability] = route.routable && route.enabled ? "routable" : "unavailable";
+  return { capabilities, receipts: [], connectionState: "connected" };
+}
 const secureEqual = async (provided: string, expected: string): Promise<boolean> => {
   if (provided.length === 0 || expected.length === 0) return false;
   const encoder = new TextEncoder();
@@ -209,7 +245,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const state = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
-      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages });
+      const runtimeCapabilities = await projectRuntimeCapabilities({
+        assistant: state,
+        connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
+      });
+      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, {
+        messages,
+        runtimeContext: runtimeContextFromCapabilities(runtimeCapabilities),
+      });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
@@ -320,7 +363,13 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
-      try { this.initialize(); return json({ capabilities: [projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)), deterministicCapability("cognitive.predict"), deterministicCapability("cognitive.cycle")] }); } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
+      try {
+        this.initialize();
+        return json({ capabilities: await projectRuntimeCapabilities({
+          assistant: projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)),
+          connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
+        }) });
+      } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
     }
     if (url.pathname !== "/api/execute") return json({ error: "Not Found" }, 404);
     if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });

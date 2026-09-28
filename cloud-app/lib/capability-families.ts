@@ -1,7 +1,7 @@
 import type { RuntimeCapability } from "./runtime-relay";
 
 export type CapabilityFamily = {
-  id: "generative" | "agentic" | "predictive";
+  id: "generative" | "agentic" | "execution" | "predictive";
   label: string;
   state: "routable" | "core-only" | "unavailable" | "unobserved";
   route: string | null;
@@ -11,7 +11,8 @@ export type CapabilityFamily = {
 
 const FAMILIES = [
   { id: "generative", label: "Generative", routes: ["assistant.respond"] },
-  { id: "agentic", label: "Agentic", routes: ["cognitive.cycle", "codex.execute", "workspace-agent.trigger", "self.evolve"] },
+  { id: "agentic", label: "Agentic", routes: ["cognitive.cycle"] },
+  { id: "execution", label: "Execution", routes: ["repository.inspect", "repository.write", "cloud.inspect", "cloud.execute", "integration.execute", "codex.execute", "workspace-agent.trigger", "self.evolve"] },
   { id: "predictive", label: "Predictive", routes: ["cognitive.predict"] },
 ] as const;
 

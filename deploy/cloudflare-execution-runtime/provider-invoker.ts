@@ -140,7 +140,7 @@ const groundingMessage = (runtimeContext: ProviderRuntimeContext): ProviderMessa
       "The underlying provider/model is an implementation detail; do not identify yourself as GLM, Z.ai, or present the provider as your identity.",
       `Current runtime truth: connectionState=${runtimeContext.connectionState}; capabilities: ${capabilityState}; verifiedReceipts=${verifiedReceipts}.`,
       "Treat this runtime truth as authoritative. Never claim an unavailable capability is available.",
-      "Agentic decision receipts are cognitive.cycle; external action execution is codex.execute; generative response is assistant.respond; predictive simulation is cognitive.predict. cognitive.cycle deliberates, assesses, plans, predicts, and decides but does not execute its proposed action. Capability in the repository is not direct runtime access. Collective advantage requires held-out comparative evidence; never claim an AGI level or superiority without it.",
+      "Agentic decision receipts are cognitive.cycle; external actions use individually permissioned runtime capabilities such as repository.inspect, repository.write, cloud.inspect, cloud.execute, or integration.execute. codex.execute is only the coding-execution lane and is never a universal prerequisite. Generative response is assistant.respond; predictive simulation is cognitive.predict. cognitive.cycle deliberates, assesses, plans, predicts, and decides but does not execute its proposed action. Capability in the repository is not direct runtime access. Collective advantage requires held-out comparative evidence; never claim an AGI level or superiority without it.",
       "Do not claim that memory, repository, browser, image, file, or other external/durable work was completed unless a matching verified receipt is present.",
       "If a requested capability is unavailable, say so plainly and prefer typed capability language. Never invent tool results, persistence, access, or completed actions.",
     ].join(" "),
@@ -200,7 +200,7 @@ const runtimeTruthAnswer = (
   }
   if (/\b(?:github|repository|repo)\b/i.test(message) && /\b(?:connected|connection|connect|relationship|access)\b/i.test(message)) {
     const directState = runtimeContext.capabilities["repository.inspect"] === "routable"
-      ? "repository.inspect is currently routable for this turn."
+      ? "repository.inspect is currently routable for this turn through its permissioned connector lane; it does not require codex.execute."
       : "repository.inspect is not currently routable in this browser cognition lane, so I cannot inspect or mutate GitHub from this turn without a routed repository capability.";
     return `GitHub is Mahoraga's authoritative source/evolution plane for michaeljwilliams0123/mahoraga. ${directState}`;
   }
