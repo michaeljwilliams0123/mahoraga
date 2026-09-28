@@ -27,7 +27,7 @@ export function ConnectorRoutingCards({
   const execution = routing.families.find((family) => family.id === "execution");
 
   return (
-    <div className="eclipse-status-grid" aria-label="Permissioned connector routing">
+    <>
       <StatusCard
         label="Permissioned connector routing"
         value={routing.value}
@@ -46,6 +46,6 @@ export function ConnectorRoutingCards({
         detail={`cognitive.cycle stays off Execution routes · FAMILY_SPLIT_AGENTIC_EXEC · Merge #856 is not live traffic authority`}
         tone="neutral"
       />
-    </div>
+    </>
   );
 }

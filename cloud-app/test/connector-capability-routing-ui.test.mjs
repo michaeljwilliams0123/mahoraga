@@ -7,30 +7,43 @@ import { projectCapabilityFamilies } from "../lib/capability-families.ts";
 import { projectConnectorCapabilityRouting } from "../lib/connector-capability-routing.ts";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+const command = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
 const cards = readFileSync(join(root, "components/cockpit/ConnectorRoutingCards.tsx"), "utf8");
 const families = readFileSync(join(root, "lib/capability-families.ts"), "utf8");
 
 describe("permissioned connector capability routing UI", () => {
   it("keeps product name Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
+    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+    assert.match(command, /Mahoraga workspace/);
+    assert.doesNotMatch(command, /<h2>7\.0\.0-alpha\.2/);
     assert.doesNotMatch(cards, /<h2>7\.0\.0-alpha\.2/);
-    assert.match(cards, /Permissioned connector routing/);
   });
 
   it("surfaces observational StatusCard + telemetry for connector routing", () => {
+    assert.match(cockpit, /import \{ ConnectorRoutingCards \} from "\.\/ConnectorRoutingCards"/);
+    assert.match(cockpit, /<ConnectorRoutingCards coreReady=\{coreReady\} runtimeCapabilities=\{runtimeCapabilities\} health=\{health\} \/>/);
+    assert.ok(cockpit.indexOf("<ConnectorRoutingCards") > cockpit.indexOf('label="Predictive scenario route"'));
     assert.match(cards, /Permissioned connector routing/);
     assert.match(cards, /projectConnectorCapabilityRouting/);
     assert.match(cards, /codex\.execute lane/);
     assert.match(cards, /not the universal external-action gate/);
     assert.match(cards, /Capability family projection/);
     assert.match(cards, /fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged/);
-    assert.match(cards, /CONNECTOR_ROUTING_OBS/);
-    assert.match(cards, /CODEX_EXECUTE_SEPARATE/);
-    assert.match(cards, /FAMILY_SPLIT_AGENTIC_EXEC/);
-    assert.match(cards, /Merge #856 is not live traffic authority/i);
+    assert.doesNotMatch(cards, /<div className="eclipse-status-grid"/);
+    assert.match(command, /CONNECTOR_ROUTING_OBS/);
+    assert.match(command, /CODEX_EXECUTE_SEPARATE/);
+    assert.match(command, /FAMILY_SPLIT_AGENTIC_EXEC/);
+    assert.match(command, /codex\.execute/);
+    assert.match(command, /not the universal external-action gate/);
+    assert.match(command, /Merge #856 is not live traffic authority/);
   });
 
   it("does not treat codex.execute as a universal UI gate", () => {
-    assert.doesNotMatch(cards, /universal external-action gate is codex\.execute/);
+    assert.doesNotMatch(cockpit, /universal external-action gate is codex\.execute/);
+    assert.doesNotMatch(command, /all external actions require codex\.execute/);
     assert.match(families, /cognitive\.cycle/);
     assert.match(families, /codex\.execute/);
   });
