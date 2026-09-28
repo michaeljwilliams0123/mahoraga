@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { objectivePlannerVersion, planWorldStateActions } from "../src/objective-planner.mjs";
+import { createPredictionReceipt, scorePredictionOutcome, summarizePredictionCalibration } from "../src/prediction-calibration.mjs";
 
 test("objective planner remains stable for a healthy observed world", () => {
   const plan = planWorldStateActions({
@@ -178,4 +179,118 @@ test("objective planner emits deterministic plan and replan receipts", () => {
   assert.equal(replanned.replanReceipt.newPlanFingerprint, replanned.planReceipt.fingerprint);
   assert.equal(replanned.replanReceipt.reasonCode, "world-state-changed");
   assert.notEqual(replanned.replanReceipt.newPlanFingerprint, first.planReceipt.fingerprint);
+});
+
+const calibrationProfile = ({ plannerTrust = 0.9, evidenceSufficient = true, fingerprint = "b".repeat(64) } = {}) => {
+  const sampleCount = evidenceSufficient ? 3 : 2;
+  return Object.freeze({
+    schemaVersion: 1,
+    kind: "prediction-calibration-summary",
+    sampleCount,
+    meanObservedAccuracy: 0.8,
+    meanPredictedConfidence: 0.8,
+    meanCalibrationGap: 0.1,
+    meanNormalizedError: 0.2,
+    plannerTrust,
+    evidenceSufficient,
+    sourceFingerprints: ["1".repeat(64), "2".repeat(64), "3".repeat(64)].slice(0, sampleCount),
+    fingerprint,
+  });
+};
+
+const calibratedSnapshot = () => ({
+  workers: [], activeLeases: [], taskCounts: {}, repository: { verified: true }, providers: [],
+  objectives: [{
+    id: "deploy",
+    status: "pending",
+    alternatives: [
+      { id: "fast-risky", expectedValue: 0.95, risk: 0.2 },
+      { id: "safe-value", expectedValue: 0.8, risk: 0.1 },
+    ],
+  }],
+});
+
+test("insufficient calibration evidence preserves current ranking while binding profile provenance", () => {
+  const profile = calibrationProfile({ plannerTrust: 0, evidenceSufficient: false });
+  const plan = planWorldStateActions(calibratedSnapshot(), {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: profile,
+  });
+  const execute = plan.actions.find((item) => item.reasonCode === "objective-ready");
+  assert.equal(execute.evidence.selectedAlternativeId, "fast-risky");
+  assert.equal(execute.evidence.riskAdjustedValue, 0.75);
+  assert.equal("calibrationPenalty" in execute.evidence, false);
+  assert.equal("experienceAdjustedValue" in execute.evidence, false);
+  assert.equal(plan.planReceipt.calibrationSummaryFingerprint, profile.fingerprint);
+});
+
+test("malformed calibration profiles fail closed", () => {
+  const snapshot = calibratedSnapshot();
+  assert.throws(() => planWorldStateActions(snapshot, {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: { ...calibrationProfile(), plannerTrust: 1.1 },
+  }), /planner-calibration-profile-invalid/);
+  assert.throws(() => planWorldStateActions(snapshot, {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: { ...calibrationProfile(), ownerAuthority: true },
+  }), /planner-calibration-profile-invalid/);
+});
+
+test("low empirical trust penalizes risk enough to select the safer alternative without widening authority", () => {
+  const profile = calibrationProfile({ plannerTrust: 0 });
+  const plan = planWorldStateActions(calibratedSnapshot(), {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: profile,
+  });
+  const execute = plan.actions.find((item) => item.reasonCode === "objective-ready");
+  assert.equal(execute.evidence.selectedAlternativeId, "safe-value");
+  assert.equal(execute.evidence.riskAdjustedValue, 0.7);
+  assert.equal(execute.evidence.calibrationPenalty, 0.1);
+  assert.equal(execute.evidence.experienceAdjustedValue, 0.6);
+  assert.equal(execute.evidence.calibrationSummaryFingerprint, profile.fingerprint);
+  assert.equal(execute.authority, "world-state-observer");
+  assert.equal(execute.mutation, false);
+});
+
+test("high empirical trust preserves the stronger risk-adjusted alternative", () => {
+  const profile = calibrationProfile({ plannerTrust: 0.9 });
+  const plan = planWorldStateActions(calibratedSnapshot(), {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: profile,
+  });
+  const execute = plan.actions.find((item) => item.reasonCode === "objective-ready");
+  assert.equal(execute.evidence.selectedAlternativeId, "fast-risky");
+  assert.equal(execute.evidence.riskAdjustedValue, 0.75);
+  assert.equal(execute.evidence.calibrationPenalty, 0.02);
+  assert.equal(execute.evidence.experienceAdjustedValue, 0.73);
+  assert.equal(execute.evidence.calibrationSummaryFingerprint, profile.fingerprint);
+});
+
+test("verified prediction outcomes close the loop by changing the next otherwise-identical planner decision", () => {
+  const predictedAt = "2026-09-27T18:00:00.000Z";
+  const observedAt = "2026-09-27T19:00:00.000Z";
+  const outcomes = ["c", "d", "e"].map((hex) => {
+    const prediction = createPredictionReceipt({
+      kind: "counterfactual-transition",
+      fingerprint: hex.repeat(64),
+      actionId: "fast-risky",
+      predictedState: { score: 100 },
+      predictedUncertainty: 0.1,
+    }, { now: () => new Date(predictedAt) });
+    return scorePredictionOutcome(prediction, { score: 40 }, { observedAt: () => new Date(observedAt) });
+  });
+  const summary = summarizePredictionCalibration(outcomes);
+  assert.equal(summary.evidenceSufficient, true);
+  assert.equal(summary.plannerTrust, 0.2);
+
+  const snapshot = calibratedSnapshot();
+  const baseline = planWorldStateActions(snapshot, { now: Date.parse("2026-09-27T20:00:00Z") });
+  const learned = planWorldStateActions(snapshot, {
+    now: Date.parse("2026-09-27T20:00:00Z"),
+    calibrationProfile: summary,
+  });
+  assert.equal(baseline.actions[0].evidence.selectedAlternativeId, "fast-risky");
+  assert.equal(learned.actions[0].evidence.selectedAlternativeId, "safe-value");
+  assert.notEqual(learned.planReceipt.fingerprint, baseline.planReceipt.fingerprint);
+  assert.equal(learned.planReceipt.calibrationSummaryFingerprint, summary.fingerprint);
 });
