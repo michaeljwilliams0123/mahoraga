@@ -168,6 +168,7 @@ export async function createControllerResearch(runId: string, sourceSha: string)
   s = recordInvestigationStep(s, { kind: "observation", evidenceRef: "evidence:projection-trace", supports: ["h-self"], weakens: ["h-evidence"] });
   s = recordInvestigationStep(s, { kind: "counterevidence", evidenceRef: "evidence:complete-manifest", hypothesisId: "h-self" });
   s = recordInvestigationStep(s, { kind: "confidence-update", hypothesisId: "h-self", before: 0.55, after: 0.7, evidenceRefs: ["evidence:projection-trace", "evidence:complete-manifest"], reasonCode: "projection-defect-supported" });
+  s = recordInvestigationStep(s, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.45, after: 0.3, evidenceRefs: ["evidence:projection-trace", "evidence:complete-manifest"], reasonCode: "alternative-weakened-by-trace" });
   s = recordInvestigationStep(s, { kind: "model-delta", priorFingerprint: "a".repeat(64), revisedFingerprint: "b".repeat(64) });
   return validateInvestigationReceipt(completeInvestigation(s, { selectedConclusion: "The bounded projection omitted a supported route.", rejectedAlternatives: ["Incomplete evidence."], unknowns: ["Other routes remain untested."], stopReason: "evidence-sufficient" }));
 }

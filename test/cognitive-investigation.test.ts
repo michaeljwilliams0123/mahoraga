@@ -31,6 +31,7 @@ function ready(): InvestigationState {
   state = recordInvestigationStep(state, { kind: "observation", evidenceRef: "evidence:projection-trace", supports: ["h-self"], weakens: ["h-evidence"] });
   state = recordInvestigationStep(state, { kind: "counterevidence", evidenceRef: "evidence:complete-manifest", hypothesisId: "h-self" });
   state = recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-self", before: 0.55, after: 0.7, evidenceRefs: ["evidence:projection-trace", "evidence:complete-manifest"], reasonCode: "projection-defect-supported" });
+  state = recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.45, after: 0.3, evidenceRefs: ["evidence:projection-trace", "evidence:complete-manifest"], reasonCode: "alternative-weakened-by-trace" });
   state = recordInvestigationStep(state, { kind: "model-delta", priorFingerprint: "a".repeat(64), revisedFingerprint: "b".repeat(64) });
   return state;
 }
@@ -128,7 +129,7 @@ test("evidence-sufficient completion requires the full question, observation, re
 
 test("confidence revisions must refer to inspected evidence and start at the recorded confidence", () => {
   const state = ready();
-  assert.throws(() => recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.45, after: 0.3, evidenceRefs: ["evidence:invented"], reasonCode: "new-evidence" }), /investigation-confidence-evidence-unobserved/);
+  assert.throws(() => recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.3, after: 0.2, evidenceRefs: ["evidence:invented"], reasonCode: "new-evidence" }), /investigation-confidence-evidence-unobserved/);
   assert.throws(() => recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.8, after: 0.3, evidenceRefs: ["evidence:complete-manifest"], reasonCode: "new-evidence" }), /investigation-confidence-before-mismatch/);
 });
 
@@ -147,6 +148,18 @@ test("a rehashed confidence change cannot cite evidence absent from the investig
     ...receipt,
     confidenceUpdates: [{ ...receipt.confidenceUpdates[0]!, evidenceRefs: ["evidence:invented"] }],
   };
+  const rehashed = { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
+  assert.throws(() => validateInvestigationReceipt(rehashed), /investigation-receipt-invalid/);
+});
+
+test("every competing hypothesis needs an evidence-bound confidence decision", () => {
+  const incomplete = { ...ready(), confidenceUpdates: ready().confidenceUpdates.filter((update) => update.hypothesisId === "h-self") };
+  assert.throws(() => completeInvestigation(incomplete, completion), /investigation-hypothesis-update-required/);
+});
+
+test("a rehashed accepted receipt cannot omit the competing hypothesis decision", () => {
+  const receipt = completeInvestigation(ready(), completion);
+  const { fingerprint: _fingerprint, ...core } = { ...receipt, confidenceUpdates: receipt.confidenceUpdates.filter((update) => update.hypothesisId === "h-self") };
   const rehashed = { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
   assert.throws(() => validateInvestigationReceipt(rehashed), /investigation-receipt-invalid/);
 });

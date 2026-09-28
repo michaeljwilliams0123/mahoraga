@@ -83,6 +83,7 @@ export class LifecycleEvaluationDO extends DurableObject<Env> {
       state = recordInvestigationStep(state, { kind: "observation", evidenceRef: input.evidenceIds![0]!, supports: ["h-self"], weakens: ["h-evidence"] });
       state = recordInvestigationStep(state, { kind: "counterevidence", evidenceRef: input.evidenceIds![1]!, hypothesisId: "h-self" });
       state = recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-self", before: 0.55, after: 0.7, evidenceRefs: input.evidenceIds!, reasonCode: "projection-defect-supported" });
+      state = recordInvestigationStep(state, { kind: "confidence-update", hypothesisId: "h-evidence", before: 0.45, after: 0.3, evidenceRefs: input.evidenceIds!, reasonCode: "alternative-weakened-by-trace" });
       state = recordInvestigationStep(state, { kind: "model-delta", priorFingerprint: "a".repeat(64), revisedFingerprint: "b".repeat(64) });
       const investigation = completeInvestigation(state, { selectedConclusion: "The bounded projection omitted a supported route.", rejectedAlternatives: ["The evidence was incomplete."], unknowns: ["Other routes remain untested."], stopReason: "evidence-sufficient" });
       result = { ...identity(this.env), investigation };

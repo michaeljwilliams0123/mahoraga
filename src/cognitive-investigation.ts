@@ -178,6 +178,7 @@ export function completeInvestigation(state: InvestigationState, input: Investig
     if (current.counterevidence.length === 0) fail("investigation-counterevidence-required");
     if (current.observations.length === 0) fail("investigation-observation-required");
     if (current.confidenceUpdates.length === 0) fail("investigation-confidence-update-required");
+    if (current.hypotheses.some((hypothesis) => !current.confidenceUpdates.some((update) => update.hypothesisId === hypothesis.id))) fail("investigation-hypothesis-update-required");
     if (current.modelDelta === null) fail("investigation-model-delta-required");
     if (input.unknowns.length === 0) fail("investigation-unknowns-required");
     if (!input.selectedConclusion) fail("investigation-conclusion-required");
@@ -218,7 +219,7 @@ export function validateInvestigationReceipt(value: unknown): CognitiveInvestiga
     latestConfidence.set(update.hypothesisId, update.after);
   }
   if (record.stopReason === "evidence-sufficient") {
-    if (record.decision !== "accept" || !record.selectedConclusion || record.questions.length === 0 || record.hypotheses.length < 2 || record.observations.length === 0 || record.counterevidence.length === 0 || record.confidenceUpdates.length === 0 || record.modelDelta === null || record.unknowns.length === 0 || record.hypotheses.some((hypothesis) => !record.predictedEvidence.some((prediction) => prediction.hypothesisId === hypothesis.id))) fail("investigation-receipt-invalid");
+    if (record.decision !== "accept" || !record.selectedConclusion || record.questions.length === 0 || record.hypotheses.length < 2 || record.observations.length === 0 || record.counterevidence.length === 0 || record.confidenceUpdates.length === 0 || record.modelDelta === null || record.unknowns.length === 0 || record.hypotheses.some((hypothesis) => !record.predictedEvidence.some((prediction) => prediction.hypothesisId === hypothesis.id) || !record.confidenceUpdates.some((update) => update.hypothesisId === hypothesis.id))) fail("investigation-receipt-invalid");
   } else if (!["budget-exhausted", "authority-unavailable", "uncertainty-unresolved"].includes(record.stopReason) || record.decision !== "hold") fail("investigation-receipt-invalid");
   return freeze(record);
 }
