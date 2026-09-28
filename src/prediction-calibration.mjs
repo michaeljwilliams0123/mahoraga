@@ -61,6 +61,38 @@ export function scorePredictionOutcome(receipt, observedState, { observedAt = ()
   return deepFreeze({ ...core, fingerprint: digest(core) });
 }
 
+export function summarizePredictionCalibration(outcomes, { minimumSamples = 3, maximumSamples = 256 } = {}) {
+  if (!Array.isArray(outcomes) || outcomes.length < 1) fail('prediction-calibration-summary-invalid');
+  if (!Number.isInteger(minimumSamples) || minimumSamples < 1 || minimumSamples > 256) fail('prediction-calibration-summary-invalid');
+  if (!Number.isInteger(maximumSamples) || maximumSamples < 1 || maximumSamples > 256) fail('prediction-calibration-summary-invalid');
+  if (minimumSamples > maximumSamples) fail('prediction-calibration-summary-invalid');
+  if (outcomes.length > maximumSamples) fail('prediction-calibration-sample-limit');
+
+  const normalized = outcomes.map(validateOutcomeReceipt).sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
+  const sourceFingerprints = normalized.map((item) => item.fingerprint);
+  if (new Set(sourceFingerprints).size !== sourceFingerprints.length) fail('prediction-calibration-duplicate-outcome');
+
+  const sampleCount = normalized.length;
+  const meanObservedAccuracy = average(normalized.map((item) => item.observedAccuracy));
+  const meanPredictedConfidence = average(normalized.map((item) => item.predictedConfidence));
+  const meanCalibrationGap = average(normalized.map((item) => item.calibrationGap));
+  const meanNormalizedError = average(normalized.map((item) => item.normalizedMeanAbsoluteError));
+  const plannerTrust = Number((meanObservedAccuracy * (1 - meanCalibrationGap)).toFixed(12));
+  const core = {
+    schemaVersion: 1,
+    kind: 'prediction-calibration-summary',
+    sampleCount,
+    meanObservedAccuracy,
+    meanPredictedConfidence,
+    meanCalibrationGap,
+    meanNormalizedError,
+    plannerTrust,
+    evidenceSufficient: sampleCount >= minimumSamples,
+    sourceFingerprints: deepFreeze(sourceFingerprints),
+  };
+  return deepFreeze({ ...core, fingerprint: digest(core) });
+}
+
 function validatePrediction(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.kind !== 'counterfactual-transition') fail('prediction-receipt-invalid');
   if (typeof value.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.fingerprint)) fail('prediction-receipt-invalid');
@@ -83,6 +115,18 @@ function validateReceipt(value) {
   };
 }
 
+function validateOutcomeReceipt(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || value.kind !== 'prediction-outcome-receipt' || value.schemaVersion !== 1) fail('prediction-calibration-summary-invalid');
+  if (typeof value.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.fingerprint)) fail('prediction-calibration-summary-invalid');
+  return {
+    fingerprint: value.fingerprint,
+    observedAccuracy: score(value.observedAccuracy, 'prediction-calibration-summary-invalid'),
+    predictedConfidence: score(value.predictedConfidence, 'prediction-calibration-summary-invalid'),
+    calibrationGap: score(value.calibrationGap, 'prediction-calibration-summary-invalid'),
+    normalizedMeanAbsoluteError: score(value.normalizedMeanAbsoluteError, 'prediction-calibration-summary-invalid'),
+  };
+}
+
 function normalizeObservedState(value, expectedKeys) {
   const normalized = normalizeState(value, 'prediction-outcome-invalid');
   const actualKeys = Object.keys(normalized).sort();
@@ -101,6 +145,7 @@ function normalizeState(value, code) {
   }
   return deepFreeze(result);
 }
+function average(values) { return Number((values.reduce((total, value) => total + value, 0) / values.length).toFixed(12)); }
 function score(value, code) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) fail(code); return value; }
 function canonicalTimestamp(value) { const date = value instanceof Date ? value : new Date(value); if (!Number.isFinite(date.getTime())) fail('prediction-time-invalid'); const timestamp = date.toISOString(); if (typeof value === 'string' && value !== timestamp) fail('prediction-time-invalid'); return timestamp; }
 function digest(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
