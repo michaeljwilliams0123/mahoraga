@@ -27,7 +27,6 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_TEST_ACCOUNT_ID }}
       CLOUDFLARE_TEST_SUBDOMAIN: ${{ vars.CLOUDFLARE_TEST_SUBDOMAIN }}
-      LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
     steps:
       - name: Validate exact target
         shell: bash
@@ -56,10 +55,14 @@ jobs:
           npm run verify:lifecycle-boundary
           npm run test:lifecycle
       - name: Live lifecycle
+        env:
+          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
         run: npm run cloudflare:lifecycle:run
       - name: Receipt-bound cleanup and inventory proof
         if: always()
         shell: bash
+        env:
+          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
         run: |
           if test -f "$LIFECYCLE_RUN_RECORD"; then
             npm run cloudflare:lifecycle:cleanup

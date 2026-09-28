@@ -8,6 +8,8 @@ test("manual exact-head workflow runs deterministic gate and unconditional clean
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /^\s+(push|pull_request|schedule):/m);
   assert.match(text, /environment: cloudflare-lifecycle-test/);
+  assert.doesNotMatch(text, /^      LIFECYCLE_RUN_RECORD:.*runner\.temp/m);
+  assert.equal((text.match(/^          LIFECYCLE_RUN_RECORD:.*runner\.temp/gm) ?? []).length, 2);
   assert.match(text, /timeout-minutes: 30/);
   assert.match(text, /permissions:\s*\n\s*contents: read/);
   assert.match(text, /github\.actor == github\.repository_owner/);
