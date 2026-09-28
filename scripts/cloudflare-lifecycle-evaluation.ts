@@ -12,6 +12,7 @@ const config = "deploy/cloudflare-lifecycle-evaluation/wrangler.jsonc";
 const namePattern = /^mahoraga-lifecycle-test-([a-z0-9]{12,32})-(clone|reconstruction)$/;
 const shaPattern = /^[a-f0-9]{40}$/;
 const digest = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+const lifecycleOwnershipTag = (runId: string) => `mahoraga-lifecycle-${runId}`;
 export type GeneratedWorkerName = `mahoraga-lifecycle-test-${string}-${WorkerRole}`;
 export type DeployInput = Readonly<{ runId: string; sourceSha: string; role: WorkerRole; expiresAt: string }>;
 export type ControllerInput = Readonly<{ sourceSha: string; subdomain: string }>;
@@ -33,14 +34,14 @@ export function buildLifecycleDeployArgs(input: DeployInput): readonly string[] 
   if (!shaPattern.test(input.sourceSha)) throw Error("source-sha-invalid");
   const name = workerNameFor(input.runId, input.role);
   if (!Number.isFinite(Date.parse(input.expiresAt))) throw Error("expiry-invalid");
-  return ["deploy", "--config", config, "--name", name, "--tag", `lifecycle-${input.runId}`, "--var", `RUN_ID:${input.runId}`, "--var", `TARGET_SHA:${input.sourceSha}`, "--var", `ROLE:${input.role}`, "--var", `EXPIRES_AT:${input.expiresAt}`];
+  return ["deploy", "--config", config, "--name", name, "--tag", lifecycleOwnershipTag(input.runId), "--var", `RUN_ID:${input.runId}`, "--var", `TARGET_SHA:${input.sourceSha}`, "--var", `ROLE:${input.role}`, "--var", `EXPIRES_AT:${input.expiresAt}`];
 }
 export function buildLifecycleDeleteArgs(workerName: string): readonly string[] {
   validName(workerName);
   return ["delete", workerName, "--config", config];
 }
 export function verifyLifecycleWorkerTags(tags: readonly string[], runId: string): void {
-  if (!/^[a-z0-9]{12,32}$/.test(runId) || !tags.includes(`mahoraga-lifecycle-${runId}`)) throw Error("worker-ownership-unverified");
+  if (!/^[a-z0-9]{12,32}$/.test(runId) || !tags.includes(lifecycleOwnershipTag(runId))) throw Error("worker-ownership-unverified");
 }
 function checkIdentity(value: unknown, run: LifecycleRun, role: WorkerRole): asserts value is Record<string, unknown> {
   if (!value || typeof value !== "object" || (value as Record<string, unknown>).runId !== run.runId || (value as Record<string, unknown>).sourceSha !== run.sourceSha || (value as Record<string, unknown>).role !== role) throw Error("worker-identity-invalid");
@@ -199,6 +200,20 @@ async function cli() {
     }
     throw Error("cloudflare-inventory-pagination-exceeded");
   };
+  const ownershipTags = async (name: string): Promise<string[]> => {
+    const settings = await api(`scripts/${name}/script-settings`);
+    const tags = [...((settings.result as { tags?: string[] }).tags ?? [])];
+    if (tags.some(tag => tag.startsWith("mahoraga-lifecycle-"))) return tags;
+    const deployments = await api(`scripts/${name}/deployments`);
+    if (!Array.isArray(deployments.result) || !deployments.result.length) return tags;
+    const latest = deployments.result[0] as { versions?: { version_id?: string }[] };
+    const versionId = latest.versions?.[0]?.version_id;
+    if (!versionId) return tags;
+    const version = await api(`scripts/${name}/versions/${versionId}`);
+    const versionTag = (version.result as { annotations?: Record<string, string> }).annotations?.["workers/tag"];
+    if (versionTag) tags.push(versionTag);
+    return tags;
+  };
   const adapters: ControllerAdapters = {
     randomBytes: cryptoRandomBytes, now: () => new Date(), fetch, inventory,
     tagWorker: async (name, runId, expiresAt) => {
@@ -249,8 +264,7 @@ async function cli() {
     const present = (await inventory()).filter(name => record.attempted.includes(name));
     for (const name of present) {
       validName(name);
-      const settings = await api(`scripts/${name}/script-settings`);
-      verifyLifecycleWorkerTags((settings.result as { tags?: string[] }).tags ?? [], record.runId);
+      verifyLifecycleWorkerTags(await ownershipTags(name), record.runId);
       await adapters.runWrangler(buildLifecycleDeleteArgs(name));
     }
     if ((await inventory()).some(name => record.attempted.includes(name))) throw Error("cleanup-inventory-incomplete");

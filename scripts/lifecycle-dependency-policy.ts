@@ -23,10 +23,10 @@ export function validateLifecycleDependencyBoundary(root: string): PolicyReceipt
     ].map(match => match[0]);
     if (path.endsWith(".jsonc")) {
       const parsed = JSON.parse(text.replace(/^\s*\/\/.*$/gm, "")) as Record<string, unknown>;
-      tokens.push(...Object.keys(parsed), JSON.stringify(parsed.durable_objects ?? {}));
+      tokens.push(...Object.keys(parsed).map(key => JSON.stringify(key)), JSON.stringify(parsed.durable_objects ?? {}));
     }
     for (const token of tokens) {
-      const reason = /railway|vercel/i.test(token) ? "excluded-provider" : /openai|anthropic|gemini|model_api_key|workers_ai|\bAI\b/i.test(token) ? "external-inference" : /"(?:services|queues|vectorize|browser|ai|r2_buckets|d1_databases|hyperdrive)"/i.test(token) ? "unbounded-binding" : null;
+      const reason = /railway|vercel/i.test(token) ? "excluded-provider" : /"(?:services|queues|vectorize|browser|ai|r2_buckets|d1_databases|hyperdrive)"/i.test(token) ? "unbounded-binding" : /openai|anthropic|gemini|model_api_key|workers_ai|\bAI\b/i.test(token) ? "external-inference" : null;
       if (reason && !violations.some(v => v.path === path && v.reason === reason)) violations.push({ path, reason });
     }
   };

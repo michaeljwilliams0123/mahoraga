@@ -10,6 +10,7 @@ test("controller derives exact worker names and fixed config", () => {
   assert.deepEqual(args.slice(0, 4), ["deploy", "--config", "deploy/cloudflare-lifecycle-evaluation/wrangler.jsonc", "--name"]);
   assert.ok(args.includes(`mahoraga-lifecycle-test-${runId}-clone`));
   assert.ok(args.includes(`TARGET_SHA:${sha}`));
+  assert.equal(args[args.indexOf("--tag") + 1], `mahoraga-lifecycle-${runId}`);
   assert.deepEqual(buildLifecycleDeleteArgs(`mahoraga-lifecycle-test-${runId}-clone`), ["delete", `mahoraga-lifecycle-test-${runId}-clone`, "--config", "deploy/cloudflare-lifecycle-evaluation/wrangler.jsonc"]);
   assert.throws(() => buildLifecycleDeleteArgs("mahoraga-production"), /worker-name-invalid/);
 });

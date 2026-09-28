@@ -20,6 +20,20 @@ test("policy names forbidden provider and inference tokens with their path", asy
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
+test("policy rejects every forbidden top-level Wrangler binding", async () => {
+  const root = await mkdtemp(join(tmpdir(), "lifecycle-binding-policy-"));
+  try {
+    const dir = join(root, "deploy/cloudflare-lifecycle-evaluation");
+    await mkdir(dir, { recursive: true });
+    for (const key of ["services", "queues", "vectorize", "browser", "ai", "r2_buckets", "d1_databases", "hyperdrive"]) {
+      await writeFile(join(dir, "wrangler.jsonc"), JSON.stringify({ name: "lifecycle-test", [key]: [] }));
+      const receipt = validateLifecycleDependencyBoundary(root);
+      assert.equal(receipt.accepted, false, `expected ${key} to be rejected`);
+      assert.ok(receipt.violations.some(v => v.path.endsWith("wrangler.jsonc") && v.reason === "unbounded-binding"), key);
+    }
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test("actual lifecycle boundary is credential-free outside explicit live Cloudflare inputs", () => {
   const receipt = validateLifecycleDependencyBoundary(process.cwd());
   assert.equal(receipt.accepted, true, JSON.stringify(receipt.violations));
