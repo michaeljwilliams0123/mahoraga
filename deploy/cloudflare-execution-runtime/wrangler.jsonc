@@ -3,7 +3,9 @@
   "name": "mahoraga-execution-runtime",
   "main": "worker.ts",
   "compatibility_date": "2026-09-21",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "durable_objects": {
     "bindings": [
       {
@@ -32,5 +34,11 @@
   },
   "observability": {
     "enabled": true
-  }
+  },
+  "services": [
+    {
+      "binding": "MAHORAGA_EXECUTION_BROKER",
+      "service": "mahoraga-execution-broker"
+    }
+  ]
 }

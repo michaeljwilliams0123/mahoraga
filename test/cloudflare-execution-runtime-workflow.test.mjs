@@ -131,3 +131,11 @@ test("Cloudflare exact-main workflow resolves runner temp paths at runtime inste
   assert.match(workflow, /if:\s*always\(\)/);
   assert.match(workflow, /rm -f "\$PROVIDER_SECRETS_FILE" "\$RUNTIME_SECRETS_FILE" "\$BILLING_ATTESTATION_FILE"/);
 });
+
+
+test("execution runtime is service-bound to the universal execution broker", async () => {
+  const config = await readFile(runtimeWranglerPath, "utf8");
+  assert.match(config, /"binding":\s*"MAHORAGA_EXECUTION_BROKER"/);
+  assert.match(config, /"service":\s*"mahoraga-execution-broker"/);
+  assert.doesNotMatch(config, /railway|vercel/i);
+});

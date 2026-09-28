@@ -6,6 +6,7 @@ interface Env {
   ZERO_CREDIT_PROVIDER_TOKEN: string;
   ZERO_CREDIT_ACCOUNT_ID_HASH: string;
   TARGET_SHA: string;
+  MAHORAGA_EXECUTION_BROKER?: Fetcher;
   CONNECTOR_CAPABILITY_BROKER?: Fetcher;
 }
 
@@ -18,6 +19,7 @@ declare namespace Cloudflare {
     ZERO_CREDIT_PROVIDER_TOKEN: string;
     ZERO_CREDIT_ACCOUNT_ID_HASH: string;
     TARGET_SHA: string;
-    CONNECTOR_CAPABILITY_BROKER?: Fetcher;
+    MAHORAGA_EXECUTION_BROKER?: Fetcher;
+  CONNECTOR_CAPABILITY_BROKER?: Fetcher;
   }
 }
