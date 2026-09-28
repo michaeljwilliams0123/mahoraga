@@ -8,6 +8,7 @@ import { projectHardZeroHold } from "@/lib/hard-zero-hold";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
+import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -304,6 +305,7 @@ export function CockpitView({
       </div>
 
       <DissentReceiptPanel receipt={dissentReceipt} />
+      <PlannerReceiptPanel />
       <PredictionLearningPanel snapshot={health?.predictionLearning} />
 
       <div className="eclipse-detail-grid">

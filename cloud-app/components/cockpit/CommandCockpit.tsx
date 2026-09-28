@@ -14,6 +14,7 @@ import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 import { AstSandbox } from "./AstSandbox";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
+import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { TelemetrySparkline } from "./TelemetrySparkline";
@@ -266,6 +267,7 @@ export function CommandCockpit({
         </aside>
 
         <DissentReceiptPanel receipt={dissentReceipt} />
+        <PlannerReceiptPanel />
         <PredictionLearningPanel snapshot={(healthJson as { predictionLearning?: unknown } | null)?.predictionLearning} />
 
         <aside className={`cockpit-panel ${learning.status === "promoted" ? "tone-ok" : learning.status === "refused" ? "tone-warn" : "tone-neutral"}`} aria-label="Institutional learning">
