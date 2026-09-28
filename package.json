@@ -54,7 +54,7 @@
     "cloudflare:lifecycle:audit-expired": "node scripts/cloudflare-lifecycle-evaluation.ts audit-expired",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare-execution-runtime/tsconfig.json",
     "test:alpha": "node --test --test-isolation=none",
-    "verify": "npm run typecheck && npm run typecheck:cloudflare && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && npm run test:cloudflare && node --test --test-isolation=none",
+    "verify": "npm run typecheck && npm run typecheck:cloudflare && npm run typecheck:execution-broker && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && npm run test:cloudflare && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
@@ -70,7 +70,10 @@
     "verify:fast": "npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && node --test --test-isolation=none --test-concurrency=1 test/verification-workflow.test.mjs test/github-live-protection.test.mjs test/release-baseline.test.mjs test/repository-head.test.mjs test/autonomous-integration.test.mjs test/return-reconciler.test.mjs test/composio-tool-client.test.mjs cloud-app/test/composio-integration-contract.test.mjs cloud-app/test/runtime-truth.test.mjs test/workspace-agent-receiver.test.mjs test/destiny-trigger-trust.test.mjs test/cutover-consolidation.test.mjs test/mahoraga-core-types.test.ts test/verification-pipeline.test.ts",
     "cloudflare:execution-runtime:deploy": "node scripts/cloudflare-execution-runtime.ts deploy",
     "cloudflare:execution-runtime:accept": "node scripts/cloudflare-execution-runtime.ts accept",
-    "cloudflare:workspace:build": "node scripts/build-pages-static.mjs --cloudflare"
+    "cloudflare:workspace:build": "node scripts/build-pages-static.mjs --cloudflare",
+    "typecheck:execution-broker": "tsc --noEmit -p deploy/cloudflare-execution-broker/tsconfig.json",
+    "cloudflare:execution-broker:deploy": "npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-execution-broker/wrangler.jsonc",
+    "cloudflare:execution-broker:deployments": "npx --yes wrangler@4.136.1 deployments list --config deploy/cloudflare-execution-broker/wrangler.jsonc"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",

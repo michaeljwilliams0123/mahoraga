@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["@cloudflare/workers-types"],
+    "allowJs": true,
+    "checkJs": false
+  },
+  "include": ["./**/*.ts", "../../src/universal-execution-broker.mjs"]
+}

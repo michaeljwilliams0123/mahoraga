@@ -11,7 +11,8 @@ import { runCognitiveLoop } from "../../src/cognitive-loop.mjs";
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
 import { createCognitiveIndividual } from "../../src/cognitive-individual.mjs";
 import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
-import { collectConnectorCapabilityRoutes, type ConnectorBrokerBinding } from "./connector-capability-router";
+import type { ConnectorBrokerBinding } from "./connector-capability-router";
+import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from "./universal-capability-router";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -51,13 +52,14 @@ type RuntimeCapabilityProjection = {
   providerReasonCode: string | null;
   evidenceLevel: string;
 };
-export async function projectRuntimeCapabilities({ assistant, connectorBroker, now = Date.now() }: {
+export async function projectRuntimeCapabilities({ assistant, executionBroker, connectorBroker, now = Date.now() }: {
   assistant: ReturnType<typeof pendingAssistantCapability> | ReturnType<typeof projectPersistedAssistantCapability>;
+  executionBroker?: UniversalBrokerBinding | undefined;
   connectorBroker?: ConnectorBrokerBinding | undefined;
   now?: number;
 }): Promise<RuntimeCapabilityProjection[]> {
-  const connectorRoutes = await collectConnectorCapabilityRoutes(connectorBroker, now);
-  return [assistant, deterministicCapability("cognitive.predict"), deterministicCapability("cognitive.cycle"), ...connectorRoutes];
+  const executionRoutes = await collectUniversalCapabilityRoutes(executionBroker, connectorBroker, now);
+  return [assistant, deterministicCapability("cognitive.predict"), deterministicCapability("cognitive.cycle"), ...executionRoutes];
 }
 export function runtimeContextFromCapabilities(routes: RuntimeCapabilityProjection[]): ProviderRuntimeContext {
   const capabilities: Record<string, "routable" | "unavailable"> = {
@@ -200,6 +202,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const payload = objectValue(input?.payload);
     if (!payload) return json({ error: "cloud-action-not-allowed" }, 400);
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
+    if (input?.type === "execute") {
+      const broker = this.env.MAHORAGA_EXECUTION_BROKER;
+      if (!broker || typeof broker.fetch !== "function") return json({ error: "execution-broker-unavailable" }, 503);
+      const response = await broker.fetch(new Request("https://mahoraga-execution-broker/api/execute", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(payload),
+      }));
+      return new Response(response.body, { status: response.status, headers: response.headers });
+    }
     const conversationId = payload.conversationId;
     if (!boundedId(conversationId)) return json({ error: "conversation-id-invalid" }, 400);
     const conversation = this.storage.getConversation(conversationId);
@@ -247,6 +259,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
       const runtimeCapabilities = await projectRuntimeCapabilities({
         assistant: state,
+        executionBroker: this.env.MAHORAGA_EXECUTION_BROKER,
         connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
       });
       const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, {
@@ -367,7 +380,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.initialize();
         return json({ capabilities: await projectRuntimeCapabilities({
           assistant: projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)),
-          connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
+          executionBroker: this.env.MAHORAGA_EXECUTION_BROKER,
+        connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
         }) });
       } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
     }

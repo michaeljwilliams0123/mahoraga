@@ -12,7 +12,13 @@ export type CapabilityFamily = {
 const FAMILIES = [
   { id: "generative", label: "Generative", routes: ["assistant.respond"] },
   { id: "agentic", label: "Agentic", routes: ["cognitive.cycle"] },
-  { id: "execution", label: "Execution", routes: ["repository.inspect", "repository.write", "cloud.inspect", "cloud.execute", "integration.execute", "codex.execute", "workspace-agent.trigger", "self.evolve"] },
+  { id: "execution", label: "Execution", routes: [
+    "repository.inspect", "repository.write", "repository.verify",
+    "cloud.inspect", "cloud.execute", "integration.inspect", "integration.execute",
+    "browser.inspect", "browser.execute", "desktop.inspect", "desktop.execute",
+    "codex.inspect", "codex.execute", "memory.read", "memory.write",
+    "artifact.inspect", "artifact.write", "image.generate", "workspace-agent.trigger", "self.evolve",
+  ] },
   { id: "predictive", label: "Predictive", routes: ["cognitive.predict"] },
 ] as const;
 

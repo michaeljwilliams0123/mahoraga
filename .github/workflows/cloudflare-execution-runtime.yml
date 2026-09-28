@@ -136,6 +136,9 @@ jobs:
             --var "ZERO_CREDIT_ACCOUNT_ID_HASH:${ZERO_CREDIT_ACCOUNT_ID_HASH}" \
             --secrets-file "$PROVIDER_SECRETS_FILE"
 
+      - name: Deploy private universal execution broker
+        run: npm run cloudflare:execution-broker:deploy
+
       - name: Deploy exact verified execution runtime
         run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA" --secrets-file "$RUNTIME_SECRETS_FILE"
 

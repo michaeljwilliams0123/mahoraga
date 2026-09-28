@@ -66,3 +66,14 @@ test("a reported deterministic cognitive cycle activates agentic reasoning witho
   assert.equal(canSubmitDeterministicCognitiveChat(true, routes, "run a cycle", 0), false);
   assert.equal(canSubmitDeterministicCognitiveChat(true, routes, "/cycle {}", 1), false);
 });
+
+
+test("browser desktop memory and artifact workers project through the universal execution family", () => {
+  for (const capability of ["browser.execute", "desktop.execute", "memory.write", "artifact.inspect"]) {
+    const families = projectCapabilityFamilies(true, [
+      { capability, routable: true, enabled: true, costClass: "zero-credit", evidenceLevel: "runtime-execution", workerIds: ["worker-1"] },
+    ]);
+    assert.equal(families[2].state, "routable", capability);
+    assert.equal(families[2].route, capability);
+  }
+});

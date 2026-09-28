@@ -31,3 +31,13 @@ test("owner gateway operator commands pin Wrangler and never embed secret values
     assert.doesNotMatch(value, /owner@example|secret=.*|token=.*|password=/i);
   }
 });
+
+
+test("owner gateway admits universal execution capabilities and execute bridge actions", () => {
+  const worker = readFileSync(new URL("../deploy/cloudflare-owner-gateway/worker.mjs", import.meta.url), "utf8");
+  assert.match(worker, /browser\.execute/);
+  assert.match(worker, /desktop\.execute/);
+  assert.match(worker, /memory\.write/);
+  assert.match(worker, /artifact\.inspect/);
+  assert.match(worker, /NATIVE_ACTIONS = new Set\(\[[^\]]*"execute"/s);
+});
