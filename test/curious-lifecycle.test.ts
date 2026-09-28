@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
 import { completeInvestigation } from "../src/cognitive-investigation.ts";
 import {
@@ -53,6 +54,17 @@ test("lifecycle accepts only the complete ordered transition sequence", () => {
   assert.deepEqual(validateLifecycleReceipt(receipt), receipt);
 });
 
+test("receipt rejects rehashed false cleanup evidence and reordered transitions", () => {
+  const receipt = finalizeLifecycle(throughReconstructionRetirement(), { observedAt: OBSERVED_AT, absentWorkerNames: [workerNameFor(RUN_ID, "clone"), workerNameFor(RUN_ID, "reconstruction")] });
+  const reseal = (changes: object) => {
+    const { fingerprint: _old, ...core } = { ...receipt, ...changes };
+    return { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
+  };
+  assert.throws(() => validateLifecycleReceipt(reseal({ workers: receipt.workers.map(worker => ({ ...worker, inventoryAbsent: false })) })), /lifecycle-receipt-invalid/);
+  assert.throws(() => validateLifecycleReceipt(reseal({ transitions: [...receipt.transitions].reverse() })), /lifecycle-receipt-invalid/);
+  assert.throws(() => validateLifecycleReceipt(reseal({ absenceEvidence: [workerNameFor(RUN_ID, "clone")] })), /lifecycle-receipt-invalid/);
+});
+
 test("lifecycle rejects out-of-order and replayed transitions", () => {
   const run = createLifecycleRun({ runId: RUN_ID, sourceSha: SHA, requestedAt: OBSERVED_AT });
   assert.throws(() => advanceLifecycle(run, { to: "researching", runId: RUN_ID, sourceSha: SHA, observedAt: OBSERVED_AT }), /lifecycle-transition-out-of-order/);
@@ -96,4 +108,9 @@ test("failed lifecycle remains cleanup-required while an orphan exists", () => {
   assert.equal(failed.state, "cleanup-required");
   assert.deepEqual(failed.orphanWorkerNames, [workerNameFor(RUN_ID, "clone")]);
   assert.throws(() => finalizeLifecycle(failed, { observedAt: OBSERVED_AT, absentWorkerNames: [] }), /lifecycle-cleanup-incomplete/);
+  const cleaned = finalizeLifecycle(failed, { observedAt: OBSERVED_AT, absentWorkerNames: [workerNameFor(RUN_ID, "clone")] });
+  assert.deepEqual(validateLifecycleReceipt(cleaned), cleaned);
+  const { fingerprint: _old, ...core } = { ...cleaned, absenceEvidence: [] };
+  const tampered = { ...core, fingerprint: createHash("sha256").update(JSON.stringify(core)).digest("hex") };
+  assert.throws(() => validateLifecycleReceipt(tampered), /lifecycle-receipt-invalid/);
 });

@@ -38,6 +38,8 @@ export type ReconstructionComparison = CommonReceipt & Readonly<{
   authorityPreserved: boolean;
   provenanceComplete: boolean;
   independentVerification: boolean;
+  beforeMetrics: Metrics;
+  afterMetrics: Metrics;
 }>;
 export type AbsorptionCandidateReceipt = CommonReceipt & Readonly<{
   kind: "absorption-candidate";
@@ -51,6 +53,8 @@ export type AbsorptionCandidateReceipt = CommonReceipt & Readonly<{
   canonicalMemoryChanged: false;
   isolated: true;
   reasons: readonly string[];
+  beforeMetrics: Metrics;
+  afterMetrics: Metrics;
 }>;
 
 export function evaluateGenerativeScenario(input: Readonly<{ claims: readonly Readonly<{ text: string; evidenceRefs: readonly string[] }>[]; allowedEvidenceRefs: readonly string[]; uncertaintyDeclared: boolean }>): ScenarioEvaluation {
@@ -96,6 +100,7 @@ export function compareReconstruction(input: ReconstructionComparisonInput): Rec
     ...common(), kind: "reconstruction-comparison" as const, runId: slug(input.runId), sourceSha: sha(input.sourceSha), decision,
     reasons, improvements: sorted(improvements), regressions: sorted(regressions), authorityPreserved: !newAuthority,
     provenanceComplete: input.provenanceComplete, independentVerification: input.independentVerification,
+    beforeMetrics: freeze({ ...input.baseline }), afterMetrics: freeze({ ...input.candidate }),
   };
   return receipt(core);
 }
@@ -109,6 +114,7 @@ export function evaluateAbsorption(input: Readonly<{ comparison: ReconstructionC
     decision: reasons.length === 0 ? "graduation-ready" as const : "reject" as const, lesson,
     provenanceRefs: freeze([...input.provenanceRefs]), rollbackDescription, comparisonFingerprint: input.comparison.fingerprint,
     canonicalMemoryChanged: false as const, isolated: true as const, reasons,
+    beforeMetrics: input.comparison.beforeMetrics, afterMetrics: input.comparison.afterMetrics,
   };
   return receipt(core);
 }

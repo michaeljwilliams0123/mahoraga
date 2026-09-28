@@ -80,5 +80,7 @@ test("absorption requires graduation comparison and rollback description", () =>
   assert.equal(ready.providerRequired, false);
   assert.equal(ready.creditCost, 0);
   assert.equal(ready.paidFallback, false);
+  assert.deepEqual(ready.beforeMetrics, validComparison.baseline);
+  assert.deepEqual(ready.afterMetrics, validComparison.candidate);
   assert.equal(evaluateAbsorption({ comparison, lesson: "Bind evidence.", provenanceRefs: ["evidence:projection-trace"], rollbackDescription: "" }).decision, "reject");
 });

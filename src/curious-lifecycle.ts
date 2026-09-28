@@ -156,6 +156,33 @@ export function validateLifecycleReceipt(value: unknown): LifecycleReceipt {
   const { fingerprint, ...core } = record;
   if (!/^[a-f0-9]{64}$/.test(fingerprint) || digest(core) !== fingerprint) fail("lifecycle-fingerprint-invalid");
   if (record.schemaVersion !== 1 || record.kind !== "curious-lifecycle-receipt" || record.cleanupStatus !== "complete") fail("lifecycle-receipt-invalid");
+  const keys = ["schemaVersion", "kind", "runId", "sourceSha", "state", "cleanupStatus", "observedAt", "workers", "transitions", "baselineFingerprint", "investigationFingerprint", "reconstructionFingerprint", "comparisonFingerprint", "absorptionFingerprint", "failureReason", "absenceEvidence", "predecessorFingerprint", "fingerprint"];
+  if (Object.keys(record).length !== keys.length || keys.some(key => !Object.hasOwn(record, key))) fail("lifecycle-receipt-invalid");
+  if (!/^[a-z0-9]{12,32}$/.test(record.runId) || !/^[a-f0-9]{40}$/.test(record.sourceSha) || !Number.isFinite(Date.parse(record.observedAt)) || !/^[a-f0-9]{64}$/.test(record.predecessorFingerprint)) fail("lifecycle-receipt-invalid");
+  if (!Array.isArray(record.workers) || !Array.isArray(record.transitions) || !Array.isArray(record.absenceEvidence)) fail("lifecycle-receipt-invalid");
+  if (record.state === "complete") {
+    const roles: WorkerRole[] = ["clone", "reconstruction"];
+    if (record.workers.length !== 2 || record.failureReason !== null ||
+      [record.baselineFingerprint, record.investigationFingerprint, record.reconstructionFingerprint, record.comparisonFingerprint, record.absorptionFingerprint].some(item => typeof item !== "string" || !/^[a-f0-9]{64}$/.test(item))) fail("lifecycle-receipt-invalid");
+    for (let i = 0; i < roles.length; i++) {
+      const worker = record.workers[i];
+      if (!worker || worker.role !== roles[i] || worker.name !== workerNameFor(record.runId, worker.role) || !worker.inventoryAbsent || !/^[a-f0-9]{64}$/.test(worker.retirementFingerprint ?? "") || !worker.deploymentId || !Number.isFinite(Date.parse(worker.expiresAt))) fail("lifecycle-receipt-invalid");
+    }
+    const names = record.workers.map(worker => worker.name).sort();
+    if (JSON.stringify([...record.absenceEvidence].sort()) !== JSON.stringify(names) || new Set(record.absenceEvidence).size !== 2) fail("lifecycle-receipt-invalid");
+    const order = ["requested", "clone-deployed", "baseline-proven", "clone-retired", "researching", "research-complete", "reconstruction-deployed", "reconstruction-proven", "absorption-evaluated", "reconstruction-retired", "complete"];
+    if (record.transitions.length !== order.length - 1 || record.transitions.some((transition, index) => transition.from !== order[index] || transition.to !== order[index + 1] || !/^[a-f0-9]{64}$/.test(transition.fingerprint))) fail("lifecycle-receipt-invalid");
+    const final = record.transitions.at(-1)!;
+    if (final.fingerprint !== digest({ from: "reconstruction-retired", to: "complete", observedAt: record.observedAt, predecessorFingerprint: record.predecessorFingerprint })) fail("lifecycle-receipt-invalid");
+  } else if (record.state === "failed") {
+    if (record.workers.length < 1 || record.workers.length > 2 || typeof record.failureReason !== "string" || !record.failureReason || record.transitions.length < 2) fail("lifecycle-receipt-invalid");
+    const names = record.workers.map(worker => worker.name).sort();
+    if (record.workers.some((worker, index) => worker.role !== (["clone", "reconstruction"] as const)[index] || worker.name !== workerNameFor(record.runId, worker.role)) || JSON.stringify([...record.absenceEvidence].sort()) !== JSON.stringify(names) || new Set(record.absenceEvidence).size !== names.length) fail("lifecycle-receipt-invalid");
+    const order = ["requested", "clone-deployed", "baseline-proven", "clone-retired", "researching", "research-complete", "reconstruction-deployed", "reconstruction-proven", "absorption-evaluated", "reconstruction-retired"];
+    if (record.transitions.slice(0, -1).some((transition, index) => transition.from !== order[index] || transition.to !== order[index + 1])) fail("lifecycle-receipt-invalid");
+    const final = record.transitions.at(-1)!;
+    if (final.from !== "cleanup-required" || final.to !== "failed" || final.fingerprint !== digest({ from: "cleanup-required", to: "failed", observedAt: record.observedAt, predecessorFingerprint: record.predecessorFingerprint })) fail("lifecycle-receipt-invalid");
+  } else fail("lifecycle-receipt-invalid");
   return freeze(record);
 }
 

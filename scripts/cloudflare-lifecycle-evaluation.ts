@@ -142,7 +142,7 @@ export async function runCuriousLifecycle(input: ControllerInput, adapters: Cont
     await retire("reconstruction");
     result = finalizeLifecycle(run, { observedAt: now(), absentWorkerNames: expected });
     validateLifecycleReceipt(result);
-    await adapters.writeArtifact("final-receipt.json", { ...result, comparisonFingerprint: comparison.fingerprint, absorptionFingerprint: absorption.fingerprint, absorptionDecision: absorption.decision, transferScore });
+    await adapters.writeArtifact("final-receipt.json", { ...result, comparisonFingerprint: comparison.fingerprint, comparisonDecision: comparison.decision, comparisonReasons: comparison.reasons, absorptionFingerprint: absorption.fingerprint, absorptionDecision: absorption.decision, beforeMetrics: absorption.beforeMetrics, afterMetrics: absorption.afterMetrics, transferScore });
   } catch (error) { failure = error; }
   finally {
     const orphans: string[] = [];
