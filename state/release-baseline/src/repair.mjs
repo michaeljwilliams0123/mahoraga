@@ -134,6 +134,8 @@ export const ESSENTIAL_FILES = [
   "src/collective-dissent-resolution.mjs",
   "src/metacognition.mjs",
   "src/cognitive-world-model.mjs",
+  "src/prediction-calibration.mjs",
+  "src/prediction-backtest.mjs",
   "src/transfer-generalization.mjs",
   "src/cognitive-loop.mjs",
   "src/cognitive-worker.mjs",
