@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test from "node:test";
-import { buildLifecycleDeployArgs, buildLifecycleDeleteArgs, runCuriousLifecycle, createControllerResearch, verifyLifecycleWorkerTags } from "../scripts/cloudflare-lifecycle-evaluation.ts";
+import { buildLifecycleDeployArgs, buildLifecycleDeleteArgs, runCuriousLifecycle, createControllerResearch, verifyLifecycleWorkerTags, validateLifecycleRunRecord } from "../scripts/cloudflare-lifecycle-evaluation.ts";
 
 const sha = "b".repeat(40);
 const runId = "abc123def456";
@@ -42,6 +43,8 @@ test("controller proves each deletion before reconstructing and finalizes two wo
   const live = new Set<string>();
   const actions: string[] = [];
   const saved: string[] = [];
+  let liveProbeAttempts = 0;
+  const sleeps: number[] = [];
   const adapters = {
     randomBytes: (n: number) => n === 6 ? Buffer.from(runId, "hex") : Buffer.alloc(n, 7),
     now: () => new Date("2026-09-28T20:00:00.000Z"),
@@ -54,6 +57,7 @@ test("controller proves each deletion before reconstructing and finalizes two wo
     fetch: async (url: string, init: RequestInit) => {
       const role = url.includes("-clone.") ? "clone" : "reconstruction";
       const body = init.body ? JSON.parse(String(init.body)) as { scenario?: string } : {};
+      if (url.endsWith("/live")) { liveProbeAttempts++; if (liveProbeAttempts === 1) return Response.json({ error: "not-ready" }, { status: 404 }); }
       if (url.endsWith("/manifest")) return Response.json({ runId, sourceSha: sha, role, kind: "evaluation-only-manifest", capabilities: ["self.question"] });
       if (url.endsWith("/research")) return Response.json({ runId, sourceSha: sha, role, investigation: await createControllerResearch(runId, sha) });
       if (url.endsWith("/challenge")) return Response.json({ runId, sourceSha: sha, role, evaluation: { accepted: true, score: body.scenario === "held-out-transfer" && role === "clone" ? 0 : 1, fingerprint: "a".repeat(64), scenario: body.scenario } });
@@ -62,6 +66,7 @@ test("controller proves each deletion before reconstructing and finalizes two wo
     },
     inventory: async () => [...live],
     tagWorker: async () => {},
+    sleep: async (ms: number) => { sleeps.push(ms); },
     writeArtifact: async (name: string) => { saved.push(name); },
   };
   const receipt = await runCuriousLifecycle({ sourceSha: sha, subdomain: "test-account" }, adapters);
@@ -70,4 +75,13 @@ test("controller proves each deletion before reconstructing and finalizes two wo
   assert.deepEqual([...live], []);
   assert.deepEqual(actions.filter(a => a.startsWith("delete:")), [`delete:mahoraga-lifecycle-test-${runId}-clone`, `delete:mahoraga-lifecycle-test-${runId}-reconstruction`]);
   assert.ok(saved.includes("final-receipt.json"));
+  assert.equal(liveProbeAttempts, 3);
+  assert.deepEqual(sleeps, [1000]);
+});
+
+test("cleanup run record validates schema separately from its fingerprint", () => {
+  const core = { runId, sourceSha: sha, expected: [`mahoraga-lifecycle-test-${runId}-clone`, `mahoraga-lifecycle-test-${runId}-reconstruction`], attempted: [], expiresAt: "2099-01-01T00:00:00.000Z" };
+  const fingerprint = createHash("sha256").update(JSON.stringify(core)).digest("hex");
+  assert.doesNotThrow(() => validateLifecycleRunRecord({ schemaVersion: 1, ...core, fingerprint }));
+  assert.throws(() => validateLifecycleRunRecord({ schemaVersion: 2, ...core, fingerprint }), /run-record-invalid/);
 });

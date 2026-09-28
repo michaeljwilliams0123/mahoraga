@@ -23,8 +23,20 @@ export type ControllerAdapters = Readonly<{
   tagWorker(name: string, runId: string, expiresAt: string): Promise<void>;
   randomBytes(size: number): Uint8Array;
   now(): Date;
+  sleep?(ms: number): Promise<void>;
   writeArtifact(name: string, value: unknown): Promise<void>;
 }>;
+
+
+export function validateLifecycleRunRecord(value: unknown): asserts value is { schemaVersion: 1; runId: string; sourceSha: string; expected: string[]; attempted: string[]; expiresAt: string; fingerprint: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw Error("run-record-invalid");
+  const record = value as Record<string, unknown>;
+  const { fingerprint, schemaVersion, ...core } = record;
+  if (schemaVersion !== 1 || typeof fingerprint !== "string" || fingerprint !== digest(core) || typeof record.runId !== "string" || typeof record.sourceSha !== "string" || !shaPattern.test(record.sourceSha) || !Array.isArray(record.expected) || !Array.isArray(record.attempted) || typeof record.expiresAt !== "string") throw Error("run-record-invalid");
+  const expected = record.expected;
+  const attempted = record.attempted;
+  if (expected.length !== 2 || expected[0] !== workerNameFor(record.runId, "clone") || expected[1] !== workerNameFor(record.runId, "reconstruction") || attempted.some(name => typeof name !== "string" || !expected.includes(name))) throw Error("run-record-invalid");
+}
 
 function validName(value: string): asserts value is GeneratedWorkerName {
   const match = namePattern.exec(value);
@@ -60,11 +72,14 @@ export async function runCuriousLifecycle(input: ControllerInput, adapters: Cont
   const save = () => adapters.writeArtifact("run-record.json", { schemaVersion: 1, runId, sourceSha: input.sourceSha, expected, attempted: [...attempted], expiresAt, fingerprint: digest({ runId, sourceSha: input.sourceSha, expected, attempted: [...attempted], expiresAt }) });
   const origin = (role: WorkerRole) => `https://${workerNameFor(runId, role)}.${input.subdomain}.workers.dev`;
   const request = async (role: WorkerRole, path: string, body?: object): Promise<Record<string, unknown>> => {
-    const response = await adapters.fetch(origin(role) + path, { method: body ? "POST" : "GET", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
-    if (!response.ok) throw Error(`worker-probe-${path}-${response.status}`);
-    const value: unknown = await response.json();
-    checkIdentity(value, run, role);
-    return value;
+    const attempts = path === "/live" ? 12 : 1;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      const response = await adapters.fetch(origin(role) + path, { method: body ? "POST" : "GET", headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      if (response.ok) { const value: unknown = await response.json(); checkIdentity(value, run, role); return value; }
+      if (path === "/live" && (response.status === 404 || response.status === 503) && attempt < attempts) { await (adapters.sleep?.(1000) ?? new Promise(resolve => setTimeout(resolve, 1000))); continue; }
+      throw Error(`worker-probe-${path}-${response.status}`);
+    }
+    throw Error(`worker-probe-${path}-unavailable`);
   };
   const absent = async (name: string) => !(await adapters.inventory()).includes(name);
   const remove = async (name: string) => {
@@ -258,9 +273,8 @@ async function cli() {
     }
     await adapters.writeArtifact("audit-receipt.json", { observedAt: new Date().toISOString(), expired, deleted: false });
   } else if (command === "cleanup") {
-    const record = JSON.parse(await readFile(artifact, "utf8")) as { runId: string; sourceSha: string; expected: string[]; attempted: string[]; expiresAt: string; fingerprint: string };
-    const { fingerprint, ...core } = record;
-    if (fingerprint !== digest(core) || !shaPattern.test(record.sourceSha) || record.expected.length !== 2 || record.expected[0] !== workerNameFor(record.runId, "clone") || record.expected[1] !== workerNameFor(record.runId, "reconstruction") || record.attempted.some(name => !record.expected.includes(name))) throw Error("run-record-invalid");
+    const record: unknown = JSON.parse(await readFile(artifact, "utf8"));
+    validateLifecycleRunRecord(record);
     const present = (await inventory()).filter(name => record.attempted.includes(name));
     for (const name of present) {
       validName(name);
