@@ -14,13 +14,15 @@ const command=readFileSync(join(root,"components/cockpit/CommandCockpit.tsx"),"u
 const route=readFileSync(join(root,"app/api/world-state/route.ts"),"utf8");
 describe("Objective Planner v2 cockpit evidence",()=>{
   it("projects the existing HOLD ESCALATE EXECUTE and replan contracts fail-closed",()=>{
-    for(const token of ["objective-dependencies-blocked","objective-overdue","objective-ready","selectedAlternativeId","riskAdjustedValue","experienceAdjustedValue","priorPlanFingerprint","newPlanFingerprint","planner-receipt-unverified"]) assert.match(surface,new RegExp(token));
+    for(const token of ["objective-dependencies-blocked","objective-overdue","objective-ready","selectedAlternativeId","riskAdjustedValue","experienceAdjustedValue","priorPlanFingerprint","newPlanFingerprint","planner-receipt-unverified","planner-calibration-profile-fingerprint-mismatch","calibrationBind","plannerTrust"]) assert.match(surface,new RegExp(token));
     assert.match(surface,/SHA256/);
   });
   it("renders the read-only world-state receipt on both existing cockpit surfaces",()=>{
     assert.match(panel,/OBJECTIVE_PLANNER_V2/); assert.match(panel,/planReceipt\.fingerprint/); assert.match(panel,/Read-only evidence only/);
     assert.match(panel,/Full receipt fingerprints/); assert.match(panel,/Refresh receipt/);
-    assert.match(view,/PlannerReceiptPanel/); assert.match(command,/PlannerReceiptPanel/);
+    assert.match(panel,/calibration bind/); assert.match(panel,/fingerprint match/);
+    assert.match(panel,/plannerTrust/); assert.match(panel,/withheld until verified content bind/);
+    assert.match(panel,/fail-closed/); assert.match(view,/PlannerReceiptPanel/); assert.match(command,/PlannerReceiptPanel/);
     assert.match(route,/coreRequest\("world-state"\)/); assert.match(route,/cache-control/);
   });
   const now=Date.parse("2026-09-27T20:00:00Z");
@@ -47,6 +49,7 @@ describe("Objective Planner v2 cockpit evidence",()=>{
     assert.equal(surface.execute.riskAdjustedValue,0.7);
     assert.equal(surface.execute.experienceAdjustedValue,0.6);
     assert.equal(surface.execute.calibrationSummaryFingerprint,calibrationProfile.fingerprint);
+    assert.equal(surface.calibrationBind,"match");
     assert.equal(surface.replan.newPlanFingerprint,surface.planFingerprint);
     assert.equal(surface.replan.priorPlanFingerprint,initial.planReceipt.fingerprint);
   });
@@ -56,6 +59,8 @@ describe("Objective Planner v2 cockpit evidence",()=>{
     assert.equal(surface.actionCount,0);
     assert.equal(surface.execute,null);
     assert.equal(surface.replan,null);
+    assert.equal(surface.calibrationBind,"unbound");
+    assert.equal(surface.plannerTrust,null);
   });
   it("fails closed on contradictory counts, provenance, authority or objective evidence",()=>{
     const original=plan([{id:"ready",status:"pending",alternatives:[{id:"safe",expectedValue:0.8,risk:0.1}]}]);
@@ -73,6 +78,7 @@ describe("Objective Planner v2 cockpit evidence",()=>{
       assert.equal(surface.status,"unverified");
       assert.equal(surface.execute,null);
       assert.equal(surface.planFingerprint,null);
+      assert.equal(surface.plannerTrust,null);
     }
   });
 });
