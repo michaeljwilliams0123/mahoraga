@@ -251,3 +251,24 @@ test("GitHub source authority is distinguished from direct repository tool avail
   assert.match(result.response ?? "", /repository\.inspect.*not currently routable/i);
   assert.doesNotMatch(result.response ?? "", /^I am not connected to GitHub\.?$/i);
 });
+
+test("a permissioned repository connector remains usable when codex execution is unavailable", async () => {
+  let calls = 0;
+  const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(providerEnvelope("should-not-run")); };
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "Do you have access to the GitHub repository?" }],
+    runtimeContext: {
+      capabilities: {
+        "assistant.respond": "routable",
+        "repository.inspect": "routable",
+        "codex.execute": "unavailable",
+      },
+      receipts: [],
+      connectionState: "connected",
+    },
+  }, fetchImpl) as { response?: string };
+
+  assert.equal(calls, 0);
+  assert.match(result.response ?? "", /repository\.inspect is currently routable/i);
+  assert.match(result.response ?? "", /does not require codex\.execute/i);
+});

@@ -87,6 +87,16 @@ test("native bridge projects assistant.respond from the Cloudflare execution run
           provider: "mahoraga-cognitive-core", workerIds: ["cognitive-core"],
           costClass: "deterministic", routingReason: null, providerReasonCode: null,
           evidenceLevel: "runtime-execution",
+        }, {
+          capability: "repository.inspect", routable: true, enabled: true,
+          provider: "github", workerIds: ["connector-github"],
+          costClass: "deterministic", permissionClass: "read", routingReason: null, providerReasonCode: null,
+          evidenceLevel: "runtime-execution",
+        }, {
+          capability: "cloud.inspect", routable: true, enabled: true,
+          provider: "cloudflare", workerIds: ["connector-cloudflare"],
+          costClass: "deterministic", permissionClass: "read", routingReason: null, providerReasonCode: null,
+          evidenceLevel: "runtime-execution",
         }],
       }), { status: 200, headers: { "content-type": "application/json" } });
     },
@@ -106,7 +116,7 @@ test("native bridge projects assistant.respond from the Cloudflare execution run
     assert.equal(body.capabilities[0].routable, true);
     assert.equal(body.capabilities[0].enabled, true);
     assert.equal(body.capabilities[0].routingReason, null);
-    assert.deepEqual(body.capabilities.slice(1).map((item) => item.capability), ["cognitive.predict", "cognitive.cycle"]);
+    assert.deepEqual(body.capabilities.slice(1).map((item) => item.capability), ["cognitive.predict", "cognitive.cycle", "repository.inspect", "cloud.inspect"]);
     assert.ok(body.capabilities.slice(1).every((item) => item.costClass === "deterministic" && item.evidenceLevel === "runtime-execution"));
   });
 });

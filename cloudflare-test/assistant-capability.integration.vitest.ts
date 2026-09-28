@@ -2,11 +2,39 @@ import { env } from "cloudflare:workers";
 import { runInDurableObject } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
-import { type ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
+import { projectRuntimeCapabilities, runtimeContextFromCapabilities, type ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
 
 const SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 
 describe("Cloudflare assistant capability projection", () => {
+  it("adds individually attested connector lanes without inventing codex authority", async () => {
+    const routes = await projectRuntimeCapabilities({
+      assistant: {
+        capability: "assistant.respond", routable: true, enabled: true, provider: "cloudflare-workers-ai",
+        workerIds: [], routingReason: null, providerReasonCode: null, evidenceLevel: "runtime-probe",
+      },
+      connectorBroker: { async fetch() { return Response.json({
+        schemaVersion: 1,
+        kind: "connector-capability-attestation",
+        observedAt: "2026-09-28T16:30:00.000Z",
+        expiresAt: "2026-09-28T16:35:00.000Z",
+        grants: [
+          { capability: "repository.inspect", provider: "github", permissionClass: "read", zeroCreditEligible: true, healthy: true },
+          { capability: "cloud.inspect", provider: "cloudflare", permissionClass: "read", zeroCreditEligible: true, healthy: true },
+        ],
+      }); } },
+      now: Date.parse("2026-09-28T16:31:00.000Z"),
+    });
+    expect(routes.map((route) => route.capability)).toEqual([
+      "assistant.respond", "cognitive.predict", "cognitive.cycle", "repository.inspect", "cloud.inspect",
+    ]);
+    expect(routes.some((route) => route.capability === "codex.execute")).toBe(false);
+    const context = runtimeContextFromCapabilities(routes);
+    expect(context.capabilities["repository.inspect"]).toBe("routable");
+    expect(context.capabilities["cloud.inspect"]).toBe("routable");
+    expect(context.capabilities["codex.execute"]).toBe("unavailable");
+  });
+
   it("stays fail-closed when no provider evidence exists", async () => {
     const stub = env.EXECUTION_DO.getByName("assistant-capability-empty");
     const ready = await stub.fetch("https://execution.example/api/ready", {

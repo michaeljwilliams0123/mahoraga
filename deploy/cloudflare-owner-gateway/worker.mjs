@@ -76,12 +76,21 @@ function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pen
 function boundedCapability(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const deterministic = value.capability === "cognitive.predict" || value.capability === "cognitive.cycle";
-  if (value.capability !== "assistant.respond" && !deterministic) return null;
+  const connectorPermissions = {
+    "repository.inspect": "read",
+    "repository.write": "write",
+    "cloud.inspect": "read",
+    "cloud.execute": "execute",
+    "integration.execute": "execute",
+  };
+  const connector = Object.hasOwn(connectorPermissions, value.capability);
+  if (value.capability !== "assistant.respond" && !deterministic && !connector) return null;
   if (typeof value.routable !== "boolean" || typeof value.enabled !== "boolean") return null;
   if (value.routable !== value.enabled) return null;
   if (typeof value.provider !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(value.provider)) return null;
-  if (value.evidenceLevel !== (deterministic ? "runtime-execution" : "runtime-probe")) return null;
+  if (value.evidenceLevel !== (deterministic || connector ? "runtime-execution" : "runtime-probe")) return null;
   if (deterministic && (value.costClass !== "deterministic" || value.provider !== "mahoraga-cognitive-core" || !value.routable)) return null;
+  if (connector && (value.costClass !== "deterministic" || value.permissionClass !== connectorPermissions[value.capability] || !value.routable)) return null;
   const routingReason = value.routingReason === null ? null : value.routingReason;
   const providerReasonCode = value.providerReasonCode === null ? null : value.providerReasonCode;
   if (routingReason !== null && (typeof routingReason !== "string" || !/^[a-z0-9._-]{1,80}$/i.test(routingReason))) return null;
@@ -93,11 +102,12 @@ function boundedCapability(value) {
     routable: value.routable,
     enabled: value.enabled,
     provider: value.provider,
-    workerIds: deterministic ? ["cognitive-core"] : [],
-    ...(deterministic ? { costClass: "deterministic" } : {}),
+    workerIds: deterministic ? ["cognitive-core"] : connector ? [`connector-${value.provider}`] : [],
+    ...(deterministic || connector ? { costClass: "deterministic" } : {}),
+    ...(connector ? { permissionClass: value.permissionClass } : {}),
     routingReason,
     providerReasonCode,
-    evidenceLevel: deterministic ? "runtime-execution" : "runtime-probe",
+    evidenceLevel: deterministic || connector ? "runtime-execution" : "runtime-probe",
   };
 }
 
