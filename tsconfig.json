@@ -17,6 +17,7 @@
   "include": [
     "src/**/*.ts",
     "scripts/**/*.ts",
+    "evaluation/**/*.ts",
     "relay/**/*.ts",
     "test/**/*.ts",
     "contracts/**/*.ts"

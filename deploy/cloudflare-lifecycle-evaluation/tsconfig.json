@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "lib": ["esnext", "webworker"], "types": ["@cloudflare/workers-types", "node"] },
+  "include": ["worker.ts", "../../src/cognitive-investigation.ts", "../../src/curious-lifecycle-evaluator.ts", "../../evaluation/curious-lifecycle-fixtures.ts"]
+}
