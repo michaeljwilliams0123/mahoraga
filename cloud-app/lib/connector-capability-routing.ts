@@ -1,4 +1,4 @@
-import { projectCapabilityFamilies, type CapabilityFamily } from "./capability-families";
+import { projectCapabilityFamilies, type CapabilityFamily } from "./capability-families.ts";
 import type { RuntimeCapability } from "./runtime-relay";
 
 export type ConnectorBrokerEvidence = {

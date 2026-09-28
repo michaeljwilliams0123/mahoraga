@@ -9,6 +9,7 @@ import { projectConnectorCapabilityRouting } from "../lib/connector-capability-r
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
 const command = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+const cards = readFileSync(join(root, "components/cockpit/ConnectorRoutingCards.tsx"), "utf8");
 const families = readFileSync(join(root, "lib/capability-families.ts"), "utf8");
 
 describe("permissioned connector capability routing UI", () => {
@@ -18,15 +19,19 @@ describe("permissioned connector capability routing UI", () => {
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
     assert.match(command, /Mahoraga workspace/);
     assert.doesNotMatch(command, /<h2>7\.0\.0-alpha\.2/);
+    assert.doesNotMatch(cards, /<h2>7\.0\.0-alpha\.2/);
   });
 
   it("surfaces observational StatusCard + telemetry for connector routing", () => {
-    assert.match(cockpit, /Permissioned connector routing/);
-    assert.match(cockpit, /projectConnectorCapabilityRouting/);
-    assert.match(cockpit, /codex\.execute lane/);
-    assert.match(cockpit, /not the universal external-action gate/);
-    assert.match(cockpit, /Capability family projection/);
-    assert.match(cockpit, /fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged/);
+    assert.match(cockpit, /import \{ ConnectorRoutingCards \} from "\.\/ConnectorRoutingCards"/);
+    assert.match(cockpit, /<ConnectorRoutingCards coreReady=\{coreReady\} runtimeCapabilities=\{runtimeCapabilities\} health=\{health\} \/>/);
+    assert.ok(cockpit.indexOf("<ConnectorRoutingCards") > cockpit.indexOf('label="Predictive scenario route"'));
+    assert.match(cards, /Permissioned connector routing/);
+    assert.match(cards, /projectConnectorCapabilityRouting/);
+    assert.match(cards, /codex\.execute lane/);
+    assert.match(cards, /not the universal external-action gate/);
+    assert.match(cards, /Capability family projection/);
+    assert.match(cards, /fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged/);
     assert.match(command, /CONNECTOR_ROUTING_OBS/);
     assert.match(command, /CODEX_EXECUTE_SEPARATE/);
     assert.match(command, /FAMILY_SPLIT_AGENTIC_EXEC/);
