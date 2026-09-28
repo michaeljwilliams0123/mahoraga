@@ -4,14 +4,21 @@ const PLANNER_VERSION = "objective-planner-v1";
 const UNHEALTHY_WORKER_STATES = new Set(["crashed", "hung", "quarantined", "stale"]);
 const OWNER_MUTATION_OPERATIONS = Object.freeze(["read", "create", "modify", "administer"]);
 const ACTIVE_LEASE_GRACE_MS = 5_000;
+const CALIBRATION_PROFILE_KEYS = Object.freeze([
+  "schemaVersion", "kind", "sampleCount", "meanObservedAccuracy",
+  "meanPredictedConfidence", "meanCalibrationGap", "meanNormalizedError",
+  "plannerTrust", "evidenceSufficient", "sourceFingerprints", "fingerprint",
+]);
 
 export function planWorldStateActions(snapshot, {
   now = Date.now(),
   priorPlanFingerprint = null,
   replanTrigger = null,
+  calibrationProfile = null,
 } = {}) {
   if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) throw plannerError("world-state-invalid");
   if (!Number.isFinite(now) || now < 0) throw plannerError("planner-clock-invalid");
+  const normalizedCalibrationProfile = validateCalibrationProfile(calibrationProfile);
 
   const actions = [];
   const objectives = Array.isArray(snapshot.objectives) ? snapshot.objectives : [];
@@ -55,7 +62,7 @@ export function planWorldStateActions(snapshot, {
       continue;
     }
 
-    const selected = selectRiskAdjustedAlternative(objective?.alternatives);
+    const selected = selectRiskAdjustedAlternative(objective?.alternatives, normalizedCalibrationProfile);
     actions.push(action({
       id: `execute-ready-objective-${objectiveId}`,
       intent: "objective.plan",
@@ -68,6 +75,11 @@ export function planWorldStateActions(snapshot, {
         ...(selected ? {
           selectedAlternativeId: selected.id,
           riskAdjustedValue: selected.riskAdjustedValue,
+          ...(selected.calibrationPenalty !== null ? {
+            calibrationPenalty: selected.calibrationPenalty,
+            experienceAdjustedValue: selected.experienceAdjustedValue,
+            calibrationSummaryFingerprint: normalizedCalibrationProfile.fingerprint,
+          } : {}),
         } : {}),
       },
     }));
@@ -176,8 +188,18 @@ export function planWorldStateActions(snapshot, {
     actionCount: deduped.length,
     actions: Object.freeze(deduped),
   };
-  const fingerprint = sha256(stableStringify({ snapshot, now, plan: planCore }));
-  const planReceipt = Object.freeze({ fingerprint });
+  const fingerprint = sha256(stableStringify({
+    snapshot,
+    now,
+    plan: planCore,
+    calibrationProfile: normalizedCalibrationProfile,
+  }));
+  const planReceipt = Object.freeze({
+    fingerprint,
+    ...(normalizedCalibrationProfile ? {
+      calibrationSummaryFingerprint: normalizedCalibrationProfile.fingerprint,
+    } : {}),
+  });
   const result = { ...planCore, planReceipt };
   if (priorPlanFingerprint !== null || replanTrigger !== null) {
     if (typeof priorPlanFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(priorPlanFingerprint)) {
@@ -247,16 +269,87 @@ function plannerError(code) {
 }
 
 
-function selectRiskAdjustedAlternative(alternatives) {
+function selectRiskAdjustedAlternative(alternatives, calibrationProfile) {
   if (!Array.isArray(alternatives) || alternatives.length === 0) return null;
+  const useCalibration = calibrationProfile?.evidenceSufficient === true;
   const ranked = alternatives
     .filter((item) => Number.isFinite(item?.expectedValue) && Number.isFinite(item?.risk))
-    .map((item) => ({
-      id: String(item?.id ?? "unknown"),
-      riskAdjustedValue: normalizeNumber(item.expectedValue - item.risk),
-    }))
-    .sort((a, b) => b.riskAdjustedValue - a.riskAdjustedValue || a.id.localeCompare(b.id));
+    .map((item) => {
+      const riskAdjustedValue = normalizeNumber(item.expectedValue - item.risk);
+      const calibrationPenalty = useCalibration
+        ? normalizeNumber(item.risk * (1 - calibrationProfile.plannerTrust))
+        : null;
+      const experienceAdjustedValue = calibrationPenalty === null
+        ? null
+        : normalizeNumber(riskAdjustedValue - calibrationPenalty);
+      return {
+        id: String(item?.id ?? "unknown"),
+        riskAdjustedValue,
+        calibrationPenalty,
+        experienceAdjustedValue,
+      };
+    })
+    .sort((a, b) => {
+      const aValue = a.experienceAdjustedValue ?? a.riskAdjustedValue;
+      const bValue = b.experienceAdjustedValue ?? b.riskAdjustedValue;
+      return bValue - aValue || a.id.localeCompare(b.id);
+    });
   return ranked[0] ?? null;
+}
+
+function validateCalibrationProfile(value) {
+  if (value === null) return null;
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  const actualKeys = Object.keys(value).sort();
+  const expectedKeys = [...CALIBRATION_PROFILE_KEYS].sort();
+  if (actualKeys.length !== expectedKeys.length || actualKeys.some((key, index) => key !== expectedKeys[index])) {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  if (value.schemaVersion !== 1 || value.kind !== "prediction-calibration-summary") {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  if (!Number.isSafeInteger(value.sampleCount) || value.sampleCount < 1 || value.sampleCount > 256) {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  for (const metric of [
+    value.meanObservedAccuracy,
+    value.meanPredictedConfidence,
+    value.meanCalibrationGap,
+    value.meanNormalizedError,
+    value.plannerTrust,
+  ]) {
+    if (!Number.isFinite(metric) || metric < 0 || metric > 1) {
+      throw plannerError("planner-calibration-profile-invalid");
+    }
+  }
+  if (typeof value.evidenceSufficient !== "boolean") {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  if (
+    !Array.isArray(value.sourceFingerprints)
+    || value.sourceFingerprints.length !== value.sampleCount
+    || new Set(value.sourceFingerprints).size !== value.sourceFingerprints.length
+    || value.sourceFingerprints.some((item) => typeof item !== "string" || !/^[a-f0-9]{64}$/.test(item))
+    || typeof value.fingerprint !== "string"
+    || !/^[a-f0-9]{64}$/.test(value.fingerprint)
+  ) {
+    throw plannerError("planner-calibration-profile-invalid");
+  }
+  return Object.freeze({
+    schemaVersion: value.schemaVersion,
+    kind: value.kind,
+    sampleCount: value.sampleCount,
+    meanObservedAccuracy: value.meanObservedAccuracy,
+    meanPredictedConfidence: value.meanPredictedConfidence,
+    meanCalibrationGap: value.meanCalibrationGap,
+    meanNormalizedError: value.meanNormalizedError,
+    plannerTrust: value.plannerTrust,
+    evidenceSufficient: value.evidenceSufficient,
+    sourceFingerprints: Object.freeze([...value.sourceFingerprints]),
+    fingerprint: value.fingerprint,
+  });
 }
 
 function assertAcyclicDependencies(objectives) {

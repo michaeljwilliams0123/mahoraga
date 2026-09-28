@@ -3,6 +3,7 @@ import { selectCollectiveParticipants, createCollectivePosition, synthesizeColle
 import { assessMetacognition, assessCollectiveMetacognition } from './metacognition.mjs';
 import { resolveCollectiveDissent } from './collective-dissent-resolution.mjs';
 import { simulateCounterfactual } from './cognitive-world-model.mjs';
+import { createPredictionReceipt } from './prediction-calibration.mjs';
 import { planWorldStateActions } from './objective-planner.mjs';
 
 export function runCognitiveLoop(input, { now = Date.now() } = {}) {
@@ -27,6 +28,7 @@ export function runCognitiveLoop(input, { now = Date.now() } = {}) {
   const planned = planWorldStateActions(input.plannerSnapshot, { now });
   const resolvedDeliberationDecision = deliberation.materialDissent.length > 0 && dissentResolution.blockingCount === 0 && dissentResolution.alternativeSupport.qualified ? dissentResolution.alternativeSupport.conclusion : deliberation.decision;
   const prediction = simulateCounterfactual({ observedState: input.observedState, stateUncertainty: input.stateUncertainty, action: input.proposedAction });
+  const predictionReceipt = createPredictionReceipt(prediction, { now: () => new Date(now) });
   const predictionAdmissible = prediction.predictedUncertainty <= 0.7;
   const decision = metacognitive.proceed && resolvedDeliberationDecision !== 'hold' && predictionAdmissible ? resolvedDeliberationDecision : 'hold';
   const decisionGate = dissentResolution.escalationCount > 0 ? 'dissent-escalation' : dissentResolution.blockingCount > 0 ? 'material-dissent' : !metacognitive.proceed ? 'metacognition-hold' : resolvedDeliberationDecision === 'hold' ? 'collective-hold' : !predictionAdmissible ? 'prediction-uncertain' : 'admitted';
@@ -43,6 +45,7 @@ export function runCognitiveLoop(input, { now = Date.now() } = {}) {
     dissentResolution,
     plan,
     prediction,
+    predictionReceipt,
     decision,
     decisionGate,
     authoritySource: 'existing-router-and-owner-authority',
@@ -68,4 +71,3 @@ function publicDeliberation(value) {
 function digest(value) { return createHash('sha256').update(JSON.stringify(value)).digest('hex'); }
 function deepFreeze(value) { if (value && typeof value === 'object' && !Object.isFrozen(value)) { Object.freeze(value); for (const child of Object.values(value)) deepFreeze(child); } return value; }
 function fail(code) { const error = new TypeError(code); error.code = code; throw error; }
-
