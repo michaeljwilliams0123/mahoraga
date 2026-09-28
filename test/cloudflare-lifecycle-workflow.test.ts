@@ -7,6 +7,7 @@ test("manual exact-head workflow runs deterministic gate and unconditional clean
   const text = readFileSync(join(process.cwd(), ".github/workflows/cloudflare-lifecycle-evaluation.yml"), "utf8");
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /^\s+(push|pull_request|schedule):/m);
+  assert.match(text, /environment: cloudflare-lifecycle-test/);
   assert.match(text, /timeout-minutes: 30/);
   assert.match(text, /permissions:\s*\n\s*contents: read/);
   assert.match(text, /github\.actor == github\.repository_owner/);

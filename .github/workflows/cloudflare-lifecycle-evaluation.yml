@@ -19,6 +19,7 @@ permissions:
 jobs:
   lifecycle:
     if: github.actor == github.repository_owner && inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS'
+    environment: cloudflare-lifecycle-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
