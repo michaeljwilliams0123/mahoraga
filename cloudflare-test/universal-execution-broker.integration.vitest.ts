@@ -61,3 +61,44 @@ describe("universal execution broker", () => {
     expect(body.routes).toEqual([]);
   });
 });
+
+it("executes through the selected provider using only a bounded lease and task payload", async () => {
+  let received: Record<string, unknown> | null = null;
+  const repo = { async fetch(request: Request) {
+    if (new URL(request.url).pathname === "/api/capabilities") return Response.json(universal());
+    received = await request.json() as Record<string, unknown>;
+    return Response.json({ status:"complete", receipt:{ id:"repo-done", verified:true } });
+  } };
+  const broker = createExecutionBroker({ REPOSITORY_PROVIDER: repo }, () => NOW);
+  const response = await broker.fetch(new Request("https://broker/api/execute", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({
+    request:{ schemaVersion:1, taskId:"exec-1", chainId:"chain-exec", requiredCapability:"repository.inspect", requestedPermission:"read", dataClass:"enterprise", authorityScopes:["repo:mahoraga:read"], costPreference:"zero-credit-first", maxHops:4, constraints:{}, evidenceRefs:["ev-1"] },
+    payload:{ repository:"michaeljwilliams0123/mahoraga" },
+  }) }));
+  expect(response.status).toBe(200);
+  const body = await response.json() as { status:string; chainId:string; receipts:unknown[] };
+  expect(body).toEqual(expect.objectContaining({ status:"complete", chainId:"chain-exec" }));
+  expect(body.receipts).toHaveLength(2);
+  expect(received).toEqual(expect.objectContaining({ lease:expect.objectContaining({ taskId:"exec-1", chainId:"chain-exec" }), payload:{repository:"michaeljwilliams0123/mahoraga"}, evidenceRefs:["ev-1"] }));
+  expect(JSON.stringify(received)).not.toMatch(/token|secret|password/i);
+});
+
+it("hands a task to another eligible worker without changing chain identity", async () => {
+  const repoAtt = universal("repo-worker");
+  const cloudAtt = { ...universal("cloud-worker"), provider:"cloudflare", capabilities:[{ ...universal().capabilities[0], capability:"cloud.inspect", authorityScopes:["cloud:read"] }] };
+  const repo = { async fetch(request: Request) {
+    if (new URL(request.url).pathname === "/api/capabilities") return Response.json(repoAtt);
+    return Response.json({ status:"handoff", handoff:{ schemaVersion:1, taskId:"exec-2", chainId:"chain-hop", fromWorkerId:"repo-worker", requiredNextCapability:"cloud.inspect", requestedPermission:"read", remainingObjective:"inspect deployment", evidenceRefs:["ev-repo"], receiptRefs:["repo-partial"], authorityScopes:["cloud:read"], visitedWorkers:["repo-worker"], hopCount:1 } });
+  } };
+  const cloud = { async fetch(request: Request) {
+    if (new URL(request.url).pathname === "/api/capabilities") return Response.json(cloudAtt);
+    return Response.json({ status:"complete", receipt:{ id:"cloud-done", verified:true } });
+  } };
+  const broker = createExecutionBroker({ REPOSITORY_PROVIDER:repo, CLOUD_PROVIDER:cloud }, () => NOW);
+  const response = await broker.fetch(new Request("https://broker/api/execute", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({
+    request:{ schemaVersion:1, taskId:"exec-2", chainId:"chain-hop", requiredCapability:"repository.inspect", requestedPermission:"read", dataClass:"enterprise", authorityScopes:["repo:mahoraga:read","cloud:read"], costPreference:"zero-credit-first", maxHops:4, constraints:{}, evidenceRefs:[] }, payload:{ objective:"inspect then cloud" }
+  }) }));
+  expect(response.status).toBe(200);
+  const body = await response.json() as { status:string; chainId:string; handoffCount:number; receipts:Array<Record<string,unknown>> };
+  expect(body).toEqual(expect.objectContaining({ status:"complete", chainId:"chain-hop", handoffCount:1 }));
+  expect(body.receipts.some((r) => r.kind === "handoff-receipt")).toBe(true);
+});

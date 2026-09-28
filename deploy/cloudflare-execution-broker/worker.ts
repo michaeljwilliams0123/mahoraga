@@ -1,12 +1,15 @@
 import { adaptLegacyConnectorAttestation } from "./legacy-connector-adapter";
+import { invokeProvider, providerBinding } from "./provider-adapter";
+import { createExecutionChain, executionReceipt, handoffReceipt, selectionReceipt } from "./execution-chain";
 // @ts-ignore Runtime-neutral ESM broker core is shared with Node tests.
 import { issueRouteLease, selectWorkerRoute, validateHandoff, validateWorkerAttestation } from "../../src/universal-execution-broker.mjs";
 
 export type BrokerBinding = { fetch(request: Request): Promise<Response> };
-type BrokerEnv = Partial<Pick<Env,
-  "CONNECTOR_CAPABILITY_BROKER" | "REPOSITORY_PROVIDER" | "CLOUD_PROVIDER" | "INTEGRATION_PROVIDER" |
-  "BROWSER_PROVIDER" | "DESKTOP_PROVIDER" | "CODEX_PROVIDER" | "MEMORY_PROVIDER" | "ARTIFACT_PROVIDER" |
-  "IMAGE_PROVIDER" | "WORKSPACE_PROVIDER">>;
+export type BrokerEnv = {
+  CONNECTOR_CAPABILITY_BROKER?: BrokerBinding; REPOSITORY_PROVIDER?: BrokerBinding; CLOUD_PROVIDER?: BrokerBinding; INTEGRATION_PROVIDER?: BrokerBinding;
+  BROWSER_PROVIDER?: BrokerBinding; DESKTOP_PROVIDER?: BrokerBinding; CODEX_PROVIDER?: BrokerBinding; MEMORY_PROVIDER?: BrokerBinding;
+  ARTIFACT_PROVIDER?: BrokerBinding; IMAGE_PROVIDER?: BrokerBinding; WORKSPACE_PROVIDER?: BrokerBinding;
+};
 
 type UniversalAttestation = {
   schemaVersion: 1; kind: "universal-worker-attestation"; workerId: string; provider: string; locality: string;
@@ -79,6 +82,34 @@ async function routeRequest(env: BrokerEnv, input: unknown, now: number) {
     taskId:lease.taskId, chainId:lease.chainId, capability:lease.capability,
     selected:{ workerId:lease.workerId, provider:lease.provider }, eligibleWorkers:selected.eligible.map((item: {workerId:string}) => item.workerId) } } };
 }
+async function executeRequest(env: BrokerEnv, input: unknown, now: number) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { status:400, body:{ error:"request-invalid" } };
+  const envelope = input as { request?: Record<string,unknown>; payload?: unknown };
+  if (!envelope.request || typeof envelope.request.taskId !== "string" || typeof envelope.request.chainId !== "string") return { status:400, body:{ error:"request-invalid" } };
+  let currentRequest = envelope.request;
+  const chain = createExecutionChain(currentRequest.taskId as string, currentRequest.chainId as string);
+  while (true) {
+    const attestations = await collectAttestations(env, now);
+    const selection = selectWorkerRoute(currentRequest, attestations, new Date(now));
+    if (!selection.ok) return { status:503, body:{ error:selection.reason, chainId:chain.chainId, receipts:chain.receipts } };
+    const lease = issueRouteLease(currentRequest, selection.selected, new Date(now)) as Record<string,unknown>;
+    const binding = providerBinding(env, selection.selected.provider);
+    if (!binding) return { status:503, body:{ error:"no-eligible-route", chainId:chain.chainId, receipts:chain.receipts } };
+    chain.receipts.push(selectionReceipt(lease, selection.eligible.map((item: {workerId:string}) => item.workerId)));
+    chain.history.push({ workerId:selection.selected.workerId, capability:selection.selected.capability });
+    const result = await invokeProvider(binding, lease, envelope.payload, Array.isArray(currentRequest.evidenceRefs) ? currentRequest.evidenceRefs as string[] : []);
+    if (result.status === "failed") return { status:502, body:{ error:result.error, chainId:chain.chainId, receipts:chain.receipts } };
+    if (result.status === "complete") {
+      chain.receipts.push(executionReceipt(lease, result.receipt));
+      return { status:200, body:{ status:"complete", taskId:chain.taskId, chainId:chain.chainId, handoffCount:chain.handoffCount, receipts:chain.receipts } };
+    }    const validation = validateHandoff(currentRequest, result.handoff, chain.history, new Date(now));
+    if (!validation.ok) return { status:409, body:{ error:validation.reason, chainId:chain.chainId, receipts:chain.receipts } };
+    chain.receipts.push(handoffReceipt(result.handoff));
+    chain.handoffCount += 1;
+    currentRequest = validation.request;
+  }
+}
+
 export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date.now) {
   return {
     async fetch(request: Request): Promise<Response> {
@@ -93,6 +124,12 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
         let input: unknown; try { input = await request.json(); } catch { return json({ error:"request-invalid" }, 400); }
         const result = await routeRequest(env, input, now);
+        return json(result.body, result.status);
+      }
+      if (url.pathname === "/api/execute") {
+        if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
+        let input: unknown; try { input = await request.json(); } catch { return json({ error:"request-invalid" }, 400); }
+        const result = await executeRequest(env, input, now);
         return json(result.body, result.status);
       }
       if (url.pathname === "/api/handoff") {
@@ -110,7 +147,7 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
 }
 
 export default {
-  fetch(request: Request, env: Env): Promise<Response> {
+  fetch(request: Request, env: BrokerEnv): Promise<Response> {
     return createExecutionBroker(env).fetch(request);
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<BrokerEnv>;

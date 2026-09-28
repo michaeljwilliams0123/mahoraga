@@ -74,7 +74,7 @@ export function eligibleWorkerRoutes(request, attestations, now = new Date()) {
       if (capability.capability !== request.requiredCapability || !capability.healthy) continue;
       if (!permissionSufficient(capability.permissionClass, request.requestedPermission)) continue;
       if (!capability.dataClassesAllowed.includes(request.dataClass)) continue;
-      if (!subset(request.authorityScopes ?? [], capability.authorityScopes)) continue;
+      if (!subset(capability.authorityScopes, request.authorityScopes ?? [])) continue;
       if (request.constraints?.requireZeroCredit === true && !capability.zeroCreditEligible) continue;
       routes.push(routeFrom(item, capability));
     }

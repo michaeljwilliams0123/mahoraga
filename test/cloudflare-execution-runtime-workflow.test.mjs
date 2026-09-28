@@ -139,3 +139,10 @@ test("execution runtime is service-bound to the universal execution broker", asy
   assert.match(config, /"service":\s*"mahoraga-execution-broker"/);
   assert.doesNotMatch(config, /railway|vercel/i);
 });
+
+test("execution runtime bridges owner-authenticated execute actions to the universal broker", async () => {
+  const runtimeWorker = await readFile(runtimeWorkerPath, "utf8");
+  assert.match(runtimeWorker, /input\?\.type === "execute"/);
+  assert.match(runtimeWorker, /MAHORAGA_EXECUTION_BROKER/);
+  assert.match(runtimeWorker, /mahoraga-execution-broker\/api\/execute/);
+});

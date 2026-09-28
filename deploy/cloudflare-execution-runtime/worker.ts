@@ -202,6 +202,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const payload = objectValue(input?.payload);
     if (!payload) return json({ error: "cloud-action-not-allowed" }, 400);
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
+    if (input?.type === "execute") {
+      const broker = this.env.MAHORAGA_EXECUTION_BROKER;
+      if (!broker || typeof broker.fetch !== "function") return json({ error: "execution-broker-unavailable" }, 503);
+      const response = await broker.fetch(new Request("https://mahoraga-execution-broker/api/execute", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify(payload),
+      }));
+      return new Response(response.body, { status: response.status, headers: response.headers });
+    }
     const conversationId = payload.conversationId;
     if (!boundedId(conversationId)) return json({ error: "conversation-id-invalid" }, 400);
     const conversation = this.storage.getConversation(conversationId);

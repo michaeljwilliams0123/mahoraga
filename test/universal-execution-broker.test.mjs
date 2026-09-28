@@ -57,3 +57,8 @@ test("handoff narrows authority and terminates expansion deadlines loops and hop
 test("no eligible route is explicit", () => {
   assert.deepEqual(selectWorkerRoute(req(),[],NOW),{ok:false,reason:"no-eligible-route",eligible:[]});
 });
+
+test("specialized workers may use a subset of a multi-provider authority envelope", () => {
+  const envelope = req({ authorityScopes:["repo:mahoraga:read","cloud:read"] });
+  assert.equal(eligibleWorkerRoutes(envelope, [att()], NOW).length, 1);
+});
