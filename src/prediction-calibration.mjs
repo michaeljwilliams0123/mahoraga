@@ -65,8 +65,8 @@ export function summarizePredictionCalibration(outcomes, { minimumSamples = 3, m
   if (!Array.isArray(outcomes) || outcomes.length < 1) fail('prediction-calibration-summary-invalid');
   if (!Number.isInteger(minimumSamples) || minimumSamples < 1 || minimumSamples > 256) fail('prediction-calibration-summary-invalid');
   if (!Number.isInteger(maximumSamples) || maximumSamples < 1 || maximumSamples > 256) fail('prediction-calibration-summary-invalid');
-  if (minimumSamples > maximumSamples) fail('prediction-calibration-summary-invalid');
   if (outcomes.length > maximumSamples) fail('prediction-calibration-sample-limit');
+  if (minimumSamples > maximumSamples) fail('prediction-calibration-summary-invalid');
 
   const normalized = outcomes.map(validateOutcomeReceipt).sort((a, b) => a.fingerprint.localeCompare(b.fingerprint));
   const sourceFingerprints = normalized.map((item) => item.fingerprint);
