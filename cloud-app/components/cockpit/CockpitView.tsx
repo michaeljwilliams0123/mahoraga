@@ -5,9 +5,11 @@ import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
 import { projectHardZeroHold } from "@/lib/hard-zero-hold";
+import { projectInteractionTruth } from "@/lib/interaction-truth";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
+import { InteractionTruthCards } from "./InteractionTruthCards";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -201,6 +203,10 @@ export function CockpitView({
     : "Unproven until noRailwayFallbackVerified is true; Railway still has zero route, influence, fallback, or authority";
   const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
+  const interactionTruth = projectInteractionTruth({
+    interaction: health?.runtime?.interactionTruth ?? health?.interactionTruth,
+    delivery: health?.runtime?.deliveryTruth ?? health?.deliveryTruth,
+  });
 
   useEffect(() => {
     let active = true;
@@ -267,6 +273,7 @@ export function CockpitView({
         />
         <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
+        <InteractionTruthCards truth={interactionTruth} />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard

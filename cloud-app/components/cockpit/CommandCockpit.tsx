@@ -13,11 +13,13 @@ import {
 import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 import { projectPredictionBacktestSurface } from "@/lib/prediction-backtest-surface";
+import { projectInteractionTruth } from "@/lib/interaction-truth";
 import { AstSandbox } from "./AstSandbox";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
+import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
 const HELPERS = [
@@ -141,6 +143,15 @@ export function CommandCockpit({
   const backtest = projectPredictionBacktestSurface(
     (healthJson as { predictionBacktest?: unknown } | null)?.predictionBacktest,
   );
+  const interactionHealth = healthJson as ({
+    interactionTruth?: unknown;
+    deliveryTruth?: unknown;
+    runtime?: { interactionTruth?: unknown; deliveryTruth?: unknown };
+  } | null);
+  const interactionTruth = projectInteractionTruth({
+    interaction: interactionHealth?.runtime?.interactionTruth ?? interactionHealth?.interactionTruth,
+    delivery: interactionHealth?.runtime?.deliveryTruth ?? interactionHealth?.deliveryTruth,
+  });
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
   const readinessOk = readiness?.status === "ready";
@@ -199,6 +210,9 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${backtest.status === "observed" ? "ok" : backtest.status === "hold" ? "warn" : "steel"}`}>HELD_OUT_BACKTEST_OBS</span>
             <span className="cockpit-pill steel">NO_GENERALIZES_INFER</span>
             <span className="cockpit-pill steel">UNIVERSAL_INTERACTION_OBS</span>
+            <span className={`cockpit-pill ${interactionTruth.state === "observed" ? "ok" : interactionTruth.state === "hold" ? "warn" : "steel"}`}>
+              {interactionTruth.state === "observed" ? "INTERACTION_TRUTH_OBSERVED" : interactionTruth.state === "hold" ? "INTERACTION_TRUTH_HOLD" : "INTERACTION_TRUTH_ABSENT"}
+            </span>
             <span className="cockpit-pill steel">ACCESSIBILITY_FIRST</span>
             <span className="cockpit-pill steel">DELIVERY_SEPARATE</span>
             <span className="cockpit-pill steel">PROTOCOL_NEGOTIATION_OBS</span>
@@ -214,6 +228,10 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">VERCEL_RETIRED</span>
           </div>
         </header>
+
+        <section className="eclipse-status-grid" aria-label="Observed interaction and delivery truth">
+          <InteractionTruthCards truth={interactionTruth} />
+        </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
           <h3>CONVERGENCE</h3>
