@@ -3,7 +3,6 @@
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 import { projectConnectorCapabilityRouting } from "@/lib/connector-capability-routing";
 import { ProviderAdmissionRenewalCard } from "./ProviderAdmissionRenewalCard";
-import type { Health } from "../workspace/workspace-types";
 
 function StatusCard({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral" }) {
   return (
@@ -30,7 +29,7 @@ export function ConnectorRoutingCards({
 
   return (
     <>
-      <ProviderAdmissionRenewalCard health={(health as Health | null) ?? null} />
+      <ProviderAdmissionRenewalCard runtimeCapabilities={runtimeCapabilities} />
       <StatusCard
         label="Permissioned connector routing"
         value={routing.value}
