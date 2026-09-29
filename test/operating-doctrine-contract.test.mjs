@@ -28,13 +28,13 @@ test('SD00 is reference execution and cannot override source authority', () => {
   assert.equal(contract.referencePlane.role, 'gold-standard-reference');
   assert.equal(contract.referencePlane.mayOverrideSourceAuthority, false);
 });
-test('convergence requires exact-head verification and Cloudflare acceptance with Railway rollback only', () => {
+test('convergence requires exact-head verification and Cloudflare acceptance with no Railway rollback provider', () => {
   const contract = loadContract();
   assert.deepEqual(contract.convergence.requiredVerifyContexts, [
     'Verify (ubuntu-latest)', 'Verify (windows-latest)',
   ]);
   assert.equal(contract.convergence.cloud.canonicalProvider, 'cloudflare');
-  assert.equal(contract.convergence.cloud.rollbackProvider, 'railway');
+  assert.equal(contract.convergence.cloud.rollbackProvider, null);
   assert.equal(contract.convergence.cloud.independentTrafficProofRequired, true);
   assert.equal(contract.convergence.cloud.requireExactMergedSha, true);
   assert.equal(contract.convergence.zeroCredit.allowPaidFallback, false);
@@ -78,6 +78,12 @@ test('human doctrine preserves reference-plane, readiness, and real-execution bo
   assert.match(doctrine, /\/api\/ready/);
   assert.match(doctrine, /simulator.*not.*execution proof/i);
   assert.match(doctrine, /UI.*not.*execution proof/i);
+});
+
+test('Railway remains legacy evidence only with zero route, influence, fallback, or authority', () => {
+  const doctrine = readRepoFile('docs/MAHORAGA-OPERATING-DOCTRINE.md');
+  assert.match(doctrine, /Railway.*legacy evidence.*zero-route.*zero-influence.*zero-fallback.*zero-authority/i);
+  assert.doesNotMatch(doctrine, /Railway[^\n]*rollback/i);
 });
 
 test('owner-authenticated tunnels remain bounded apertures rather than raw loopback exposure', () => {

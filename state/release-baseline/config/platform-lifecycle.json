@@ -39,12 +39,12 @@
       "environment": "production"
     },
     {
-      "logicalId": "runtime.rollback.railway",
+      "logicalId": "runtime.retired.main",
       "provider": "railway",
       "providerProjectId": "e644391a-9698-4026-b5e1-a28e07cfaf82",
       "providerResourceId": "0498b161-a6b7-4750-8c54-8c99e0167fa7",
       "displayName": "mahoraga-runtime-main",
-      "lifecycle": "standby",
+      "lifecycle": "retired",
       "authorityRole": "runtime",
       "canonical": false,
       "routingEligible": false,

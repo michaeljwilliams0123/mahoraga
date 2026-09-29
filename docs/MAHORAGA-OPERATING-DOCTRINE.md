@@ -31,7 +31,7 @@ SD00 is a laboratory and teacher, not source authority. It cannot override GitHu
 5. Run `git diff --check`, focused tests, and one full `npm run verify` before protected integration unless exact-head equivalent evidence is explicitly reusable under repository policy.
 6. Push an isolated branch and require exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` on that PR head.
 7. Merge only through protected-main policy. Do not force-push, bypass checks, or buy model review to replace deterministic evidence.
-8. Confirm the Cloudflare execution runtime deploys and accepts the exact merged SHA. `/api/live` proves liveness only; `/api/ready` is the stronger application/provenance readiness boundary. Keep Railway non-routing for rollback and verify browser/domain authority separately.
+8. Confirm the Cloudflare execution runtime deploys and accepts the exact merged SHA. `/api/live` proves liveness only; `/api/ready` is the stronger application/provenance readiness boundary. Treat Railway as legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority; verify browser/domain authority separately.
 9. Continue useful independent work while a gate runs: inspect the next branch, deployment layer, acceptance gap, or unresolved capability instead of idling.
 10. Do not call the capability complete until its real acceptance transaction has current end-to-end evidence.
 
