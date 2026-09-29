@@ -12,6 +12,7 @@ import {
 } from "@/lib/cockpit";
 import { isCollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import { projectCognitiveLearningSurface, type CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
+import { projectPredictionBacktestSurface } from "@/lib/prediction-backtest-surface";
 import { AstSandbox } from "./AstSandbox";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
@@ -137,6 +138,9 @@ export function CommandCockpit({
   const learning = projectCognitiveLearningSurface(
     (healthJson as HealthRouteJson & { cognitiveLearning?: CognitiveLearningPromotionReceipt } | null)?.cognitiveLearning,
   );
+  const backtest = projectPredictionBacktestSurface(
+    (healthJson as { predictionBacktest?: unknown } | null)?.predictionBacktest,
+  );
 
   const liveOk = Boolean(healthCard?.ok) && !healthError;
   const readinessOk = readiness?.status === "ready";
@@ -192,6 +196,8 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">CONNECTOR_ROUTING_OBS</span>
             <span className="cockpit-pill steel">CODEX_EXECUTE_SEPARATE</span>
             <span className="cockpit-pill steel">FAMILY_SPLIT_AGENTIC_EXEC</span>
+            <span className={`cockpit-pill ${backtest.status === "observed" ? "ok" : backtest.status === "hold" ? "warn" : "steel"}`}>HELD_OUT_BACKTEST_OBS</span>
+            <span className="cockpit-pill steel">NO_GENERALIZES_INFER</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -239,6 +245,9 @@ export function CommandCockpit({
           <p>
             Permissioned connector routing is observational. Individually permissioned zero-credit connector capabilities route into the Cloudflare execution runtime; <code>codex.execute</code> is not the universal external-action gate, and <code>cognitive.cycle</code> stays in the Agentic family rather than the Execution family. Routing fails closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged. Merge #856 is not live traffic authority. Mahoraga remains the product name; 7.0.0-alpha.2 is build provenance only, and github.io is presentation only.
           </p>
+          <p>
+            Held-out prediction-calibration backtest is observational empirical evidence only. Chronological train vs held-out windows fail closed on duplicate outcomes and overlapping timestamps. Summaries reuse summarizePredictionCalibration; planner-trust, calibration-gap, and normalized-error deltas are displayed without a hidden generalizes threshold, promotion, or traffic-authority claim. Execution readiness, cognition readiness, and traffic authority stay separate fail-closed claims. Merge #877 is not live traffic authority. github.io is presentation only and must not call authenticated APIs.
+          </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
             <div><dt>browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
@@ -254,6 +263,7 @@ export function CommandCockpit({
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>railway status</dt><dd>legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · no promotion or reconstruction path</dd></div>
             <div><dt>vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
+            <div><dt>held-out backtest</dt><dd>{backtest.status} · {backtest.reason} · plannerTrust Δ {backtest.trustDelta ?? "unverified"} · calibration-gap Δ {backtest.calibrationGapDelta ?? "unverified"} · normalized-error Δ {backtest.normalizedErrorDelta ?? "unverified"} · fingerprint {backtest.fingerprint ? backtest.fingerprint.slice(0, 12) : "unverified"} · observational only</dd></div>
             <div><dt>active Windows runtime</dt><dd>observed through live core status</dd></div>
             <div><dt>legacy rollback predecessor</dt><dd>3.6.0</dd></div>
           </dl>
