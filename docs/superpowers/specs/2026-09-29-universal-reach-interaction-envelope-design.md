@@ -1,7 +1,7 @@
 # Universal Reach and Interaction Envelope Design
 
 **Date:** 2026-09-29  
-**Status:** Proposed design for owner review  
+**Status:** Approved by owner; implementation-plan review pending  
 **Branch:** `design/universal-reach-interaction-envelope`  
 **Baseline:** GitHub `main` at `ee25faad8954d0b6e9d09aa04eeb895f69d525a2`
 
