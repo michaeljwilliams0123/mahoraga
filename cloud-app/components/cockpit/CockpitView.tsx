@@ -10,6 +10,7 @@ import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Healt
 import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
+import { PredictionBacktestCards } from "./PredictionBacktestCards";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -265,6 +266,7 @@ export function CockpitView({
           tone={predictiveRouteReady ? "good" : "neutral"}
         />
         <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
+        <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard
