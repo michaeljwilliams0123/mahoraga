@@ -76,11 +76,11 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
     readFile(runtimeWorkerPath, "utf8"),
     readFile(runtimeWranglerPath, "utf8"),
   ]);
-  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"7,37 \* \* \* \*"/);
+  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"11,26,41,56 \* \* \* \*"/);
   const renewalJob = workflow.indexOf("renew-provider-admission:");
   const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);
   const refreshCall = workflow.indexOf("/api/provider/refresh", renewalJob);
-  assert.ok(renewalJob >= 0, "twice-hourly external renewal job must exist");
+  assert.ok(renewalJob >= 0, "quarter-hourly external renewal job must exist");
   assert.ok(billingProof > renewalJob, "renewal must re-prove account billing");
   assert.ok(refreshCall > billingProof, "fresh attestation must be submitted only after billing proof");
   const renewalBlock = workflow.slice(renewalJob);

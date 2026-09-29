@@ -6,13 +6,13 @@ on:
     workflows: ["Verify Mahoraga"]
     types: [completed]
   schedule:
-    - cron: "7,37 * * * *"
+    - cron: "11,26,41,56 * * * *"
 
 permissions:
   contents: read
 
 concurrency:
-  group: mahoraga-cloudflare-execution-runtime
+  group: mahoraga-cloudflare-execution-runtime-${{ github.event_name == 'schedule' && 'renewal' || 'deploy' }}
   cancel-in-progress: false
 
 jobs:
@@ -232,7 +232,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.VERIFIED_SHA }}
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
 
       - name: Use Mahoraga Node runtime
