@@ -58,6 +58,7 @@ export type Health = {
   studio?: { managementPlaneReady?: boolean; delegationRuntimeReady?: boolean };
   cognitiveLearning?: CognitiveLearningPromotionReceipt | null;
   predictionLearning?: unknown;
+  predictionBacktest?: unknown;
   acceptance?: SanitizedAcceptanceReceipt;
   productionAcceptance?: SanitizedAcceptanceReceipt;
   cloudflareAcceptance?: SanitizedAcceptanceReceipt;
