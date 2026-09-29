@@ -91,9 +91,13 @@ export function interactionNegotiationHoldReason(error: unknown) {
 function bindNegotiation(interaction: Record<string, unknown>, negotiation: Record<string, unknown>) {
   if (
     negotiation.interactionId !== interaction.interactionId ||
-    negotiation.interactionFingerprint !== interaction.fingerprint ||
-    negotiation.protocolFamily !== (interaction.protocol as Record<string, unknown>).family ||
-    negotiation.protocolVersion !== (interaction.protocol as Record<string, unknown>).version
+    negotiation.interactionFingerprint !== interaction.fingerprint
+  ) fail("interaction-runtime-negotiation-mismatch");
+  if (
+    negotiation.status === "accepted" && (
+      negotiation.protocolFamily !== (interaction.protocol as Record<string, unknown>).family ||
+      negotiation.protocolVersion !== (interaction.protocol as Record<string, unknown>).version
+    )
   ) fail("interaction-runtime-negotiation-mismatch");
 }
 
