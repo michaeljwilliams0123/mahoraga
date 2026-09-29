@@ -14,6 +14,8 @@ export type PlannerSurface = {
     calibrationSummaryFingerprint: string | null;
   } | null;
   calibrationSummaryFingerprint: string | null;
+  calibrationBind: "match" | "unbound" | "mismatch" | "unverified";
+  plannerTrust: number | null;
   replan: { priorPlanFingerprint: string; newPlanFingerprint: string; reasonCode: string } | null;
   reason: string;
 };
@@ -21,12 +23,14 @@ export type PlannerSurface = {
 const SHA256 = /^[a-f0-9]{64}$/;
 const record = (value: unknown): Record<string, unknown> | null => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const finite = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+const boundedTrust = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) && value >= 0 && value <= 1 ? value : null;
 const boundedText = (value: unknown): string | null => typeof value === "string" && value.trim().length > 0 && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value) ? value : null;
 const fingerprint = (value: unknown): string | null => typeof value === "string" && SHA256.test(value) ? value : null;
 const absent = (object: Record<string, unknown>, key: string) => !Object.hasOwn(object, key);
 const UNVERIFIED: PlannerSurface = {
   status: "unverified", planFingerprint: null, actionCount: null, otherActionCount: null,
   hold: null, escalate: null, execute: null, calibrationSummaryFingerprint: null,
+  calibrationBind: "unverified", plannerTrust: null,
   replan: null, reason: "planner-receipt-unverified",
 };
 
@@ -44,7 +48,11 @@ export function projectObjectivePlannerSurface(value: unknown): PlannerSurface {
 
   const calibrationSummaryFingerprint = absent(receipt, "calibrationSummaryFingerprint")
     ? null : fingerprint(receipt.calibrationSummaryFingerprint);
-  if (!absent(receipt, "calibrationSummaryFingerprint") && !calibrationSummaryFingerprint) return UNVERIFIED;
+  if (!absent(receipt, "calibrationSummaryFingerprint") && !calibrationSummaryFingerprint) return {
+    ...UNVERIFIED,
+    calibrationBind: "mismatch",
+    reason: "planner-calibration-profile-fingerprint-mismatch",
+  };
 
   const actions = planner.actions.map(record);
   if (actions.some((action) => !action)) return UNVERIFIED;
@@ -83,6 +91,13 @@ export function projectObjectivePlannerSurface(value: unknown): PlannerSurface {
     ? finite(executeEvidence.calibrationPenalty) : null;
   const actionCalibration = executeEvidence && !absent(executeEvidence, "calibrationSummaryFingerprint")
     ? fingerprint(executeEvidence.calibrationSummaryFingerprint) : null;
+  if (executeEvidence && actionCalibration && calibrationSummaryFingerprint && actionCalibration !== calibrationSummaryFingerprint) {
+    return {
+      ...UNVERIFIED,
+      calibrationBind: "mismatch",
+      reason: "planner-calibration-profile-fingerprint-mismatch",
+    };
+  }
   if (executeEvidence && (
     (selected === null) !== (risk === null) ||
     (!absent(executeEvidence, "selectedAlternativeId") && !selected) ||
@@ -99,6 +114,18 @@ export function projectObjectivePlannerSurface(value: unknown): PlannerSurface {
   const replanReason = boundedText(replanReceipt?.reasonCode);
   if (planner.replanReceipt !== undefined && (!prior || next !== planFingerprint || !replanReason)) return UNVERIFIED;
 
+  const profile = record(planner.calibrationProfile) ?? record(receipt.calibrationProfile);
+  const profileFingerprint = fingerprint(profile?.fingerprint);
+  if (profileFingerprint && calibrationSummaryFingerprint && profileFingerprint !== calibrationSummaryFingerprint) {
+    return {
+      ...UNVERIFIED,
+      calibrationBind: "mismatch",
+      reason: "planner-calibration-profile-fingerprint-mismatch",
+    };
+  }
+  const calibrationBind = calibrationSummaryFingerprint ? "match" : "unbound";
+  const plannerTrust = calibrationBind === "match" ? boundedTrust(profile?.plannerTrust ?? receipt.plannerTrust) : null;
+
   return {
     status: "observed", planFingerprint, actionCount: actions.length,
     otherActionCount: actions.length - objectiveActions.length,
@@ -110,6 +137,8 @@ export function projectObjectivePlannerSurface(value: unknown): PlannerSurface {
       calibrationSummaryFingerprint: actionCalibration,
     } : null,
     calibrationSummaryFingerprint,
+    calibrationBind,
+    plannerTrust,
     replan: prior && next && replanReason ? { priorPlanFingerprint: prior, newPlanFingerprint: next, reasonCode: replanReason } : null,
     reason: "planner-receipt-structurally-consistent",
   };

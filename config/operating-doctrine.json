@@ -22,7 +22,7 @@
     ],
     "cloud": {
       "canonicalProvider": "cloudflare",
-      "rollbackProvider": "railway",
+      "rollbackProvider": null,
       "independentTrafficProofRequired": true,
       "requireExactMergedSha": true,
       "livenessEndpoint": "/api/live",

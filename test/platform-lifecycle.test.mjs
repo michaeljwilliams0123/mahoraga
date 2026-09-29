@@ -24,13 +24,16 @@ test('platform lifecycle fixes one canonical resource per authority role', async
   assert.equal(canonicalResource(value, 'source.primary').providerResourceId, '1343333190');
 });
 
-test('Railway is retained for rollback without canonical or routing authority', async () => {
+test('Railway is retired legacy evidence with zero routing or canonical authority', async () => {
   const value = await registry();
   const railway = value.resources.find((item) => item.provider === 'railway' && item.providerResourceId === '0498b161-a6b7-4750-8c54-8c99e0167fa7');
   assert.ok(railway);
-  assert.equal(railway.lifecycle, 'standby');
+  assert.equal(railway.logicalId, 'runtime.retired.main');
+  assert.equal(railway.lifecycle, 'retired');
   assert.equal(railway.canonical, false);
   assert.equal(railway.routingEligible, false);
+  assert.equal(value.resources.filter((item) => item.provider === 'railway').every((item) => item.lifecycle === 'retired'), true);
+  assert.equal(value.resources.some((item) => item.provider === 'railway' && item.logicalId.includes('rollback')), false);
   assert.equal(routablePlatformResources(value).some((item) => item.provider === 'railway'), false);
 });
 
