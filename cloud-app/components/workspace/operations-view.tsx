@@ -7,6 +7,7 @@ import type {
   RuntimeOperationsActionResult,
   RuntimeOperationsSnapshot,
 } from "@/lib/runtime-relay";
+import { projectInteractionTruth } from "@/lib/interaction-truth";
 import type { OperationsViewProps } from "./workspace-types";
 
 type PendingConfirmation = {
@@ -109,6 +110,10 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
   }
 
   const lane = snapshot?.interactionReadiness;
+  const interactionTruth = projectInteractionTruth(snapshot ? {
+    interaction: snapshot.interactionTruth,
+    delivery: snapshot.deliveryTruth,
+  } : null);
 
   return (
     <section className="connection-panel" aria-label="Operations">
@@ -181,6 +186,19 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
             <strong>Exact-head verification</strong>
             <span>
               {snapshot.verification.state} · {snapshot.verification.exactHeadSha?.slice(0, 12) ?? "unavailable"}
+            </span>
+          </div>
+          <div>
+            <strong>Interaction truth</strong>
+            <span>
+              {interactionTruth.state} · {interactionTruth.interaction?.sourceFamily ?? "unobserved"} · {interactionTruth.interaction?.channelFamily ?? "unobserved"}
+              {interactionTruth.interaction?.protocolFamily ? ` · ${interactionTruth.interaction.protocolFamily}` : ""}
+            </span>
+          </div>
+          <div>
+            <strong>Delivery truth</strong>
+            <span>
+              {interactionTruth.delivery?.status ?? "unobserved"} · execution {interactionTruth.interaction?.executionStatus ?? "unobserved"} · retry never re-executes
             </span>
           </div>
           <div>

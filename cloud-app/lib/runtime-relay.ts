@@ -45,6 +45,38 @@ export type RuntimeCapability = {
   lastObservedAt?: string | null;
   lastVerifiedAt?: string | null;
 };
+export type RuntimeInteractionTruth = {
+  status: "observed" | "hold";
+  interactionId: string;
+  sourceFamily: string;
+  channelFamily: string;
+  modalities: string[];
+  protocolFamily: "native" | "http-json" | "mcp" | "webhook" | "sse" | "websocket" | "queue";
+  protocolVersion?: string | null;
+  locale?: string | null;
+  timezone?: string | null;
+  direction?: "ltr" | "rtl" | "auto" | null;
+  unitSystem?: "metric" | "us" | "uk" | null;
+  currency?: string | null;
+  deviceClass?: "phone" | "tablet" | "desktop" | "embedded" | "headless" | null;
+  networkClass?: "online" | "degraded" | "offline" | null;
+  executionStatus?: string | null;
+  interactionFingerprint: string;
+  negotiationFingerprint?: string | null;
+  executionFingerprint?: string | null;
+  observedAt?: string | null;
+  reason?: string | null;
+};
+export type RuntimeDeliveryTruth = {
+  status: "delivered" | "queued" | "hold";
+  interactionId: string;
+  taskId?: string | null;
+  chainId?: string | null;
+  outputReferences: string[];
+  deliveryFingerprint: string;
+  observedAt?: string | null;
+  reason?: string | null;
+};
 export type RuntimeComposioRepositoryProbe = {
   provider: "composio";
   tool: "GITHUB_GET_A_REPOSITORY";
@@ -108,6 +140,8 @@ export type RuntimeOperationsSnapshot = {
     lastObservedAt: string | null;
     lastVerifiedAt: string | null;
   };
+  interactionTruth?: RuntimeInteractionTruth | null;
+  deliveryTruth?: RuntimeDeliveryTruth | null;
   latestAuthorityDecision: {
     taskId: string;
     correlationId: string | null;
