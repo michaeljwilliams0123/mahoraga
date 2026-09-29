@@ -16,7 +16,7 @@ describe("provider admission renewal UI", () => {
     assert.match(surface, /not top-of-hour/);
     assert.match(surface, /isolated from deploy workflow concurrency/);
     assert.match(surface, /assistant\.respond/);
-    assert.match(surface, /capability\.routable === true/);
+    assert.match(surface, /assistant\.routable === true/);
     assert.match(surface, /providerReasonCode/);
     assert.match(surface, /zeroCreditEligible === true/);
     assert.match(surface, /expiry\.timestamp > now/);
