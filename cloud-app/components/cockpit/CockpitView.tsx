@@ -281,6 +281,36 @@ export function CockpitView({
           detail="Node 24 developer convenience from #812 · locked dependencies only · exposes no ports · starts no Mahoraga service · GitHub metering and quota apply · GitHub and Cloudflare remain production authority · GitLab read-only · Railway non-routing"
           tone="neutral"
         />
+        <StatusCard
+          label="Universal interaction envelope"
+          value="Additive / observational"
+          detail="text · structured · file · image · audio · video · event · interaction context cannot create a provider route or widen authority"
+          tone="neutral"
+        />
+        <StatusCard
+          label="Global presentation context"
+          value="Locale · timezone · RTL"
+          detail="presentation only · not identity or authority · Accessibility-first · device classes phone · tablet · desktop · embedded · headless"
+          tone="neutral"
+        />
+        <StatusCard
+          label="Delivery state"
+          value="Execution ≠ delivery"
+          detail="online · degraded · offline · delivery retry never re-executes the task"
+          tone="neutral"
+        />
+        <StatusCard
+          label="Protocol negotiation"
+          value="native · HTTP/JSON · MCP · webhook · SSE · WebSocket · queue"
+          detail="Compatibility observation only · Omnichannel ingress → interaction → negotiation → execution → delivery · no execution or traffic-authority grant"
+          tone="neutral"
+        />
+        <StatusCard
+          label="Translation · transcription · transformation provenance"
+          value="Source-bound derivatives"
+          detail="Translated, transcribed, and transformed derivatives retain source fingerprints and do not gain authority"
+          tone="neutral"
+        />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
         <StatusCard label="CI publish / steward" value="self-hosted Linux/X64" detail="Informational: publish and steward jobs use the self-hosted Linux/X64 lane" tone="neutral" />
         <StatusCard label="Deployment" value={cloudflareExactMain ? "Cloudflare native runtime" : cloudflareProvider ? "Cloudflare candidate" : railwayRetired ? "Retired evidence only" : health?.ok ? "Published" : "Awaiting health"} detail={deploymentDetail} tone={health?.ok && cloudflareExactMain ? "good" : railwayRetired || !health?.ok ? "warn" : "neutral"} />
@@ -341,6 +371,13 @@ export function CockpitView({
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway zero-route / zero-influence / zero-fallback / zero-authority · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
             <div><dt>Codespaces</dt><dd>Observational developer convenience only · not a production host, inference provider, lifecycle automation, self-patching authority, deployment lane, or routing change · supplies no production authentication material</dd></div>
+            <div><dt>Universal interaction envelope</dt><dd>text · structured · file · image · audio · video · event · additive context cannot create a provider route or widen authority</dd></div>
+            <div><dt>Global presentation</dt><dd>Locale · timezone · RTL · Accessibility-first · presentation only · not identity or authority</dd></div>
+            <div><dt>Device reach</dt><dd>phone · tablet · desktop · embedded · headless · presentation capability only</dd></div>
+            <div><dt>Execution ≠ delivery</dt><dd>online · degraded · offline · delivery retry never re-executes</dd></div>
+            <div><dt>Protocol negotiation</dt><dd>native · HTTP/JSON · MCP · webhook · SSE · WebSocket · queue · compatibility only</dd></div>
+            <div><dt>Receipt lineage</dt><dd>Omnichannel ingress → interaction → negotiation → execution → delivery</dd></div>
+            <div><dt>Transformation provenance</dt><dd>Translation · transcription · transformation provenance · derivatives retain source fingerprints</dd></div>
             <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>
