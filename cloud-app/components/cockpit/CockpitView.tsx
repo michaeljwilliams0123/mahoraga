@@ -7,6 +7,7 @@ import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surfac
 import { projectHardZeroHold } from "@/lib/hard-zero-hold";
 import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
+import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
@@ -263,6 +264,7 @@ export function CockpitView({
             : "Requires an observed deterministic cognitive.predict route · ordinary chat remains assistant.respond · predictive requests never fall through to the generative provider"}
           tone={predictiveRouteReady ? "good" : "neutral"}
         />
+        <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard
