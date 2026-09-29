@@ -3,40 +3,35 @@ import { runInDurableObject } from "cloudflare:test";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setProviderInvokerForTest } from "../deploy/cloudflare-execution-runtime/provider-invoker";
 import worker, { type ExecutionDurableObject } from "../deploy/cloudflare-execution-runtime/worker";
+// @ts-expect-error Runtime-neutral JavaScript contract under Cloudflare integration.
+import { createOmnichannelEnvelope } from "../src/omnichannel-intake.mjs";
+// @ts-expect-error Runtime-neutral JavaScript contract under Cloudflare integration.
+import { projectUniversalInteractionEnvelope } from "../src/universal-interaction-envelope.mjs";
+// @ts-expect-error Runtime-neutral JavaScript contract under Cloudflare integration.
+import { negotiateInteractionProtocol } from "../src/interaction-protocol-negotiation.mjs";
+// @ts-expect-error Runtime-neutral JavaScript contract under Cloudflare integration.
+import { createDeliveryState, queueUniversalDelivery } from "../src/universal-delivery.mjs";
+import { projectInteractionContext, projectInteractionRuntimeTruth } from "../deploy/cloudflare-execution-runtime/interaction-runtime";
 
 const SHA = "7cb8aab1129875f798347afdb2844f963e986a65";
 
 const execute = (key: string, body: unknown, headers: Record<string, string> = {}) =>
   env.EXECUTION_DO.getByName(key).fetch("https://execution.example/api/execute", {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-idempotency-key": key,
-      "x-target-sha": SHA,
-      ...headers,
-    },
+    headers: { "content-type": "application/json", "x-idempotency-key": key, "x-target-sha": SHA, ...headers },
     body: JSON.stringify(body),
   });
 
-afterEach(() => {
-  setProviderInvokerForTest(null);
-  vi.restoreAllMocks();
-});
+afterEach(() => { setProviderInvokerForTest(null); vi.restoreAllMocks(); });
 
 describe("ExecutionDurableObject", () => {
   it("fails closed when deployment provenance is unset", async () => {
-    const invalidEnv = {
-      EXECUTION_DO: env.EXECUTION_DO,
-      TARGET_SHA: "UNSET",
-    } as Env;
+    const invalidEnv = { EXECUTION_DO: env.EXECUTION_DO, TARGET_SHA: "UNSET" } as Env;
     const live = await worker.fetch(new Request("https://execution.example/api/live"), invalidEnv);
     expect(live.status).toBe(503);
     expect(await live.json()).toEqual({ status: "unready", error: "target-sha-invalid" });
-
     const executeResponse = await worker.fetch(new Request("https://execution.example/api/execute", {
-      method: "POST",
-      headers: { "content-type": "application/json", "x-target-sha": "UNSET", "x-idempotency-key": "invalid-provenance" },
-      body: JSON.stringify({ value: 1 }),
+      method: "POST", headers: { "content-type": "application/json", "x-target-sha": "UNSET", "x-idempotency-key": "invalid-provenance" }, body: JSON.stringify({ value: 1 }),
     }), invalidEnv);
     expect(executeResponse.status).toBe(503);
   });
@@ -44,21 +39,13 @@ describe("ExecutionDurableObject", () => {
   it("fails closed in the public Worker before creating a Durable Object schema", async () => {
     const response = await exports.default.fetch(new Request("https://execution.example/api/execute", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-idempotency-key": "outer-sha-mismatch",
-        "x-target-sha": "stale-sha",
-      },
+      headers: { "content-type": "application/json", "x-bypass-token": "test-bypass-secret-that-is-not-production", "x-idempotency-key": "outer-sha-mismatch", "x-target-sha": "stale-sha" },
       body: JSON.stringify({ mustNotRun: true }),
     }));
     expect(response.status).toBe(412);
-
     const stub = env.EXECUTION_DO.getByName("execution-v1");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
-      const tables = state.storage.sql
-        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('leases', 'execution_receipts')")
-        .toArray();
+      const tables = state.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('leases', 'execution_receipts')").toArray();
       expect(tables).toEqual([]);
     });
   });
@@ -66,21 +53,11 @@ describe("ExecutionDurableObject", () => {
   it("rejects a SHA mismatch before touching SQLite or applying bypass", async () => {
     const stub = env.EXECUTION_DO.getByName("sha-mismatch");
     const response = await stub.fetch("https://execution.example/api/execute", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-bypass-token": "test-bypass-secret-that-is-not-production",
-        "x-idempotency-key": "sha-mismatch",
-        "x-target-sha": "7cb8aab...",
-      },
-      body: "{not-json",
+      method: "POST", headers: { "content-type": "application/json", "x-bypass-token": "test-bypass-secret-that-is-not-production", "x-idempotency-key": "sha-mismatch", "x-target-sha": "7cb8aab..." }, body: "{not-json",
     });
-
     expect(response.status).toBe(412);
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
-      const tables = state.storage.sql
-        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('leases', 'execution_receipts')")
-        .toArray();
+      const tables = state.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('leases', 'execution_receipts')").toArray();
       expect(tables).toEqual([]);
     });
   });
@@ -89,24 +66,14 @@ describe("ExecutionDurableObject", () => {
     const stub = env.EXECUTION_DO.getByName("replay-key");
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
-      instance.storage.saveProviderState({
-        providerId: "cloudflare-workers-ai",
-        available: true,
-        zeroCreditEligible: true,
-        observedAt: Date.now(),
-        verifiedAt: Date.now(),
-        canaryExpiresAt: Date.now() + 60_000,
-        reasonCode: null,
-      });
+      instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, observedAt: Date.now(), verifiedAt: Date.now(), canaryExpiresAt: Date.now() + 60_000, reasonCode: null });
     });
     const aiRun = vi.fn().mockResolvedValue({ response: "first answer" });
     setProviderInvokerForTest(aiRun);
-
     const first = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-1", message: "first message" });
     expect(first.status).toBe(200);
     expect(first.headers.get("x-idempotent-replay")).toBeNull();
     const firstBody = await first.json();
-
     const replay = await execute("replay-key", { conversationId: "conversation-1", turnId: "turn-2", message: "changed message" });
     expect(replay.status).toBe(200);
     expect(replay.headers.get("x-idempotent-replay")).toBe("true");
@@ -118,23 +85,9 @@ describe("ExecutionDurableObject", () => {
     const stub = env.EXECUTION_DO.getByName("lease-contention");
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
-      state.storage.sql.exec(
-        "INSERT INTO leases (resource_id, holder_id, expires_at) VALUES (?, ?, ?)",
-        "execution:lease-contention",
-        "other-holder",
-        Date.now() + 60_000,
-      );
+      state.storage.sql.exec("INSERT INTO leases (resource_id, holder_id, expires_at) VALUES (?, ?, ?)", "execution:lease-contention", "other-holder", Date.now() + 60_000);
     });
-
-    const response = await stub.fetch("https://execution.example/api/execute", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-idempotency-key": "lease-contention",
-        "x-target-sha": SHA,
-      },
-      body: JSON.stringify({ value: 1 }),
-    });
+    const response = await stub.fetch("https://execution.example/api/execute", { method: "POST", headers: { "content-type": "application/json", "x-idempotency-key": "lease-contention", "x-target-sha": SHA }, body: JSON.stringify({ value: 1 }) });
     expect(response.status).toBe(409);
   });
 
@@ -143,15 +96,7 @@ describe("ExecutionDurableObject", () => {
     await stub.fetch("https://execution.example/api/ready");
     const aiRun = vi.fn().mockResolvedValue({ response: "must not run" });
     setProviderInvokerForTest(aiRun);
-    const response = await stub.fetch("https://execution.example/api/execute", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-idempotency-key": "fail-closed-zero-billing",
-        "x-target-sha": SHA,
-      },
-      body: JSON.stringify({ conversationId: "acceptance", turnId: "fail-closed", message: "must not reach inference" }),
-    });
+    const response = await stub.fetch("https://execution.example/api/execute", { method: "POST", headers: { "content-type": "application/json", "x-idempotency-key": "fail-closed-zero-billing", "x-target-sha": SHA }, body: JSON.stringify({ conversationId: "acceptance", turnId: "fail-closed", message: "must not reach inference" }) });
     expect(response.status).toBe(503);
     expect(aiRun).not.toHaveBeenCalled();
   });
@@ -161,13 +106,7 @@ describe("ExecutionDurableObject", () => {
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance, state) => {
       expect(() => instance.storage.executeTransaction(() => {
-        instance.storage.saveReceipt({
-          id: "rollback-receipt",
-          idempotencyKey: "rollback-key",
-          status: "FAILED",
-          resultPayload: { shouldPersist: false },
-          createdAt: Date.now(),
-        });
+        instance.storage.saveReceipt({ id: "rollback-receipt", idempotencyKey: "rollback-key", status: "FAILED", resultPayload: { shouldPersist: false }, createdAt: Date.now() });
         throw new Error("abort");
       })).toThrow("abort");
       const row = state.storage.sql.exec<{ count: number }>("SELECT COUNT(*) AS count FROM execution_receipts").one();
@@ -177,18 +116,9 @@ describe("ExecutionDurableObject", () => {
 
   it("never routes an accepted request when a legacy Railway bypass header is supplied", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const response = await env.EXECUTION_DO.getByName("no-railway-route").fetch(
-      "https://execution.example/api/execute?source=edge",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-bypass-token": "test-bypass-secret-that-is-not-production",
-          "x-target-sha": SHA,
-        },
-        body: JSON.stringify({ route: "railway" }),
-      },
-    );
+    const response = await env.EXECUTION_DO.getByName("no-railway-route").fetch("https://execution.example/api/execute?source=edge", {
+      method: "POST", headers: { "content-type": "application/json", "x-bypass-token": "test-bypass-secret-that-is-not-production", "x-target-sha": SHA }, body: JSON.stringify({ route: "railway" }),
+    });
     expect(response.status).not.toBe(202);
     expect(response.headers.get("x-bypass-applied")).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -199,47 +129,19 @@ describe("ExecutionDurableObject", () => {
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
       const now = Date.now();
-      instance.storage.saveProviderState({
-        providerId: "cloudflare-workers-ai",
-        available: true,
-        zeroCreditEligible: true,
-        observedAt: now,
-        verifiedAt: now,
-        canaryExpiresAt: now + 60_000,
-        reasonCode: null,
-      });
+      instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, observedAt: now, verifiedAt: now, canaryExpiresAt: now + 60_000, reasonCode: null });
     });
-
     const response = await stub.fetch("https://execution.example/api/runtime/attestation");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      schemaVersion: 1,
-      kind: "mahoraga-runtime-attestation",
-      status: "ready",
-      targetSha: SHA,
-      runtime: "cloudflare-worker",
-      durableState: "cloudflare-do-sqlite",
-      trafficAuthority: "cloudflare",
-      railwayRoutingEnabled: false,
-      railwayInfluence: false,
-      provider: {
-        providerId: "cloudflare-workers-ai",
-        admitted: true,
-        zeroCreditEligible: true,
-      },
-    });
+    expect(await response.json()).toEqual({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: "ready", targetSha: SHA, runtime: "cloudflare-worker", durableState: "cloudflare-do-sqlite", trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: "cloudflare-workers-ai", admitted: true, zeroCreditEligible: true } });
   });
 
   it("routes acceptance probes to per-run Durable Object state instead of production state", async () => {
-    const response = await exports.default.fetch(new Request("https://execution.example/api/ready", {
-      headers: { "x-mahoraga-acceptance-run": "cutover-run-123" },
-    }));
+    const response = await exports.default.fetch(new Request("https://execution.example/api/ready", { headers: { "x-mahoraga-acceptance-run": "cutover-run-123" } }));
     expect(response.status).toBe(200);
     const isolated = env.EXECUTION_DO.getByName("acceptance-cutover-run-123");
     await runInDurableObject<ExecutionDurableObject, void>(isolated, (_instance, state) => {
-      const tables = state.storage.sql
-        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_state'")
-        .toArray();
+      const tables = state.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'provider_state'").toArray();
       expect(tables).toEqual([{ name: "provider_state" }]);
     });
   });
@@ -249,15 +151,9 @@ describe("ExecutionDurableObject", () => {
     const live = await stub.fetch("https://execution.example/api/live");
     expect(live.status).toBe(200);
     expect(await live.json()).toEqual({ status: "live", sha: SHA });
-
     const ready = await stub.fetch("https://execution.example/api/ready");
     expect(ready.status).toBe(200);
-    expect(await ready.json()).toEqual({
-      status: "ready",
-      sha: SHA,
-      durableState: "cloudflare-do-sqlite",
-    });
-
+    expect(await ready.json()).toEqual({ status: "ready", sha: SHA, durableState: "cloudflare-do-sqlite" });
     const method = await stub.fetch("https://execution.example/api/execute");
     expect(method.status).toBe(405);
     expect(method.headers.get("allow")).toBe("POST");
@@ -266,42 +162,93 @@ describe("ExecutionDurableObject", () => {
   it("returns a bounded diagnostic matrix when provider admission fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
     const now = Date.now();
-    const response = await env.EXECUTION_DO.getByName("provider-refresh-diagnostics").fetch(
-      "https://execution.example/api/provider/refresh",
-      {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET,
-        },
-        body: JSON.stringify({
-          billingAttestation: JSON.stringify({
-            schemaVersion: 1,
-            evidenceSource: "cloudflare-account-api",
-            accountIdHash: env.ZERO_CREDIT_ACCOUNT_ID_HASH,
-            defaultUsageModel: "standard",
-            billableAccountSubscriptionCount: 0,
-            verifiedAt: now,
-            expiresAt: now + 90 * 60_000,
-          }),
-        }),
-      },
-    );
-
-    expect(response.status).toBe(503);
-    expect(await response.json()).toMatchObject({
-      zeroCreditEligible: false,
-      reasonCode: "provider-authentication-failed",
-      diagnostics: {
-        authentication: { status: "failed" },
-        routing: { status: "passed" },
-        dns: { status: "not-independently-observable" },
-        modelAvailability: { status: "unknown" },
-        gateway: { status: "passed" },
-        policy: { status: "passed" },
-        billing: { status: "passed" },
-        probeResponse: { status: "failed", httpStatus: 403 },
-      },
+    const response = await env.EXECUTION_DO.getByName("provider-refresh-diagnostics").fetch("https://execution.example/api/provider/refresh", {
+      method: "POST", headers: { "content-type": "application/json", "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET },
+      body: JSON.stringify({ billingAttestation: JSON.stringify({ schemaVersion: 1, evidenceSource: "cloudflare-account-api", accountIdHash: env.ZERO_CREDIT_ACCOUNT_ID_HASH, defaultUsageModel: "standard", billableAccountSubscriptionCount: 0, verifiedAt: now, expiresAt: now + 90 * 60_000 }) }),
     });
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ zeroCreditEligible: false, reasonCode: "provider-authentication-failed", diagnostics: { authentication: { status: "failed" }, routing: { status: "passed" }, dns: { status: "not-independently-observable" }, modelAvailability: { status: "unknown" }, gateway: { status: "passed" }, policy: { status: "passed" }, billing: { status: "passed" }, probeResponse: { status: "failed", httpStatus: 403 } } });
+  });
+});
+
+const INTERACTION_NOW = "2026-09-29T22:45:00.000Z";
+function interactionFixture({ protocolFamily = "http-json", networkClass = "degraded" } = {}) {
+  const ingress = createOmnichannelEnvelope({
+    source:"owner-request", actor:{ actorType:"owner", actorId:"owner", trustClass:"owner-explicit", accountBoundary:"synthetic" },
+    object:{ surface:"control-center", requestId:"runtime-interaction-1", objectType:"request" }, allowedActionClass:"observe",
+    correlationId:"corr-runtime-interaction-1", idempotencyKey:"interaction:runtime-1",
+    contentReferences:["vault:12345678-1234-4234-8234-123456789abc"], routeHint:{ capability:"repository.inspect", actionPackId:"universal-interaction" }, metadata:{ channel:"owner" }, zeroCreditEligible:true,
+  }, { now:INTERACTION_NOW, ttlSeconds:3600 });
+  const envelope = projectUniversalInteractionEnvelope(ingress, {
+    modalities:["text","structured"],
+    presentation:{ locale:"en-US", timeZone:"America/New_York", direction:"ltr", measurementSystem:"us", currency:"USD", deviceClass:"phone", networkClass },
+    delivery:{ supportsStreaming:true, supportsMarkdown:true, supportsRichText:true, supportsImages:false, supportsAudio:false, supportsVideo:false, supportsFiles:false, maxOutputBytes:4096 },
+    protocol:{ family:protocolFamily, version:"1.0", schemaIds:["mahoraga.interaction.v1"] }, requestedCapability:"repository.inspect",
+  }, { now:INTERACTION_NOW });
+  const adapter = { adapterId:`trusted-${protocolFamily.replace(/[^a-z]/g,"-")}`, family:protocolFamily, versions:["1.0"], schemaIds:["mahoraga.interaction.v1"], modalities:["text","structured"], maxPayloadBytes:8192 };
+  return { envelope, accepted:negotiateInteractionProtocol(envelope, [adapter], { now:INTERACTION_NOW }), held:negotiateInteractionProtocol(envelope, [], { now:INTERACTION_NOW }) };
+}
+
+describe("universal interaction runtime lineage", () => {
+  it("projects only execution-relevant interaction constraints and keeps authority inherited", () => {
+    const { envelope, accepted } = interactionFixture();
+    const context = projectInteractionContext(envelope, accepted, { now:INTERACTION_NOW });
+    expect(context).toEqual({ interactionId:envelope.interactionId, modalities:["structured","text"], protocolFamily:"http-json", locale:"en-US", deviceClass:"phone", networkClass:"degraded" });
+    for (const forbidden of ["allowedActionClass","dataClass","zeroCreditEligible","authorityScopes","costPreference","trafficAuthority","credential","url","headers"]) expect(Object.hasOwn(context, forbidden)).toBe(false);
+  });
+
+  it("fails closed on held negotiation and on accepted-but-unregistered transport families", () => {
+    const { envelope, held } = interactionFixture();
+    expect(() => projectInteractionContext(envelope, held, { now:INTERACTION_NOW })).toThrow("interaction-negotiation-hold");
+    const mcp = interactionFixture({ protocolFamily:"mcp" });
+    expect(() => projectInteractionContext(mcp.envelope, mcp.accepted, { now:INTERACTION_NOW })).toThrow("interaction-runtime-transport-unavailable");
+  });
+
+  it("projects sanitized runtime and queued delivery truth without provider payloads or execution replay semantics", () => {
+    const { envelope, accepted } = interactionFixture({ networkClass:"offline" });
+    const deliveryState = queueUniversalDelivery(createDeliveryState({ interactionId:envelope.interactionId, taskId:"task-runtime-1", chainId:"chain-runtime-1", idempotencyKey:envelope.idempotencyKey, outputReferences:["artifact:result-runtime-1"], channelFamily:"http-json" }, { now:INTERACTION_NOW }), "stream-interrupted", { now:"2026-09-29T22:46:00.000Z" });
+    const truth = projectInteractionRuntimeTruth({
+      envelope, negotiationReceipt:accepted,
+      execution:{ status:"complete", taskId:"task-runtime-1", chainId:"chain-runtime-1", handoffCount:1, receipts:[
+        { schemaVersion:1, kind:"route-selection-receipt", id:"selection-1", taskId:"task-runtime-1", chainId:"chain-runtime-1", selected:{provider:"github",workerId:"repository"} },
+        { schemaVersion:1, kind:"execution-receipt", taskId:"task-runtime-1", chainId:"chain-runtime-1", providerReceipt:{ secret:"must-not-project", raw:"payload" } },
+      ] }, deliveryState,
+    }, { now:"2026-09-29T22:46:00.000Z" });
+    expect(truth.interactionTruth).toMatchObject({ status:"observed", interactionId:envelope.interactionId, sourceFamily:"omnichannel", channelFamily:"cloudflare-runtime", executionStatus:"completed", interactionFingerprint:envelope.fingerprint, negotiationFingerprint:accepted.fingerprint, networkClass:"offline" });
+    expect(truth.deliveryTruth).toMatchObject({ status:"queued", interactionId:envelope.interactionId, taskId:"task-runtime-1", chainId:"chain-runtime-1", outputReferences:["artifact:result-runtime-1"], reason:"stream-interrupted" });
+    expect(JSON.stringify(truth)).not.toMatch(/providerReceipt|must-not-project|trafficAuthority|credential|authorization|headers/);
+    expect(truth.interactionTruth.executionStatus).toBe("completed");
+    expect(truth.deliveryTruth?.status).toBe("queued");
+  });
+
+  it("persists and reads only sanitized interaction truth without re-entering broker/provider execution", async () => {
+    const { envelope, accepted } = interactionFixture({ networkClass:"offline" });
+    const deliveryState = queueUniversalDelivery(createDeliveryState({ interactionId:envelope.interactionId, taskId:"task-runtime-read", chainId:"chain-runtime-read", idempotencyKey:envelope.idempotencyKey, outputReferences:["artifact:result-runtime-read"], channelFamily:"http-json" }, { now:INTERACTION_NOW }), "offline", { now:"2026-09-29T22:46:00.000Z" });
+    const truth = projectInteractionRuntimeTruth({ envelope, negotiationReceipt:accepted, execution:{ status:"complete", taskId:"task-runtime-read", chainId:"chain-runtime-read", handoffCount:0, receipts:[] }, deliveryState }, { now:"2026-09-29T22:46:00.000Z" });
+    const stub = env.EXECUTION_DO.getByName("interaction-truth-read");
+    await stub.fetch("https://execution.example/api/ready");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance, state) => {
+      instance.storage.saveInteractionRuntimeTruth({ interactionId:envelope.interactionId, payload:truth, updatedAt:Date.parse("2026-09-29T22:46:00.000Z") });
+      expect(instance.storage.getInteractionRuntimeTruth(envelope.interactionId)?.payload).toEqual(truth);
+      const row = state.storage.sql.exec<{ payload:string }>("SELECT payload FROM interaction_runtime_truth WHERE interaction_id = ?", envelope.interactionId).one();
+      expect(row.payload).not.toMatch(/providerReceipt|secret|credential|headers|trafficAuthority/);
+    });
+    const read = await stub.fetch("https://execution.example/api/native/bridge", {
+      method:"POST", headers:{ "content-type":"application/json", "x-mahoraga-verified-owner":"owner@example.com", "x-mahoraga-verified-nonce":"12345678-1234-4234-8234-123456789abc" },
+      body:JSON.stringify({ type:"interaction-truth", payload:{ interactionId:envelope.interactionId } }),
+    });
+    expect(read.status).toBe(200);
+    expect(await read.json()).toEqual(truth);
+  });
+
+  it("blocks held negotiation before the execution broker can become a fallback", async () => {
+    const { envelope, held } = interactionFixture();
+    const stub = env.EXECUTION_DO.getByName("interaction-held-before-broker");
+    const response = await stub.fetch("https://execution.example/api/native/bridge", {
+      method:"POST", headers:{ "content-type":"application/json", "x-mahoraga-verified-owner":"owner@example.com", "x-mahoraga-verified-nonce":"22345678-1234-4234-8234-123456789abc" },
+      body:JSON.stringify({ type:"execute", payload:{ request:{ schemaVersion:1, taskId:"task-held", chainId:"chain-held", requiredCapability:"repository.inspect", requestedPermission:"read", dataClass:"synthetic", authorityScopes:["repo:mahoraga:read"], costPreference:"zero-credit-first", maxHops:4, constraints:{}, evidenceRefs:[] }, payload:{ operation:"inspect" }, interactionEnvelope:envelope, negotiationReceipt:held } }),
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error:"interaction-negotiation-hold", reason:held.reason });
   });
 });
