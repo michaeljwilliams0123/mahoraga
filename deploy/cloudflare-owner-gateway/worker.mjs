@@ -136,10 +136,69 @@ async function runtimeCapabilities(env) {
   }
 }
 
-const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute"]);
+const INTERACTION_TRUTH_KEYS = new Set([
+  "status", "interactionId", "sourceFamily", "channelFamily", "modalities", "protocolFamily", "protocolVersion",
+  "locale", "timezone", "direction", "unitSystem", "currency", "deviceClass", "networkClass", "executionStatus",
+  "interactionFingerprint", "negotiationFingerprint", "executionFingerprint", "observedAt", "reason",
+]);
+const DELIVERY_TRUTH_KEYS = new Set(["status", "interactionId", "taskId", "chainId", "outputReferences", "deliveryFingerprint", "observedAt", "reason"]);
+const INTERACTION_TRUTH_WRAPPER_KEYS = new Set(["interactionTruth", "deliveryTruth"]);
+const INTERACTION_MODALITIES = new Set(["text", "structured", "file", "image", "audio", "video", "event"]);
+const INTERACTION_PROTOCOLS = new Set(["native", "http-json", "mcp", "webhook", "sse", "websocket", "queue"]);
+const INTERACTION_DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
+const INTERACTION_UNITS = new Set(["metric", "us", "uk"]);
+const INTERACTION_DEVICES = new Set(["phone", "tablet", "desktop", "embedded", "headless"]);
+const INTERACTION_NETWORKS = new Set(["online", "degraded", "offline"]);
+const INTERACTION_FORBIDDEN_KEYS = new Set(["authority", "actionAuthority", "trafficAuthority", "providerRoute", "route", "credentials", "credential", "headers", "authorization", "token", "secret", "lease", "spendingAuthority", "endpoint", "url"]);
+const stableInteractionId = (value, max = 256) => typeof value === "string" && value.length > 0 && value.length <= max && /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/.test(value) && !value.includes("://");
+const optionalStableInteractionId = (value, max = 256) => value === undefined || value === null || stableInteractionId(value, max);
+const boundedInteractionText = (value, max = 160) => value === undefined || value === null || (typeof value === "string" && value.length > 0 && value.length <= max);
+const isoInteractionTime = (value) => value === undefined || value === null || (typeof value === "string" && value.length <= 64 && Number.isFinite(Date.parse(value)));
+function onlyInteractionKeys(value, allowed) {
+  return value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).every((key) => allowed.has(key) && !INTERACTION_FORBIDDEN_KEYS.has(key));
+}
+function validRuntimeInteractionTruth(value) {
+  if (!onlyInteractionKeys(value, INTERACTION_TRUTH_KEYS)) return false;
+  if (!new Set(["observed", "hold"]).has(value.status) || !stableInteractionId(value.interactionId) || !stableInteractionId(value.sourceFamily) || !stableInteractionId(value.channelFamily)) return false;
+  if (!Array.isArray(value.modalities) || value.modalities.length < 1 || value.modalities.length > 7 || new Set(value.modalities).size !== value.modalities.length || !value.modalities.every((item) => INTERACTION_MODALITIES.has(item))) return false;
+  if (!INTERACTION_PROTOCOLS.has(value.protocolFamily) || !boundedInteractionText(value.protocolVersion, 32)) return false;
+  if (value.locale !== undefined && value.locale !== null) { try { if (Intl.getCanonicalLocales(value.locale).length !== 1) return false; } catch { return false; } }
+  if (value.timezone !== undefined && value.timezone !== null) { try { new Intl.DateTimeFormat("en", { timeZone:value.timezone }).format(0); } catch { return false; } }
+  if (value.direction !== undefined && value.direction !== null && !INTERACTION_DIRECTIONS.has(value.direction)) return false;
+  if (value.unitSystem !== undefined && value.unitSystem !== null && !INTERACTION_UNITS.has(value.unitSystem)) return false;
+  if (value.currency !== undefined && value.currency !== null && (typeof value.currency !== "string" || !/^[A-Z]{3}$/.test(value.currency))) return false;
+  if (value.deviceClass !== undefined && value.deviceClass !== null && !INTERACTION_DEVICES.has(value.deviceClass)) return false;
+  if (value.networkClass !== undefined && value.networkClass !== null && !INTERACTION_NETWORKS.has(value.networkClass)) return false;
+  if (!boundedInteractionText(value.executionStatus, 64) || !/^[a-f0-9]{64}$/.test(value.interactionFingerprint)) return false;
+  if (value.negotiationFingerprint !== undefined && value.negotiationFingerprint !== null && !/^[a-f0-9]{64}$/.test(value.negotiationFingerprint)) return false;
+  if (value.executionFingerprint !== undefined && value.executionFingerprint !== null && !/^[a-f0-9]{64}$/.test(value.executionFingerprint)) return false;
+  return isoInteractionTime(value.observedAt) && boundedInteractionText(value.reason, 160);
+}
+function validRuntimeDeliveryTruth(value) {
+  if (!onlyInteractionKeys(value, DELIVERY_TRUTH_KEYS)) return false;
+  if (!new Set(["delivered", "queued", "hold"]).has(value.status) || !stableInteractionId(value.interactionId)) return false;
+  if (!optionalStableInteractionId(value.taskId) || !optionalStableInteractionId(value.chainId) || ((value.taskId == null) !== (value.chainId == null))) return false;
+  if (!Array.isArray(value.outputReferences) || value.outputReferences.length > 32 || new Set(value.outputReferences).size !== value.outputReferences.length || !value.outputReferences.every((item) => stableInteractionId(item, 512))) return false;
+  return /^[a-f0-9]{64}$/.test(value.deliveryFingerprint) && isoInteractionTime(value.observedAt) && boundedInteractionText(value.reason, 160);
+}
+function sanitizeInteractionTruthResult(value) {
+  if (!onlyInteractionKeys(value, INTERACTION_TRUTH_WRAPPER_KEYS) || !Object.hasOwn(value, "interactionTruth") || !Object.hasOwn(value, "deliveryTruth")) return null;
+  if (!validRuntimeInteractionTruth(value.interactionTruth)) return null;
+  if (value.deliveryTruth !== null && !validRuntimeDeliveryTruth(value.deliveryTruth)) return null;
+  if (value.deliveryTruth !== null && value.deliveryTruth.interactionId !== value.interactionTruth.interactionId) return null;
+  return {
+    interactionTruth:{ ...value.interactionTruth, modalities:[...value.interactionTruth.modalities] },
+    deliveryTruth:value.deliveryTruth === null ? null : { ...value.deliveryTruth, outputReferences:[...value.deliveryTruth.outputReferences] },
+  };
+}
+
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
   if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);
+  if (type === "interaction-truth" && (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length !== 1 || typeof payload.interactionId !== "string" || !/^interaction-[a-f0-9]{32}$/.test(payload.interactionId))) {
+    return json({ error: "interaction-truth-request-invalid" }, 400);
+  }
   const body = JSON.stringify({ type, payload });
   if (new TextEncoder().encode(body).byteLength > 32_768) return json({ error: "cloud-action-too-large" }, 413);
   const timestamp = String(Date.now());
@@ -152,32 +211,30 @@ async function nativeRuntimeAction(type, payload, env, owner) {
       method: "POST", headers: { "content-type": "application/json", "x-mahoraga-owner": owner, "x-mahoraga-owner-timestamp": timestamp, "x-mahoraga-owner-nonce": nonce, "x-mahoraga-owner-signature": signature }, body,
     }));
     const result = await response.json();
+    if (type === "interaction-truth") {
+      if (!response.ok) {
+        const code = result && typeof result === "object" && !Array.isArray(result) && typeof result.error === "string" && /^[a-z0-9.-]{1,80}$/.test(result.error) ? result.error : "execution-runtime-unavailable";
+        return json({ error:code }, response.status);
+      }
+      const sanitized = sanitizeInteractionTruthResult(result);
+      return sanitized === null ? json({ error:"execution-runtime-evidence-invalid" }, 503) : json(sanitized, 200);
+    }
     return json(result, response.status);
   } catch { return json({ error: "execution-runtime-unavailable" }, 503); }
 }
 
 async function nativeBridgeResponse(request, requestUrl, env, owner) {
   if (requestUrl.pathname === "/" && request.method === "GET") {
-    return json({
-      gateway: "mahoraga-owner-gateway",
-      ownerAuthenticated: true,
-      runtime: "cloudflare-native-migration",
-      state: "degraded",
-    });
+    return json({ gateway: "mahoraga-owner-gateway", ownerAuthenticated: true, runtime: "cloudflare-native-migration", state: "degraded" });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/frame" && request.method === "GET") {
     const pagesOrigin = configuredPagesOrigin(env);
     if (!pagesOrigin) return new Response("gateway-pages-origin-invalid", { status: 503 });
-    return new Response(bridgeFrame(pagesOrigin), {
-      status: 200,
-      headers: {
-        "cache-control": "no-store",
-        "content-type": "text/html; charset=utf-8",
-        "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${pagesOrigin}; base-uri 'none'; form-action 'none'`,
-        "referrer-policy": "no-referrer",
-        "x-content-type-options": "nosniff",
-      },
-    });
+    return new Response(bridgeFrame(pagesOrigin), { status: 200, headers: {
+      "cache-control": "no-store", "content-type": "text/html; charset=utf-8",
+      "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${pagesOrigin}; base-uri 'none'; form-action 'none'`,
+      "referrer-policy": "no-referrer", "x-content-type-options": "nosniff",
+    } });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/action" && request.method === "POST") {
     const value = await request.json().catch(() => null);
@@ -195,25 +252,19 @@ export default {
     const assertionSecret = typeof env?.MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET === "string" ? env.MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET : "";
     if (!ownerId || assertionSecret.length < 32) return new Response("gateway-environment-invalid", { status: 503 });
     if (!ctx?.access || typeof ctx.access.getIdentity !== "function") return new Response("owner-access-required", { status: 403 });
-
     let identity;
-    try { identity = await ctx.access.getIdentity(); }
-    catch { return new Response("owner-access-required", { status: 403 }); }
+    try { identity = await ctx.access.getIdentity(); } catch { return new Response("owner-access-required", { status: 403 }); }
     const owner = typeof identity?.email === "string" ? identity.email.trim() : "";
     if (!owner || owner !== ownerId) return new Response("owner-auth-required", { status: 401 });
-
     const requestUrl = new URL(request.url);
     const safeMethod = new Set(["GET", "HEAD", "OPTIONS"]).has(request.method.toUpperCase());
     if (!safeMethod) {
       let callerOrigin;
-      try { callerOrigin = new URL(request.headers.get("origin") ?? "").origin; }
-      catch { return new Response("gateway-same-origin-required", { status: 403 }); }
+      try { callerOrigin = new URL(request.headers.get("origin") ?? "").origin; } catch { return new Response("gateway-same-origin-required", { status: 403 }); }
       if (callerOrigin !== requestUrl.origin) return new Response("gateway-same-origin-required", { status: 403 });
     }
-
     const native = await nativeBridgeResponse(request, requestUrl, env, owner);
     if (native) return native;
-
     return json({ error: "cloud-native-route-required" }, 404);
   },
 };
