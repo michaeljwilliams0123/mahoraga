@@ -119,3 +119,21 @@ it("requires contained permission for codex execution", async () => {
   const body = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json() as { routes: unknown[] };
   expect(body.routes).toEqual([]);
 });
+
+it("preserves sanitized interaction support from a bound provider and filters incompatible requests", async () => {
+  const claim = universal("interaction-aware");
+  Object.assign(claim, { interactionSupport:{ modalities:["text"], protocolFamilies:["native"], locales:["*"] } });
+  const broker = createExecutionBroker({ REPOSITORY_PROVIDER:provider(claim) }, () => NOW);
+  const capabilities = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json() as { routes:Array<Record<string,unknown>> };
+  expect(capabilities.routes[0]).toEqual(expect.objectContaining({ interactionSupport:{ modalities:["text"], protocolFamilies:["native"], locales:["*"] } }));
+
+  const incompatible = await broker.fetch(new Request("https://broker/api/route", {
+    method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({
+      schemaVersion:1, taskId:"interaction-route", chainId:"interaction-chain", requiredCapability:"repository.inspect", requestedPermission:"read",
+      dataClass:"enterprise", authorityScopes:["repo:mahoraga:read"], costPreference:"zero-credit-first", maxHops:4, constraints:{}, evidenceRefs:[],
+      interactionContext:{ interactionId:"interaction-cccccccccccccccccccccccccccccccc", modalities:["image"], protocolFamily:"native", locale:"en-US" },
+    }),
+  }));
+  expect(incompatible.status).toBe(503);
+  expect(await incompatible.json()).toEqual({ error:"no-eligible-route" });
+});
