@@ -68,3 +68,32 @@ test("universal broker preserves one chain across repository codex verify cloud 
   assert.equal(body.receipts.filter((receipt) => receipt.kind === "handoff-receipt").length, 4);
   assert.equal(body.receipts.at(-1).providerReceipt.id, "final-browser-receipt");
 });
+
+test("execution fails closed when a route lease expires during provider work", async () => {
+  let now = NOW;
+  const repository = binding(
+    ATT("github","github-worker","cloud",[CAP("repository.inspect","read",["repo:read"])]),
+    () => {
+      now += 61_000;
+      return { status:"complete", receipt:{ id:"late-completion" } };
+    },
+  );
+  const broker = createExecutionBroker({ REPOSITORY_PROVIDER:repository }, () => now);
+  const response = await broker.fetch(new Request("https://broker/api/execute", {
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({
+      request:{
+        schemaVersion:1, taskId:"task-expiring", chainId:"chain-expiring",
+        requiredCapability:"repository.inspect", requestedPermission:"read",
+        dataClass:"enterprise", authorityScopes:["repo:read"], costPreference:"zero-credit-first",
+        maxHops:2, constraints:{requireZeroCredit:true}, evidenceRefs:[],
+      },
+      payload:{ objective:"slow inspect" },
+    }),
+  }));
+  assert.equal(response.status, 409);
+  const body = await response.json();
+  assert.equal(body.error, "execution-lease-expired");
+  assert.equal(body.chainId, "chain-expiring");
+});
