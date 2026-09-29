@@ -12,10 +12,14 @@ export type BrokerEnv = {
   ARTIFACT_PROVIDER?: BrokerBinding; IMAGE_PROVIDER?: BrokerBinding; WORKSPACE_PROVIDER?: BrokerBinding;
 };
 
+type InteractionSupport = {
+  modalities?: string[]; protocolFamilies?: string[]; locales?: string[]; maxPayloadBytes?: number;
+};
+
 type UniversalAttestation = {
   schemaVersion: 1; kind: "universal-worker-attestation"; workerId: string; provider: string; locality: string;
   observedAt: string; expiresAt: string; observedLatencyMs?: number; queueDepth?: number; reliabilityScore?: number;
-  capabilities: Array<Record<string, unknown>>;
+  interactionSupport?: InteractionSupport; capabilities: Array<Record<string, unknown>>;
 };
 
 const JSON_HEADERS = { "cache-control":"no-store", "content-type":"application/json; charset=utf-8" };
@@ -71,6 +75,7 @@ function projectRoutes(attestations: UniversalAttestation[], now: number) {
       routes.push({ capability:cap.capability, routable:true, enabled:true, provider:attestation.provider,
         workerId:attestation.workerId, workerIds:[attestation.workerId], permissionClass:cap.permissionClass,
         costClass:cap.costClass, routingReason:null, providerReasonCode:null, evidenceLevel:"runtime-execution",
+        ...(attestation.interactionSupport === undefined ? {} : { interactionSupport:attestation.interactionSupport }),
         lastObservedAt:attestation.observedAt, expiresAt:attestation.expiresAt });
     }
   }

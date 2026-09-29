@@ -111,3 +111,51 @@ test("zero-credit exhaustion never falls through to a paid route", () => {
     {ok:false,reason:"no-eligible-route",eligible:[]},
   );
 });
+
+test("interaction support filters explicit modality and protocol mismatches without creating eligibility", () => {
+  const interactionContext = {
+    interactionId:"interaction-0123456789abcdef0123456789abcdef",
+    modalities:["text","image"],
+    protocolFamily:"http-json",
+    locale:"en-US",
+    deviceClass:"phone",
+    networkClass:"degraded",
+  };
+  const supported = att({ interactionSupport:{ modalities:["text","image"], protocolFamilies:["http-json"], locales:["en-US"] } });
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [supported], NOW).length, 1);
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [att({ interactionSupport:{ modalities:["text"], protocolFamilies:["http-json"], locales:["en-US"] } })], NOW).length, 0);
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [att({ interactionSupport:{ modalities:["text","image"], protocolFamilies:["native"], locales:["en-US"] } })], NOW).length, 0);
+
+  const unhealthy = att({ capabilities:[cap({healthy:false})], interactionSupport:{ modalities:["text","image"], protocolFamilies:["http-json"], locales:["en-US"] } });
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [unhealthy], NOW).length, 0);
+});
+
+test("interaction compatibility supports wildcard locale and remains optional when support is absent", () => {
+  const interactionContext = {
+    interactionId:"interaction-fedcba9876543210fedcba9876543210",
+    modalities:["text"],
+    protocolFamily:"native",
+    locale:"fr-FR",
+    deviceClass:"desktop",
+    networkClass:"online",
+  };
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [att({ interactionSupport:{ modalities:["text"], protocolFamilies:["native"], locales:["*"] } })], NOW).length, 1);
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext }), [att()], NOW).length, 1);
+});
+
+test("interaction metadata is filter-only and never changes ranking or lease authority", () => {
+  const context = { interactionId:"interaction-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", modalities:["text"], protocolFamily:"native", locale:"en-US" };
+  const support = { modalities:["text"], protocolFamilies:["native"], locales:["*"] };
+  const selectedWithout = selectWorkerRoute(req(), [att({workerId:"a",observedLatencyMs:10}), att({workerId:"b",observedLatencyMs:20})], NOW).selected;
+  const selectedWith = selectWorkerRoute(req({interactionContext:context}), [att({workerId:"a",observedLatencyMs:10,interactionSupport:support}), att({workerId:"b",observedLatencyMs:20,interactionSupport:support})], NOW).selected;
+  assert.equal(selectedWith.workerId, selectedWithout.workerId);
+  const lease = issueRouteLease(req({interactionContext:context, authorityScopes:["repo:mahoraga:read","cloud:execute"]}), selectedWith, NOW);
+  assert.equal(lease.permissionClass, "read");
+  assert.deepEqual(lease.authorityScopes, ["repo:mahoraga:read"]);
+  assert.equal(Object.hasOwn(lease, "interactionContext"), false);
+});
+
+test("malformed interaction context or support fails closed", () => {
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext:{ interactionId:"bad", modalities:["text"], protocolFamily:"native" } }), [att()], NOW).length, 0);
+  assert.equal(eligibleWorkerRoutes(req({ interactionContext:{ interactionId:"interaction-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", modalities:["text"], protocolFamily:"native" } }), [att({ interactionSupport:{ modalities:["text"], protocolFamilies:["native"], locales:["https://evil.example"] } })], NOW).length, 0);
+});
