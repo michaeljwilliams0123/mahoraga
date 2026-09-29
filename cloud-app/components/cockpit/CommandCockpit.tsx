@@ -189,6 +189,9 @@ export function CommandCockpit({
             <span className={`cockpit-pill ${learning.status === "promoted" ? "ok" : learning.status === "refused" ? "warn" : "steel"}`}>
               {learning.status === "promoted" ? "LEARN_VERIFIED_OUTCOME" : learning.status === "refused" ? "LEARN_REFUSED" : "LEARN_PENDING"}
             </span>
+            <span className="cockpit-pill steel">CONNECTOR_ROUTING_OBS</span>
+            <span className="cockpit-pill steel">CODEX_EXECUTE_SEPARATE</span>
+            <span className="cockpit-pill steel">FAMILY_SPLIT_AGENTIC_EXEC</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -232,6 +235,9 @@ export function CommandCockpit({
           </p>
           <p>
             Predictive scenario execution is observational: an explicit <code>/predict</code> request may use the zero-credit deterministic <code>cognitive.predict</code> route when that route is observed as routable. Its result is a hypothetical transition with predicted state, uncertainty, and fingerprint, not a measured forecast. Predictive requests never fall through to the generative answer provider or imply traffic authority. An observed <code>cognitive.cycle</code> route accepts explicit <code>/cycle</code> input and emits a collective deliberation, metacognitive assessment, plan, prediction, and decision receipt without executing the proposed action.
+          </p>
+          <p>
+            Permissioned connector routing is observational. Individually permissioned zero-credit connector capabilities route into the Cloudflare execution runtime; <code>codex.execute</code> is not the universal external-action gate, and <code>cognitive.cycle</code> stays in the Agentic family rather than the Execution family. Routing fails closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged. Merge #856 is not live traffic authority. Mahoraga remains the product name; 7.0.0-alpha.2 is build provenance only, and github.io is presentation only.
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>

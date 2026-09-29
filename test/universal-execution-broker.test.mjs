@@ -71,3 +71,43 @@ test("handoff may change step permission within an explicit maximum permission e
   assert.equal(result.request.requestedPermission, "contained");
   assert.equal(result.request.authorityPermission, "contained");
 });
+
+test("attestation rejects manipulated routing metrics", () => {
+  assert.equal(validateWorkerAttestation(att({observedLatencyMs:-1}), NOW).reason, "attestation-metrics-invalid");
+  assert.equal(validateWorkerAttestation(att({queueDepth:-1}), NOW).reason, "attestation-metrics-invalid");
+  assert.equal(validateWorkerAttestation(att({queueDepth:1.5}), NOW).reason, "attestation-metrics-invalid");
+  assert.equal(validateWorkerAttestation(att({reliabilityScore:1.01}), NOW).reason, "attestation-metrics-invalid");
+  assert.equal(validateWorkerAttestation(att({reliabilityScore:-0.01}), NOW).reason, "attestation-metrics-invalid");
+});
+
+test("lease narrows permission and authority to the selected step", () => {
+  const request = req({
+    requestedPermission:"read",
+    authorityPermission:"contained",
+    authorityScopes:["repo:mahoraga:read","cloud:execute"],
+  });
+  const selected = selectWorkerRoute(request, [
+    att({capabilities:[cap({permissionClass:"execute",authorityScopes:["repo:mahoraga:read"]})]}),
+  ], NOW).selected;
+  const lease = issueRouteLease(request, selected, NOW);
+  assert.equal(lease.permissionClass, "read");
+  assert.deepEqual(lease.authorityScopes, ["repo:mahoraga:read"]);
+});
+
+test("selection fails closed after the execution deadline", () => {
+  assert.deepEqual(
+    selectWorkerRoute(req({deadlineAt:iso(-1)}), [att()], NOW),
+    {ok:false,reason:"execution-deadline-exceeded",eligible:[]},
+  );
+});
+
+test("zero-credit exhaustion never falls through to a paid route", () => {
+  const paid = att({
+    workerId:"paid-only",
+    capabilities:[cap({zeroCreditEligible:false,costClass:"metered-cloud"})],
+  });
+  assert.deepEqual(
+    selectWorkerRoute(req({constraints:{requireZeroCredit:true}}), [paid], NOW),
+    {ok:false,reason:"no-eligible-route",eligible:[]},
+  );
+});
