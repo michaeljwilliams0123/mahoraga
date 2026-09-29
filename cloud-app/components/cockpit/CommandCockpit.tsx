@@ -198,6 +198,12 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">FAMILY_SPLIT_AGENTIC_EXEC</span>
             <span className={`cockpit-pill ${backtest.status === "observed" ? "ok" : backtest.status === "hold" ? "warn" : "steel"}`}>HELD_OUT_BACKTEST_OBS</span>
             <span className="cockpit-pill steel">NO_GENERALIZES_INFER</span>
+            <span className="cockpit-pill steel">UNIVERSAL_INTERACTION_OBS</span>
+            <span className="cockpit-pill steel">ACCESSIBILITY_FIRST</span>
+            <span className="cockpit-pill steel">DELIVERY_SEPARATE</span>
+            <span className="cockpit-pill steel">PROTOCOL_NEGOTIATION_OBS</span>
+            <span className="cockpit-pill steel">RECEIPT_LINEAGE_OBS</span>
+            <span className="cockpit-pill steel">TRANSFORM_PROVENANCE_OBS</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -246,6 +252,9 @@ export function CommandCockpit({
             Permissioned connector routing is observational. Individually permissioned zero-credit connector capabilities route into the Cloudflare execution runtime; <code>codex.execute</code> is not the universal external-action gate, and <code>cognitive.cycle</code> stays in the Agentic family rather than the Execution family. Routing fails closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged. Merge #856 is not live traffic authority. Mahoraga remains the product name; 7.0.0-alpha.2 is build provenance only, and github.io is presentation only.
           </p>
           <p>
+            Universal reach remains observational at the cockpit boundary: interaction context is additive and cannot create a provider route or widen authority. Supported interaction references are text, structured data, files, images, audio, video, and events. Locale, timezone, RTL direction, accessibility preferences, and phone/tablet/desktop/embedded/headless device context are presentation-only. Execution and delivery are separate: online, degraded, or offline delivery retries never re-execute the task. Protocol negotiation may observe native, HTTP/JSON, MCP, webhook, SSE, WebSocket, or queue compatibility without granting execution or traffic authority. One receipt lineage remains Omnichannel ingress → interaction → negotiation → execution → delivery; translation, transcription, and other derivatives retain source fingerprints. GitHub Pages remains presentation-only.
+          </p>
+          <p>
             Held-out prediction-calibration backtest is observational empirical evidence only. Chronological train vs held-out windows fail closed on duplicate outcomes and overlapping timestamps. Summaries reuse summarizePredictionCalibration; planner-trust, calibration-gap, and normalized-error deltas are displayed without a hidden generalizes threshold, promotion, or traffic-authority claim. Execution readiness, cognition readiness, and traffic authority stay separate fail-closed claims. Merge #877 is not live traffic authority. github.io is presentation only and must not call authenticated APIs.
           </p>
           <dl>
@@ -261,6 +270,12 @@ export function CommandCockpit({
             <div><dt>mutation boundary</dt><dd>PR 550 same-origin only; cross-origin mutations fail closed with 403 gateway-same-origin-required</dd></div>
             <div><dt>workers builds detect</dt><dd>PR 562 root wrangler.toml → deploy/cloudflare-owner-gateway/worker.mjs</dd></div>
             <div><dt>ci publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
+            <div><dt>universal interaction</dt><dd>observational · interaction context is additive · no provider-route or authority grant</dd></div>
+            <div><dt>presentation/accessibility</dt><dd>Locale · timezone · RTL · ACCESSIBILITY_FIRST · phone/tablet/desktop/embedded/headless · presentation-only</dd></div>
+            <div><dt>delivery semantics</dt><dd>Execution ≠ delivery · online/degraded/offline · delivery retry never re-executes</dd></div>
+            <div><dt>protocol negotiation</dt><dd>native · HTTP/JSON · MCP · webhook · SSE · WebSocket · queue · observational only</dd></div>
+            <div><dt>receipt lineage</dt><dd>Omnichannel ingress → interaction → negotiation → execution → delivery</dd></div>
+            <div><dt>transform provenance</dt><dd>Translation · transcription · transformation provenance · derivatives retain source fingerprints</dd></div>
             <div><dt>railway status</dt><dd>legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority · no promotion or reconstruction path</dd></div>
             <div><dt>vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
             <div><dt>held-out backtest</dt><dd>{backtest.status} · {backtest.reason} · plannerTrust Δ {backtest.trustDelta ?? "unverified"} · calibration-gap Δ {backtest.calibrationGapDelta ?? "unverified"} · normalized-error Δ {backtest.normalizedErrorDelta ?? "unverified"} · fingerprint {backtest.fingerprint ? backtest.fingerprint.slice(0, 12) : "unverified"} · observational only</dd></div>
