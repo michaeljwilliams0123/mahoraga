@@ -211,9 +211,15 @@ function normalizeFreshness(value, receivedAt, expiresAt, now) {
   const nowMs = Date.parse(timestamp(now, "universal-interaction-time-invalid"));
   const receivedMs = Date.parse(receivedAt);
   const expiresMs = Date.parse(expiresAt);
-  const expected = nowMs >= expiresMs ? "expired" : nowMs < receivedMs ? "stale" : "fresh";
-  if (claimed !== expected) fail("universal-interaction-freshness-invalid");
-  return claimed;
+  const expected = nowMs >= expiresMs
+    ? "expired"
+    : nowMs - receivedMs > 30 * 60 * 1000
+      ? "stale"
+      : "fresh";
+  if (claimed !== expected && !(claimed === "stale" && expected === "expired")) {
+    fail("universal-interaction-freshness-invalid");
+  }
+  return expected;
 }
 
 function exactRequired(value, allowedKeys, code) {

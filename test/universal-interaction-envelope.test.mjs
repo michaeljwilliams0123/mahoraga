@@ -179,3 +179,11 @@ test("validator rejects tampering and unknown output fields", async () => {
   assert.throws(() => validateUniversalInteractionEnvelope({ ...value, fingerprint: "0".repeat(64) }, { now: NOW }), /universal-interaction-fingerprint-invalid/);
   assert.throws(() => validateUniversalInteractionEnvelope({ ...value, trafficAuthority: true }, { now: NOW }), /universal-interaction-envelope-invalid/);
 });
+
+test("preserves omnichannel stale freshness before expiry", async () => {
+  const { projectUniversalInteractionEnvelope } = await loadSubject();
+  const ingress = { ...makeIngress(), freshness: "stale" };
+  const staleNow = "2026-09-29T13:16:57.000Z";
+  const value = projectUniversalInteractionEnvelope(ingress, context(), { now: staleNow });
+  assert.equal(value.freshness, "stale");
+});
