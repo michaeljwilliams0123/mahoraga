@@ -172,21 +172,21 @@ describe("ExecutionDurableObject", () => {
 });
 
 const INTERACTION_NOW = "2026-09-29T22:45:00.000Z";
-function interactionFixture({ protocolFamily = "http-json", networkClass = "degraded" } = {}) {
+function interactionFixture({ protocolFamily = "http-json", networkClass = "degraded", now = INTERACTION_NOW } = {}) {
   const ingress = createOmnichannelEnvelope({
     source:"owner-request", actor:{ actorType:"owner", actorId:"owner", trustClass:"owner-explicit", accountBoundary:"synthetic" },
     object:{ surface:"control-center", requestId:"runtime-interaction-1", objectType:"request" }, allowedActionClass:"observe",
     correlationId:"corr-runtime-interaction-1", idempotencyKey:"interaction:runtime-1",
     contentReferences:["vault:12345678-1234-4234-8234-123456789abc"], routeHint:{ capability:"repository.inspect", actionPackId:"universal-interaction" }, metadata:{ channel:"owner" }, zeroCreditEligible:true,
-  }, { now:INTERACTION_NOW, ttlSeconds:3600 });
+  }, { now, ttlSeconds:3600 });
   const envelope = projectUniversalInteractionEnvelope(ingress, {
     modalities:["text","structured"],
     presentation:{ locale:"en-US", timeZone:"America/New_York", direction:"ltr", measurementSystem:"us", currency:"USD", deviceClass:"phone", networkClass },
     delivery:{ supportsStreaming:true, supportsMarkdown:true, supportsRichText:true, supportsImages:false, supportsAudio:false, supportsVideo:false, supportsFiles:false, maxOutputBytes:4096 },
     protocol:{ family:protocolFamily, version:"1.0", schemaIds:["mahoraga.interaction.v1"] }, requestedCapability:"repository.inspect",
-  }, { now:INTERACTION_NOW });
+  }, { now });
   const adapter = { adapterId:`trusted-${protocolFamily.replace(/[^a-z]/g,"-")}`, family:protocolFamily, versions:["1.0"], schemaIds:["mahoraga.interaction.v1"], modalities:["text","structured"], maxPayloadBytes:8192 };
-  return { envelope, accepted:negotiateInteractionProtocol(envelope, [adapter], { now:INTERACTION_NOW }), held:negotiateInteractionProtocol(envelope, [], { now:INTERACTION_NOW }) };
+  return { envelope, accepted:negotiateInteractionProtocol(envelope, [adapter], { now }), held:negotiateInteractionProtocol(envelope, [], { now }) };
 }
 
 describe("universal interaction runtime lineage", () => {
@@ -242,7 +242,7 @@ describe("universal interaction runtime lineage", () => {
   });
 
   it("blocks held negotiation before the execution broker can become a fallback", async () => {
-    const { envelope, held } = interactionFixture();
+    const { envelope, held } = interactionFixture({ now:new Date().toISOString() });
     const stub = env.EXECUTION_DO.getByName("interaction-held-before-broker");
     const response = await stub.fetch("https://execution.example/api/native/bridge", {
       method:"POST", headers:{ "content-type":"application/json", "x-mahoraga-verified-owner":"owner@example.com", "x-mahoraga-verified-nonce":"22345678-1234-4234-8234-123456789abc" },
