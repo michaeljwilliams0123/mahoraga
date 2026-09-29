@@ -1,8 +1,8 @@
+import type { RuntimeCapability } from "@/lib/runtime-relay";
 import { projectProviderAdmissionLiveness } from "@/lib/provider-admission-liveness";
-import type { Health } from "../workspace/workspace-types";
 
-export function ProviderAdmissionRenewalCard({ health }: { health: Health | null }) {
-  const admissionLiveness = projectProviderAdmissionLiveness(health);
+export function ProviderAdmissionRenewalCard({ runtimeCapabilities }: { runtimeCapabilities: readonly RuntimeCapability[] }) {
+  const admissionLiveness = projectProviderAdmissionLiveness(runtimeCapabilities);
   return (
     <article className={`eclipse-status-card ${admissionLiveness.tone}`}>
       <span>Provider admission renewal</span>
