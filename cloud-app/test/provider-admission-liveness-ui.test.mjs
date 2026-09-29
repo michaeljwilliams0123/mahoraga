@@ -11,16 +11,21 @@ const grid = readFileSync(join(root, "components/cockpit/ConnectorRoutingCards.t
 const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
 
 describe("provider admission renewal UI", () => {
-  it("encodes cadence isolation and observational fields", () => {
+  it("binds liveness to authoritative runtime capability evidence and fails closed", () => {
     assert.match(surface, /11,26,41,56/);
     assert.match(surface, /not top-of-hour/);
     assert.match(surface, /isolated from deploy workflow concurrency/);
+    assert.match(surface, /assistant\.respond/);
+    assert.match(surface, /capability\.routable === true/);
+    assert.match(surface, /providerReasonCode/);
+    assert.match(surface, /zeroCreditEligible === true/);
+    assert.match(surface, /expiry\.timestamp > now/);
     assert.match(surface, /canaryExpiresAt/);
-    assert.match(surface, /zeroCreditEligible/);
     assert.match(surface, /never invent live proof/);
-    assert.match(card, /Provider admission renewal/);
-    assert.match(card, /projectProviderAdmissionLiveness/);
-    assert.match(grid, /ProviderAdmissionRenewalCard/);
+    assert.match(card, /runtimeCapabilities/);
+    assert.match(card, /projectProviderAdmissionLiveness\(runtimeCapabilities\)/);
+    assert.match(grid, /ProviderAdmissionRenewalCard runtimeCapabilities=\{runtimeCapabilities\}/);
+    assert.doesNotMatch(card, /health/);
     assert.match(cockpit, /ConnectorRoutingCards/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
