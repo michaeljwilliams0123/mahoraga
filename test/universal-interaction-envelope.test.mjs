@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
 import { createOmnichannelEnvelope } from "../src/omnichannel-intake.mjs";
 
@@ -187,3 +188,20 @@ test("preserves omnichannel stale freshness before expiry", async () => {
   const value = projectUniversalInteractionEnvelope(ingress, context(), { now: staleNow });
   assert.equal(value.freshness, "stale");
 });
+
+
+test("validator binds deterministic interaction identity to ingress lineage even with recomputed fingerprint", async () => {
+  const { projectUniversalInteractionEnvelope, validateUniversalInteractionEnvelope } = await loadSubject();
+  const value = projectUniversalInteractionEnvelope(makeIngress(), context(), { now: NOW });
+  const tampered = { ...value, interactionId: `interaction-${"f".repeat(32)}` };
+  const unsigned = { ...tampered };
+  delete unsigned.fingerprint;
+  tampered.fingerprint = createHash("sha256").update(canonicalJsonForTest(unsigned)).digest("hex");
+  assert.throws(() => validateUniversalInteractionEnvelope(tampered, { now: NOW }), /universal-interaction-id-invalid/);
+});
+
+function canonicalJsonForTest(value) {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJsonForTest).join(",")}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJsonForTest(value[key])}`).join(",")}}`;
+}

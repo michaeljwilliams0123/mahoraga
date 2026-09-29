@@ -61,11 +61,7 @@ export function projectUniversalInteractionEnvelope(omnichannel, context = {}, {
   const delivery = normalizeDelivery(context.delivery);
   const protocol = normalizeProtocol(context.protocol);
   const requestedCapability = normalizeRequestedCapability(context.requestedCapability, ingress.routeHint.capability);
-  const interactionId = `interaction-${digest(canonicalJson({
-    sourceEnvelopeId: ingress.envelopeId,
-    correlationId: ingress.correlationId,
-    idempotencyKey: ingress.idempotencyKey,
-  })).slice(0, 32)}`;
+  const interactionId = interactionIdFor(ingress.envelopeId, ingress.correlationId, ingress.idempotencyKey);
 
   const record = {
     schemaVersion: UNIVERSAL_INTERACTION_SCHEMA_VERSION,
@@ -121,6 +117,9 @@ export function validateUniversalInteractionEnvelope(value, { now = new Date().t
   };
   if (Object.hasOwn(value, "requestedCapability")) {
     normalized.requestedCapability = bounded(value.requestedCapability, 64, "universal-interaction-capability-invalid", CAPABILITY);
+  }
+  if (normalized.interactionId !== interactionIdFor(normalized.sourceEnvelopeId, normalized.correlationId, normalized.idempotencyKey)) {
+    fail("universal-interaction-id-invalid");
   }
   const expectedFingerprint = digest(canonicalJson(normalized));
   if (value.fingerprint !== expectedFingerprint) fail("universal-interaction-fingerprint-invalid");
@@ -258,6 +257,10 @@ function boolean(value, code) {
 function timestamp(value, code) {
   if (typeof value !== "string" || !Number.isFinite(Date.parse(value))) fail(code);
   return new Date(Date.parse(value)).toISOString();
+}
+
+function interactionIdFor(sourceEnvelopeId, correlationId, idempotencyKey) {
+  return `interaction-${digest(canonicalJson({ sourceEnvelopeId, correlationId, idempotencyKey })).slice(0, 32)}`;
 }
 
 function digest(value) {
