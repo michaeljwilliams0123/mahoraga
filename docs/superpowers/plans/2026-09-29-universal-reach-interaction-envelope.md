@@ -226,6 +226,7 @@ git commit -m "feat(interaction): add replay-safe delivery receipts"
 - Produces:
   - `createTransformationReceipt(input, { now } = {})`
   - `validateTransformationReceipt(value)`
+  - `sourceEvidenceReference(receipt)`
   - frozen `interaction-transformation-receipt` records.
 - Transform kinds: `translation|transcription|ocr|summarization|resize|format-conversion`.
 
@@ -235,7 +236,7 @@ Assert deterministic receipt creation for translation/transcription; output refe
 
 - [ ] **Step 2: Add authority and evidence-separation tests**
 
-Assert the derivative receipt contains no traffic authority, provider credential, action authority, or execution promotion; a helper `sourceEvidenceReference(receipt)` returns the original source reference, never the derivative.
+Assert the derivative receipt contains no traffic authority, provider credential, action authority, or execution promotion; `sourceEvidenceReference(receipt)` returns the original source reference, never the derivative.
 
 - [ ] **Step 3: Run focused tests and verify RED**
 
