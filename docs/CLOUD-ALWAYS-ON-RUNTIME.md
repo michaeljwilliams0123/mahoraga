@@ -4,7 +4,7 @@ GitHub `main` is source authority. Cloudflare `mahoraga-execution-runtime` is th
 
 On 2026-09-25, [run 36087031059, attempt 3](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/36087031059) accepted exact SHA `eabfedd95877847bc8cdf407dfe0559d7a56bcbe`. It tested Cloudflare Access, served provenance, fresh billing/provider evidence, real cognition, stale-SHA rejection, one execution under concurrent duplicate requests, durable replay across a Worker redeploy, fail-closed zero-dollar admission, and no Railway fallback. A subsequent `main` merge invalidates this SHA as current acceptance evidence until its own hosted run passes. `/api/live` is liveness; `/api/ready` is application/provenance readiness. Neither alone grants owner authority or proves traffic/domain promotion.
 
-Railway `mahoraga-runtime-main` and its persistent volume remain rollback/evidence infrastructure. It is non-routing in the Cloudflare execution path. Do not delete or promote Railway as a side effect of Cloudflare acceptance. Windows 3.6.0 remains the protected device rollback predecessor.
+Railway `mahoraga-runtime-main` and its persistent volume are legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority. Do not repair, revive, route to, or promote Railway as a side effect of Cloudflare acceptance. Windows 3.6.0 remains the protected device rollback predecessor.
 
 ## Owner and command boundary
 
@@ -18,7 +18,7 @@ The bridge serves `chat`, `tasks`, `messages`, and `message-content` through the
 2. Run the owner-gated exact-main Cloudflare workflow. It proves same-account Billing Read, deploys the isolated provider and execution runtime, admits a fresh provider canary, then deploys the owner gateway. The scheduled job renews provider evidence without deploying.
 3. Require its sanitized live acceptance receipt on the same SHA. Inspect `accessProtected`, `runtimeAttestationVerified`, `trafficAuthorityVerified` for the Cloudflare execution route, `providerCognitionVerified`, `hardZeroBillingVerified`, `failClosedZeroBillingVerified`, `noRailwayFallbackVerified`, `durableContinuityVerified`, and `executionUniqueness.atMostOneVerified`. The receipt must contain no prompt, response, or credential value.
 4. Independently prove owner browser authentication and one real Pages/gateway/native-bridge transaction at the chosen origin before declaring that entire user path complete. Verify any custom-domain/DNS promotion as a separate traffic authority claim. Cloudflare execution acceptance does not self-promote a browser hostname.
-5. After every merged source change, repeat exact-main acceptance. Keep Railway on standby for separately authorized rollback only; never infer Cloudflare failure from Railway health or call Railway during this path.
+5. After every merged source change, repeat exact-main acceptance. Keep Railway outside the execution path as legacy evidence only; never infer Cloudflare failure from Railway health or call Railway during this path.
 
 ## Cloudflare owner gateway deployment
 
