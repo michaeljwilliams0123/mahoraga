@@ -200,6 +200,7 @@ jobs:
           MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.cadence.outputs.anchor_iso }}
           MAHORAGA_CANDIDATE_PRODUCER: github-native
           MAHORAGA_VERCEL_DEPLOYMENTS_TODAY: ${{ steps.heartbeat.outputs.hosted_used }}
+          MAHORAGA_MAX_LINE_CHANGES: 200
         shell: bash
         run: |
           set -euo pipefail
