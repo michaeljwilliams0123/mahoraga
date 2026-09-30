@@ -1,6 +1,7 @@
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 
 export const PROVIDER_ADMISSION_RENEWAL_CADENCE = "11,26,41,56";
+export const PROVIDER_ADMISSION_SAFETY_MARGIN_MS = 60_000;
 
 type AdmissionBearingCapability = RuntimeCapability & {
   canaryExpiresAt?: string | number | null;
@@ -54,14 +55,13 @@ export function projectProviderAdmissionLiveness(
 
   const expiry = parseExpiry(assistant.canaryExpiresAt);
   const zeroCreditEligible = typeof assistant.zeroCreditEligible === "boolean" ? assistant.zeroCreditEligible : null;
-  const hasExplicitAdmissionFields = assistant.canaryExpiresAt !== undefined || assistant.zeroCreditEligible !== undefined;
   const routeAdmitted = assistant.routable === true && assistant.enabled !== false;
-  const explicitAdmissionHealthy = zeroCreditEligible === true && expiry.timestamp !== null && expiry.timestamp > now;
-  const healthy = hasExplicitAdmissionFields ? routeAdmitted && explicitAdmissionHealthy : routeAdmitted;
+  const explicitAdmissionHealthy = zeroCreditEligible === true && expiry.timestamp !== null && expiry.timestamp > now + PROVIDER_ADMISSION_SAFETY_MARGIN_MS;
+  const healthy = routeAdmitted && explicitAdmissionHealthy;
   const statusLabel = healthy ? "Current / admitted" : "Unavailable / fail-closed";
   const reason = assistant.providerReasonCode ?? assistant.routingReason ?? (healthy ? "runtime admission current" : "provider admission unavailable");
-  const eligibility = zeroCreditEligible === null ? "zeroCreditEligible enforced by authoritative runtime route" : `zeroCreditEligible ${String(zeroCreditEligible)}`;
-  const expiryLabel = expiry.label === null ? "canary freshness enforced by authoritative runtime route" : `canaryExpiresAt ${expiry.label}`;
+  const eligibility = zeroCreditEligible === null ? "explicit zeroCreditEligible proof unavailable" : `zeroCreditEligible ${String(zeroCreditEligible)}`;
+  const expiryLabel = expiry.label === null ? "explicit canary freshness proof unavailable" : `canaryExpiresAt ${expiry.label}`;
   const detail = [
     "Separate from /cycle health and deployment reachability",
     `renewal cadence quarter-hour ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (not top-of-hour)`,

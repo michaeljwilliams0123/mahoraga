@@ -10,6 +10,7 @@ import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
 import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
 import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
 import { InteractionTruthCards } from "./InteractionTruthCards";
+import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -274,6 +275,7 @@ export function CockpitView({
         <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <InteractionTruthCards truth={interactionTruth} />
+        <TransformationProvenanceCards />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard

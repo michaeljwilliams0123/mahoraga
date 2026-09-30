@@ -223,7 +223,7 @@ test("universal reach preserves one bounded execution lineage through offline de
     const projected = projectInteractionTruth({
       interaction: reconnected.truth.interactionTruth,
       delivery: reconnected.truth.deliveryTruth,
-    });
+    }, { now:"2026-09-30T00:22:00.000Z" });
     assert.equal(projected.state, "observed");
     assert.equal(projected.interaction.interactionId, envelope.interactionId);
     assert.equal(projected.interaction.deviceClass, "phone");

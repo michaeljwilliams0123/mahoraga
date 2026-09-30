@@ -77,3 +77,18 @@ test("validation detects tampering and optional quality/confidence remain bounde
   const receipt = createTransformationReceipt(input(), { now:NOW });
   assert.throws(() => validateTransformationReceipt({ ...receipt, outputFingerprint:"c".repeat(64) }), /interaction-transformation-receipt-fingerprint-invalid/);
 });
+
+
+test("validation distinguishes fingerprint integrity from temporal freshness", () => {
+  const future = createTransformationReceipt(input(), { now:"2026-09-29T23:00:00.000Z" });
+  assert.throws(
+    () => validateTransformationReceipt(future, { now:NOW, maxFutureSkewMs:60_000 }),
+    /interaction-transformation-time-future/,
+  );
+
+  const stale = createTransformationReceipt(input(), { now:"2026-09-29T20:00:00.000Z" });
+  assert.throws(
+    () => validateTransformationReceipt(stale, { now:NOW, maximumAgeMs:60_000 }),
+    /interaction-transformation-time-stale/,
+  );
+});

@@ -129,7 +129,19 @@ function validDelivery(value: unknown): value is RuntimeDeliveryTruth {
   return true;
 }
 
-export function projectInteractionTruth(value: unknown): ProjectedInteractionTruth {
+
+function temporalHoldReason(value: unknown, prefix: string, { now, maximumAgeMs, maxFutureSkewMs }: { now: number | string | Date; maximumAgeMs: number | null; maxFutureSkewMs: number }): string | null {
+  const nowMs = now instanceof Date ? now.getTime() : typeof now === "number" ? now : Date.parse(now);
+  if (!Number.isFinite(nowMs) || !Number.isSafeInteger(maxFutureSkewMs) || maxFutureSkewMs < 0 || (maximumAgeMs !== null && (!Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 0))) return `${prefix}-time-policy-invalid`;
+  if (value === undefined || value === null) return maximumAgeMs === null ? null : `${prefix}-time-unavailable`;
+  const observedMs = Date.parse(String(value));
+  if (!Number.isFinite(observedMs)) return `${prefix}-time-invalid`;
+  if (observedMs > nowMs + maxFutureSkewMs) return `${prefix}-future`;
+  if (maximumAgeMs !== null && observedMs < nowMs - maximumAgeMs) return `${prefix}-stale`;
+  return null;
+}
+
+export function projectInteractionTruth(value: unknown, { now = Date.now(), maximumAgeMs = 15 * 60_000, maxFutureSkewMs = 60_000 }: { now?: number | string | Date; maximumAgeMs?: number | null; maxFutureSkewMs?: number } = {}): ProjectedInteractionTruth {
   if (value === null || value === undefined) {
     return { state: "absent", reason: "interaction-truth-absent", interaction: null, delivery: null };
   }
@@ -164,6 +176,12 @@ export function projectInteractionTruth(value: unknown): ProjectedInteractionTru
   }
   if (delivery?.status === "hold") {
     return { state: "hold", reason: delivery.reason ?? "delivery-held", interaction, delivery };
+  }
+  const interactionTemporalReason = temporalHoldReason(interaction.observedAt, "interaction-truth", { now, maximumAgeMs, maxFutureSkewMs });
+  if (interactionTemporalReason !== null) return { state:"hold", reason:interactionTemporalReason, interaction, delivery };
+  if (delivery !== null) {
+    const deliveryTemporalReason = temporalHoldReason(delivery.observedAt, "delivery-truth", { now, maximumAgeMs, maxFutureSkewMs });
+    if (deliveryTemporalReason !== null) return { state:"hold", reason:deliveryTemporalReason, interaction, delivery };
   }
   return { state: "observed", reason: "interaction-truth-observed", interaction, delivery };
 }

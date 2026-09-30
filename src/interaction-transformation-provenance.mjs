@@ -26,10 +26,10 @@ export function createTransformationReceipt(input, { now = new Date().toISOStrin
   if (normalized.sourceReference === normalized.outputReference || normalized.sourceFingerprint === normalized.outputFingerprint) {
     fail("interaction-transformation-derivative-invalid");
   }
-  return validateTransformationReceipt({ ...normalized, fingerprint:digest(canonicalJson(normalized)) });
+  return validateTransformationReceipt({ ...normalized, fingerprint:digest(canonicalJson(normalized)) }, { now });
 }
 
-export function validateTransformationReceipt(value) {
+export function validateTransformationReceipt(value, { now = new Date().toISOString(), maxFutureSkewMs = 60_000, maximumAgeMs = null } = {}) {
   exactOptional(value, RECEIPT_KEYS, ["confidence","qualityMetadata"], "interaction-transformation-receipt-invalid", REQUIRED_RECEIPT_KEYS);
   if (value.schemaVersion !== 1 || value.kind !== "interaction-transformation-receipt") fail("interaction-transformation-receipt-invalid");
   const normalized = normalizeCore(value);
@@ -38,6 +38,11 @@ export function validateTransformationReceipt(value) {
   }
   const fingerprint = bounded(value.fingerprint, 64, "interaction-transformation-receipt-fingerprint-invalid", HEX64);
   if (fingerprint !== digest(canonicalJson(normalized))) fail("interaction-transformation-receipt-fingerprint-invalid");
+  if (!Number.isSafeInteger(maxFutureSkewMs) || maxFutureSkewMs < 0 || (maximumAgeMs !== null && (!Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 0))) fail("interaction-transformation-time-policy-invalid");
+  const nowMs = Date.parse(timestamp(now, "interaction-transformation-time-invalid"));
+  const transformedMs = Date.parse(normalized.transformedAt);
+  if (transformedMs > nowMs + maxFutureSkewMs) fail("interaction-transformation-time-future");
+  if (maximumAgeMs !== null && transformedMs < nowMs - maximumAgeMs) fail("interaction-transformation-time-stale");
   return deepFreeze({ ...normalized, fingerprint });
 }
 
