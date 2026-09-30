@@ -21,10 +21,13 @@ export function backtestPredictionCalibration(cases, {
   const train = ordered.slice(0, split);
   const heldOut = ordered.slice(split);
   if (train.at(-1).observedAt >= heldOut[0].observedAt) fail('prediction-backtest-leakage');
+  const trainLineages = new Set(train.map((item) => item.predictionReceiptFingerprint));
+  if (heldOut.some((item) => trainLineages.has(item.predictionReceiptFingerprint))) fail('prediction-backtest-lineage-leakage');
 
   const summaryOptions = { minimumSamples, maximumSamples };
   const trainSummary = summarizePredictionCalibration(train.map(({ outcome }) => outcome), summaryOptions);
   const heldOutSummary = summarizePredictionCalibration(heldOut.map(({ outcome }) => outcome), summaryOptions);
+  const regimeShiftDetected = detectRegimeShift(trainSummary, heldOutSummary);
   const segmentIds = [...new Set(ordered.map(({ segment }) => segment))].sort();
   const segments = segmentIds.map((segment) => {
     const trainItems = train.filter((item) => item.segment === segment);
@@ -35,13 +38,19 @@ export function backtestPredictionCalibration(cases, {
     const heldOutSegmentSummary = heldOutItems.length >= minimumSamples
       ? summarizePredictionCalibration(heldOutItems.map(({ outcome }) => outcome), summaryOptions)
       : null;
+    const segmentRegimeShiftDetected = trainSegmentSummary !== null && heldOutSegmentSummary !== null
+      ? detectRegimeShift(trainSegmentSummary, heldOutSegmentSummary)
+      : false;
     return deepFreeze({
       segment,
       trainSamples: trainItems.length,
       heldOutSamples: heldOutItems.length,
       trainSummary: trainSegmentSummary,
       heldOutSummary: heldOutSegmentSummary,
-      evidenceSufficient: trainSegmentSummary !== null && heldOutSegmentSummary !== null,
+      regimeShiftDetected: segmentRegimeShiftDetected,
+      evidenceSufficient: trainSegmentSummary?.evidenceSufficient === true
+        && heldOutSegmentSummary?.evidenceSufficient === true
+        && !segmentRegimeShiftDetected,
     });
   });
   const core = {
@@ -55,7 +64,8 @@ export function backtestPredictionCalibration(cases, {
     trustDelta: delta(heldOutSummary.plannerTrust, trainSummary.plannerTrust),
     calibrationGapDelta: delta(heldOutSummary.meanCalibrationGap, trainSummary.meanCalibrationGap),
     normalizedErrorDelta: delta(heldOutSummary.meanNormalizedError, trainSummary.meanNormalizedError),
-    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient,
+    regimeShiftDetected,
+    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient && !regimeShiftDetected && segments.every((item) => item.evidenceSufficient),
     segments: deepFreeze(segments),
     sourceFingerprints: deepFreeze(ordered.map(({ outcome }) => outcome.fingerprint)),
   };
@@ -68,7 +78,8 @@ function validateCase(value) {
   const outcome = value.outcome;
   if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome) || outcome.kind !== 'prediction-outcome-receipt' || outcome.schemaVersion !== 1) fail('prediction-backtest-invalid');
   if (typeof outcome.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(outcome.fingerprint)) fail('prediction-backtest-invalid');
-  return { segment: value.segment, observedAt: canonicalTimestamp(outcome.observedAt), outcome };
+  if (typeof outcome.predictionReceiptFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(outcome.predictionReceiptFingerprint)) fail('prediction-backtest-invalid');
+  return { segment: value.segment, observedAt: canonicalTimestamp(outcome.observedAt), predictionReceiptFingerprint: outcome.predictionReceiptFingerprint, outcome };
 }
 
 function canonicalTimestamp(value) {
@@ -76,6 +87,14 @@ function canonicalTimestamp(value) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) fail('prediction-backtest-invalid');
   return value;
+}
+
+function detectRegimeShift(trainSummary, heldOutSummary) {
+  return heldOutSummary.evidenceSufficient === true
+    && trainSummary.evidenceSufficient === true
+    && heldOutSummary.plannerTrust < trainSummary.plannerTrust
+    && heldOutSummary.meanNormalizedError > trainSummary.meanNormalizedError
+    && heldOutSummary.meanCalibrationGap > trainSummary.meanCalibrationGap;
 }
 
 function delta(later, earlier) {

@@ -92,6 +92,8 @@ const observedInteraction = {
   observedAt: "2026-09-29T21:00:00.000Z",
 };
 
+const TRUTH_OPTIONS = { now:Date.parse("2026-09-29T21:02:00.000Z"), maximumAgeMs:15 * 60_000, maxFutureSkewMs:60_000 };
+
 const observedDelivery = {
   status: "delivered",
   interactionId: "int-123",
@@ -104,7 +106,7 @@ const observedDelivery = {
 
 describe("normalized interaction and delivery truth", () => {
   it("projects a bounded observed receipt chain without granting authority", () => {
-    const truth = projectInteractionTruth({ interaction: observedInteraction, delivery: observedDelivery });
+    const truth = projectInteractionTruth({ interaction: observedInteraction, delivery: observedDelivery }, TRUTH_OPTIONS);
     assert.equal(truth.state, "observed");
     assert.equal(truth.interaction?.interactionId, "int-123");
     assert.equal(truth.interaction?.interactionFingerprint, "sha256:interaction");
@@ -115,7 +117,7 @@ describe("normalized interaction and delivery truth", () => {
 
   it("fails closed on authority-bearing or hardware-identity fields", () => {
     for (const forbidden of ["trafficAuthority", "providerRoute", "credentials", "headers", "imei", "macAddress", "advertisingId", "screenFingerprint"]) {
-      const truth = projectInteractionTruth({ interaction: { ...observedInteraction, [forbidden]: "forbidden" } });
+      const truth = projectInteractionTruth({ interaction: { ...observedInteraction, [forbidden]: "forbidden" } }, TRUTH_OPTIONS);
       assert.equal(truth.state, "hold", forbidden);
       assert.match(truth.reason ?? "", /invalid|forbidden/);
     }
@@ -125,7 +127,7 @@ describe("normalized interaction and delivery truth", () => {
     const truth = projectInteractionTruth({
       interaction: observedInteraction,
       delivery: { ...observedDelivery, interactionId: "int-other" },
-    });
+    }, TRUTH_OPTIONS);
     assert.equal(truth.state, "hold");
     assert.equal(truth.reason, "interaction-delivery-mismatch");
   });
@@ -141,7 +143,7 @@ describe("normalized interaction and delivery truth", () => {
 
   it("keeps normalized fingerprints stable across coarse presentation device classes", () => {
     for (const deviceClass of ["phone", "tablet", "desktop", "embedded", "headless"]) {
-      const truth = projectInteractionTruth({ interaction: { ...observedInteraction, deviceClass } });
+      const truth = projectInteractionTruth({ interaction: { ...observedInteraction, deviceClass } }, TRUTH_OPTIONS);
       assert.equal(truth.state, "observed");
       assert.equal(truth.interaction?.interactionFingerprint, "sha256:interaction");
       assert.equal(truth.interaction?.executionFingerprint, "sha256:execution");
@@ -156,5 +158,26 @@ describe("normalized interaction and delivery truth", () => {
 
     const machineId = "capability.assistant.respond";
     assert.equal(formatPresentationValue(machineId, { locale: "ar-EG", direction: "rtl" }), machineId);
+  });
+});
+
+
+describe("interaction truth temporal applicability", () => {
+  it("holds future-dated interaction truth even when the receipt chain is structurally valid", () => {
+    const truth = projectInteractionTruth(
+      { interaction: { ...observedInteraction, observedAt:"2026-09-29T22:00:00.000Z" } },
+      { now:Date.parse("2026-09-29T21:00:00.000Z"), maxFutureSkewMs:60_000, maximumAgeMs:15 * 60_000 },
+    );
+    assert.equal(truth.state, "hold");
+    assert.equal(truth.reason, "interaction-truth-future");
+  });
+
+  it("holds stale interaction truth instead of presenting historical integrity as current observation", () => {
+    const truth = projectInteractionTruth(
+      { interaction: { ...observedInteraction, observedAt:"2026-09-29T20:00:00.000Z" } },
+      { now:Date.parse("2026-09-29T21:00:00.000Z"), maxFutureSkewMs:60_000, maximumAgeMs:15 * 60_000 },
+    );
+    assert.equal(truth.state, "hold");
+    assert.equal(truth.reason, "interaction-truth-stale");
   });
 });

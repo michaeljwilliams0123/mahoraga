@@ -56,6 +56,7 @@ test("owner gateway admits only bounded sanitized interaction/delivery truth fro
       status:"queued", interactionId, taskId:"task-1", chainId:"chain-1", outputReferences:["artifact:result-1"],
       deliveryFingerprint:"d".repeat(64), observedAt:"2026-09-29T22:46:00.000Z", reason:"offline",
     },
+    runtimeTruthFingerprint:"e".repeat(64),
   };
   let runtimeResponse = validTruth;
   let calls = 0;

@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
 
+const OUTCOME_RECEIPT_KEYS = new Set([
+  'schemaVersion','kind','predictionReceiptFingerprint','predictionFingerprint','actionId','predictedAt','observedAt',
+  'predictedState','observedState','fieldAbsoluteErrors','meanAbsoluteError','fieldNormalizedErrors',
+  'normalizedMeanAbsoluteError','predictedConfidence','observedAccuracy','calibrationGap','fingerprint',
+]);
+
 export function createPredictionReceipt(prediction, { now = () => new Date() } = {}) {
   const value = validatePrediction(prediction);
   if (typeof now !== 'function') fail('prediction-receipt-invalid');
@@ -73,6 +79,7 @@ export function summarizePredictionCalibration(outcomes, { minimumSamples = 3, m
   if (new Set(sourceFingerprints).size !== sourceFingerprints.length) fail('prediction-calibration-duplicate-outcome');
 
   const sampleCount = normalized.length;
+  const independentPredictionCount = new Set(normalized.map((item) => item.predictionReceiptFingerprint)).size;
   const meanObservedAccuracy = average(normalized.map((item) => item.observedAccuracy));
   const meanPredictedConfidence = average(normalized.map((item) => item.predictedConfidence));
   const meanCalibrationGap = average(normalized.map((item) => item.calibrationGap));
@@ -87,7 +94,7 @@ export function summarizePredictionCalibration(outcomes, { minimumSamples = 3, m
     meanCalibrationGap,
     meanNormalizedError,
     plannerTrust,
-    evidenceSufficient: sampleCount >= minimumSamples,
+    evidenceSufficient: independentPredictionCount >= minimumSamples,
     sourceFingerprints: deepFreeze(sourceFingerprints),
   };
   return deepFreeze({ ...core, fingerprint: digest(core) });
@@ -117,9 +124,19 @@ function validateReceipt(value) {
 
 function validateOutcomeReceipt(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.kind !== 'prediction-outcome-receipt' || value.schemaVersion !== 1) fail('prediction-calibration-summary-invalid');
+  const keys = Object.keys(value);
+  if (keys.length !== OUTCOME_RECEIPT_KEYS.size || keys.some((key) => !OUTCOME_RECEIPT_KEYS.has(key))) fail('prediction-calibration-summary-invalid');
   if (typeof value.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.fingerprint)) fail('prediction-calibration-summary-invalid');
+  if (typeof value.predictionReceiptFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.predictionReceiptFingerprint)) fail('prediction-calibration-summary-invalid');
+  if (typeof value.predictionFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(value.predictionFingerprint)) fail('prediction-calibration-summary-invalid');
+  if (typeof value.actionId !== 'string' || !/^[a-z0-9][a-z0-9-]{0,95}$/.test(value.actionId)) fail('prediction-calibration-summary-invalid');
+  const predictedAt = canonicalTimestamp(value.predictedAt);
+  const observedAt = canonicalTimestamp(value.observedAt);
+  if (Date.parse(observedAt) < Date.parse(predictedAt)) fail('prediction-calibration-summary-invalid');
+  const core = Object.fromEntries([...OUTCOME_RECEIPT_KEYS].filter((key) => key !== 'fingerprint').map((key) => [key, value[key]]));
+  if (digest(core) !== value.fingerprint) fail('prediction-calibration-summary-invalid');
   return {
-    fingerprint: value.fingerprint,
+    fingerprint: value.fingerprint, predictionReceiptFingerprint: value.predictionReceiptFingerprint,
     observedAccuracy: score(value.observedAccuracy, 'prediction-calibration-summary-invalid'),
     predictedConfidence: score(value.predictedConfidence, 'prediction-calibration-summary-invalid'),
     calibrationGap: score(value.calibrationGap, 'prediction-calibration-summary-invalid'),
