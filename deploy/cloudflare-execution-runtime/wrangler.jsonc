@@ -29,8 +29,12 @@
       "PROVIDER_REFRESH_SECRET",
       "ZERO_CREDIT_PROVIDER_URL",
       "ZERO_CREDIT_PROVIDER_TOKEN",
-      "ZERO_CREDIT_ACCOUNT_ID_HASH"
+      "ZERO_CREDIT_ACCOUNT_ID_HASH",
+      "TELEMETRY_STREAM_TOKEN"
     ]
+  },
+  "vars": {
+    "MAHORAGA_WORKSPACE_ORIGIN": "https://michaeljwilliams0123.github.io"
   },
   "observability": {
     "enabled": true
