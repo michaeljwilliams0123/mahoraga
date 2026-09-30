@@ -125,14 +125,6 @@ MAHORAGA_GIT_COMMIT_REF=main
 
 Retired Vercel variables are ignored by the active health route and cannot become a fallback signal.
 
-## Telemetry stream deployment prerequisite
-
-Deployment will require configuring the new `TELEMETRY_STREAM_TOKEN` Cloudflare secret. Windows production remains unchanged at `3.6.0`.
-
-The value must be an owner-controlled random secret of at least 32 characters. Store the same value in the GitHub Actions repository secret named `TELEMETRY_STREAM_TOKEN`; the exact-main deployment workflow passes it to Wrangler only through its temporary mode-`0600` secrets file. Never commit the value, add it to a public `NEXT_PUBLIC_*` variable, or place it in an SSE query string.
-
-After the secret is configured, the deployment lane must still prove exact-main verification before updating the Cloudflare runtime. This follow-up does not activate the alpha runtime on Windows and does not alter the Windows `3.6.0` rollback boundary.
-
 ## Activation gate
 
 Do not change the canonical repository URL to a Workers hostname until all of the

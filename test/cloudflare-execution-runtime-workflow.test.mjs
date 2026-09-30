@@ -33,8 +33,7 @@ test("Cloudflare exact-main workflow preserves SHA authority and fails closed on
   assert.match(workflow, /CLOUDFLARE_ACCESS_CLIENT_SECRET:\s*\$\{\{ secrets\.CLOUDFLARE_ACCESS_CLIENT_SECRET \}\}/);
   assert.match(workflow, /ZERO_CREDIT_PROVIDER_TOKEN:\s*\$\{\{ secrets\.ZERO_CREDIT_PROVIDER_TOKEN \}\}/);
   assert.match(workflow, /PROVIDER_REFRESH_SECRET:\s*\$\{\{ secrets\.PROVIDER_REFRESH_SECRET \}\}/);
-  assert.match(workflow, /TELEMETRY_STREAM_TOKEN:\s*\$\{\{ secrets\.TELEMETRY_STREAM_TOKEN \}\}/);
-  assert.match(workflow, /TELEMETRY_STREAM_TOKEN must be configured as a repository secret with at least 32 characters/);
+  assert.doesNotMatch(workflow, /TELEMETRY_STREAM_TOKEN:\s*\$\{\{ secrets\.TELEMETRY_STREAM_TOKEN \}\}/);
   assert.match(workflow, /Cloudflare deployment credentials are not configured/);
   assert.match(workflow, /Cloudflare Access credentials are not configured/);
   assert.match(workflow, /Hard-zero provider credentials are not configured/);
@@ -64,7 +63,6 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   assert.doesNotMatch(workflow, /openssl rand -hex 32/);
   assert.doesNotMatch(workflow, /secret put ZERO_CREDIT_PROVIDER_TOKEN/);
   assert.doesNotMatch(workflow, /secret put PROVIDER_REFRESH_SECRET/);
-  assert.match(workflow, /TELEMETRY_STREAM_TOKEN: telemetryStreamToken/);
   assert.doesNotMatch(workflow, /secret put TELEMETRY_STREAM_TOKEN/);
   assert.match(workflow, /provider-admitted/);
   assert.equal(

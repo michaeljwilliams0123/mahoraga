@@ -41,7 +41,6 @@ jobs:
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
       ZERO_CREDIT_PROVIDER_TOKEN: ${{ secrets.ZERO_CREDIT_PROVIDER_TOKEN }}
       PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
-      TELEMETRY_STREAM_TOKEN: ${{ secrets.TELEMETRY_STREAM_TOKEN }}
       ZERO_CREDIT_PROVIDER_URL: https://mahoraga-zero-credit-inference.mahoraga-mjw0123.workers.dev/
 
     steps:
@@ -91,10 +90,6 @@ jobs:
             echo "::error::Hard-zero provider credentials are not configured for the hosted exact-main lane."
             exit 1
           fi
-          if [ "${#TELEMETRY_STREAM_TOKEN}" -lt 32 ]; then
-            echo "::error::TELEMETRY_STREAM_TOKEN must be configured as a repository secret with at least 32 characters."
-            exit 1
-          fi
 
       - name: Prove account-level hard-zero billing and prepare provider material
         shell: bash
@@ -110,9 +105,8 @@ jobs:
           const providerToken = (process.env.ZERO_CREDIT_PROVIDER_TOKEN ?? '').trim();
           const refreshSecret = (process.env.PROVIDER_REFRESH_SECRET ?? '').trim();
           const providerUrl = (process.env.ZERO_CREDIT_PROVIDER_URL ?? '').trim();
-          const telemetryStreamToken = (process.env.TELEMETRY_STREAM_TOKEN ?? '').trim();
           const accountHash = (process.env.ZERO_CREDIT_ACCOUNT_ID_HASH ?? '').trim();
-          if (providerToken.length < 32 || refreshSecret.length < 32 || telemetryStreamToken.length < 32 || !providerUrl || !accountHash) {
+          if (providerToken.length < 32 || refreshSecret.length < 32 || !providerUrl || !accountHash) {
             throw new Error('hard-zero-provider-material-invalid');
           }
           await writeFile(
@@ -127,7 +121,6 @@ jobs:
               ZERO_CREDIT_PROVIDER_URL: providerUrl,
               ZERO_CREDIT_PROVIDER_TOKEN: providerToken,
               ZERO_CREDIT_ACCOUNT_ID_HASH: accountHash,
-              TELEMETRY_STREAM_TOKEN: telemetryStreamToken,
             }),
             { encoding: 'utf8', mode: 0o600 },
           );
