@@ -26,13 +26,16 @@ describe("7.0.0-alpha.2 transformation provenance cockpit UI", () => {
   });
 
   it("surfaces all six transformation kinds as observational cards", () => {
+    const surface = projectTransformationProvenanceSurface();
     for (const kind of ["translation", "transcription", "ocr", "summarization", "resize", "format-conversion"]) {
-      assert.match(cards, new RegExp(kind));
+      assert.ok(surface.kinds.includes(kind), kind);
       assert.match(surfaceSrc, new RegExp(kind));
     }
     assert.match(cockpitView, /Translation · transcription · transformation provenance/);
     assert.match(commandCockpit, /TRANSFORM_PROVENANCE_OBS/);
     assert.match(cards, /observational StatusCards and telemetry only/);
+    assert.match(cockpitView, /<TransformationProvenanceCards \/>/);
+    assert.match(commandCockpit, /<TransformationProvenanceCards \/>/);
   });
 
   it("keeps source and derivative references distinct", () => {

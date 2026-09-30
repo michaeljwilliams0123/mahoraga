@@ -20,6 +20,7 @@ import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
+import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
 const HELPERS = [
@@ -231,6 +232,7 @@ export function CommandCockpit({
 
         <section className="eclipse-status-grid" aria-label="Observed interaction and delivery truth">
           <InteractionTruthCards truth={interactionTruth} />
+          <TransformationProvenanceCards />
         </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
