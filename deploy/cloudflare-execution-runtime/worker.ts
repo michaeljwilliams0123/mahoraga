@@ -13,6 +13,7 @@ import { createCognitiveIndividual } from "../../src/cognitive-individual.mjs";
 import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
 import type { ConnectorBrokerBinding } from "./connector-capability-router";
 import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from "./universal-capability-router";
+import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth } from "./interaction-runtime";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -63,15 +64,9 @@ export async function projectRuntimeCapabilities({ assistant, executionBroker, c
 }
 export function runtimeContextFromCapabilities(routes: RuntimeCapabilityProjection[]): ProviderRuntimeContext {
   const capabilities: Record<string, "routable" | "unavailable"> = {
-    "assistant.respond": "unavailable",
-    "codex.execute": "unavailable",
-    "cognitive.predict": "unavailable",
-    "cognitive.cycle": "unavailable",
-    "cognitive.deliberate": "unavailable",
-    "browser.execute": "unavailable",
-    "image.generate": "unavailable",
-    "memory.write": "unavailable",
-    "repository.inspect": "unavailable",
+    "assistant.respond": "unavailable", "codex.execute": "unavailable", "cognitive.predict": "unavailable",
+    "cognitive.cycle": "unavailable", "cognitive.deliberate": "unavailable", "browser.execute": "unavailable",
+    "image.generate": "unavailable", "memory.write": "unavailable", "repository.inspect": "unavailable",
   };
   for (const route of routes) capabilities[route.capability] = route.routable && route.enabled ? "routable" : "unavailable";
   return { capabilities, receipts: [], connectionState: "connected" };
@@ -116,13 +111,8 @@ async function conversationMessages(storage: StorageAdapter, conversationId: str
   for (const turn of completed.reverse()) {
     const user = storage.getContentRecord(turn.contentIdUser);
     const assistant = storage.getContentRecord(turn.contentIdAssistant!);
-    if (!user || !assistant || user.conversationId !== conversationId || assistant.conversationId !== conversationId || user.role !== "user" || assistant.role !== "assistant") {
-      throw new Error("content-vault-decryption-failed");
-    }
-    const [userText, assistantText] = await Promise.all([
-      decryptConversationContent(user, vaultKey),
-      decryptConversationContent(assistant, vaultKey),
-    ]);
+    if (!user || !assistant || user.conversationId !== conversationId || assistant.conversationId !== conversationId || user.role !== "user" || assistant.role !== "assistant") throw new Error("content-vault-decryption-failed");
+    const [userText, assistantText] = await Promise.all([decryptConversationContent(user, vaultKey), decryptConversationContent(assistant, vaultKey)]);
     const next: ProviderMessage[] = [{ role: "user", content: userText }, { role: "assistant", content: assistantText }, ...selected];
     if (!providerMessagesWithinLimit(next)) break;
     selected.splice(0, selected.length, ...next);
@@ -150,14 +140,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
   private initialized = false;
   constructor(ctx: DurableObjectState, env: Env) { super(ctx, env); this.storage = new CloudflareDOSQLiteAdapter(ctx); }
   private initialize(): void { if (!this.initialized) { this.storage.initSchema(); this.initialized = true; } }
-  private providerConfig(): ZeroCreditProviderConfig {
-    return {
-      origin: this.env.ZERO_CREDIT_PROVIDER_URL,
-      token: this.env.ZERO_CREDIT_PROVIDER_TOKEN,
-      accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH,
-      targetSha: this.env.TARGET_SHA,
-    };
-  }
+  private providerConfig(): ZeroCreditProviderConfig { return { origin: this.env.ZERO_CREDIT_PROVIDER_URL, token: this.env.ZERO_CREDIT_PROVIDER_TOKEN, accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH, targetSha: this.env.TARGET_SHA }; }
   private providerGapResponse(error: unknown): Response | null {
     const reasonCode = providerGapReasonFromError(error);
     if (reasonCode === null) return null;
@@ -169,16 +152,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const probe = await probeZeroCreditProvider(this.providerConfig(), billingAttestation);
     const state = providerStateFromProbe(probe);
     this.storage.saveProviderState(state);
-    return json({
-      providerId: state.providerId,
-      available: state.available,
-      zeroCreditEligible: state.zeroCreditEligible,
-      reasonCode: state.reasonCode,
-      diagnostics: providerAdmissionDiagnostics(state.reasonCode),
-      verifiedAt: state.verifiedAt,
-      canaryExpiresAt: state.canaryExpiresAt,
-      capability: projectPersistedAssistantCapability(state),
-    }, state.zeroCreditEligible ? 200 : 503);
+    return json({ providerId: state.providerId, available: state.available, zeroCreditEligible: state.zeroCreditEligible, reasonCode: state.reasonCode, diagnostics: providerAdmissionDiagnostics(state.reasonCode), verifiedAt: state.verifiedAt, canaryExpiresAt: state.canaryExpiresAt, capability: projectPersistedAssistantCapability(state) }, state.zeroCreditEligible ? 200 : 503);
   }
   private async replay(receipt: StorageReceipt): Promise<Response> {
     const metadata = receipt.resultPayload as Partial<ReceiptPayload>;
@@ -202,15 +176,46 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const payload = objectValue(input?.payload);
     if (!payload) return json({ error: "cloud-action-not-allowed" }, 400);
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
+    if (input?.type === "interaction-truth") {
+      if (Object.keys(payload).length !== 1 || typeof payload.interactionId !== "string" || !/^interaction-[a-f0-9]{32}$/.test(payload.interactionId)) return json({ error: "interaction-truth-request-invalid" }, 400);
+      const truth = this.storage.getInteractionRuntimeTruth(payload.interactionId);
+      return truth === null ? json({ error: "interaction-truth-unavailable" }, 404) : json(truth.payload);
+    }
     if (input?.type === "execute") {
       const broker = this.env.MAHORAGA_EXECUTION_BROKER;
+      const hasInteraction = Object.hasOwn(payload, "interactionEnvelope") || Object.hasOwn(payload, "negotiationReceipt") || Object.hasOwn(payload, "deliveryState");
+      let brokerPayload: Record<string, unknown> = payload;
+      let interactionEnvelope: unknown;
+      let negotiationReceipt: unknown;
+      let deliveryState: unknown;
+      if (hasInteraction) {
+        const requestPayload = objectValue(payload.request);
+        if (!requestPayload || !Object.hasOwn(payload, "interactionEnvelope") || !Object.hasOwn(payload, "negotiationReceipt")) return json({ error: "interaction-runtime-input-invalid" }, 400);
+        interactionEnvelope = payload.interactionEnvelope;
+        negotiationReceipt = payload.negotiationReceipt;
+        deliveryState = payload.deliveryState;
+        try {
+          const interactionContext = projectInteractionContext(interactionEnvelope, negotiationReceipt);
+          brokerPayload = { request: { ...requestPayload, interactionContext }, payload: payload.payload };
+        } catch (error) {
+          const reason = interactionNegotiationHoldReason(error);
+          if (reason !== null) return json({ error: "interaction-negotiation-hold", reason }, 409);
+          if (error instanceof Error && error.message === "interaction-runtime-transport-unavailable") return json({ error: error.message }, 409);
+          return json({ error: "interaction-runtime-input-invalid" }, 400);
+        }
+      }
       if (!broker || typeof broker.fetch !== "function") return json({ error: "execution-broker-unavailable" }, 503);
-      const response = await broker.fetch(new Request("https://mahoraga-execution-broker/api/execute", {
-        method: "POST",
-        headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify(payload),
-      }));
-      return new Response(response.body, { status: response.status, headers: response.headers });
+      const response = await broker.fetch(new Request("https://mahoraga-execution-broker/api/execute", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(brokerPayload) }));
+      if (!hasInteraction) return new Response(response.body, { status: response.status, headers: response.headers });
+      let result: Record<string, unknown> | null;
+      try { result = objectValue(await response.json()); } catch { result = null; }
+      if (result === null) return json({ error: "execution-broker-response-invalid" }, 502);
+      if (!response.ok) return json(result, response.status);
+      try {
+        const truth = projectInteractionRuntimeTruth({ envelope:interactionEnvelope, negotiationReceipt, execution:result, ...(deliveryState === undefined ? {} : { deliveryState }) });
+        this.storage.saveInteractionRuntimeTruth({ interactionId: truth.interactionTruth.interactionId, payload: truth as Record<string, unknown>, updatedAt: Date.parse(truth.interactionTruth.observedAt) });
+        return json({ ...result, ...truth }, response.status);
+      } catch { return json({ error: "interaction-runtime-truth-invalid" }, 502); }
     }
     const conversationId = payload.conversationId;
     if (!boundedId(conversationId)) return json({ error: "conversation-id-invalid" }, 400);
@@ -218,17 +223,13 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
     if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: null })) });
-    if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant ? [
-      { id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser },
-      { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant },
-    ] : []) });
+    if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
     if (input?.type === "message-content") {
       const contentId = payload.contentReference;
       if (!boundedId(contentId) || payload.messageId !== contentId || !turns.some((turn) => turn.contentIdAssistant === contentId || turn.contentIdUser === contentId)) return json({ error: "message-unavailable" }, 404);
       const record = this.storage.getContentRecord(contentId);
       if (!record || record.conversationId !== conversationId) return json({ error: "message-unavailable" }, 404);
-      try { return json({ content: await decryptConversationContent(record, this.env.CONTENT_VAULT_KEY) }); }
-      catch { return json({ error: "content-vault-decryption-failed" }, 503); }
+      try { return json({ content: await decryptConversationContent(record, this.env.CONTENT_VAULT_KEY) }); } catch { return json({ error: "content-vault-decryption-failed" }, 503); }
     }
     return json({ error: "cloud-action-not-allowed" }, 400);
   }
@@ -257,22 +258,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const state = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
-      const runtimeCapabilities = await projectRuntimeCapabilities({
-        assistant: state,
-        executionBroker: this.env.MAHORAGA_EXECUTION_BROKER,
-        connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
-      });
-      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, {
-        messages,
-        runtimeContext: runtimeContextFromCapabilities(runtimeCapabilities),
-      });
+      const runtimeCapabilities = await projectRuntimeCapabilities({ assistant: state, executionBroker: this.env.MAHORAGA_EXECUTION_BROKER, connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER });
+      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages, runtimeContext: runtimeContextFromCapabilities(runtimeCapabilities) });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
-      const [userContent, assistantContent] = await Promise.all([
-        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-      ]);
+      const [userContent, assistantContent] = await Promise.all([encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY), encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY)]);
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
@@ -283,8 +274,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
   private async nativeCognitiveChat(payload: Record<string, unknown>, ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
-    if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto") ||
-      (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "cognitive-policy-not-allowed" }, 400);
+    if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto") || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "cognitive-policy-not-allowed" }, 400);
     const isPrediction = /^\/predict(?:\s|$)/i.test(message.trim());
     const capability = isPrediction ? "cognitive.predict" : "cognitive.cycle";
     let receipt: Record<string, unknown>;
@@ -300,12 +290,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         if (!input) throw new TypeError("cognitive-cycle-input-invalid");
         const now = Date.now();
         if (!Array.isArray(input.members)) throw new TypeError("cognitive-cycle-input-invalid");
-        const members = input.members.map((member) => {
-          const value = objectValue(member);
-          return value?.schemaVersion === 1 && value.kind === "cognitive-individual"
-            ? value
-            : createCognitiveIndividual(value, { observedAt: new Date(now).toISOString() });
-        });
+        const members = input.members.map((member) => { const value = objectValue(member); return value?.schemaVersion === 1 && value.kind === "cognitive-individual" ? value : createCognitiveIndividual(value, { observedAt: new Date(now).toISOString() }); });
         receipt = runCognitiveLoop({ ...input, members }, { now }) as Record<string, unknown>;
       }
     } catch { return json({ error: isPrediction ? "predictive-chat-input-invalid" : "cognitive-cycle-input-invalid" }, 400); }
@@ -322,10 +307,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (!this.storage.acquireLease(`turn:${turnId}`, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
     try {
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
-      const [userContent, assistantContent] = await Promise.all([
-        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-      ]);
+      const [userContent, assistantContent] = await Promise.all([encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY), encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY)]);
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
@@ -348,18 +330,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.initialize();
       const capability = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       const admitted = capability.routable === true && capability.enabled === true && capability.provider === ASSISTANT_PROVIDER_ID;
-      return json({
-        schemaVersion: 1,
-        kind: "mahoraga-runtime-attestation",
-        status: admitted ? "ready" : "degraded",
-        targetSha: this.env.TARGET_SHA,
-        runtime: "cloudflare-worker",
-        durableState: DURABLE_STATE,
-        trafficAuthority: "cloudflare",
-        railwayRoutingEnabled: false,
-        railwayInfluence: false,
-        provider: { providerId: ASSISTANT_PROVIDER_ID, admitted, zeroCreditEligible: admitted },
-      }, admitted ? 200 : 503);
+      return json({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: admitted ? "ready" : "degraded", targetSha: this.env.TARGET_SHA, runtime: "cloudflare-worker", durableState: DURABLE_STATE, trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: ASSISTANT_PROVIDER_ID, admitted, zeroCreditEligible: admitted } }, admitted ? 200 : 503);
     }
     if (url.pathname === "/api/provider/refresh") {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
@@ -368,22 +339,15 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return json({ error: "provider-refresh-attestation-invalid" }, 400);
       const rawBody = await request.text();
       if (new TextEncoder().encode(rawBody).byteLength > MAX_BILLING_ATTESTATION_BYTES) return json({ error: "provider-refresh-attestation-invalid" }, 400);
-      let input: Record<string, unknown> | null;
-      try { input = objectValue(JSON.parse(rawBody)); } catch { input = null; }
+      let input: Record<string, unknown> | null; try { input = objectValue(JSON.parse(rawBody)); } catch { input = null; }
       const billingAttestation = input?.billingAttestation;
       if (typeof billingAttestation !== "string" || !billingAttestation.trim() || new TextEncoder().encode(billingAttestation).byteLength > MAX_BILLING_ATTESTATION_BYTES) return json({ error: "provider-refresh-attestation-invalid" }, 400);
       return this.refreshProviderState(billingAttestation);
     }
     if (url.pathname === "/api/capabilities") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
-      try {
-        this.initialize();
-        return json({ capabilities: await projectRuntimeCapabilities({
-          assistant: projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)),
-          executionBroker: this.env.MAHORAGA_EXECUTION_BROKER,
-        connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER,
-        }) });
-      } catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
+      try { this.initialize(); return json({ capabilities: await projectRuntimeCapabilities({ assistant: projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID)), executionBroker: this.env.MAHORAGA_EXECUTION_BROKER, connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER }) }); }
+      catch { return json({ capabilities: [pendingAssistantCapability(ASSISTANT_PROVIDER_ID, "provider-state-unavailable")] }); }
     }
     if (url.pathname !== "/api/execute") return json({ error: "Not Found" }, 404);
     if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
@@ -401,30 +365,21 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/json")) return json({ error: "Content-Type must be application/json" }, 415);
       let raw: unknown; try { raw = await request.json(); } catch { return json({ error: "Invalid JSON payload" }, 400); }
       const payload = parseChatPayload(raw); if (payload === null) return json({ error: "Chat payload requires conversationId, turnId, and message" }, 400);
-
-      // Admission is deliberately re-read immediately before inference. A stale or non-zero-credit canary fails closed.
       const providerState = this.storage.getProviderState(ASSISTANT_PROVIDER_ID);
       const capability = projectPersistedAssistantCapability(providerState);
       if (!capability.routable) return json({ error: "Cognition provider unavailable", reasonCode: capability.providerReasonCode }, 503);
-
       const providerResult = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages: [{ role: "user", content: payload.message }] });
       const answer = extractAnswer(providerResult);
       if (answer === null) return json({ error: "Cognition provider returned invalid response" }, 502);
-
       const now = Date.now(); const userContentId = crypto.randomUUID(); const assistantContentId = crypto.randomUUID();
-      const [userContent, assistantContent] = await Promise.all([
-        encryptConversationContent({ contentId: userContentId, conversationId: payload.conversationId, role: "user", plaintext: payload.message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-        encryptConversationContent({ contentId: assistantContentId, conversationId: payload.conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-      ]);
+      const [userContent, assistantContent] = await Promise.all([encryptConversationContent({ contentId: userContentId, conversationId: payload.conversationId, role: "user", plaintext: payload.message, createdAt: now }, this.env.CONTENT_VAULT_KEY), encryptConversationContent({ contentId: assistantContentId, conversationId: payload.conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY)]);
       const receiptPayload: ReceiptPayload = { executed: true, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID, assistantContentId, timestamp: now };
       const receipt: StorageReceipt = { id: crypto.randomUUID(), idempotencyKey: key, status: "SUCCESS", resultPayload: receiptPayload, createdAt: now };
       this.storage.executeTransaction(() => { this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent); this.storage.saveReceipt(receipt); });
       return json({ executed: true, answer, providerId: ASSISTANT_PROVIDER_ID, modelId: ASSISTANT_MODEL_ID, timestamp: now });
     } catch (error) {
-      const providerGap = this.providerGapResponse(error);
-      if (providerGap !== null) return providerGap;
-      const message = error instanceof Error ? error.message : "Execution failed";
-      return json({ error: message }, 502);
+      const providerGap = this.providerGapResponse(error); if (providerGap !== null) return providerGap;
+      const message = error instanceof Error ? error.message : "Execution failed"; return json({ error: message }, 502);
     } finally { this.storage.releaseLease(leaseResource, holderId); }
   }
 }
@@ -439,11 +394,7 @@ export default {
       if (new TextEncoder().encode(body).byteLength > 32_768) return json({ error: "cloud-action-too-large" }, 413);
       const assertion = await verifyGatewayAssertion(request, body, env.OWNER_GATEWAY_SECRET);
       if (!assertion) return json({ error: "owner-auth-required" }, 403);
-      return env.EXECUTION_DO.getByName("execution-v1").fetch(new Request(request, { body, headers: {
-        "content-type": "application/json",
-        "x-mahoraga-verified-owner": assertion.owner,
-        "x-mahoraga-verified-nonce": assertion.nonce,
-      } }));
+      return env.EXECUTION_DO.getByName("execution-v1").fetch(new Request(request, { body, headers: { "content-type": "application/json", "x-mahoraga-verified-owner": assertion.owner, "x-mahoraga-verified-nonce": assertion.nonce } }));
     }
     if (url.pathname === "/api/execute" && request.method === "POST") {
       const actualSha = request.headers.get("x-target-sha"); if (actualSha !== env.TARGET_SHA) return json({ error: "Precondition Failed: SHA mismatch", expected: env.TARGET_SHA, actual: actualSha }, 412);

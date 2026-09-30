@@ -32,7 +32,6 @@ test("owner gateway operator commands pin Wrangler and never embed secret values
   }
 });
 
-
 test("owner gateway admits universal execution capabilities and execute bridge actions", () => {
   const worker = readFileSync(new URL("../deploy/cloudflare-owner-gateway/worker.mjs", import.meta.url), "utf8");
   assert.match(worker, /browser\.execute/);
@@ -40,4 +39,57 @@ test("owner gateway admits universal execution capabilities and execute bridge a
   assert.match(worker, /memory\.write/);
   assert.match(worker, /artifact\.inspect/);
   assert.match(worker, /NATIVE_ACTIONS = new Set\(\[[^\]]*"execute"/s);
+});
+
+test("owner gateway admits only bounded sanitized interaction/delivery truth from the runtime binding", async () => {
+  const { default:gateway } = await import("../deploy/cloudflare-owner-gateway/worker.mjs");
+  const interactionId = "interaction-0123456789abcdef0123456789abcdef";
+  const validTruth = {
+    interactionTruth:{
+      status:"observed", interactionId, sourceFamily:"omnichannel", channelFamily:"cloudflare-runtime",
+      modalities:["text","structured"], protocolFamily:"http-json", protocolVersion:"1.0", locale:"en-US",
+      timezone:"America/New_York", direction:"ltr", unitSystem:"us", currency:"USD", deviceClass:"phone", networkClass:"degraded",
+      executionStatus:"completed", interactionFingerprint:"a".repeat(64), negotiationFingerprint:"b".repeat(64), executionFingerprint:"c".repeat(64),
+      observedAt:"2026-09-29T22:46:00.000Z", reason:"accepted",
+    },
+    deliveryTruth:{
+      status:"queued", interactionId, taskId:"task-1", chainId:"chain-1", outputReferences:["artifact:result-1"],
+      deliveryFingerprint:"d".repeat(64), observedAt:"2026-09-29T22:46:00.000Z", reason:"offline",
+    },
+  };
+  let runtimeResponse = validTruth;
+  let calls = 0;
+  const env = {
+    MAHORAGA_CLOUD_OWNER_ID:"owner@example.com",
+    MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET:"x".repeat(48),
+    MAHORAGA_EXECUTION_RUNTIME:{ fetch:async () => { calls += 1; return Response.json(runtimeResponse); } },
+  };
+  const ctx = { access:{ getIdentity:async () => ({ email:"owner@example.com" }) } };
+  const action = (payload = { interactionId }) => new Request("https://gateway.example/api/runtime/pages-bridge/action", {
+    method:"POST", headers:{ "content-type":"application/json", origin:"https://gateway.example" },
+    body:JSON.stringify({ type:"interaction-truth", payload }),
+  });
+
+  const good = await gateway.fetch(action(), env, ctx);
+  assert.equal(good.status, 200);
+  assert.deepEqual(await good.json(), validTruth);
+
+  runtimeResponse = { ...validTruth, interactionTruth:{ ...validTruth.interactionTruth, trafficAuthority:true } };
+  const forbidden = await gateway.fetch(action(), env, ctx);
+  assert.equal(forbidden.status, 503);
+  assert.deepEqual(await forbidden.json(), { error:"execution-runtime-evidence-invalid" });
+
+  const callsBeforeInvalidRequest = calls;
+  const arbitraryEndpoint = await gateway.fetch(action({ interactionId, endpoint:"https://evil.example", headers:{ authorization:"Bearer secret" } }), env, ctx);
+  assert.equal(arbitraryEndpoint.status, 400);
+  assert.deepEqual(await arbitraryEndpoint.json(), { error:"interaction-truth-request-invalid" });
+  assert.equal(calls, callsBeforeInvalidRequest);
+});
+
+test("owner gateway source contract keeps interaction truth observational and service-bound", () => {
+  const worker = readFileSync(new URL("../deploy/cloudflare-owner-gateway/worker.mjs", import.meta.url), "utf8");
+  assert.match(worker, /NATIVE_ACTIONS = new Set\([^)]*"interaction-truth"/s);
+  assert.match(worker, /sanitizeInteractionTruthResult/);
+  assert.match(worker, /INTERACTION_FORBIDDEN_KEYS/);
+  assert.doesNotMatch(worker, /interaction-truth[^\n]*https?:\/\//i);
 });

@@ -47,6 +47,12 @@ export interface ProviderStateRecord {
   canaryExpiresAt: number | null;
 }
 
+export interface InteractionRuntimeTruthRecord {
+  interactionId: string;
+  payload: Record<string, unknown>;
+  updatedAt: number;
+}
+
 export interface StorageAdapter {
   initSchema(): void;
   acquireLease(resourceId: string, holderId: string, ttlMs: number): boolean;
@@ -60,6 +66,8 @@ export interface StorageAdapter {
   saveTurn(record: AssistantTurnRecord): void;
   getProviderState(providerId: string): ProviderStateRecord | null;
   saveProviderState(record: ProviderStateRecord): void;
+  getInteractionRuntimeTruth(interactionId: string): InteractionRuntimeTruthRecord | null;
+  saveInteractionRuntimeTruth(record: InteractionRuntimeTruthRecord): void;
   getContentRecord(contentId: string): EncryptedContentRecord | null;
   saveContentRecord(record: EncryptedContentRecord): void;
   executeTransaction<T>(fn: () => T): T;
@@ -103,6 +111,12 @@ type ProviderStateRow = Record<string, SqlStorageValue> & {
   observed_at: number;
   verified_at: number | null;
   canary_expires_at: number | null;
+};
+
+type InteractionRuntimeTruthRow = Record<string, SqlStorageValue> & {
+  interaction_id: string;
+  payload: string;
+  updated_at: number;
 };
 
 type ContentRow = Record<string, SqlStorageValue> & {
@@ -172,6 +186,11 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         observed_at INTEGER NOT NULL,
         verified_at INTEGER,
         canary_expires_at INTEGER
+      );
+      CREATE TABLE IF NOT EXISTS interaction_runtime_truth (
+        interaction_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
       );
       CREATE TABLE IF NOT EXISTS conversation_content (
         content_id TEXT PRIMARY KEY,
@@ -375,6 +394,33 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       record.observedAt,
       record.verifiedAt,
       record.canaryExpiresAt,
+    );
+  }
+
+  getInteractionRuntimeTruth(interactionId: string): InteractionRuntimeTruthRecord | null {
+    const row = this.sql
+      .exec<InteractionRuntimeTruthRow>(
+        "SELECT interaction_id, payload, updated_at FROM interaction_runtime_truth WHERE interaction_id = ?",
+        interactionId,
+      )
+      .toArray()[0];
+    if (row === undefined) return null;
+    const payload: unknown = JSON.parse(row.payload);
+    if (payload === null || typeof payload !== "object" || Array.isArray(payload)) throw new Error("interaction-runtime-truth-payload-invalid");
+    return { interactionId: row.interaction_id, payload: payload as Record<string, unknown>, updatedAt: row.updated_at };
+  }
+
+  saveInteractionRuntimeTruth(record: InteractionRuntimeTruthRecord): void {
+    if (!/^interaction-[a-f0-9]{32}$/.test(record.interactionId) || !Number.isSafeInteger(record.updatedAt) || record.updatedAt < 0 || !record.payload || typeof record.payload !== "object" || Array.isArray(record.payload)) {
+      throw new Error("interaction-runtime-truth-record-invalid");
+    }
+    this.sql.exec(
+      `INSERT INTO interaction_runtime_truth (interaction_id, payload, updated_at)
+       VALUES (?, ?, ?)
+       ON CONFLICT(interaction_id) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at`,
+      record.interactionId,
+      JSON.stringify(record.payload),
+      record.updatedAt,
     );
   }
 
