@@ -73,7 +73,7 @@ export function runtimeContextFromCapabilities(routes: RuntimeCapabilityProjecti
   for (const route of routes) capabilities[route.capability] = route.routable && route.enabled ? "routable" : "unavailable";
   return { capabilities, receipts: [], connectionState: "connected" };
 }
-const telemetryCorsHeaders = (origin: string, configuredOrigin: string): HeadersInit => ({
+const telemetryCorsHeaders = (origin: string, configuredOrigin: string): Record<string, string> => ({
   "access-control-allow-origin": origin === configuredOrigin ? origin : configuredOrigin,
   "access-control-allow-headers": "authorization, content-type",
   "access-control-allow-methods": "GET, OPTIONS",
