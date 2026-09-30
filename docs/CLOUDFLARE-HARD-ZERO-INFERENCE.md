@@ -33,4 +33,4 @@ Do not activate live cognition until all of these are independently evidenced:
 5. One synthetic cognition canary succeeds without Railway traversal.
 6. Reusing the same idempotency key returns the durable prior receipt without a second provider invocation.
 
-The 2026-09-25 exact-main hosted acceptance receipt for `eabfedd95877847bc8cdf407dfe0559d7a56bcbe` proves the Cloudflare execution runtime's route and live cognition. A later merged SHA requires a new acceptance receipt. Owner-browser/gateway and custom-domain traffic authority remain independent gates. Railway remains non-routing rollback infrastructure.
+The 2026-09-25 exact-main hosted acceptance receipt for `eabfedd95877847bc8cdf407dfe0559d7a56bcbe` proves the Cloudflare execution runtime's route and live cognition. A later merged SHA requires a new acceptance receipt. Owner-browser/gateway and custom-domain traffic authority remain independent gates. Railway is legacy evidence only with zero-route / zero-influence / zero-fallback / zero-authority.

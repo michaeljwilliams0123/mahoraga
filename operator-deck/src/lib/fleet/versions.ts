@@ -1,7 +1,7 @@
 export const LANGUAGE_LOCK = "TypeScript";
 export const APP_HOST = "GitHub Pages";
 export const WORKSPACE_NOTE =
-  "GitHub Pages is the canonical browser presentation. GitHub remains source/build/release authority. Cloudflare is the accepted server-capable runtime for the verified exact source; Railway is non-routing rollback infrastructure. Browser and domain authority need separate evidence.";
+  "GitHub Pages is the canonical browser presentation. GitHub remains source/build/release authority. Cloudflare is the accepted server-capable runtime for the verified exact source; Railway is legacy evidence only with zero-route / zero-influence / zero-fallback / zero-authority. Browser and domain authority need separate evidence.";
 export const CLOUD_APP_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const ROLLBACK_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
