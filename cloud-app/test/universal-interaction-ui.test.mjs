@@ -21,6 +21,19 @@ describe("universal reach interaction truth UI", () => {
     assert.match(commandCockpit, /interaction context is additive/i);
   });
 
+  it("surfaces the #911 Universal Reach observational chain on 7.0.0-alpha.2 cockpit", () => {
+    assert.match(interactionCards, /Universal Reach #911/);
+    assert.match(interactionCards, /exactly-once provider execution across reconnect/);
+    assert.match(interactionCards, /hard-zero routing/);
+    assert.match(interactionCards, /contained authority/);
+    assert.match(interactionCards, /not traffic authority/);
+    assert.match(interactionCards, /bounded handoffs/);
+    assert.match(interactionCards, /immutable output references/);
+    assert.match(cockpitView, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(commandCockpit, /<InteractionTruthCards truth=\{interactionTruth\}/);
+    assert.doesNotMatch(cockpitView, /Windows 3\.6\.0/);
+  });
+
   it("keeps locale, timezone, direction, accessibility, and device context presentation-only", () => {
     assert.match(cockpitView, /Locale · timezone · RTL/);
     assert.match(cockpitView, /presentation only · not identity or authority/i);
