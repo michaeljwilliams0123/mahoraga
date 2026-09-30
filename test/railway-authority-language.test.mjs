@@ -53,4 +53,16 @@ test('current authority surfaces keep Railway legacy-only without rollback seman
   const historicalIndex = runtime.indexOf(historicalMarker);
   assert.notEqual(historicalIndex, -1, 'always-on runtime must retain its explicit historical boundary');
   assertCurrentRailwayBoundary(runtime.slice(0, historicalIndex), 'always-on runtime current guidance');
+
+  const cloudOnly = readRepoFile('docs/CLOUD-ONLY-DEPLOYMENT.md');
+  assertCurrentRailwayBoundary(cloudOnly, 'cloud-only deployment guidance');
+
+  const composio = readRepoFile('docs/COMPOSIO-INTEGRATION.md');
+  assertCurrentRailwayBoundary(composio, 'Composio runtime boundary');
+
+  const hardZero = readRepoFile('docs/CLOUDFLARE-HARD-ZERO-INFERENCE.md');
+  assertCurrentRailwayBoundary(hardZero, 'hard-zero cognition boundary');
+
+  const operatorVersions = readRepoFile('operator-deck/src/lib/fleet/versions.ts');
+  assertCurrentRailwayBoundary(operatorVersions, 'operator deck workspace note');
 });
