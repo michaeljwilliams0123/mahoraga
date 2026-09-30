@@ -33,5 +33,79 @@
     "self-mint-agent-credentials",
     "send-enterprise-or-local-data-to-github",
     "bypass-tenant-or-identity-controls"
-  ]
+  ],
+  "evolutionSettings": {
+    "defaultLineChangeLimit": 150,
+    "maxLineChangeThreshold": 500,
+    "targetDirectories": [
+      "src",
+      "cloud-app",
+      "deploy",
+      "relay"
+    ],
+    "enforceStrictSchemaMatch": true
+  },
+  "payloadMappingSchema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "MahoragaEvolutionPayload",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "componentTarget",
+      "patchType",
+      "modifications"
+    ],
+    "properties": {
+      "componentTarget": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Repository-relative file path targeted for a bounded code update."
+      },
+      "patchType": {
+        "type": "string",
+        "enum": [
+          "REFACTOR",
+          "OPTIMIZATION",
+          "REPAIR"
+        ]
+      },
+      "modifications": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "content"
+          ],
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "REPLACE",
+                "PREPEND",
+                "APPEND"
+              ]
+            },
+            "targetLineStart": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "targetLineEnd": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "content": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  },
+  "telemetrySettings": {
+    "streamHeartbeatMs": 15000,
+    "maxClientSamples": 50
+  }
 }

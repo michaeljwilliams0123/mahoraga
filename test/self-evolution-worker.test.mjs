@@ -151,3 +151,58 @@ test("owner self.evolve defaults to enhance and selects patch for explicit fixes
   }), worker, dependencies);
   assert.deepEqual(observed, ["self.enhance", "self.patch"]);
 });
+
+test("dynamic evolution envelope caps runtime overrides at the hard threshold", () => {
+  const envelope = {
+    evolutionSettings: {
+      activeLineChangeLimit: 3,
+      maxLineChangeThreshold: 5,
+      targetDirectories: ["src", "cloud-app"],
+      enforceStrictSchemaMatch: true,
+    },
+    payloadMappingSchema: { type: "object" },
+  };
+  const payload = {
+    componentTarget: "src/router.mjs",
+    patchType: "REPAIR",
+    modifications: [{ action: "REPLACE", targetLineStart: 1, targetLineEnd: 1, content: "one\ntwo\nthree" }],
+  };
+  assert.equal(evolutionModule.calculatePayloadLineChanges(payload), 3);
+  assert.deepEqual(evolutionModule.validateEvolutionPayload(payload, envelope), {
+    componentTarget: "src/router.mjs",
+    patchType: "REPAIR",
+    lineChanges: 3,
+    activeLineChangeLimit: 3,
+    hardLineChangeThreshold: 5,
+  });
+  assert.throws(
+    () => evolutionModule.validateEvolutionPayload({ ...payload, modifications: [{ ...payload.modifications[0], content: "1\n2\n3\n4" }] }, envelope),
+    (error) => error?.code === "self-evolution-line-change-limit-exceeded",
+  );
+});
+
+test("dynamic evolution payload validation rejects traversal and schema drift", () => {
+  const envelope = {
+    evolutionSettings: {
+      activeLineChangeLimit: 10,
+      maxLineChangeThreshold: 20,
+      targetDirectories: ["src"],
+      enforceStrictSchemaMatch: true,
+    },
+    payloadMappingSchema: { type: "object" },
+  };
+  const valid = {
+    componentTarget: "src/router.mjs",
+    patchType: "OPTIMIZATION",
+    modifications: [{ action: "APPEND", content: "export {};" }],
+  };
+  assert.throws(
+    () => evolutionModule.validateEvolutionPayload({ ...valid, componentTarget: "../secrets.txt" }, envelope),
+    (error) => error?.code === "self-evolution-target-outside-envelope",
+  );
+  assert.throws(
+    () => evolutionModule.validateEvolutionPayload({ ...valid, extraAuthority: true }, envelope),
+    (error) => error?.code === "self-evolution-payload-schema-mismatch",
+  );
+  assert.match(evolutionModule.createEvolutionModelInstruction(envelope), /Return JSON only/);
+});
