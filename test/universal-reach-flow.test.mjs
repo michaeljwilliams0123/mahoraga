@@ -5,6 +5,7 @@ import { projectUniversalInteractionEnvelope } from "../src/universal-interactio
 import { negotiateInteractionProtocol } from "../src/interaction-protocol-negotiation.mjs";
 import { createExecutionBroker } from "../deploy/cloudflare-execution-broker/worker.ts";
 import { projectInteractionContext, projectInteractionRuntimeTruth } from "../deploy/cloudflare-execution-runtime/interaction-runtime.ts";
+import { projectInteractionTruth } from "../cloud-app/lib/interaction-truth.ts";
 import {
   createDeliveryState,
   markUniversalDeliveryDelivered,
@@ -189,10 +190,25 @@ test("universal reach preserves one bounded execution lineage through offline de
   assert.equal(queuedTruth.deliveryTruth.status, "queued");
   assert.deepEqual(queuedTruth.deliveryTruth.outputReferences, [OUTPUT_REF]);
 
+  // Model the runtime's persisted interaction-truth readback boundary used by a
+  // reconnecting client. The reconnect path can read or redeliver the stored
+  // receipt chain, but it has no broker/provider execution handle. The actual
+  // Cloudflare native-bridge readback is separately pinned by the runtime integration suite.
+  const persistedTruth = new Map([[envelope.interactionId, queuedTruth]]);
+  const reconnectRead = (surface) => {
+    assert.ok(["desktop", "headless"].includes(surface));
+    const truth = persistedTruth.get(envelope.interactionId);
+    assert.ok(truth);
+    return { surface, truth };
+  };
+
+  const desktopQueued = reconnectRead("desktop");
+  assert.equal(desktopQueued.truth.deliveryTruth.status, "queued");
+  assert.deepEqual(executions, { repositoryInspect:1, codex:1, repositoryVerify:1 });
+
   const delivered = markUniversalDeliveryDelivered(offline, { now:"2026-09-30T00:21:00.000Z" });
   const deliveredAgain = markUniversalDeliveryDelivered(delivered, { now:"2026-09-30T00:22:00.000Z" });
   assert.deepEqual(deliveredAgain, delivered);
-  assert.deepEqual(executions, { repositoryInspect:1, codex:1, repositoryVerify:1 });
 
   const deliveredTruth = projectInteractionRuntimeTruth({
     envelope,
@@ -200,6 +216,24 @@ test("universal reach preserves one bounded execution lineage through offline de
     execution,
     deliveryState:deliveredAgain,
   }, { now:"2026-09-30T00:22:00.000Z" });
+  persistedTruth.set(envelope.interactionId, deliveredTruth);
+
+  for (const surface of ["desktop", "headless"]) {
+    const reconnected = reconnectRead(surface);
+    const projected = projectInteractionTruth({
+      interaction: reconnected.truth.interactionTruth,
+      delivery: reconnected.truth.deliveryTruth,
+    });
+    assert.equal(projected.state, "observed");
+    assert.equal(projected.interaction.interactionId, envelope.interactionId);
+    assert.equal(projected.interaction.deviceClass, "phone");
+    assert.equal(projected.delivery.status, "delivered");
+    assert.equal(projected.delivery.taskId, TASK_ID);
+    assert.equal(projected.delivery.chainId, CHAIN_ID);
+    assert.deepEqual(projected.delivery.outputReferences, [OUTPUT_REF]);
+  }
+  assert.deepEqual(executions, { repositoryInspect:1, codex:1, repositoryVerify:1 });
+
   assert.equal(deliveredTruth.deliveryTruth.status, "delivered");
   assert.deepEqual(deliveredTruth.deliveryTruth.outputReferences, [OUTPUT_REF]);
   assert.equal(deliveredTruth.deliveryTruth.taskId, TASK_ID);
