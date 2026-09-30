@@ -453,6 +453,7 @@ export default {
       if (!origin || origin !== env.MAHORAGA_WORKSPACE_ORIGIN) return json({ error: "telemetry-origin-required" }, 403, cors);
       const authorization = request.headers.get("authorization") ?? "";
       const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+      if (typeof env.TELEMETRY_STREAM_TOKEN !== "string" || env.TELEMETRY_STREAM_TOKEN.length < 32) return json({ error: "telemetry-session-unavailable" }, 503, cors);
       if (!await secureEqual(token, env.TELEMETRY_STREAM_TOKEN)) return json({ error: "telemetry-auth-required" }, 403, cors);
       const headers = new Headers(request.headers);
       headers.delete("authorization");

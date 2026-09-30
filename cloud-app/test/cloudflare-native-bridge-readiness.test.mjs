@@ -45,12 +45,15 @@ test("telemetry stream is authenticated, origin-bound, and mounted in the cockpi
   assert.match(worker, /\/api\/stream\/telemetry/);
   assert.match(worker, /authorization/);
   assert.match(worker, /secureEqual\(token, env\.TELEMETRY_STREAM_TOKEN\)/);
+  assert.match(worker, /telemetry-session-unavailable/);
   assert.match(worker, /origin !== env\.MAHORAGA_WORKSPACE_ORIGIN/);
   assert.match(worker, /text\/event-stream/);
   assert.match(worker, /live_cpu_usage_ms: null/);
-  assert.match(bindings, /TELEMETRY_STREAM_TOKEN: string/);
-  assert.match(telemetry, /authorization: `Bearer \$\{token\}`/);
+  assert.match(bindings, /TELEMETRY_STREAM_TOKEN\?: string/);
+  assert.doesNotMatch(telemetry, /authorization:\s*`Bearer/);
   assert.doesNotMatch(telemetry, /\?token=/);
   assert.match(telemetry, /CPU and memory stay unreported/);
   assert.match(cockpit, /<TelemetrySparkline \/>/);
+  assert.doesNotMatch(telemetry, /localStorage|MAHORAGA_SESSION_TOKEN|authorization:\s*`Bearer/);
+  assert.match(telemetry, /Owner-authenticated telemetry transport is not available/);
 });
