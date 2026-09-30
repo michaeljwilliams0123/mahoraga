@@ -23,6 +23,8 @@ const MAX_BILLING_ATTESTATION_BYTES = 8_192;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const DURABLE_STATE = "cloudflare-do-sqlite";
 const MAX_CONTEXT_TURNS = 6;
+const TELEMETRY_HEARTBEAT_MS = 15_000;
+const INTERNAL_TELEMETRY_HEADER = "x-mahoraga-telemetry-authorized";
 
 type ChatPayload = { conversationId: string; turnId: string; message: string };
 type ReceiptPayload = { executed: true; providerId: string; modelId: string; assistantContentId: string; timestamp: number };
@@ -71,6 +73,14 @@ export function runtimeContextFromCapabilities(routes: RuntimeCapabilityProjecti
   for (const route of routes) capabilities[route.capability] = route.routable && route.enabled ? "routable" : "unavailable";
   return { capabilities, receipts: [], connectionState: "connected" };
 }
+const telemetryCorsHeaders = (origin: string, configuredOrigin: string): HeadersInit => ({
+  "access-control-allow-origin": origin === configuredOrigin ? origin : configuredOrigin,
+  "access-control-allow-headers": "authorization, content-type",
+  "access-control-allow-methods": "GET, OPTIONS",
+  "access-control-max-age": "600",
+  vary: "Origin",
+});
+
 const secureEqual = async (provided: string, expected: string): Promise<boolean> => {
   if (provided.length === 0 || expected.length === 0) return false;
   const encoder = new TextEncoder();
@@ -317,10 +327,56 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability } });
     } finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
+  private telemetryStream(request: Request): Response {
+    if (request.headers.get(INTERNAL_TELEMETRY_HEADER) !== "1") return json({ error: "telemetry-auth-required" }, 403);
+    this.initialize();
+    const providerState = this.storage.getProviderState(ASSISTANT_PROVIDER_ID);
+    const capability = projectPersistedAssistantCapability(providerState);
+    const encoder = new TextEncoder();
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        const write = (event: string, data: Record<string, unknown>) => {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        };
+        write("sys_init", { status: "ONLINE", timestamp: Date.now(), targetSha: this.env.TARGET_SHA });
+        write("telemetry_update", {
+          schemaVersion: 1,
+          observedAt: new Date().toISOString(),
+          patch_sha: this.env.TARGET_SHA,
+          component_target: null,
+          line_changes: null,
+          verification_status: capability.routable ? "RUNTIME_READY" : "RUNTIME_DEGRADED",
+          live_cpu_usage_ms: null,
+          live_memory_usage_mb: null,
+          providerId: capability.provider,
+          providerReasonCode: capability.providerReasonCode,
+        });
+        timer = setInterval(() => {
+          try { controller.enqueue(encoder.encode(`: keep-alive ${Date.now()}\n\n`)); }
+          catch { if (timer !== null) clearInterval(timer); }
+        }, TELEMETRY_HEARTBEAT_MS);
+      },
+      cancel: () => { if (timer !== null) clearInterval(timer); },
+    });
+    return new Response(stream, {
+      headers: {
+        "content-type": "text/event-stream; charset=utf-8",
+        "cache-control": "no-cache, no-transform",
+        connection: "keep-alive",
+        "x-accel-buffering": "no",
+      },
+    });
+  }
+
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (!targetShaValid(this.env.TARGET_SHA)) return json({ status: "unready", error: "target-sha-invalid" }, 503);
     if (url.pathname === "/api/native/bridge") return this.nativeBridge(request);
+    if (url.pathname === "/api/stream/telemetry") {
+      if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
+      return this.telemetryStream(request);
+    }
     if (url.pathname === "/api/live") return request.method === "GET" ? json({ status: "live", sha: this.env.TARGET_SHA }) : json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
     if (url.pathname === "/api/ready") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
@@ -389,6 +445,23 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (!targetShaValid(env.TARGET_SHA)) return json({ status: "unready", error: "target-sha-invalid" }, 503);
+    if (url.pathname === "/api/stream/telemetry") {
+      const origin = request.headers.get("origin") ?? "";
+      const cors = telemetryCorsHeaders(origin, env.MAHORAGA_WORKSPACE_ORIGIN);
+      if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+      if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { ...cors, allow: "GET, OPTIONS" });
+      if (!origin || origin !== env.MAHORAGA_WORKSPACE_ORIGIN) return json({ error: "telemetry-origin-required" }, 403, cors);
+      const authorization = request.headers.get("authorization") ?? "";
+      const token = authorization.startsWith("Bearer ") ? authorization.slice(7) : "";
+      if (!await secureEqual(token, env.TELEMETRY_STREAM_TOKEN)) return json({ error: "telemetry-auth-required" }, 403, cors);
+      const headers = new Headers(request.headers);
+      headers.delete("authorization");
+      headers.set(INTERNAL_TELEMETRY_HEADER, "1");
+      const response = await env.EXECUTION_DO.getByName("execution-v1").fetch(new Request(request, { headers }));
+      const responseHeaders = new Headers(response.headers);
+      new Headers(cors).forEach((value, key) => responseHeaders.set(key, value));
+      return new Response(response.body, { status: response.status, headers: responseHeaders });
+    }
     if (url.pathname === "/api/native/bridge") {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405);
       const body = await request.text();
