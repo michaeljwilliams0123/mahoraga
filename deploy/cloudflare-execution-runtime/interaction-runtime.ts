@@ -11,6 +11,8 @@ const TRUSTED_RUNTIME_TRANSPORTS: ReadonlySet<RuntimeInteractionTransportFamily>
 const EXECUTION_KEYS = new Set(["status", "taskId", "chainId", "handoffCount", "receipts"]);
 const EXECUTION_RECEIPT_KINDS = new Set(["route-selection-receipt", "handoff-receipt", "execution-receipt"]);
 const TOKEN = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
+const HEX64 = /^[a-f0-9]{64}$/;
+const RUNTIME_TRUTH_KEYS = new Set(["interactionTruth", "deliveryTruth", "runtimeTruthFingerprint"]);
 
 export function projectInteractionContext(envelope: unknown, negotiationReceipt: unknown, { now = new Date().toISOString() } = {}) {
   const interaction = validateUniversalInteractionEnvelope(envelope, { now });
@@ -79,7 +81,21 @@ export function projectInteractionRuntimeTruth(input: unknown, { now = new Date(
     observedAt:delivery.deliveredAt ?? observedAt,
     reason:delivery.reason,
   });
-  return deepFreeze({ interactionTruth, deliveryTruth });
+  const core = { interactionTruth, deliveryTruth };
+  return deepFreeze({ ...core, runtimeTruthFingerprint:digest(canonicalJson(core)) });
+}
+
+export function validateInteractionRuntimeTruth(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("interaction-runtime-truth-invalid");
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== RUNTIME_TRUTH_KEYS.size || keys.some((key) => !RUNTIME_TRUTH_KEYS.has(key))) fail("interaction-runtime-truth-invalid");
+  if (!record.interactionTruth || typeof record.interactionTruth !== "object" || Array.isArray(record.interactionTruth)) fail("interaction-runtime-truth-invalid");
+  if (record.deliveryTruth !== null && (typeof record.deliveryTruth !== "object" || Array.isArray(record.deliveryTruth))) fail("interaction-runtime-truth-invalid");
+  if (typeof record.runtimeTruthFingerprint !== "string" || !HEX64.test(record.runtimeTruthFingerprint)) fail("interaction-runtime-truth-fingerprint-invalid");
+  const core = { interactionTruth:record.interactionTruth, deliveryTruth:record.deliveryTruth };
+  if (digest(canonicalJson(core)) !== record.runtimeTruthFingerprint) fail("interaction-runtime-truth-fingerprint-invalid");
+  return deepFreeze({ ...core, runtimeTruthFingerprint:record.runtimeTruthFingerprint });
 }
 
 export function interactionNegotiationHoldReason(error: unknown) {
