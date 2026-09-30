@@ -38,6 +38,7 @@ export function InteractionTruthCards({ truth }: { truth: ProjectedInteractionTr
       <>
         <TruthCard label="Interaction truth" value="Unobserved" detail="No sanitized Task 6 interaction projection is available; no provider capability or authority is inferred." />
         <TruthCard label="Delivery truth" value="Unobserved" detail="Execution completion and delivery remain separate; absence never triggers replay or re-execution." />
+        <TruthCard label="Universal Reach #911" value="Unobserved lineage" detail="Synthetic chain pins remain observational: one correlation/task/chain · bounded handoffs · exactly-once provider execution across reconnect · immutable output references · hard-zero routing · contained authority · not traffic authority." />
       </>
     );
   }
@@ -76,6 +77,12 @@ export function InteractionTruthCards({ truth }: { truth: ProjectedInteractionTr
           ? `${delivery.outputReferences.length} immutable output reference${delivery.outputReferences.length === 1 ? "" : "s"} · fingerprint ${delivery.deliveryFingerprint} · delivery retry never re-executes`
           : `Execution ${interaction.executionStatus ?? "unobserved"} · delivery remains separately unobserved · no retry authority`}
         tone={deliveryTone}
+      />
+      <TruthCard
+        label="Universal Reach #911"
+        value={delivery?.chainId || delivery?.taskId || interaction.interactionId}
+        detail={`${delivery?.taskId ?? "task unobserved"} · ${delivery?.chainId ?? "chain unobserved"} · bounded handoffs · exactly-once provider execution across reconnect · hard-zero routing · contained authority · #911 not traffic authority`}
+        tone={interactionTone}
       />
     </>
   );
