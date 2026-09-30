@@ -65,4 +65,7 @@ test('current authority surfaces keep Railway legacy-only without rollback seman
 
   const operatorVersions = readRepoFile('operator-deck/src/lib/fleet/versions.ts');
   assertCurrentRailwayBoundary(operatorVersions, 'operator deck workspace note');
+
+  const polyglot = readRepoFile('docs/migrations/POLYGLOT-MIGRATION.md');
+  assertCurrentRailwayBoundary(polyglot, 'polyglot migration standing invariants');
 });
