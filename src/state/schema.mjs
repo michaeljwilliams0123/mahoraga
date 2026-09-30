@@ -192,3 +192,145 @@ function assertNoPrivateReasoning(value, seen = new Set()) {
 function requiredText(value, code) {
   if (typeof value !== "string" || !value.trim()) throw new TypeError(code);
 }
+
+
+const EVOLUTION_STATUSES = new Set(["HOLD", "DENIED", "VERIFIED_PASS", "DEGRADED", "ROLLED_BACK"]);
+const PATCH_SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+export function openEvolutionPatchStore({ file, now = () => Date.now() } = {}) {
+  if (typeof file !== "string" || !file.trim()) throw new TypeError("evolution-state-file-required");
+  fs.mkdirSync(path.dirname(path.resolve(file)), { recursive: true });
+  const db = new DatabaseSync(file);
+  db.exec("PRAGMA journal_mode = WAL;");
+  db.exec("PRAGMA synchronous = FULL;");
+  db.exec("PRAGMA foreign_keys = ON;");
+  db.exec("PRAGMA busy_timeout = 5000;");
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS evolution_patches (
+      patch_sha TEXT PRIMARY KEY NOT NULL,
+      predecessor_sha TEXT NOT NULL,
+      target_branch TEXT NOT NULL,
+      component_target TEXT NOT NULL,
+      line_changes INTEGER NOT NULL CHECK(line_changes >= 0),
+      verification_status TEXT NOT NULL CHECK(verification_status IN ('HOLD','DENIED','VERIFIED_PASS','DEGRADED','ROLLED_BACK')),
+      live_cpu_usage_ms REAL,
+      live_memory_usage_mb REAL,
+      deployed_at INTEGER,
+      updated_at INTEGER NOT NULL,
+      rollback_reason TEXT,
+      is_active INTEGER NOT NULL DEFAULT 0 CHECK(is_active IN (0,1))
+    );
+    CREATE INDEX IF NOT EXISTS idx_evolution_patches_active ON evolution_patches(is_active, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_evolution_patches_status ON evolution_patches(verification_status, updated_at DESC);
+  `);
+  const upsert = db.prepare(`
+    INSERT INTO evolution_patches (
+      patch_sha, predecessor_sha, target_branch, component_target, line_changes,
+      verification_status, live_cpu_usage_ms, live_memory_usage_mb, deployed_at,
+      updated_at, rollback_reason, is_active
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(patch_sha) DO UPDATE SET
+      verification_status = excluded.verification_status,
+      live_cpu_usage_ms = excluded.live_cpu_usage_ms,
+      live_memory_usage_mb = excluded.live_memory_usage_mb,
+      deployed_at = excluded.deployed_at,
+      updated_at = excluded.updated_at,
+      rollback_reason = excluded.rollback_reason,
+      is_active = excluded.is_active
+  `);
+  const deactivateOthers = db.prepare("UPDATE evolution_patches SET is_active = 0, updated_at = ? WHERE is_active = 1 AND patch_sha <> ?");
+  const bySha = db.prepare("SELECT * FROM evolution_patches WHERE patch_sha = ?");
+  const active = db.prepare("SELECT * FROM evolution_patches WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 1");
+  const recent = db.prepare("SELECT * FROM evolution_patches ORDER BY updated_at DESC LIMIT ?");
+  let closed = false;
+  const assertOpen = () => { if (closed) throw new Error("evolution-patch-store-closed"); };
+
+  return Object.freeze({
+    recordPatch(input = {}) {
+      assertOpen();
+      const record = validateEvolutionPatchRecord(input, now);
+      db.exec("BEGIN IMMEDIATE");
+      try {
+        if (record.isActive) deactivateOthers.run(record.updatedAt, record.patchSha);
+        upsert.run(
+          record.patchSha, record.predecessorSha, record.targetBranch, record.componentTarget,
+          record.lineChanges, record.verificationStatus, record.liveCpuUsageMs,
+          record.liveMemoryUsageMb, record.deployedAt, record.updatedAt,
+          record.rollbackReason, record.isActive ? 1 : 0,
+        );
+        db.exec("COMMIT");
+      } catch (error) {
+        db.exec("ROLLBACK");
+        throw error;
+      }
+      return normalizeEvolutionPatch(bySha.get(record.patchSha));
+    },
+    activePatch() {
+      assertOpen();
+      const row = active.get();
+      return row ? normalizeEvolutionPatch(row) : null;
+    },
+    listRecent(limit = 50) {
+      assertOpen();
+      if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new TypeError("evolution-patch-limit-invalid");
+      return recent.all(limit).map(normalizeEvolutionPatch);
+    },
+    health() {
+      assertOpen();
+      const journal = db.prepare("PRAGMA journal_mode").get();
+      const integrity = db.prepare("PRAGMA quick_check").get();
+      return { journalMode: String(journal?.journal_mode ?? "unknown").toLowerCase(), integrity: String(integrity?.quick_check ?? "unknown").toLowerCase() };
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      db.close();
+    },
+  });
+}
+
+function validateEvolutionPatchRecord(input, now) {
+  const required = (value, code) => {
+    if (typeof value !== "string" || !value.trim()) throw new TypeError(code);
+    return value.trim();
+  };
+  const patchSha = required(input.patchSha, "evolution-patch-sha-required");
+  const predecessorSha = required(input.predecessorSha, "evolution-predecessor-sha-required");
+  if (!PATCH_SHA_PATTERN.test(patchSha) || !PATCH_SHA_PATTERN.test(predecessorSha) || patchSha === predecessorSha) throw new TypeError("evolution-patch-sha-invalid");
+  const verificationStatus = required(input.verificationStatus, "evolution-status-required");
+  if (!EVOLUTION_STATUSES.has(verificationStatus)) throw new TypeError("evolution-status-invalid");
+  if (!Number.isSafeInteger(input.lineChanges) || input.lineChanges < 0) throw new TypeError("evolution-line-changes-invalid");
+  const updatedAt = input.updatedAt ?? now();
+  if (!Number.isSafeInteger(updatedAt) || updatedAt < 0) throw new TypeError("evolution-updated-at-invalid");
+  const deployedAt = input.deployedAt ?? null;
+  if (deployedAt !== null && (!Number.isSafeInteger(deployedAt) || deployedAt < 0)) throw new TypeError("evolution-deployed-at-invalid");
+  const metric = (value) => value === undefined || value === null ? null : Number.isFinite(value) && value >= 0 ? value : (() => { throw new TypeError("evolution-telemetry-invalid"); })();
+  const rollbackReason = input.rollbackReason === undefined || input.rollbackReason === null ? null : required(input.rollbackReason, "evolution-rollback-reason-invalid").slice(0, 500);
+  return {
+    patchSha, predecessorSha,
+    targetBranch: required(input.targetBranch, "evolution-target-branch-required"),
+    componentTarget: required(input.componentTarget, "evolution-component-target-required"),
+    lineChanges: input.lineChanges, verificationStatus,
+    liveCpuUsageMs: metric(input.liveCpuUsageMs),
+    liveMemoryUsageMb: metric(input.liveMemoryUsageMb),
+    deployedAt, updatedAt, rollbackReason,
+    isActive: input.isActive === true,
+  };
+}
+
+function normalizeEvolutionPatch(row) {
+  return {
+    patchSha: row.patch_sha,
+    predecessorSha: row.predecessor_sha,
+    targetBranch: row.target_branch,
+    componentTarget: row.component_target,
+    lineChanges: Number(row.line_changes),
+    verificationStatus: row.verification_status,
+    liveCpuUsageMs: row.live_cpu_usage_ms === null ? null : Number(row.live_cpu_usage_ms),
+    liveMemoryUsageMb: row.live_memory_usage_mb === null ? null : Number(row.live_memory_usage_mb),
+    deployedAt: row.deployed_at === null ? null : Number(row.deployed_at),
+    updatedAt: Number(row.updated_at),
+    rollbackReason: row.rollback_reason,
+    isActive: row.is_active === 1,
+  };
+}

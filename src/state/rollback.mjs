@@ -35,3 +35,39 @@ export function createEmergencyRollback({
     return { requested: true, port: 4783, reason, pid: child.pid ?? null };
   };
 }
+
+const SHA_PATTERN = /^[0-9a-f]{40}$/;
+
+export function createEvolutionRollback({ patchStore, deployBaseline, now = () => Date.now() } = {}) {
+  if (!patchStore || typeof patchStore.recordPatch !== "function" || typeof patchStore.activePatch !== "function") {
+    throw new TypeError("evolution-rollback-store-required");
+  }
+  if (typeof deployBaseline !== "function") throw new TypeError("evolution-rollback-deployer-required");
+  return async ({ compromisedSha, reason = "live-runtime-threshold-exceeded" } = {}) => {
+    if (typeof compromisedSha !== "string" || !SHA_PATTERN.test(compromisedSha)) throw new TypeError("evolution-rollback-sha-invalid");
+    const active = patchStore.activePatch();
+    if (!active || active.patchSha !== compromisedSha) throw new TypeError("evolution-rollback-active-patch-mismatch");
+    if (!SHA_PATTERN.test(active.predecessorSha)) throw new TypeError("evolution-rollback-predecessor-invalid");
+    const deployment = await deployBaseline({
+      targetSha: active.predecessorSha,
+      compromisedSha,
+      reason,
+    });
+    if (!deployment || deployment.accepted !== true || deployment.targetSha !== active.predecessorSha) {
+      throw new Error("evolution-rollback-deployment-unverified");
+    }
+    const record = patchStore.recordPatch({
+      ...active,
+      verificationStatus: "ROLLED_BACK",
+      rollbackReason: String(reason),
+      updatedAt: now(),
+      isActive: false,
+    });
+    return Object.freeze({
+      rolledBack: true,
+      compromisedSha,
+      restoredSha: active.predecessorSha,
+      record,
+    });
+  };
+}
