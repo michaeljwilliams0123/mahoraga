@@ -89,7 +89,7 @@ test('held-out backtest reports segment evidence without promoting sparse segmen
   const rare = sparseResult.segments.find((segment) => segment.segment === 'rare');
   assert.deepEqual(rare, {
     segment: 'rare', trainSamples: 0, heldOutSamples: 1,
-    trainSummary: null, heldOutSummary: null, evidenceSufficient: false,
+    trainSummary: null, heldOutSummary: null, regimeShiftDetected: false, evidenceSufficient: false,
   });
 });
 
@@ -133,4 +133,29 @@ test('held-out backtest withholds global evidence when an observed segment lacks
   cases[7] = calibrationCase(8, 11.2, 'rare');
   const result = backtestPredictionCalibration(cases, { splitAt: 4, minimumSamples: 2 });
   assert.equal(result.evidenceSufficient, false);
+});
+
+
+test('held-out backtest detects a regime reversal and withholds applicability', async () => {
+  const backtestPredictionCalibration = await loadBacktest();
+  const cases = [
+    calibrationCase(1, 10.0, 'api'),
+    calibrationCase(2, 10.1, 'queue'),
+    calibrationCase(3, 9.9, 'api'),
+    calibrationCase(4, 10.0, 'queue'),
+    calibrationCase(5, 0.0, 'api'),
+    calibrationCase(6, 0.5, 'queue'),
+    calibrationCase(7, 1.0, 'api'),
+    calibrationCase(8, 0.0, 'queue'),
+  ];
+  const result = backtestPredictionCalibration(cases, { splitAt: 4, minimumSamples: 2 });
+
+  assert.equal(result.trainSummary.evidenceSufficient, true);
+  assert.equal(result.heldOutSummary.evidenceSufficient, true);
+  assert.equal(result.regimeShiftDetected, true);
+  assert.equal(result.evidenceSufficient, false);
+  assert.equal(result.segments.every((segment) => segment.regimeShiftDetected === true), true);
+  assert.ok(result.trustDelta < 0);
+  assert.ok(result.normalizedErrorDelta > 0);
+  assert.ok(result.calibrationGapDelta > 0);
 });

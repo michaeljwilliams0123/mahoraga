@@ -27,6 +27,7 @@ export function backtestPredictionCalibration(cases, {
   const summaryOptions = { minimumSamples, maximumSamples };
   const trainSummary = summarizePredictionCalibration(train.map(({ outcome }) => outcome), summaryOptions);
   const heldOutSummary = summarizePredictionCalibration(heldOut.map(({ outcome }) => outcome), summaryOptions);
+  const regimeShiftDetected = detectRegimeShift(trainSummary, heldOutSummary);
   const segmentIds = [...new Set(ordered.map(({ segment }) => segment))].sort();
   const segments = segmentIds.map((segment) => {
     const trainItems = train.filter((item) => item.segment === segment);
@@ -37,13 +38,19 @@ export function backtestPredictionCalibration(cases, {
     const heldOutSegmentSummary = heldOutItems.length >= minimumSamples
       ? summarizePredictionCalibration(heldOutItems.map(({ outcome }) => outcome), summaryOptions)
       : null;
+    const segmentRegimeShiftDetected = trainSegmentSummary !== null && heldOutSegmentSummary !== null
+      ? detectRegimeShift(trainSegmentSummary, heldOutSegmentSummary)
+      : false;
     return deepFreeze({
       segment,
       trainSamples: trainItems.length,
       heldOutSamples: heldOutItems.length,
       trainSummary: trainSegmentSummary,
       heldOutSummary: heldOutSegmentSummary,
-      evidenceSufficient: trainSegmentSummary?.evidenceSufficient === true && heldOutSegmentSummary?.evidenceSufficient === true,
+      regimeShiftDetected: segmentRegimeShiftDetected,
+      evidenceSufficient: trainSegmentSummary?.evidenceSufficient === true
+        && heldOutSegmentSummary?.evidenceSufficient === true
+        && !segmentRegimeShiftDetected,
     });
   });
   const core = {
@@ -57,7 +64,8 @@ export function backtestPredictionCalibration(cases, {
     trustDelta: delta(heldOutSummary.plannerTrust, trainSummary.plannerTrust),
     calibrationGapDelta: delta(heldOutSummary.meanCalibrationGap, trainSummary.meanCalibrationGap),
     normalizedErrorDelta: delta(heldOutSummary.meanNormalizedError, trainSummary.meanNormalizedError),
-    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient && segments.every((item) => item.evidenceSufficient),
+    regimeShiftDetected,
+    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient && !regimeShiftDetected && segments.every((item) => item.evidenceSufficient),
     segments: deepFreeze(segments),
     sourceFingerprints: deepFreeze(ordered.map(({ outcome }) => outcome.fingerprint)),
   };
@@ -79,6 +87,14 @@ function canonicalTimestamp(value) {
   const date = new Date(value);
   if (!Number.isFinite(date.getTime()) || date.toISOString() !== value) fail('prediction-backtest-invalid');
   return value;
+}
+
+function detectRegimeShift(trainSummary, heldOutSummary) {
+  return heldOutSummary.evidenceSufficient === true
+    && trainSummary.evidenceSufficient === true
+    && heldOutSummary.plannerTrust < trainSummary.plannerTrust
+    && heldOutSummary.meanNormalizedError > trainSummary.meanNormalizedError
+    && heldOutSummary.meanCalibrationGap > trainSummary.meanCalibrationGap;
 }
 
 function delta(later, earlier) {
