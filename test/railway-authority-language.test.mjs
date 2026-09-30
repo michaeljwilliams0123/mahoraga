@@ -10,10 +10,12 @@ function readRepoFile(relativePath) {
   return readFileSync(join(root, relativePath), 'utf8');
 }
 
-function beforeMarker(text, marker, label) {
-  const markerIndex = text.indexOf(marker);
-  assert.notEqual(markerIndex, -1, `${label} must retain its explicit historical boundary`);
-  return text.slice(0, markerIndex);
+function stripSection(text, heading, nextHeading) {
+  const start = text.indexOf(heading);
+  assert.notEqual(start, -1, `missing historical section: ${heading}`);
+  const end = text.indexOf(nextHeading, start + heading.length);
+  assert.notEqual(end, -1, `missing section after historical block: ${nextHeading}`);
+  return text.slice(0, start) + text.slice(end);
 }
 
 function assertCurrentRailwayBoundary(text, label) {
@@ -24,30 +26,31 @@ function assertCurrentRailwayBoundary(text, label) {
   );
   assert.doesNotMatch(
     text,
-    /Railway[^\n]*(?:rollback|standby)/i,
+    /Railway[^.\n]*(?:rollback|standby)/i,
     `${label} must not present Railway as a current rollback or standby path`,
   );
 }
 
 test('current authority surfaces keep Railway legacy-only without rollback semantics', () => {
-  const readmeCurrent = beforeMarker(
-    readRepoFile('README.md'),
-    '## Historical review baseline',
-    'README current authority section',
+  let readmeCurrent = readRepoFile('README.md');
+  readmeCurrent = stripSection(
+    readmeCurrent,
+    '## Historical review baseline (2026-09-18)',
+    '## Capability-first architecture',
   );
-  assertCurrentRailwayBoundary(readmeCurrent, 'README current authority section');
+  readmeCurrent = stripSection(
+    readmeCurrent,
+    '## Historical Railway production model (rollback reference)',
+    '## Observed cloud status during this README reconciliation',
+  );
+  assertCurrentRailwayBoundary(readmeCurrent, 'README current authority sections');
 
-  const cutoverStatus = beforeMarker(
-    readRepoFile('docs/CLOUDFLARE-WORKERS-CUTOVER.md'),
-    '## Target path',
-    'Cloudflare Workers current status',
-  );
-  assertCurrentRailwayBoundary(cutoverStatus, 'Cloudflare Workers current status');
+  const cutover = readRepoFile('docs/CLOUDFLARE-WORKERS-CUTOVER.md');
+  assertCurrentRailwayBoundary(cutover, 'Cloudflare Workers current status');
 
-  const runtimeCurrent = beforeMarker(
-    readRepoFile('docs/CLOUD-ALWAYS-ON-RUNTIME.md'),
-    'Historical Railway container/pin recovery',
-    'always-on runtime current guidance',
-  );
-  assertCurrentRailwayBoundary(runtimeCurrent, 'always-on runtime current guidance');
+  const runtime = readRepoFile('docs/CLOUD-ALWAYS-ON-RUNTIME.md');
+  const historicalMarker = 'Historical Railway container/pin recovery';
+  const historicalIndex = runtime.indexOf(historicalMarker);
+  assert.notEqual(historicalIndex, -1, 'always-on runtime must retain its explicit historical boundary');
+  assertCurrentRailwayBoundary(runtime.slice(0, historicalIndex), 'always-on runtime current guidance');
 });
