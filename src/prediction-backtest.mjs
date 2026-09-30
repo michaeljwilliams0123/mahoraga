@@ -21,6 +21,8 @@ export function backtestPredictionCalibration(cases, {
   const train = ordered.slice(0, split);
   const heldOut = ordered.slice(split);
   if (train.at(-1).observedAt >= heldOut[0].observedAt) fail('prediction-backtest-leakage');
+  const trainLineages = new Set(train.map((item) => item.predictionReceiptFingerprint));
+  if (heldOut.some((item) => trainLineages.has(item.predictionReceiptFingerprint))) fail('prediction-backtest-lineage-leakage');
 
   const summaryOptions = { minimumSamples, maximumSamples };
   const trainSummary = summarizePredictionCalibration(train.map(({ outcome }) => outcome), summaryOptions);
@@ -41,7 +43,7 @@ export function backtestPredictionCalibration(cases, {
       heldOutSamples: heldOutItems.length,
       trainSummary: trainSegmentSummary,
       heldOutSummary: heldOutSegmentSummary,
-      evidenceSufficient: trainSegmentSummary !== null && heldOutSegmentSummary !== null,
+      evidenceSufficient: trainSegmentSummary?.evidenceSufficient === true && heldOutSegmentSummary?.evidenceSufficient === true,
     });
   });
   const core = {
@@ -55,7 +57,7 @@ export function backtestPredictionCalibration(cases, {
     trustDelta: delta(heldOutSummary.plannerTrust, trainSummary.plannerTrust),
     calibrationGapDelta: delta(heldOutSummary.meanCalibrationGap, trainSummary.meanCalibrationGap),
     normalizedErrorDelta: delta(heldOutSummary.meanNormalizedError, trainSummary.meanNormalizedError),
-    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient,
+    evidenceSufficient: trainSummary.evidenceSufficient && heldOutSummary.evidenceSufficient && segments.every((item) => item.evidenceSufficient),
     segments: deepFreeze(segments),
     sourceFingerprints: deepFreeze(ordered.map(({ outcome }) => outcome.fingerprint)),
   };
@@ -68,7 +70,8 @@ function validateCase(value) {
   const outcome = value.outcome;
   if (!outcome || typeof outcome !== 'object' || Array.isArray(outcome) || outcome.kind !== 'prediction-outcome-receipt' || outcome.schemaVersion !== 1) fail('prediction-backtest-invalid');
   if (typeof outcome.fingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(outcome.fingerprint)) fail('prediction-backtest-invalid');
-  return { segment: value.segment, observedAt: canonicalTimestamp(outcome.observedAt), outcome };
+  if (typeof outcome.predictionReceiptFingerprint !== 'string' || !/^[a-f0-9]{64}$/.test(outcome.predictionReceiptFingerprint)) fail('prediction-backtest-invalid');
+  return { segment: value.segment, observedAt: canonicalTimestamp(outcome.observedAt), predictionReceiptFingerprint: outcome.predictionReceiptFingerprint, outcome };
 }
 
 function canonicalTimestamp(value) {

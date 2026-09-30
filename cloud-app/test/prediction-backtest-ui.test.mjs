@@ -20,16 +20,10 @@ const prediction = simulateCounterfactual({
   stateUncertainty: 0.1,
   action: { actionId: "hold-load", effects: { load: 0 }, uncertainty: 0.1 },
 });
-const receipt = createPredictionReceipt(prediction, {
-  now: () => new Date("2026-09-28T00:00:00.000Z"),
-});
-
 function calibrationCase(minute, load, segment) {
   const observedAt = `2026-09-28T00:${String(minute).padStart(2, "0")}:00.000Z`;
-  return {
-    segment,
-    outcome: scorePredictionOutcome(receipt, { load }, { observedAt: () => new Date(observedAt) }),
-  };
+  const receipt = createPredictionReceipt(prediction, { now: () => new Date(`2026-09-28T00:00:${String(minute).padStart(2, "0")}.000Z`) });
+  return { segment, outcome: scorePredictionOutcome(receipt, { load }, { observedAt: () => new Date(observedAt) }) };
 }
 
 function calibrationCases() {

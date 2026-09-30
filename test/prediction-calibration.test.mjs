@@ -9,13 +9,13 @@ const prediction = simulateCounterfactual({
   action: { actionId: 'recover-capacity', effects: { failureRate: -0.05, queueDepth: -2 }, uncertainty: 0.1 },
 });
 
-function calibrationOutcomes() {
-  const receipt = createPredictionReceipt(prediction, { now: () => new Date('2026-09-27T20:00:00.000Z') });
-  return [
-    scorePredictionOutcome(receipt, { failureRate: 0.15, queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T20:05:00.000Z') }),
-    scorePredictionOutcome(receipt, { failureRate: 0.15, queueDepth: 4 }, { observedAt: () => new Date('2026-09-27T20:06:00.000Z') }),
-    scorePredictionOutcome(receipt, { failureRate: 0.3, queueDepth: 2 }, { observedAt: () => new Date('2026-09-27T20:07:00.000Z') }),
-  ];
+function calibrationOutcomes({ independent = true } = {}) {
+  const shared = createPredictionReceipt(prediction, { now: () => new Date('2026-09-27T20:00:00.000Z') });
+  const states = [{ failureRate:0.15, queueDepth:2 }, { failureRate:0.15, queueDepth:4 }, { failureRate:0.3, queueDepth:2 }];
+  return states.map((state, index) => {
+    const receipt = independent ? createPredictionReceipt(prediction, { now: () => new Date(`2026-09-27T20:00:0${index}.000Z`) }) : shared;
+    return scorePredictionOutcome(receipt, state, { observedAt: () => new Date(`2026-09-27T20:0${index + 5}:00.000Z`) });
+  });
 }
 
 test('prediction receipt is immutable and binds the counterfactual fingerprint', () => {
@@ -109,4 +109,22 @@ test('calibration summary marks sparse evidence insufficient without discarding 
   assert.equal(summary.evidenceSufficient, false);
   assert.equal(summary.plannerTrust, 0.765625);
   assert.deepEqual(summary.sourceFingerprints, outcomes.map((item) => item.fingerprint).sort());
+});
+
+
+test('calibration requires independent prediction lineages for sufficient evidence', () => {
+  const outcomes = calibrationOutcomes({ independent:false });
+  const summary = summarizePredictionCalibration(outcomes, { minimumSamples: 3 });
+
+  assert.equal(summary.sampleCount, 3);
+  assert.equal(summary.evidenceSufficient, false);
+});
+
+
+test('calibration rejects a content-tampered outcome even when its fingerprint shape is valid', () => {
+  const outcome = calibrationOutcomes()[0];
+  assert.throws(
+    () => summarizePredictionCalibration([{ ...outcome, observedAccuracy:0 }], { minimumSamples:1 }),
+    /prediction-calibration-summary-invalid/,
+  );
 });

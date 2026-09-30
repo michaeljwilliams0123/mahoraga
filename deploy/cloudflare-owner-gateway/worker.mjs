@@ -142,7 +142,7 @@ const INTERACTION_TRUTH_KEYS = new Set([
   "interactionFingerprint", "negotiationFingerprint", "executionFingerprint", "observedAt", "reason",
 ]);
 const DELIVERY_TRUTH_KEYS = new Set(["status", "interactionId", "taskId", "chainId", "outputReferences", "deliveryFingerprint", "observedAt", "reason"]);
-const INTERACTION_TRUTH_WRAPPER_KEYS = new Set(["interactionTruth", "deliveryTruth"]);
+const INTERACTION_TRUTH_WRAPPER_KEYS = new Set(["interactionTruth", "deliveryTruth", "runtimeTruthFingerprint"]);
 const INTERACTION_MODALITIES = new Set(["text", "structured", "file", "image", "audio", "video", "event"]);
 const INTERACTION_PROTOCOLS = new Set(["native", "http-json", "mcp", "webhook", "sse", "websocket", "queue"]);
 const INTERACTION_DIRECTIONS = new Set(["ltr", "rtl", "auto"]);
@@ -183,12 +183,13 @@ function validRuntimeDeliveryTruth(value) {
 }
 function sanitizeInteractionTruthResult(value) {
   if (!onlyInteractionKeys(value, INTERACTION_TRUTH_WRAPPER_KEYS) || !Object.hasOwn(value, "interactionTruth") || !Object.hasOwn(value, "deliveryTruth")) return null;
-  if (!validRuntimeInteractionTruth(value.interactionTruth)) return null;
+  if (!validRuntimeInteractionTruth(value.interactionTruth) || !/^[a-f0-9]{64}$/.test(value.runtimeTruthFingerprint)) return null;
   if (value.deliveryTruth !== null && !validRuntimeDeliveryTruth(value.deliveryTruth)) return null;
   if (value.deliveryTruth !== null && value.deliveryTruth.interactionId !== value.interactionTruth.interactionId) return null;
   return {
     interactionTruth:{ ...value.interactionTruth, modalities:[...value.interactionTruth.modalities] },
     deliveryTruth:value.deliveryTruth === null ? null : { ...value.deliveryTruth, outputReferences:[...value.deliveryTruth.outputReferences] },
+    runtimeTruthFingerprint:value.runtimeTruthFingerprint,
   };
 }
 

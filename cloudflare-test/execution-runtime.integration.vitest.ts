@@ -239,6 +239,16 @@ describe("universal interaction runtime lineage", () => {
     });
     expect(read.status).toBe(200);
     expect(await read.json()).toEqual(truth);
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
+      const tampered = { ...truth, interactionTruth:{ ...truth.interactionTruth, executionFingerprint:"f".repeat(64) } };
+      state.storage.sql.exec("UPDATE interaction_runtime_truth SET payload = ? WHERE interaction_id = ?", JSON.stringify(tampered), envelope.interactionId);
+    });
+    const tamperedRead = await stub.fetch("https://execution.example/api/native/bridge", {
+      method:"POST", headers:{ "content-type":"application/json", "x-mahoraga-verified-owner":"owner@example.com", "x-mahoraga-verified-nonce":"32345678-1234-4234-8234-123456789abc" },
+      body:JSON.stringify({ type:"interaction-truth", payload:{ interactionId:envelope.interactionId } }),
+    });
+    expect(tamperedRead.status).toBe(503);
+    expect(await tamperedRead.json()).toEqual({ error:"interaction-runtime-truth-invalid" });
   });
 
   it("blocks held negotiation before the execution broker can become a fallback", async () => {

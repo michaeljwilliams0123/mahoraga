@@ -17,16 +17,14 @@ const prediction = simulateCounterfactual({
   stateUncertainty: 0.1,
   action: { actionId: 'hold-load', effects: { load: 0 }, uncertainty: 0.1 },
 });
-const receipt = createPredictionReceipt(prediction, {
+const sharedReceipt = createPredictionReceipt(prediction, {
   now: () => new Date('2026-09-28T00:00:00.000Z'),
 });
 
-function calibrationCase(minute, load, segment) {
+function calibrationCase(minute, load, segment, receiptOverride = null) {
   const observedAt = `2026-09-28T00:${String(minute).padStart(2, '0')}:00.000Z`;
-  return {
-    segment,
-    outcome: scorePredictionOutcome(receipt, { load }, { observedAt: () => new Date(observedAt) }),
-  };
+  const receipt = receiptOverride ?? createPredictionReceipt(prediction, { now: () => new Date(`2026-09-28T00:00:${String(minute).padStart(2, '0')}.000Z`) });
+  return { segment, outcome: scorePredictionOutcome(receipt, { load }, { observedAt: () => new Date(observedAt) }) };
 }
 
 function calibrationCases() {
@@ -115,4 +113,24 @@ test('held-out backtest fails closed when train and held-out timestamps overlap'
     () => backtestPredictionCalibration([last, boundaryB, first, boundaryA], { splitAt: 2, minimumSamples: 2 }),
     /prediction-backtest-leakage/,
   );
+});
+
+
+test('held-out backtest rejects prediction lineage shared across train and held-out', async () => {
+  const backtestPredictionCalibration = await loadBacktest();
+  assert.throws(
+    () => backtestPredictionCalibration([
+      calibrationCase(1,10,'api',sharedReceipt), calibrationCase(2,11,'queue',sharedReceipt), calibrationCase(3,10.5,'api',sharedReceipt), calibrationCase(4,12,'queue',sharedReceipt),
+      calibrationCase(5,10.2,'api',sharedReceipt), calibrationCase(6,10.8,'queue',sharedReceipt), calibrationCase(7,10.4,'api',sharedReceipt), calibrationCase(8,11.2,'queue',sharedReceipt),
+    ], { splitAt: 4, minimumSamples: 2 }),
+    /prediction-backtest-lineage-leakage/,
+  );
+});
+
+test('held-out backtest withholds global evidence when an observed segment lacks train and held-out support', async () => {
+  const backtestPredictionCalibration = await loadBacktest();
+  const cases = calibrationCases();
+  cases[7] = calibrationCase(8, 11.2, 'rare');
+  const result = backtestPredictionCalibration(cases, { splitAt: 4, minimumSamples: 2 });
+  assert.equal(result.evidenceSufficient, false);
 });

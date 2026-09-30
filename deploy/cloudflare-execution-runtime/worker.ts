@@ -13,7 +13,7 @@ import { createCognitiveIndividual } from "../../src/cognitive-individual.mjs";
 import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
 import type { ConnectorBrokerBinding } from "./connector-capability-router";
 import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from "./universal-capability-router";
-import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth } from "./interaction-runtime";
+import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -179,7 +179,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (input?.type === "interaction-truth") {
       if (Object.keys(payload).length !== 1 || typeof payload.interactionId !== "string" || !/^interaction-[a-f0-9]{32}$/.test(payload.interactionId)) return json({ error: "interaction-truth-request-invalid" }, 400);
       const truth = this.storage.getInteractionRuntimeTruth(payload.interactionId);
-      return truth === null ? json({ error: "interaction-truth-unavailable" }, 404) : json(truth.payload);
+      if (truth === null) return json({ error: "interaction-truth-unavailable" }, 404);
+      try { return json(validateInteractionRuntimeTruth(truth.payload)); } catch { return json({ error:"interaction-runtime-truth-invalid" }, 503); }
     }
     if (input?.type === "execute") {
       const broker = this.env.MAHORAGA_EXECUTION_BROKER;
