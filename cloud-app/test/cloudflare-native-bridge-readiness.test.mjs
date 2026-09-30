@@ -32,3 +32,25 @@ test("sidebar brain readiness follows the assistant route and describes cloud br
   assert.match(shell, /authenticated cloud bridge is the primary execution path/i);
   assert.match(shell, /encrypted relay remains recovery/i);
 });
+
+
+test("telemetry stream is authenticated, origin-bound, and mounted in the cockpit", async () => {
+  const [worker, bindings, telemetry, cockpit] = await Promise.all([
+    read("../deploy/cloudflare-execution-runtime/worker.ts"),
+    read("../deploy/cloudflare-execution-runtime/bindings.d.ts"),
+    read("components/cockpit/TelemetrySparkline.tsx"),
+    read("components/cockpit/CockpitView.tsx"),
+  ]);
+
+  assert.match(worker, /\/api\/stream\/telemetry/);
+  assert.match(worker, /authorization/);
+  assert.match(worker, /secureEqual\(token, env\.TELEMETRY_STREAM_TOKEN\)/);
+  assert.match(worker, /origin !== env\.MAHORAGA_WORKSPACE_ORIGIN/);
+  assert.match(worker, /text\/event-stream/);
+  assert.match(worker, /live_cpu_usage_ms: null/);
+  assert.match(bindings, /TELEMETRY_STREAM_TOKEN: string/);
+  assert.match(telemetry, /authorization: `Bearer \$\{token\}`/);
+  assert.doesNotMatch(telemetry, /\?token=/);
+  assert.match(telemetry, /CPU and memory stay unreported/);
+  assert.match(cockpit, /<TelemetrySparkline \/>/);
+});
