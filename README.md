@@ -13,7 +13,7 @@
 | Cloudflare workspace candidate | **[Open the exact-main candidate](https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev/)** | Deployment/provenance observation only; not runtime or traffic authority by itself |
 | Source authority | **[`main`](https://github.com/michaeljwilliams0123/mahoraga/tree/main)** | Canonical source and evolution ledger |
 
-GitHub Pages is the canonical browser presentation. GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. The Cloudflare execution runtime is the canonical production execution plane and owner-action gateway. Railway is retained only as non-routing rollback/evidence; it has no production traffic authority or fallback role.
+GitHub Pages is the canonical browser presentation. GitHub Pages is a derived static export of the canonical `cloud-app/` workspace source. The Cloudflare execution runtime is the canonical production execution plane and owner-action gateway. Railway is legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority. It is not part of the production path.
 
 ## Cutover status
 
@@ -69,7 +69,7 @@ The architecture is intentionally fail-closed. A provider being installed, decla
 
 | Truth domain | What establishes it | What it does **not** prove |
 | --- | --- | --- |
-| **Source truth** | Protected GitHub `main`, exact commit SHA, ruleset, exact-head CI | That Cloudflare, Railway rollback, or Windows is running that SHA |
+| **Source truth** | Protected GitHub `main`, exact commit SHA, ruleset, exact-head CI | That Cloudflare, Railway, or Windows is running that SHA |
 | **Deployment truth** | Host/provider deployment metadata plus served source provenance | That all workers/providers are healthy or authorized |
 | **Live-runtime truth** | Fresh runtime/process/listener/worker/provider observations | That source policy or CI gates were satisfied unless provenance is tied back to source |
 | **Provider readiness** | Fresh provider + canary + quota/billing evidence | Owner authority for a side effect |
@@ -255,7 +255,7 @@ If the owner identity/gateway is absent, session establishment must fail closed.
 - **Production execution runtime:** Cloudflare Workers, admitted only by exact-SHA deployment plus the full hard-zero acceptance chain.
 - **Owner action gateway:** [Cloudflare Access-protected gateway](https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/), using the native `MAHORAGA_EXECUTION_RUNTIME` service binding rather than a Railway proxy.
 - **Static deployment candidate:** [Cloudflare workspace candidate](https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev/); provenance evidence only until its exact commit is observed.
-- **Railway:** non-routing rollback/evidence only; never a production route, influence source, or automatic fallback.
+- **Railway:** legacy evidence only; zero-route, zero-influence, zero-fallback, zero-authority.
 - **Operator reference/control helpers:** [`operator-deck/`](operator-deck/) — not a second Mahoraga runtime.
 - **Loopback control API:** defaults to `127.0.0.1:4782`; never expose this as a generic public API.
 - **Vercel:** historical/retired from the active production-completion path; it is not a required PR/deployment gate.

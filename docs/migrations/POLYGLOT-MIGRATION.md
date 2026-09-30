@@ -72,4 +72,4 @@ That cluster maximizes compile-time value around routing/authority without yet f
 
 ## Standing invariants
 
-GitHub `main` remains source authority; the current Cloudflare runtime requires independent exact-main acceptance; Railway is non-routing rollback infrastructure. Protected Windows/Ubuntu exact-head verification remains mandatory; zero-credit routing stays fail-closed; no paid fallback, public raw runtime listener, owner-sovereignty weakening, or parallel UI is introduced by this migration.
+GitHub `main` remains source authority; the current Cloudflare runtime requires independent exact-main acceptance; Railway is legacy evidence only with zero-route / zero-influence / zero-fallback / zero-authority. Protected Windows/Ubuntu exact-head verification remains mandatory; zero-credit routing stays fail-closed; no paid fallback, public raw runtime listener, owner-sovereignty weakening, or parallel UI is introduced by this migration.
