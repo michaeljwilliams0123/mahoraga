@@ -24,9 +24,12 @@ export async function loadManifest(file = MANIFEST_PATH, { env = process.env } =
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
   const identity = canonical ? await loadProductIdentity() : null;
   let manifest;
+  let backupSource;
   try {
     const source = JSON.parse(await readFile(file, "utf8"));
-    manifest = validateManifest(normalizeManifestCompatibility(source, identity), { env });
+    const normalizedSource = normalizeManifestCompatibility(source, identity);
+    manifest = validateManifest(normalizedSource, { env });
+    backupSource = stripZeroCreditAnswerRuntime(normalizedSource);
   } catch (error) {
     if (!canonical || error?.code === "local-ai-production-config-forbidden") throw error;
     const backupSource = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
@@ -38,7 +41,7 @@ export async function loadManifest(file = MANIFEST_PATH, { env = process.env } =
   if (canonical) {
     try {
       await mkdir(path.dirname(MANIFEST_BACKUP_PATH), { recursive: true });
-      await writeFile(MANIFEST_BACKUP_PATH, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      await writeFile(MANIFEST_BACKUP_PATH, `${JSON.stringify(backupSource, null, 2)}\n`, "utf8");
     } catch {
       // A valid live manifest remains authoritative when operational backup storage is unavailable.
     }

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertLocalAiConfigurationAllowed, loadManifest, validateManifest } from "../src/config.mjs";
+import { readFile } from "node:fs/promises";
+import { assertLocalAiConfigurationAllowed, loadManifest, MANIFEST_BACKUP_PATH, validateManifest } from "../src/config.mjs";
 
 const PRODUCTION_ENV = { NODE_ENV: "production" };
 const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
@@ -134,4 +135,18 @@ test("default non-development manifest keeps cloud answers and removes local mod
   assert.equal(manifest.workers.some((worker) => worker.id === "codespaces-open-weight" && worker.enabled), true);
   assert.equal(manifest.workers.some((worker) => worker.id === "local-open-weight"), false);
   assert.equal(manifest.costModes["zero-credit"].includes("local-model"), false);
+});
+
+test("manifest recovery backup stays neutral across production and development projections", async () => {
+  await loadManifest(undefined, { env: PRODUCTION_ENV });
+  const productionBackup = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
+  await loadManifest(undefined, { env: LOCAL_AI_DEV_ENV });
+  const developmentBackup = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
+
+  assert.deepEqual(developmentBackup, productionBackup);
+  assert.equal(developmentBackup.workers.some((worker) => worker.id === "local-open-weight"), false);
+  assert.equal(developmentBackup.workers.some((worker) => worker.id === "codespaces-open-weight"), false);
+  assert.equal(developmentBackup.costModes.local.includes("local-model"), true);
+  assert.equal(developmentBackup.costModes.hybrid.includes("local-model"), true);
+  assert.equal(developmentBackup.costModes.maximum.includes("local-model"), true);
 });
