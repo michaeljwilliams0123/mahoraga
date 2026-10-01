@@ -12,6 +12,7 @@ import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
+import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -260,11 +261,18 @@ export function CockpitView({
 
       <div className="eclipse-status-grid">
         <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
+        <UndiciSecurityBumpCard />
         <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard
+          label="Telemetry"
+          value="telemetry unavailable"
+          detail="telemetry-session-unavailable until a genuine owner-authenticated transport exists · no browser bearer from localStorage · TELEMETRY_STREAM_TOKEN optional and not uploaded · no live Railway fallback · not traffic authority"
+          tone="warn"
+        />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
         <StatusCard
