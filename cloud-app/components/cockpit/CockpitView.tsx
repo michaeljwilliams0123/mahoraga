@@ -11,6 +11,7 @@ import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Healt
 import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
+import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -277,6 +278,7 @@ export function CockpitView({
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <InteractionTruthCards truth={interactionTruth} />
         <TransformationProvenanceCards />
+        <BrokerLeaseCards />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
         <StatusCard label="Vercel retired" value="Observation-only" detail="Not in the executable origin allowlist · no origin, gateway, traffic, or runtime authority" tone="neutral" />
         <StatusCard
@@ -319,6 +321,12 @@ export function CockpitView({
           label="Translation · transcription · transformation provenance"
           value="Source-bound derivatives"
           detail="Translated, transcribed, and transformed derivatives retain source fingerprints and do not gain authority"
+          tone="neutral"
+        />
+        <StatusCard
+          label="Universal broker lease / deadline"
+          value="Fail-closed / observational"
+          detail="Rejected manipulated routing metrics · past deadlineAt cannot select · narrowed lease scope · mid-provider expiry is HTTP 409 execution-lease-expired not HTTP 200 · zero-credit exhaustion has no metered fallthrough · Merge #874 is not live traffic authority · do not grant traffic authority"
           tone="neutral"
         />
         <StatusCard label="Traffic authority" value="Separate / unverified" detail="Never inferred from /api/ready; trafficAuthorityVerified stays unpromoted even if acceptance or ready is true" tone="neutral" />
@@ -389,6 +397,7 @@ export function CockpitView({
             <div><dt>Protocol negotiation</dt><dd>native · HTTP/JSON · MCP · webhook · SSE · WebSocket · queue · compatibility only</dd></div>
             <div><dt>Receipt lineage</dt><dd>Omnichannel ingress → interaction → negotiation → execution → delivery</dd></div>
             <div><dt>Transformation provenance</dt><dd>Translation · transcription · transformation provenance · derivatives retain source fingerprints</dd></div>
+            <div><dt>Universal broker lease / deadline</dt><dd>attestation-metrics-invalid · execution-deadline-exceeded · narrowed lease scope · HTTP 409 execution-lease-expired not HTTP 200 · zero-credit no metered fallthrough · do not grant traffic authority</dd></div>
             <div><dt>Traffic authority</dt><dd>Separate / unverified · trafficAuthorityVerified unpromoted</dd></div>
             <div><dt>Routing authority</dt><dd>{health?.routing?.authority ?? "paired-mahoraga-core"}</dd></div>
             <div><dt>Paid fallback</dt><dd>{paidFallback ? "enabled" : "disabled"}</dd></div>

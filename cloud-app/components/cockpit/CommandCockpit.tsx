@@ -21,6 +21,7 @@ import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
+import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
 const HELPERS = [
@@ -219,6 +220,12 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">PROTOCOL_NEGOTIATION_OBS</span>
             <span className="cockpit-pill steel">RECEIPT_LINEAGE_OBS</span>
             <span className="cockpit-pill steel">TRANSFORM_PROVENANCE_OBS</span>
+            <span className="cockpit-pill steel">BROKER_LEASE_OBS</span>
+            <span className="cockpit-pill steel">METRICS_MANIP_REJECT</span>
+            <span className="cockpit-pill steel">DEADLINE_FAIL_CLOSED</span>
+            <span className="cockpit-pill steel">LEASE_SCOPE_NARROW</span>
+            <span className="cockpit-pill steel">LEASE_EXPIRY_NOT_200</span>
+            <span className="cockpit-pill steel">ZERO_CREDIT_NO_FALLTHROUGH</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
@@ -233,6 +240,7 @@ export function CommandCockpit({
         <section className="eclipse-status-grid" aria-label="Observed interaction and delivery truth">
           <InteractionTruthCards truth={interactionTruth} />
           <TransformationProvenanceCards />
+          <BrokerLeaseCards />
         </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
@@ -273,6 +281,9 @@ export function CommandCockpit({
           </p>
           <p>
             Universal reach remains observational at the cockpit boundary: interaction context is additive and cannot create a provider route or widen authority. Supported interaction references are text, structured data, files, images, audio, video, and events. Locale, timezone, RTL direction, accessibility preferences, and phone/tablet/desktop/embedded/headless device context are presentation-only. Execution and delivery are separate: online, degraded, or offline delivery retries never re-execute the task. Protocol negotiation may observe native, HTTP/JSON, MCP, webhook, SSE, WebSocket, or queue compatibility without granting execution or traffic authority. One receipt lineage remains Omnichannel ingress → interaction → negotiation → execution → delivery; translation, transcription, and other derivatives retain source fingerprints. GitHub Pages remains presentation-only.
+          </p>
+          <p>
+            Universal broker lease and deadline state is observational. Manipulated routing metrics (negative latency/queue, non-integer queue depth, reliability outside [0,1]) fail closed as <code>attestation-metrics-invalid</code>. Already-past <code>deadlineAt</code> cannot select, lease, or hand off. Route-lease scope is step permission ∩ worker/request authority. Mid-provider lease expiry on completion/handoff is <code>execution-lease-expired</code> HTTP 409, not HTTP 200. Zero-credit exhaustion stays closed with no metered-route fallthrough. Merge #874 is not live traffic authority.
           </p>
           <p>
             Held-out prediction-calibration backtest is observational empirical evidence only. Chronological train vs held-out windows fail closed on duplicate outcomes and overlapping timestamps. Summaries reuse summarizePredictionCalibration; planner-trust, calibration-gap, and normalized-error deltas are displayed without a hidden generalizes threshold, promotion, or traffic-authority claim. Execution readiness, cognition readiness, and traffic authority stay separate fail-closed claims. Merge #877 is not live traffic authority. github.io is presentation only and must not call authenticated APIs.
