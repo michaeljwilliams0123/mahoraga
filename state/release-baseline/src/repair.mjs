@@ -27,6 +27,7 @@ export const ESSENTIAL_FILES = [
   "src/cli.mjs",
   "src/answer-quality.ts",
   "src/assistant-result.ts",
+  "src/current-head-assurance.ts",
   "src/structured-output.ts",
   "src/semantic-memory.ts",
   "src/local-ai-inference.ts",
