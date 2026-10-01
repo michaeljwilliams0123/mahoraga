@@ -233,6 +233,8 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
             <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
+            <span className="cockpit-pill warn">TELEMETRY_UNAVAILABLE</span>
+            <span className="cockpit-pill warn">telemetry-session-unavailable</span>
             <span className="cockpit-pill steel">VERCEL_RETIRED</span>
           </div>
         </header>
@@ -253,7 +255,7 @@ export function CommandCockpit({
             Cloudflare workspace: {CLOUDFLARE_WORKSPACE_CANDIDATE} · provenance is unverified until exact-main publish and acceptance are tied to the merged SHA. Runtime execution and traffic authority remain independently gated.
           </p>
           <p>
-            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here.
+            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here. Telemetry stays telemetry unavailable / telemetry-session-unavailable; this static workspace does not read a session bearer from localStorage and does not fall back to live Railway.
           </p>
           <p role="status">
             Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
