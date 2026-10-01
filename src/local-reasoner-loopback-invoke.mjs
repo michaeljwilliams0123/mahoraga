@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { DEFAULT_MODEL_SUPPLY_CHAIN, evaluateRuntimeModelAdmission } from "./model-supply-chain.mjs";
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
 
 const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
 const OLLAMA_GENERATE_URL = "http://127.0.0.1:11434/api/generate";
@@ -16,12 +17,14 @@ export function createLoopbackGenerateInvoke({
   timeoutMs = 1500,
   modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN,
   now = () => new Date(),
+  env = process.env,
 } = {}) {
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10_000) {
     fail("loopback-timeout-invalid");
   }
   return async function invoke({ worldDigest } = {}) {
     assertDigest(worldDigest);
+    if (!isLocalAiDevelopmentEnabled(env)) return frozen("hold", "local-ai-development-only", worldDigest);
     if (probe?.cloudTagged === true) return frozen("refused", "ollama-cloud-not-credit-free", worldDigest);
     if (probe?.verified !== true) return frozen("hold", "local-reasoner-not-ready", worldDigest);
     if (typeof fetchImpl !== "function") return frozen("hold", "loopback-fetch-unavailable", worldDigest);

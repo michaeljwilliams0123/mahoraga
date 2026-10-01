@@ -12,6 +12,18 @@ const provider = Object.freeze({
   ready: true,
   capabilityCanary: Object.freeze({ fresh: true }),
 });
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
+
+function withLocalAiDevelopment(run) {
+  const previous = { NODE_ENV: process.env.NODE_ENV, ALLOW_LOCAL_AI_DEV: process.env.ALLOW_LOCAL_AI_DEV };
+  process.env.NODE_ENV = LOCAL_AI_DEV_ENV.NODE_ENV;
+  process.env.ALLOW_LOCAL_AI_DEV = LOCAL_AI_DEV_ENV.ALLOW_LOCAL_AI_DEV;
+  try { return run(); }
+  finally {
+    if (previous.NODE_ENV === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous.NODE_ENV;
+    if (previous.ALLOW_LOCAL_AI_DEV === undefined) delete process.env.ALLOW_LOCAL_AI_DEV; else process.env.ALLOW_LOCAL_AI_DEV = previous.ALLOW_LOCAL_AI_DEV;
+  }
+}
 
 const task = Object.freeze({
   capability: "assistant.respond",
@@ -118,16 +130,18 @@ test("zero-credit answer routing falls back to an admitted local provider when c
   const local = { ...candidate(), workerId: "local-open-weight", costClass: "local-model", executionPlane: "local" };
   const router = createTaskRouter({ rankRoutes: () => ({ candidates: [candidate(), local], considered: [], reason: null }) });
   const context = { cloudModeEnabled: true, providers: [provider, { ...provider, id: "local-open-weight", billingState: "not-applicable" }] };
-  for (const [request, routingContext] of [
-    [{ ...task, excludedWorkerIds: [provider.id] }, context],
-    [task, { ...context, availableWorkerIds: ["local-open-weight"] }],
-  ]) {
-    const route = router(manifest, request, routingContext);
-    assert.equal(route.status, "routable");
-    assert.equal(route.worker.id, "local-open-weight");
-    assert.equal(route.providerDecision.providerId, "local-open-weight");
-    assert.equal(route.authorityDecision.provider.id, "local-open-weight");
-  }
+  withLocalAiDevelopment(() => {
+    for (const [request, routingContext] of [
+      [{ ...task, excludedWorkerIds: [provider.id] }, context],
+      [task, { ...context, availableWorkerIds: ["local-open-weight"] }],
+    ]) {
+      const route = router(manifest, request, routingContext);
+      assert.equal(route.status, "routable");
+      assert.equal(route.worker.id, "local-open-weight");
+      assert.equal(route.providerDecision.providerId, "local-open-weight");
+      assert.equal(route.authorityDecision.provider.id, "local-open-weight");
+    }
+  });
 });
 
 test("all eligible answer workers at capacity produce a queueable hold", () => {
@@ -149,7 +163,7 @@ test("an unverified idle provider cannot consume a request waiting for a verifie
 
 test("canonical manifest exposes a local zero-credit answer worker", async () => {
   const { loadManifest } = await import("../src/config.mjs");
-  const loaded = await loadManifest();
+  const loaded = await loadManifest(undefined, { env: LOCAL_AI_DEV_ENV });
   const local = loaded.workers.find((item) => item.id === "local-open-weight");
   assert.ok(local);
   assert.equal(local.enabled, true);

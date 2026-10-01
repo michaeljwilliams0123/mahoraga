@@ -234,6 +234,8 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
             <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
+            <span className="cockpit-pill warn">TELEMETRY_UNAVAILABLE</span>
+            <span className="cockpit-pill warn">telemetry-session-unavailable</span>
             <span className="cockpit-pill steel">VERCEL_RETIRED</span>
           </div>
         </header>
@@ -254,7 +256,7 @@ export function CommandCockpit({
             Cloudflare workspace: {CLOUDFLARE_WORKSPACE_CANDIDATE} · provenance is unverified until exact-main publish and acceptance are tied to the merged SHA. Runtime execution and traffic authority remain independently gated.
           </p>
           <p>
-            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here.
+            Live is /api/live health. /api/ready reports execution readiness, exact SHA, and durable-state observation only. The cloudflare-execution-runtime hop identity is not traffic authority. Bearer value is never shown, logged, or persisted here. Telemetry stays telemetry unavailable / telemetry-session-unavailable; this static workspace does not read a session bearer from localStorage and does not fall back to live Railway.
           </p>
           <p role="status">
             Ready is live health plus paired core. Pairing is explicit: CORE_UNPAIRED stays fail-closed until Pair runtime succeeds. LIVE_OK alone is not Ready.
@@ -291,6 +293,7 @@ export function CommandCockpit({
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
+            <div><dt>Next dependency provenance</dt><dd>16.3.3 → 16.3.6 · security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority</dd></div>
             <div><dt>browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>execution path</dt><dd>encrypted relay</dd></div>
             <div><dt>authoritative runtime</dt><dd>Mahoraga core (4782)</dd></div>

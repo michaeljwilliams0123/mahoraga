@@ -12,6 +12,7 @@ import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
 const ADMITTED_SHA256 = "a".repeat(64);
 const RUNTIME_SHA256 = "d".repeat(64);
 const NOW = "2020-01-01T12:00:00.000Z";
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
 const INSPECTION_METADATA = {
   scannerId: "mahoraga-static-model-scan-v1",
   artifactSha256: ADMITTED_SHA256,
@@ -52,6 +53,7 @@ const ADMITTED_POLICY = {
 test("loopback probe covers Ollama and LM Studio without retaining model identifiers", async () => {
   const calls = [];
   const result = await probeLocalReasoner({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async (url, options) => {
       calls.push({ url, options });
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
@@ -86,15 +88,17 @@ test("loopback probe covers Ollama and LM Studio without retaining model identif
 
 test("local reasoner readiness fails closed for missing models or unavailable loopback services", async () => {
   const noModels = await probeLocalReasoner({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ data: [], models: [] }) }),
   });
   assert.equal(noModels.verified, false);
   assert.equal(noModels.providerHealth.availability, "configured");
   assert.equal(await observeLocalReasonerReady({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ data: [], models: [] }) }),
   }), false);
 
-  const unavailable = await probeLocalReasoner({ fetchImpl: async () => { throw new Error("connection refused"); } });
+  const unavailable = await probeLocalReasoner({ env: LOCAL_AI_DEV_ENV, fetchImpl: async () => { throw new Error("connection refused"); } });
   assert.equal(unavailable.verified, false);
   assert.equal(unavailable.providerHealth.availability, "unavailable");
   assert.equal(unavailable.providerHealth.errorCode, "connection-unavailable");
@@ -102,6 +106,7 @@ test("local reasoner readiness fails closed for missing models or unavailable lo
 
 test("Ollama-only loopback is sufficient to mark the local reasoner live", async () => {
   const result = await probeLocalReasoner({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
         return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${RUNTIME_SHA256}`, size: 420 }] }) };
@@ -116,6 +121,7 @@ test("Ollama-only loopback is sufficient to mark the local reasoner live", async
   assert.equal(result.providerHealth.lmStudio.availability, "unavailable");
   assert.equal(JSON.stringify(result).includes("secret-qwen"), false);
   assert.equal(await observeLocalReasonerReady({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
         return { ok: true, status: 200, json: async () => ({ models: [{ name: "secret-qwen", digest: `sha256:${RUNTIME_SHA256}`, size: 420 }] }) };
@@ -138,6 +144,7 @@ test("local reasoning execution remains explicitly disabled until transient resu
 
 test("loaded loopback models stay unverified without an admitted immutable digest", async () => {
   const result = await probeLocalReasoner({
+    env: LOCAL_AI_DEV_ENV,
     fetchImpl: async (url) => {
       if (url === LOCAL_REASONER_ENDPOINTS.ollama) {
         return {
@@ -155,4 +162,15 @@ test("loaded loopback models stay unverified without an admitted immutable diges
   assert.equal(result.providerHealth.errorCode, "model-supply-chain-unadmitted");
   assert.match(result.summary, /no admitted models/i);
   assert.equal(JSON.stringify(result).includes("untrusted-local-name"), false);
+});
+
+test("non-development local probe is disabled without making loopback requests", async () => {
+  let called = false;
+  const result = await probeLocalReasoner({
+    env: { NODE_ENV: "production", ALLOW_LOCAL_AI_DEV: "true" },
+    fetchImpl: async () => { called = true; throw new Error("should-not-run"); },
+  });
+  assert.equal(called, false);
+  assert.equal(result.verified, false);
+  assert.equal(result.providerHealth.errorCode, "local-ai-development-only");
 });

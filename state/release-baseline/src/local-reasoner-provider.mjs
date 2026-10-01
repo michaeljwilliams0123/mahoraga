@@ -1,4 +1,5 @@
 import { DEFAULT_MODEL_SUPPLY_CHAIN, evaluateRuntimeModelAdmission } from "./model-supply-chain.mjs";
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
 
 const OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags";
 const LM_STUDIO_MODELS_URL = "http://127.0.0.1:1234/v1/models";
@@ -8,7 +9,8 @@ export const LOCAL_REASONER_ENDPOINTS = Object.freeze({
   lmStudio: LM_STUDIO_MODELS_URL,
 });
 
-export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000, modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN, now = new Date() } = {}) {
+export async function probeLocalReasoner({ fetchImpl = globalThis.fetch, timeoutMs = 3000, modelSupplyChain = DEFAULT_MODEL_SUPPLY_CHAIN, now = new Date(), env = process.env } = {}) {
+  if (!isLocalAiDevelopmentEnabled(env)) return unavailableAggregate("local-ai-development-only");
   if (typeof fetchImpl !== "function") return unavailableAggregate("fetch-unavailable");
   if (!Number.isInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10000) throw new TypeError("local-reasoner-timeout-invalid");
 

@@ -8,6 +8,7 @@ import { CREDIT_FREE_PROTOCOL_STEPS } from "../src/credit-free-autonomy.mjs";
 import { createEvolutionExperiment } from "../src/evolution-laboratory.mjs";
 
 const NOW = new Date("2026-09-05T14:00:00.000Z");
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
 test("unattended cycle runs heartbeat then compounds skills at $0 without a chat turn", () => {
@@ -32,6 +33,7 @@ test("unattended cycle runs heartbeat then compounds skills at $0 without a chat
 test("generation cycles hold without a live invoke and still run the slow foundry loop", () => {
   const cycle = runUnattendedCreditFreeCycle({
     now: NOW,
+    env: LOCAL_AI_DEV_ENV,
     requiresGeneration: true,
     localReasonerReady: true,
     message: "Update the Mahoraga interface and apply the change",
@@ -103,6 +105,7 @@ test("heartbeat CLI exits cleanly without an unsettled top-level-await cycle", (
 test("a real invoke may verify generation without persisting content", () => {
   const cycle = runUnattendedCreditFreeCycle({
     now: NOW,
+    env: LOCAL_AI_DEV_ENV,
     requiresGeneration: true,
     localReasonerReady: true,
     probe: { verified: true },
@@ -117,6 +120,7 @@ test("a real invoke may verify generation without persisting content", () => {
 test("async invoke is awaited without fabricating an ok result", async () => {
   const cycle = await runUnattendedCreditFreeCycle({
     now: NOW,
+    env: LOCAL_AI_DEV_ENV,
     requiresGeneration: true,
     localReasonerReady: true,
     probe: { verified: true },

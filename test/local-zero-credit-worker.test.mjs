@@ -15,7 +15,7 @@ const ZERO_ENV = Object.freeze({
 test("local zero-credit worker reports local provider readiness instead of licensed Codex", async (t) => {
   const child = fork(new URL("../src/worker-process.mjs", import.meta.url), ["local-open-weight"], {
     stdio: ["ignore", "ignore", "ignore", "ipc"],
-    env: { ...process.env, ...ZERO_ENV },
+    env: { ...process.env, ...ZERO_ENV, NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" },
   });
   t.after(() => { if (child.connected) child.send({ type: "shutdown" }); else child.kill(); });
   const readiness = await new Promise((resolve, reject) => {
