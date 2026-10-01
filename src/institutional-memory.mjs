@@ -82,6 +82,7 @@ export function queryInstitutionalMemory({
   capability = null,
   includeSuperseded = false,
   limit = 100,
+  semantic = null,
 } = {}) {
   if (!Array.isArray(records) || !Number.isSafeInteger(limit) || limit < 1 || limit > 1_000) fail('institutional-memory-query-invalid');
   const normalized = records.map(validateInstitutionalMemoryRecord);
@@ -94,6 +95,13 @@ export function queryInstitutionalMemory({
     if (capability != null && record.capability !== checkedSlug(capability, 64, 'institutional-memory-capability-invalid')) return false;
     return true;
   });
+  if (semantic !== null) {
+    if (!semantic || typeof semantic.index?.search !== 'function' || !semantic.query) fail('institutional-memory-semantic-query-invalid');
+    const hits = semantic.index.search({ ...semantic.query, limit: 4096 });
+    const ranks = new Map(hits.map((hit, index) => [hit.reference, index]));
+    return deepFreeze(result.filter(record => ranks.has(`memory:${record.memoryId}`))
+      .sort((a, b) => ranks.get(`memory:${a.memoryId}`) - ranks.get(`memory:${b.memoryId}`)).slice(0, limit));
+  }
   return deepFreeze(result.sort((a, b) => b.observedAt.localeCompare(a.observedAt) || a.memoryId.localeCompare(b.memoryId)).slice(0, limit));
 }
 

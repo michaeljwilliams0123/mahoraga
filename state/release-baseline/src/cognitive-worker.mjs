@@ -32,6 +32,11 @@ export async function executeCognitiveCapability(capability, task = {}) {
     }
     case 'cognitive.cycle': {
       const cycle = runCognitiveLoop(required(input, 'cognitiveInput'));
+      if (input.mitosis !== undefined) {
+        const { runCognitiveMitosis } = await import('./cognitive-mitosis.ts');
+        const mitosis = await runCognitiveMitosis({ cognitiveInput: required(input, 'cognitiveInput'), candidates: required(input.mitosis, 'candidates'), limits: input.mitosis.limits });
+        return empirical(task, input, { verified: true, summary: `Cognitive cycle evaluated ${mitosis.clones.length} isolated alternatives; incumbent verification is required for learning.`, cycle, mitosis });
+      }
       return empirical(task, input, { verified: true, summary: `Cognitive cycle completed with decision ${cycle.decision}.`, cycle });
     }
     case 'cognitive.learn': {
