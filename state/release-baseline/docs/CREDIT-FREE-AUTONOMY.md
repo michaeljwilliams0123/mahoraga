@@ -7,10 +7,10 @@ Mahoraga stays autonomous only when execution can continue without paid inferenc
 Credit-free autonomy is fail-closed.
 
 - Deterministic local planes (`repository`, `local-core`, `self-healer`, `steward-learning`, `browser`, `desktop`, `mcp-host`, `github-operator`, `grok-github-mcp`, `chatgpt-github-mcp`) are admissible at `$0`.
-- Local reasoners (`ollama`, `lm-studio`, `local-reasoner`) are admissible only when live-ready and unmetered.
+- Local AI adapters (`ollama`, `lm-studio`, `local-reasoner`) are development-only and require both `NODE_ENV=development` and `ALLOW_LOCAL_AI_DEV=true`; non-development startup rejects configured local adapters.
 - Subscription-local Codex Builder is not treated as credit-free. It may exist, but this selector will not dispatch it.
 - Metered providers (`openai-platform`, `github-copilot`, `workspace-agent-cloud`, `codex-cloud`, `groq`, `gemini`, `huggingface`, `openrouter`, `together`, `fireworks`, `native-cloud-model`, `vercel-ai-gateway`, `cloud-browser`, `browserbase`, `chatgpt-codex-connector`, `copilot-review`, `openclaw-hosted`, `codespaces`, `github-codespaces`) are forbidden. Hosted “free” keys are contamination, not a recovery path. GitHub Codespaces minutes are billed compute, not public-repo Actions minutes.
-- Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `localai`, `mlx`, `local-reasoner`) are local-reasoner planes. Execution still requires a live loopback probe (Ollama `11434` or LM Studio `1234`) and a transient result channel. Classifying `llama-cpp`, `localai`, or `mlx` does not add a third HTTP probe.
+- Local open-weight class names (`ollama`, `lm-studio`, `llama-cpp`, `jan`, `gpt4all`, `localai`, `mlx`, `local-reasoner`) are development-only local-reasoner planes. Execution requires both development flags, a live loopback probe (Ollama `11434` or LM Studio `1234`), and a transient result channel. Classifying `llama-cpp`, `localai`, or `mlx` does not add a third HTTP probe.
 - Paid fallback is never a recovery path.
 - A non-zero spend grant or Platform API key blocks dispatch.
 - Hosted free-tier compute (Vercel daily deploy cap, duplicate projects, Codex review quotas) is not a spend grant, but exhausting it still forces `hold-planned`. Buying a higher tier is not a recovery path.
@@ -30,7 +30,7 @@ Default containment (Act / repair / autonomous-action):
 
 Inspect-only requests skip mutation nodes and report status. Hybrid conversation mode still uses the Codex debate DAG. The zero-credit route never falls through to that DAG.
 
-If the request is a source mutation and no local reasoner is live, the containment graph still runs and a `stewardGap` is recorded: model-backed edits wait for Ollama / LM Studio or an owner-authorized dispatch. Containment is not a fake implementation.
+If the request is a source mutation and no permitted local reasoner is live, the containment graph still runs and a `stewardGap` is recorded: model-backed edits wait for Ollama / LM Studio in explicitly enabled development or an owner-authorized dispatch. Containment is not a fake implementation.
 
 ## Unattended heartbeat
 
@@ -72,10 +72,10 @@ True autonomy is two loops, both at `$0`:
    steward gaps via the agent foundry. No prompts. No weight updates. No paid
    evals.
 
-This matches current local-first practice (Ollama / LM Studio as the only
-generation plane, GitHub Actions as the scheduler, Voyager-style skill
-compounding without storing traces). Cloud API fallbacks, Hugging Face free-tier
-as a guaranteed route, and Groq/Gemini "free" keys are still not recovery paths.
+Ollama / LM Studio generation is restricted to explicitly enabled development;
+GitHub Actions remains the scheduler, with Voyager-style skill compounding
+without storing traces. Cloud API fallbacks, Hugging Face free-tier as a
+guaranteed route, and Groq/Gemini "free" keys are still not recovery paths.
 
 ## Unattended dual loop (admission is not autonomy)
 
@@ -340,4 +340,3 @@ as `hold-host-bound` at `$0`. Retrying them from GitHub, creating extra Vercel
 projects, or buying a Codex/Destiny probe is not a recovery path. Overlapping
 Copilot PRs whose files already landed are `superseded-overlap` and
 close-eligible without paid review.
-

@@ -33,6 +33,7 @@ import {
   probeZeroCreditAnswerModel,
   zeroCreditProviderEvidenceFromEnv,
 } from "./native-cloud-model.mjs";
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
 import { normalizeAssistantCompletion } from "./assistant-result.ts";
 import { executeCloudBrowserNavigation, probeCloudBrowserProvider } from "./cloud-browser-provider.mjs";
 import { executeSimpleArithmetic } from "./simple-arithmetic.mjs";
@@ -142,6 +143,7 @@ async function artifactInspectionCanary() {
 
 async function execute(capability, task, admission = null) {
   if (workerId === "codespaces-open-weight" || workerId === "local-open-weight") {
+    if (workerId === "local-open-weight" && !isLocalAiDevelopmentEnabled()) throw new TypeError("Local AI adapter is development-only; set NODE_ENV=development and ALLOW_LOCAL_AI_DEV=true to enable it.");
     if (capability === "assistant.health") return probeZeroCreditAnswerModel({ providerId: workerId });
     if (capability === "assistant.respond") {
       const evidence = zeroCreditProviderEvidenceFromEnv({ providerId: workerId });

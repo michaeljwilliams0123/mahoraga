@@ -1,4 +1,5 @@
 import { buildQuestionPrompt } from "./question-model.mjs";
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
 
 const GATEWAY_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
 const MODEL = "openai/gpt-5.6-sol";
@@ -15,6 +16,7 @@ export async function probeNativeCloudModel({ env = process.env } = {}) {
 export async function probeZeroCreditAnswerModel({ providerId = "codespaces-open-weight", env = process.env } = {}) {
   const providerDecision = Object.freeze({ status: "selected", providerId, costClass: ZERO_CREDIT_COST_CLASS[providerId] ?? null });
   if (!ZERO_CREDIT_PROVIDER_IDS.has(providerId)) return zeroCreditUnavailable("zero-credit-provider-not-selected", providerDecision);
+  if (providerId === "local-open-weight" && !isLocalAiDevelopmentEnabled(env)) return zeroCreditUnavailable("local-ai-development-only", providerDecision);
   const configuration = readZeroCreditConfiguration(env, providerId);
   if (!configuration.ok) return zeroCreditUnavailable(configuration.reasonCode, providerDecision);
   const evidence = zeroCreditProviderEvidenceFromEnv({ providerId, env });
@@ -55,10 +57,11 @@ export async function executeNativeCloudModel({ task, fetchImpl = fetch, env = p
 }
 
 export async function executeZeroCreditAnswerModel({ task, authorityDecision, providerDecision, providerEvidence, fetchImpl = fetch, env = process.env } = {}) {
+  if (providerDecision?.providerId === "local-open-weight" && !isLocalAiDevelopmentEnabled(env)) return zeroCreditUnavailable("local-ai-development-only", providerDecision);
   const derived = providerEvidence ? { ok: true, value: providerEvidence } : zeroCreditProviderEvidenceFromEnv({ providerId: providerDecision?.providerId, env });
   if (!derived.ok) return zeroCreditUnavailable(derived.reasonCode, providerDecision);
   const evidence = derived.value;
-  const admission = validateZeroCreditAdmission({ authorityDecision, providerDecision, providerEvidence: evidence });
+  const admission = validateZeroCreditAdmission({ authorityDecision, providerDecision, providerEvidence: evidence, env });
   if (!admission.ok) return zeroCreditUnavailable(admission.reasonCode, providerDecision);
   const configuration = readZeroCreditConfiguration(env, providerDecision.providerId);
   if (!configuration.ok) return zeroCreditUnavailable(configuration.reasonCode, providerDecision);
@@ -87,9 +90,10 @@ export async function executeZeroCreditAnswerModel({ task, authorityDecision, pr
   });
 }
 
-export function validateZeroCreditAdmission({ authorityDecision, providerDecision, providerEvidence } = {}) {
+export function validateZeroCreditAdmission({ authorityDecision, providerDecision, providerEvidence, env = process.env } = {}) {
   if (authorityDecision?.decision !== "allow") return rejected("authority-hold");
   if (providerDecision?.status !== "selected" || !ZERO_CREDIT_PROVIDER_IDS.has(providerDecision?.providerId)) return rejected("zero-credit-provider-not-selected");
+  if (providerDecision.providerId === "local-open-weight" && !isLocalAiDevelopmentEnabled(env)) return rejected("local-ai-development-only");
   if (providerDecision.costClass !== ZERO_CREDIT_COST_CLASS[providerDecision.providerId]) return rejected("zero-credit-provider-cost-class-invalid");
   if (!providerEvidence || typeof providerEvidence !== "object" || Array.isArray(providerEvidence)) return rejected("zero-credit-provider-evidence-missing");
   if (providerEvidence.id !== providerDecision.providerId) return rejected("zero-credit-provider-evidence-mismatch");
@@ -101,6 +105,7 @@ export function validateZeroCreditAdmission({ authorityDecision, providerDecisio
 
 export function zeroCreditProviderEvidenceFromEnv({ providerId = "codespaces-open-weight", env = process.env } = {}) {
   if (!ZERO_CREDIT_PROVIDER_IDS.has(providerId)) return rejected("zero-credit-provider-not-selected");
+  if (providerId === "local-open-weight" && !isLocalAiDevelopmentEnabled(env)) return rejected("local-ai-development-only");
   const metered = String(env?.MAHORAGA_ZERO_CREDIT_METERED ?? "").trim().toLowerCase();
   const priceUsd = String(env?.MAHORAGA_ZERO_CREDIT_PRICE_USD ?? "").trim();
   const spendUsd = String(env?.MAHORAGA_ZERO_CREDIT_SPEND_USD ?? "").trim();

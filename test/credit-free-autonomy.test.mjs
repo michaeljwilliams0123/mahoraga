@@ -17,6 +17,8 @@ import {
 import { buildAutonomyObjective } from "../src/autonomy-orchestrator.mjs";
 import { createTaskRouter } from "../src/router.mjs";
 
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
+
 test("classifies deterministic, local-reasoner, subscription, and metered providers", () => {
   assert.equal(classifyAutonomyProvider("repository"), "credit-free");
   assert.equal(classifyAutonomyProvider("browser"), "credit-free");
@@ -47,8 +49,9 @@ test("classifies deterministic, local-reasoner, subscription, and metered provid
 test("admits only credit-free or ready local-reasoner planes", () => {
   assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "repository" }).ok, true);
   assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "local-core" }).plane, "local-deterministic");
-  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "ollama", localReasonerReady: true }).ok, true);
-  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "ollama" }).reason, "local-reasoner-not-ready");
+  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "ollama", localReasonerReady: true }).reason, "local-ai-development-only");
+  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "ollama", localReasonerReady: true, env: LOCAL_AI_DEV_ENV }).ok, true);
+  assert.equal(selectCreditFreeExecutionPlane({ requestedProvider: "ollama", env: LOCAL_AI_DEV_ENV }).reason, "local-reasoner-not-ready");
 });
 
 test("never falls back to paid, metered, subscription, or key-backed routes", () => {
@@ -162,7 +165,8 @@ test("inspect intent uses a status graph; mutations keep containment and record 
   assert.deepEqual(mutation.graph.map((node) => node.id), [...CREDIT_FREE_PROTOCOL_STEPS]);
   assert.equal(mutation.stewardGap.id, "credit-free-deferred-implementation");
   assert.equal(mutation.stewardGap.paidFallback, false);
-  assert.equal(planCreditFreeWork({ message: "Update the interface", localReasonerReady: true }).stewardGap, null);
+  assert.equal(planCreditFreeWork({ message: "Update the interface", localReasonerReady: true }).stewardGap.id, "credit-free-deferred-implementation");
+  assert.equal(planCreditFreeWork({ message: "Update the interface", localReasonerReady: true, env: LOCAL_AI_DEV_ENV }).stewardGap, null);
 });
 
 const EXECUTION_CONTRACT = Object.freeze({

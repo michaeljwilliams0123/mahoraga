@@ -20,17 +20,17 @@ const ZERO_CREDIT_ANSWER_WORKER_IDS = new Set(ZERO_CREDIT_ANSWER_WORKERS.map((wo
 const PROTOCOL_KEYS = new Set(["apiProtocol", "taskSchema", "workerContract", "relayProtocol", "capabilityRegistrySchema"]);
 const PROTOCOL_REVISION = /^[0-9A-Za-z][0-9A-Za-z.-]{0,31}$/;
 
-export async function loadManifest(file = MANIFEST_PATH) {
+export async function loadManifest(file = MANIFEST_PATH, { env = process.env } = {}) {
   const canonical = path.resolve(file) === path.resolve(MANIFEST_PATH);
   const identity = canonical ? await loadProductIdentity() : null;
   let manifest;
   try {
     const source = JSON.parse(await readFile(file, "utf8"));
-    manifest = validateManifest(normalizeManifestCompatibility(source, identity));
+    manifest = validateManifest(normalizeManifestCompatibility(source, identity), { env });
   } catch (error) {
-    if (!canonical) throw error;
+    if (!canonical || error?.code === "local-ai-production-config-forbidden") throw error;
     const backupSource = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
-    manifest = validateManifest(normalizeManifestCompatibility(backupSource, identity));
+    manifest = validateManifest(normalizeManifestCompatibility(backupSource, identity), { env });
     await stageManifestRecoveryCandidate(error);
     return manifest;
   }
@@ -46,7 +46,8 @@ export async function loadManifest(file = MANIFEST_PATH) {
   return manifest;
 }
 
-export function validateManifest(input) {
+export function validateManifest(input, { env = process.env } = {}) {
+  assertLocalAiConfigurationAllowed(input, env);
   const value = stripZeroCreditAnswerRuntime(input);
   if (!isRecord(value)) throw new TypeError("Manifest identity is invalid.");
   if (value.versions !== undefined) throw new TypeError("Legacy version registry is not allowed; use protocol revisions.");
@@ -80,7 +81,30 @@ export function validateManifest(input) {
     delete worker.implementationRevision;
   }
   const validated = legacy.validateManifest(shadow);
-  return Object.freeze(applyZeroCreditAnswerRuntime(normalizeManifestCompatibility(validated)));
+  return Object.freeze(applyZeroCreditAnswerRuntime(normalizeManifestCompatibility(validated), env));
+}
+
+export function isLocalAiDevelopmentEnabled(env = process.env) {
+  return env?.NODE_ENV === "development" && env?.ALLOW_LOCAL_AI_DEV === "true";
+}
+
+export function assertLocalAiConfigurationAllowed(manifest, env = process.env) {
+  if (isLocalAiDevelopmentEnabled(env)) return;
+  const localWorker = (Array.isArray(manifest?.workers) ? manifest.workers : []).find((worker) => worker?.enabled === true && (
+    worker.costClass === "local-model"
+    || worker.executionPlane === "local-model"
+    || worker.executionType === "local-provider"
+    || /^(?:local-(?:reasoner|open-weight|model|embedding)|ollama|lm-studio)/i.test(String(worker.id ?? ""))
+  ));
+  const localEnvironment = Object.entries(env ?? {}).find(([key, value]) =>
+    key !== "ALLOW_LOCAL_AI_DEV" && value !== undefined && value !== null && String(value).trim() !== ""
+    && (isLocalAdapterEnvironmentKey(key, value) || isLocalAdapterValue(key, value)));
+  if (localWorker || localEnvironment) {
+    const adapter = localWorker?.id ?? localEnvironment?.[0] ?? "configured-adapter";
+    const error = new TypeError(`Local AI adapter "${adapter}" is development-only; set NODE_ENV=development and ALLOW_LOCAL_AI_DEV=true to enable it.`);
+    error.code = "local-ai-production-config-forbidden";
+    throw error;
+  }
 }
 
 export function normalizeManifestCompatibility(value, identity = null) {
@@ -116,10 +140,17 @@ export function normalizeManifestCompatibility(value, identity = null) {
   return applyGoogleCapabilityManifest(next);
 }
 
-function applyZeroCreditAnswerRuntime(value) {
+function applyZeroCreditAnswerRuntime(value, env) {
   const next = structuredClone(value);
-  next.costModes = { ...next.costModes, "zero-credit": ["deterministic", "local-model", "cloud-open-weight"] };
+  const localAiEnabled = isLocalAiDevelopmentEnabled(env);
+  if (!localAiEnabled) {
+    for (const [mode, classes] of Object.entries(next.costModes ?? {})) {
+      if (Array.isArray(classes)) next.costModes[mode] = classes.filter((costClass) => costClass !== "local-model");
+    }
+  }
+  next.costModes = { ...next.costModes, "zero-credit": ["deterministic", ...(localAiEnabled ? ["local-model"] : []), "cloud-open-weight"] };
   for (const descriptor of ZERO_CREDIT_ANSWER_WORKERS) {
+    if (descriptor.costClass === "local-model" && !localAiEnabled) continue;
     if (next.workers.some((worker) => worker.id === descriptor.id)) continue;
     next.workers.push({
       id: descriptor.id,
@@ -149,6 +180,23 @@ function applyZeroCreditAnswerRuntime(value) {
     });
   }
   return next;
+}
+
+function isLocalAdapterEnvironmentKey(key, value) {
+  if (/^(?:false|0|off|disabled|none)$/i.test(String(value).trim())) return false;
+  return /(?:LOCAL_(?:AI|MODEL|EMBEDDING|REASONER|OPEN_WEIGHT)|OLLAMA|LM[_-]?STUDIO)/i.test(key);
+}
+
+function isLocalAdapterValue(key, value) {
+  if (!/(?:AI|MODEL|EMBEDDING|GENERATION|PROVIDER|ADAPTER|ENDPOINT|URL)/i.test(key)) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (/^(?:local|local-model|local-provider|local-open-weight|local-reasoner|ollama|lm[-_ ]?studio)(?:$|[:/@])/i.test(normalized)) return true;
+  try {
+    const hostname = new URL(normalized).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
 }
 
 function stripZeroCreditAnswerRuntime(value) {

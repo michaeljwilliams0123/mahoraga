@@ -7,11 +7,13 @@ each execution surface is a replaceable provider adapter.
 ## Conversation admission policy
 
 The unified workspace authorizes cost policy, not a provider identity. Its
-automatic/default conversation policy is `zero-codex`: deterministic,
-`local-model`, and independently verified zero-dollar generation lanes may be
-admitted when their normal readiness evidence is fresh. `licensed-cloud`, paid
-API, subscription-backed, stale-billing, and unknown-cost routes are never
-silently substituted for that policy.
+automatic/default conversation policy is `zero-codex`: deterministic and
+independently verified cloud zero-dollar generation lanes may be admitted when
+their normal readiness evidence is fresh. Local AI adapters are disabled outside
+development; enabling them requires both `NODE_ENV=development` and
+`ALLOW_LOCAL_AI_DEV=true`. Startup rejects configured local adapters otherwise.
+`licensed-cloud`, paid API, subscription-backed, stale-billing, and unknown-cost
+routes are never silently substituted for that policy.
 
 The transient Codex CLI-backed `question-model` is intentionally classified
 `licensed-cloud`. It may answer only when the owner explicitly retries one
