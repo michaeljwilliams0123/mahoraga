@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MahoragaNativeSmokeCheckpointManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "modelId",
+    "architectureVersion",
+    "tokenizerVersion",
+    "tokenizerDigest",
+    "trainingDataManifest",
+    "evaluationDataManifest",
+    "dataRightsManifest",
+    "trainingCodeSha",
+    "trainingConfigurationSha",
+    "optimizer",
+    "learningRateSchedule",
+    "trainingRunId",
+    "evaluationSuite",
+    "promotionStatus",
+    "schemaVersion",
+    "initializationSeed",
+    "parameterCount",
+    "trainingTokens",
+    "creditCost",
+    "parentModel",
+    "rollbackCheckpoint",
+    "knownLimitations",
+    "productionActivated"
+  ],
+  "properties": {
+    "modelId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "architectureVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "tokenizerVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "tokenizerDigest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "trainingDataManifest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "evaluationDataManifest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "dataRightsManifest": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "trainingCodeSha": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "trainingConfigurationSha": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "optimizer": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "learningRateSchedule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "trainingRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "evaluationSuite": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "promotionStatus": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "initializationSeed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "parameterCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "trainingTokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "creditCost": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "parentModel": {
+      "type": "null"
+    },
+    "rollbackCheckpoint": {
+      "type": "null"
+    },
+    "knownLimitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 160
+      }
+    },
+    "productionActivated": {
+      "type": "boolean",
+      "enum": [
+        false
+      ]
+    }
+  }
+}
