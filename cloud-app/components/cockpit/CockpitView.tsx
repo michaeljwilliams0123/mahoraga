@@ -234,7 +234,7 @@ export function CockpitView({
         <div>
           <span className="eyebrow">Governed adaptive intelligence</span>
           <h2>Control Center</h2>
-          <p>Cloudflare is the native browser and execution surface. Source, deployment, execution readiness, cognition readiness, and traffic authority remain separate and fail closed. Railway is legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. 7.0.0-alpha.2 is build provenance only. Windows 3.6.0 stays untouched.</p>
+          <p>Cloudflare is the native browser and execution surface. Source, deployment, execution readiness, cognition readiness, and traffic authority remain separate and fail closed. Railway is legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority; do not repair or revive it. 7.0.0-alpha.2 is build provenance only. Assurance freshness from #945 is observational in this deck and does not activate deployment. Windows 3.6.0 stays untouched.</p>
         </div>
         <span className={coreReady ? "eclipse-live-state paired" : "eclipse-live-state"}>
           <span aria-hidden="true" />
@@ -268,6 +268,7 @@ export function CockpitView({
           <LocalAiDevOnlyCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
+        <StatusCard label="Assurance freshness" value="Stale source rejected" detail="7.0.0-alpha.2 provenance only. Merged #945 requires a fresh authoritative-main observation, matching current source, fresh main-branch ledgers, and unique successful command IDs. CLI resolves GitHub main itself. Failures are bounded reason codes and do not return ledger content. Contract does not mint attestation or activate deployment; Windows production stays 3.6.0. https://github.com/michaeljwilliams0123/mahoraga/pull/945" tone="neutral" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
