@@ -33,7 +33,7 @@ export function TelemetrySparkline() {
         <span>Telemetry</span>
         <strong>{UNAVAILABLE}</strong>
         <p>
-          {REASON}. Mahoraga build provenance 7.0.0-alpha.2. No browser bearer from localStorage.
+          {REASON}. Mahoraga build provenance 7.0.0-alpha.2. Browser credentials are not used.
           No live Railway fallback. Execution readiness, cognition readiness, and traffic authority stay separate and fail closed.
         </p>
       </article>
