@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { validateGitLabAssurance } from "../src/gitlab-assurance.mjs";
@@ -16,4 +17,11 @@ test("blocks any identity, branch, sha, workflow, or conclusion mismatch", () =>
     { ...ledger(), workflowVersion: "v2" },
     { ...ledger(), commands: [{ id: "verify", conclusion: "failed" }] },
   ]) assert.equal(validateGitLabAssurance({ github: ledger(), gitlab, authoritativeMain: ledger() }).ok, false);
+});
+
+test("CLI malformed input returns a bounded reason without echoing private bytes", () => {
+  const result = spawnSync(process.execPath, ["src/gitlab-assurance.mjs"], { cwd: new URL("..", import.meta.url), input: '{"private-sentinel":', encoding: "utf8" });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /assurance-input-invalid/);
+  assert.doesNotMatch(result.stderr + result.stdout, /private-sentinel/);
 });
