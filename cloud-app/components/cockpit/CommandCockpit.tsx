@@ -21,6 +21,7 @@ import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
+import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -244,6 +245,7 @@ export function CommandCockpit({
           <InteractionTruthCards truth={interactionTruth} />
           <TransformationProvenanceCards />
           <BrokerLeaseCards />
+          <ExecutionBrokerCard />
         </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">

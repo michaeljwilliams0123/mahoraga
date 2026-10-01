@@ -12,8 +12,9 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   it("gates cognition and no-Railway-fallback on sanitized receipt fields only", () => {
     assert.match(cockpit, /const cognitionObserved = acceptance\.providerCognitionVerified === true;/);
     assert.match(cockpit, /const noRailwayVerified = acceptance\.noRailwayFallbackVerified === true;/);
-    assert.match(cockpit, /providerCognitionVerified: providerCognitionVerified && !bypassApplied/);
-    assert.match(cockpit, /noRailwayFallbackVerified: noRailwayFallbackVerified && !bypassApplied/);
+    assert.match(cockpit, /projectAcceptanceEvidence\(bypassApplied/);
+    assert.match(cockpit, /expectedSha: health\?\.deployment\?\.expectedCommitSha/);
+    assert.match(cockpit, /deploymentSha: health\?\.deployment\?\.commitSha/);
     assert.match(cockpit, /Cloudflare cognition/);
     assert.match(cockpit, /No Railway fallback/);
     assert.match(cockpit, /Observed/);
