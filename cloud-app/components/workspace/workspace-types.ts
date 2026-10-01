@@ -19,6 +19,12 @@ export type QuickAction = {
 };
 
 export type SanitizedAcceptanceReceipt = {
+  schemaVersion?: number;
+  kind?: string;
+  status?: string;
+  targetSha?: string;
+  observedAt?: string;
+  executionUniqueness?: unknown;
   providerCognitionVerified?: boolean;
   noRailwayFallbackVerified?: boolean;
   trafficAuthorityVerified?: boolean;
