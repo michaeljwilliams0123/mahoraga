@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
-import { createLoopbackGenerateInvoke, loopbackGenerateUrls } from "../src/local-reasoner-loopback-invoke.mjs";
+import { createLoopbackGenerateInvoke as createRuntimeLoopbackGenerateInvoke, loopbackGenerateUrls } from "../src/local-reasoner-loopback-invoke.mjs";
 import { listTransientResults } from "../src/local-reasoner-channel.mjs";
 import { runUnattendedCreditFreeCycle } from "../src/unattended-credit-free-cycle.mjs";
 import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
@@ -12,6 +12,8 @@ const SUPPLY_NOW = "2020-01-01T12:00:00.000Z";
 const ARTIFACT_SHA256 = "a".repeat(64);
 const MODEL_SHA256 = "e".repeat(64);
 const MODEL_SIZE = 420;
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
+const createLoopbackGenerateInvoke = (options = {}) => createRuntimeLoopbackGenerateInvoke({ env: LOCAL_AI_DEV_ENV, ...options });
 const INSPECTION_METADATA = {
   scannerId: "mahoraga-static-model-scan-v1",
   artifactSha256: ARTIFACT_SHA256,
@@ -55,6 +57,19 @@ test("loopback invoke never posts generation for a catalog model outside the adm
       if (init.method === "POST") postCount += 1;
       return { ok: true, arrayBuffer: async () => new Uint8Array([1]) };
     },
+  });
+
+  test("non-development loopback generation is disabled before network access", async () => {
+    let called = false;
+    const invoke = createRuntimeLoopbackGenerateInvoke({
+      env: { NODE_ENV: "production", ALLOW_LOCAL_AI_DEV: "true" },
+      probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
+      fetchImpl: async () => { called = true; throw new Error("should-not-run"); },
+    });
+    const held = await invoke({ worldDigest: DIGEST });
+    assert.equal(called, false);
+    assert.equal(held.status, "hold");
+    assert.equal(held.reason, "local-ai-development-only");
   });
 
   const held = await invoke({ worldDigest: DIGEST });
@@ -179,6 +194,7 @@ test("unreachable loopback holds and still compounds the slow loop", async () =>
   });
   const cycle = await Promise.resolve(runUnattendedCreditFreeCycle({
     now: NOW,
+    env: LOCAL_AI_DEV_ENV,
     requiresGeneration: true,
     localReasonerReady: true,
     probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },
@@ -207,6 +223,7 @@ test("verified loopback invoke stores only status plus digest on the transient c
   });
   const cycle = await Promise.resolve(runUnattendedCreditFreeCycle({
     now: NOW,
+    env: LOCAL_AI_DEV_ENV,
     requiresGeneration: true,
     localReasonerReady: true,
     probe: { verified: true, providerHealth: { ollama: { availability: "healthy", modelCount: 1 } } },

@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadManifest, validateManifest } from "../src/config.mjs";
+import { readFile } from "node:fs/promises";
+import { assertLocalAiConfigurationAllowed, loadManifest, MANIFEST_BACKUP_PATH, validateManifest } from "../src/config.mjs";
+
+const PRODUCTION_ENV = { NODE_ENV: "production" };
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
 
 test("canonical manifest exposes one product version plus compatibility revisions", async () => {
   const manifest = await loadManifest();
@@ -92,4 +96,57 @@ test("desktop communication send is separately registered with a manual canary",
   const worker = manifest.workers.find((item) => item.id === "desktop");
   assert.ok(worker.capabilities.includes("communication.send"));
   assert.equal(worker.capabilityCanaries["communication.send"], "manual");
+});
+
+test("non-development startup rejects enabled local adapters and local environment configuration", async () => {
+  const manifest = structuredClone(await loadManifest(undefined, { env: PRODUCTION_ENV }));
+  const localWorker = manifest.workers.find((worker) => worker.id === "local-reasoner");
+  localWorker.enabled = true;
+  assert.throws(() => validateManifest(manifest, { env: PRODUCTION_ENV }), /development-only.*NODE_ENV=development.*ALLOW_LOCAL_AI_DEV=true/i);
+  const defaultManifest = await loadManifest(undefined, { env: PRODUCTION_ENV });
+  await assert.rejects(
+    loadManifest(undefined, { env: { ...PRODUCTION_ENV, STRUCTURED_GENERATION_ADAPTER: "ollama" } }),
+    /development-only/i,
+  );
+
+  for (const env of [
+    { ...PRODUCTION_ENV, EMBEDDING_PROVIDER: "local" },
+    { ...PRODUCTION_ENV, STRUCTURED_GENERATION_ADAPTER: "ollama" },
+    { ...PRODUCTION_ENV, MAHORAGA_ZERO_CREDIT_MODEL_URL: "http://127.0.0.1:11434/v1" },
+  ]) {
+    assert.throws(() => validateManifest(defaultManifest, { env }), /development-only/i);
+  }
+});
+
+test("local adapters require both development mode and explicit override", async () => {
+  const manifest = await loadManifest(undefined, { env: PRODUCTION_ENV });
+  const localWorker = manifest.workers.find((worker) => worker.id === "local-reasoner");
+  localWorker.enabled = true;
+  assert.doesNotThrow(() => assertLocalAiConfigurationAllowed({ workers: [localWorker] }, LOCAL_AI_DEV_ENV));
+  assert.throws(() => assertLocalAiConfigurationAllowed({ workers: [localWorker] }, { ...LOCAL_AI_DEV_ENV, ALLOW_LOCAL_AI_DEV: "false" }), /development-only/i);
+  assert.throws(() => assertLocalAiConfigurationAllowed({ workers: [localWorker] }, { NODE_ENV: "production", ALLOW_LOCAL_AI_DEV: "true" }), /development-only/i);
+
+  const devManifest = await loadManifest(undefined, { env: LOCAL_AI_DEV_ENV });
+  assert.equal(devManifest.workers.find((worker) => worker.id === "local-open-weight").enabled, true);
+});
+
+test("default non-development manifest keeps cloud answers and removes local model routes", async () => {
+  const manifest = await loadManifest(undefined, { env: PRODUCTION_ENV });
+  assert.equal(manifest.workers.some((worker) => worker.id === "codespaces-open-weight" && worker.enabled), true);
+  assert.equal(manifest.workers.some((worker) => worker.id === "local-open-weight"), false);
+  assert.equal(manifest.costModes["zero-credit"].includes("local-model"), false);
+});
+
+test("manifest recovery backup stays neutral across production and development projections", async () => {
+  await loadManifest(undefined, { env: PRODUCTION_ENV });
+  const productionBackup = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
+  await loadManifest(undefined, { env: LOCAL_AI_DEV_ENV });
+  const developmentBackup = JSON.parse(await readFile(MANIFEST_BACKUP_PATH, "utf8"));
+
+  assert.deepEqual(developmentBackup, productionBackup);
+  assert.equal(developmentBackup.workers.some((worker) => worker.id === "local-open-weight"), false);
+  assert.equal(developmentBackup.workers.some((worker) => worker.id === "codespaces-open-weight"), false);
+  assert.equal(developmentBackup.costModes.local.includes("local-model"), true);
+  assert.equal(developmentBackup.costModes.hybrid.includes("local-model"), true);
+  assert.equal(developmentBackup.costModes.maximum.includes("local-model"), true);
 });

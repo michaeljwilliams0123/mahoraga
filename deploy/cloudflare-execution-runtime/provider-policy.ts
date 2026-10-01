@@ -94,7 +94,7 @@ export const isVerifiedZeroCreditProbe = (probe: ProviderProbe, now = Date.now()
     && probe.spendUsd === 0
     && probe.billingState === "verified-zero"
     && probe.zeroDollarStopGuaranteed === true
-    && (probe.costClass === "cloud-open-weight" || probe.costClass === "local-model")
+    && probe.costClass === "cloud-open-weight"
   );
 };
 

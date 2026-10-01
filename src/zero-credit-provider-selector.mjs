@@ -1,7 +1,9 @@
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
+
 export const ZERO_CREDIT_PROVIDER_ORDER = Object.freeze(["codespaces-open-weight", "local-open-weight", "deterministic-only", "waiting-zero-credit-provider"]);
 const COST_CLASS_BY_PROVIDER = Object.freeze({ "codespaces-open-weight": "cloud-open-weight", "local-open-weight": "local-model", "deterministic-only": "deterministic" });
 
-export function selectZeroCreditProvider({ providers = [], cloudModeEnabled = false, requiresGeneration = false } = {}) {
+export function selectZeroCreditProvider({ providers = [], cloudModeEnabled = false, requiresGeneration = false, env = process.env } = {}) {
   if (!Array.isArray(providers)) throw new TypeError("Zero-credit providers must be an array.");
   const byId = new Map();
   for (const provider of providers) {
@@ -10,7 +12,7 @@ export function selectZeroCreditProvider({ providers = [], cloudModeEnabled = fa
     byId.set(provider.id, byId.has(provider.id) ? null : provider);
   }
   if (cloudModeEnabled && eligibleCloud(byId.get("codespaces-open-weight"))) return decision("codespaces-open-weight");
-  if (eligibleLocal(byId.get("local-open-weight"))) return decision("local-open-weight");
+  if (isLocalAiDevelopmentEnabled(env) && eligibleLocal(byId.get("local-open-weight"))) return decision("local-open-weight");
   if (!requiresGeneration) return decision("deterministic-only");
   return Object.freeze({ status: "waiting", providerId: "waiting-zero-credit-provider", costClass: null });
 }
