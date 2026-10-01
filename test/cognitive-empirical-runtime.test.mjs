@@ -14,6 +14,9 @@ test('held-out deliberation traverses supervisor/router and persists empirical r
  const root=mkdtempSync(path.join(os.tmpdir(),'mhg-cognitive-empirical-'));
  const runtime=await startRuntime({port:0,databaseFile:path.join(root,'runtime.sqlite'),contentVaultMasterKey:Buffer.alloc(32,41),primaryCodexToken:'cognitive-empirical-token-00000000000001',syncCoordinationMailbox:false,repositoryHeadReader:async()=>SHA,authoritativeHeadReader:async()=>SHA,expectedSourceCommit:SHA});
  t.after(async()=>{await runtime.stop();rmSync(root,{recursive:true,force:true,maxRetries:10,retryDelay:50});});
+ // Complete cold-start probes before timing a task lease. In the full Windows suite,
+ // eleven booting workers otherwise compete with the measured cognitive transaction.
+ await waitFor(()=>[...runtime.supervisor.workers.values()].every(state=>state.ready===true),60000);
  await waitFor(()=>{const r=runtime.supervisor.status().find(w=>w.workerId==='cognitive-core')?.readiness.find(r=>r.capability==='cognitive.deliberate');return r?.providerStatus==='ready'&&r?.canaryStatus==='verified';});
  const task=runtime.database.submitTask({capability:'cognitive.deliberate',dataClass:'synthetic',requestedMode:'local',executionPlane:'local',idempotencyKey:'empirical-cognitive-deliberation-536',correlationId:'issue-536-minority-rescue',requestedOutcome:'Run held-out minority-rescue challenge.',allowedWorkerIds:['cognitive-core'],policyVersion:'legacy-internal',capabilityInput:{positions}});
  const completed=await waitFor(()=>{const x=runtime.database.getTask(task.id);if(['failed','waiting'].includes(x?.status))throw new Error(`Cognitive empirical task stopped: ${x.errorCode}`);return x?.status==='completed'?x:null;});
