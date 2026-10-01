@@ -33,13 +33,13 @@ test("sidebar brain readiness follows the assistant route and describes cloud br
   assert.match(shell, /encrypted relay remains recovery/i);
 });
 
-
 test("telemetry stream is authenticated, origin-bound, and mounted in the cockpit", async () => {
-  const [worker, bindings, telemetry, cockpit] = await Promise.all([
+  const [worker, bindings, telemetry, cockpit, command] = await Promise.all([
     read("../deploy/cloudflare-execution-runtime/worker.ts"),
     read("../deploy/cloudflare-execution-runtime/bindings.d.ts"),
     read("components/cockpit/TelemetrySparkline.tsx"),
     read("components/cockpit/CockpitView.tsx"),
+    read("components/cockpit/CommandCockpit.tsx"),
   ]);
 
   assert.match(worker, /\/api\/stream\/telemetry/);
@@ -53,7 +53,16 @@ test("telemetry stream is authenticated, origin-bound, and mounted in the cockpi
   assert.doesNotMatch(telemetry, /authorization:\s*`Bearer/);
   assert.doesNotMatch(telemetry, /\?token=/);
   assert.match(telemetry, /CPU and memory stay unreported/);
+  assert.match(telemetry, /telemetry unavailable/);
+  assert.match(telemetry, /telemetry-session-unavailable/);
   assert.match(cockpit, /<TelemetrySparkline \/>/);
-  assert.doesNotMatch(telemetry, /localStorage|MAHORAGA_SESSION_TOKEN|authorization:\s*`Bearer/);
+  assert.match(cockpit, /telemetry unavailable/);
+  assert.match(cockpit, /telemetry-session-unavailable/);
+  assert.match(command, /telemetry-session-unavailable/);
+  assert.doesNotMatch(telemetry, /localStorage\s*(?:\.|\[)|MAHORAGA_SESSION_TOKEN|authorization:\s*`Bearer/);
+  assert.doesNotMatch(cockpit, /localStorage\.getItem/);
+  assert.doesNotMatch(telemetry, /railway\.app/);
+  assert.match(telemetry, /No live Railway fallback/);
   assert.match(telemetry, /Owner-authenticated telemetry transport is not available/);
+  assert.match(cockpit, /Product name stays|Mahoraga|productName/);
 });
