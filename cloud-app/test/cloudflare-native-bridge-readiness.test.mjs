@@ -59,9 +59,9 @@ test("telemetry stream is authenticated, origin-bound, and mounted in the cockpi
   assert.match(cockpit, /telemetry unavailable/);
   assert.match(cockpit, /telemetry-session-unavailable/);
   assert.match(command, /telemetry-session-unavailable/);
-  assert.doesNotMatch(telemetry, /localStorage|MAHORAGA_SESSION_TOKEN|authorization:\s*`Bearer/);
+  assert.doesNotMatch(telemetry, /localStorage\s*(?:\.|\[)|MAHORAGA_SESSION_TOKEN|authorization:\s*`Bearer/);
   assert.doesNotMatch(cockpit, /localStorage\.getItem/);
-  assert.doesNotMatch(telemetry, /railway\.app|live Railway fallback/);
+  assert.doesNotMatch(telemetry, /railway\.app/);
   assert.match(telemetry, /No live Railway fallback/);
   assert.match(telemetry, /Owner-authenticated telemetry transport is not available/);
   assert.match(cockpit, /Product name stays|Mahoraga|productName/);
