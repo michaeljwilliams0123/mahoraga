@@ -8,6 +8,8 @@ export type ProjectedInteractionTruth = {
   delivery: RuntimeDeliveryTruth | null;
 };
 
+export const FIRST_RELEASE_RUNTIME_TRANSPORTS = Object.freeze(["native", "http-json"] as const);
+
 const INTERACTION_KEYS = new Set([
   "status", "interactionId", "sourceFamily", "channelFamily", "modalities",
   "protocolFamily", "protocolVersion", "locale", "timezone", "direction",
@@ -30,7 +32,8 @@ const INTERACTION_STATUSES = new Set(["observed", "hold"]);
 const DELIVERY_STATUSES = new Set(["delivered", "queued", "hold"]);
 const FORBIDDEN_KEYS = new Set([
   "authority", "actionAuthority", "trafficAuthority", "trafficAuthorityVerified",
-  "providerRoute", "route", "credentials", "credential", "headers", "authorization",
+  "providerRoute", "route", "routes", "endpoint", "endpoints", "url", "callbackUrl",
+  "credentials", "credential", "headers", "authorization",
   "token", "secret", "lease", "spendingAuthority", "imei", "macAddress",
   "advertisingId", "screenFingerprint", "hardwareId",
 ]);
@@ -129,7 +132,6 @@ function validDelivery(value: unknown): value is RuntimeDeliveryTruth {
   return true;
 }
 
-
 function temporalHoldReason(value: unknown, prefix: string, { now, maximumAgeMs, maxFutureSkewMs }: { now: number | string | Date; maximumAgeMs: number | null; maxFutureSkewMs: number }): string | null {
   const nowMs = now instanceof Date ? now.getTime() : typeof now === "number" ? now : Date.parse(now);
   if (!Number.isFinite(nowMs) || !Number.isSafeInteger(maxFutureSkewMs) || maxFutureSkewMs < 0 || (maximumAgeMs !== null && (!Number.isSafeInteger(maximumAgeMs) || maximumAgeMs < 0))) return `${prefix}-time-policy-invalid`;
@@ -184,4 +186,20 @@ export function projectInteractionTruth(value: unknown, { now = Date.now(), maxi
     if (deliveryTemporalReason !== null) return { state:"hold", reason:deliveryTemporalReason, interaction, delivery };
   }
   return { state: "observed", reason: "interaction-truth-observed", interaction, delivery };
+}
+
+export function receiptLineageLabel(truth: ProjectedInteractionTruth) {
+  const interaction = truth.interaction;
+  const delivery = truth.delivery;
+  if (!interaction) return "interaction → negotiation → execution-chain → delivery unobserved";
+  const transport = FIRST_RELEASE_RUNTIME_TRANSPORTS.includes(interaction.protocolFamily as "native" | "http-json")
+    ? `${interaction.protocolFamily} first-release transport`
+    : `${interaction.protocolFamily} observed, not a first-release routable transport`;
+  return [
+    `interaction ${interaction.interactionFingerprint}`,
+    `negotiation ${interaction.negotiationFingerprint ?? "unobserved"}`,
+    `execution-chain ${interaction.executionFingerprint ?? "unobserved"}`,
+    `delivery ${delivery?.deliveryFingerprint ?? "unobserved"}`,
+    transport,
+  ].join(" · ");
 }

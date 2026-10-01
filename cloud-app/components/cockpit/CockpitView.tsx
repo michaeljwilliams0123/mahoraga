@@ -308,13 +308,13 @@ export function CockpitView({
         <StatusCard
           label="Delivery state"
           value="Execution ≠ delivery"
-          detail="online · degraded · offline · delivery retry never re-executes the task"
+          detail="online · degraded · offline · delivery retry never re-executes the task · execution completion can persist when delivery is queued or interrupted"
           tone="neutral"
         />
         <StatusCard
           label="Protocol negotiation"
           value="native · HTTP/JSON · MCP · webhook · SSE · WebSocket · queue"
-          detail="Compatibility observation only · Omnichannel ingress → interaction → negotiation → execution → delivery · no execution or traffic-authority grant"
+          detail="Compatibility observation only · Omnichannel ingress → interaction → negotiation → execution → delivery · no execution or traffic-authority grant · first-release runtime transports are native and http-json only · MCP/SSE are not routable · held or invalid negotiation is 409 HOLD, not broker/provider fallback · read-only persisted interaction-truth is not a live broker or provider call · preview/build evidence is not canonical-main traffic authority"
           tone="neutral"
         />
         <StatusCard

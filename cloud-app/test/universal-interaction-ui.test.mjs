@@ -194,3 +194,50 @@ describe("interaction truth temporal applicability", () => {
     assert.equal(truth.reason, "interaction-truth-stale");
   });
 });
+
+describe("7.0.0-alpha.2 receipt lineage cockpit contract", () => {
+  it("surfaces interaction to delivery fingerprints as read-only interaction-truth", () => {
+    assert.match(interactionCards, /Receipt lineage/);
+    assert.match(interactionCards, /interaction → negotiation → execution-chain → delivery/);
+    assert.match(interactionCards, /read-only persisted interaction-truth/);
+    assert.match(interactionCards, /not a live broker or provider call/);
+    assert.match(cockpitView, /read-only persisted interaction-truth is not a live broker or provider call/);
+    assert.match(commandCockpit, /LINEAGE_409_HOLD/);
+  });
+
+  it("treats held or invalid negotiation as 409 HOLD, not broker or provider fallback", () => {
+    assert.match(interactionCards, /409 HOLD/);
+    assert.match(interactionCards, /not broker\/provider fallback/);
+    assert.match(cockpitView, /held or invalid negotiation is 409 HOLD, not broker\/provider fallback/);
+    assert.match(commandCockpit, /not broker\/provider fallback/);
+    const held = projectInteractionTruth({ interaction: { ...observedInteraction, status: "hold", reason: "negotiation-invalid" } }, TRUTH_OPTIONS);
+    assert.equal(held.state, "hold");
+  });
+
+  it("limits first-release runtime transports to native and http-json", () => {
+    assert.match(interactionCards, /first-release runtime transports: native, http-json/);
+    assert.match(interactionCards, /MCP\/SSE are not routable/);
+    assert.match(cockpitView, /MCP\/SSE are not routable/);
+    assert.match(commandCockpit, /MCP\/SSE are not routable/);
+    assert.doesNotMatch(commandCockpit, /Mahoraga 7\.0\.0-alpha\.2 workspace/);
+  });
+
+  it("allows execution completion to persist when delivery is queued or interrupted", () => {
+    assert.match(interactionCards, /execution completion persisted while delivery is queued or interrupted/);
+    assert.match(cockpitView, /execution completion can persist when delivery is queued or interrupted/);
+    const queued = projectInteractionTruth({ interaction: observedInteraction, delivery: { ...observedDelivery, status: "queued" } }, TRUTH_OPTIONS);
+    assert.equal(queued.state, "observed");
+    assert.equal(queued.delivery?.status, "queued");
+    assert.equal(queued.interaction?.executionStatus, "completed");
+  });
+
+  it("rejects endpoints, headers, credentials, and arbitrary routes and does not present Railway fallback", () => {
+    for (const forbidden of ["endpoint", "endpoints", "url", "headers", "credentials", "route"]) {
+      const truth = projectInteractionTruth({ interaction: { ...observedInteraction, [forbidden]: "https://example.invalid/route" } }, TRUTH_OPTIONS);
+      assert.equal(truth.state, "hold", forbidden);
+    }
+    assert.match(commandCockpit, /No Railway or live-provider fallback is presented/);
+    assert.match(cockpitView, /preview\/build evidence is not canonical-main traffic authority/);
+    assert.match(commandCockpit, /Execution readiness, cognition readiness, and traffic authority stay separate fail-closed claims/);
+  });
+});
