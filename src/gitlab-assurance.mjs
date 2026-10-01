@@ -12,7 +12,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.error(JSON.stringify({ ok: false, reason: "assurance-input-missing" }));
     process.exit(1);
   }
-  const input = JSON.parse(raw);
+  let input;
+  try {
+    if (Buffer.byteLength(raw) > 131_072) throw new Error("oversized");
+    input = JSON.parse(raw);
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid");
+  } catch {
+    console.error(JSON.stringify({ ok: false, reason: "assurance-input-invalid" }));
+    process.exit(1);
+  }
   // Resolve current source authority ourselves; matching caller ledgers are insufficient.
   let authoritativeMain;
   try {
