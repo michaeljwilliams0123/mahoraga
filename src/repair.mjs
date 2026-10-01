@@ -27,6 +27,8 @@ export const ESSENTIAL_FILES = [
   "src/cli.mjs",
   "src/answer-quality.ts",
   "src/assistant-result.ts",
+  "src/native-model-foundry.ts",
+  "model-foundry/contracts/checkpoint.schema.json",
   "src/structured-output.ts",
   "src/semantic-memory.ts",
   "src/local-ai-inference.ts",
