@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { projectAcceptanceEvidence } from "@/lib/acceptance-evidence";
+import { AcceptanceEvidenceCards } from "./AcceptanceEvidenceCards";
+import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
@@ -73,22 +76,21 @@ function parseSanitizedAcceptance(health: Health | null): SanitizedAcceptanceRec
     asRecord(asRecord(root?.runtime)?.acceptance),
   ].filter((value): value is Record<string, unknown> => value !== null);
 
-  const providerCognitionVerified = firstBoolean(...nested.map((entry) => entry.providerCognitionVerified)) === true;
-  const noRailwayFallbackVerified = firstBoolean(...nested.map((entry) => entry.noRailwayFallbackVerified)) === true;
-  const trafficAuthorityVerified = firstBoolean(...nested.map((entry) => entry.trafficAuthorityVerified)) === true;
-  const bypassApplied = firstBoolean(...nested.map((entry) => entry["x-bypass-applied"])) === true;
-  const providerId = firstString(...nested.map((entry) => entry.providerId));
-  const modelId = firstString(...nested.map((entry) => entry.modelId));
-
+  const candidate = nested.find(entry => entry.kind === "cloudflare-execution-runtime-acceptance");
+  const bypassApplied = nested.some(entry => entry["x-bypass-applied"] === true);
+  const evidence = projectAcceptanceEvidence(bypassApplied ? { ...candidate, "x-bypass-applied": true } : candidate, {
+    expectedSha: health?.deployment?.expectedCommitSha,
+    deploymentSha: health?.deployment?.commitSha,
+  });
   return {
-    providerCognitionVerified: providerCognitionVerified && !bypassApplied,
-    noRailwayFallbackVerified: noRailwayFallbackVerified && !bypassApplied,
-    trafficAuthorityVerified,
-    providerId,
-    modelId,
-    "x-bypass-applied": bypassApplied,
-    bypassApplied,
+    providerCognitionVerified: evidence.providerCognitionVerified,
+    noRailwayFallbackVerified: evidence.noRailwayFallbackVerified,
+    trafficAuthorityVerified: evidence.trafficAuthorityVerified,
+    ...(evidence.providerId ? { providerId: evidence.providerId } : {}),
+    ...(evidence.modelId ? { modelId: evidence.modelId } : {}),
+    "x-bypass-applied": bypassApplied, bypassApplied,
   };
+
 }
 
 function parseHardZeroQuota(health: Health | null): HardZeroQuotaReceipt | null {
@@ -288,6 +290,8 @@ export function CockpitView({
         <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <InteractionTruthCards truth={interactionTruth} />
+        <ExecutionBrokerCard />
+        <AcceptanceEvidenceCards receipt={health?.cloudflareAcceptance ?? health?.productionAcceptance ?? health?.acceptance ?? health?.receipt} expectedSha={expectedDeploymentCommit} deploymentSha={deploymentCommit} />
         <TransformationProvenanceCards />
         <BrokerLeaseCards />
         <StatusCard label="No Railway fallback" value={noRailwayVerified ? "Verified" : "Unproven"} detail={noRailwayDetail} tone={noRailwayVerified ? "good" : "neutral"} />
