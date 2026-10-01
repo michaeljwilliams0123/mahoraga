@@ -301,5 +301,8 @@ async function runtimeFixture(t) {
     syncCoordinationMailbox: false,
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
+  // Do not start the transaction clock or tear down still-importing workers.
+  // Provider readiness remains a separate assertion in tests that require it.
+  await waitFor(() => [...runtime.supervisor.workers.values()].every((state) => state.ready === true), 60_000);
   return { runtime, root };
 }
