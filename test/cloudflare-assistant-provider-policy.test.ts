@@ -97,3 +97,9 @@ test("zero-credit selection never falls through to licensed or metered providers
 
   assert.equal(selectZeroCreditProvider(probes, NOW), null);
 });
+
+test("Cloudflare runtime does not admit local-model probes", () => {
+  const localProbe = healthyZeroProbe({ costClass: "local-model" });
+  assert.equal(selectZeroCreditProvider([localProbe], NOW), null);
+  assert.equal(projectAssistantRespondCapability(localProbe, NOW).routable, false);
+});

@@ -201,6 +201,7 @@ function creditFreeGate(task, context) {
     platformApiKeyPresent: context.platformApiKeyPresent === true,
     allowPaidFallback: context.allowPaidFallback === true,
     localReasonerReady: context.localReasonerReady === true,
+    env: process.env,
   });
 }
 
@@ -212,6 +213,7 @@ function zeroCreditDecision(task, context, eligibleProviderIds = null) {
     providers: eligibleProviderIds ? (context.providers ?? []).filter((provider) => eligibleProviderIds.has(provider?.id)) : context.providers ?? [],
     cloudModeEnabled: context.cloudModeEnabled === true,
     requiresGeneration: context.requiresGeneration === true || isAnswer(task),
+    env: process.env,
   });
 }
 

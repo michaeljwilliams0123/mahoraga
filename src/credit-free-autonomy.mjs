@@ -77,6 +77,7 @@ export function selectCreditFreeExecutionPlane({
   allowPaidFallback = false,
   localReasonerReady = false,
   cloudBudgetAdmissible = false,
+  env = process.env,
 } = {}) {
   if (allowPaidFallback === true) return blocked("paid-fallback-forbidden");
   if (Number(spendGrantUsd) !== 0) return blocked("spend-grant-not-zero");
@@ -90,6 +91,7 @@ export function selectCreditFreeExecutionPlane({
   }
 
   if (className === "local-reasoner") {
+    if (!isLocalAiDevelopmentEnabled(env)) return blocked("local-ai-development-only");
     if (localReasonerReady !== true) return blocked("local-reasoner-not-ready");
     return admitted({ provider: requested, plane: "local-reasoner", className });
   }
@@ -154,7 +156,7 @@ export function resolveCreditFreeNextAction({ health, plane, hostedCompute = nul
   if (hostedCompute && hostedCompute.ok === false) return "hold-planned";
   if (!health?.ok) return health?.status === "degraded" ? "hold-planned" : "refuse-paid-route";
   if (plane?.ok) return "dispatch-credit-free";
-  if (plane?.reason === "local-reasoner-not-ready") return "wait-for-local-reasoner";
+  if (plane?.reason === "local-reasoner-not-ready" || plane?.reason === "local-ai-development-only") return "wait-for-local-reasoner";
   return "refuse-paid-route";
 }
 
@@ -184,6 +186,7 @@ export function selectCreditFreeGraph(intentKind = "autonomous-action") {
 export function planCreditFreeWork({
   message = "",
   localReasonerReady = false,
+  env = process.env,
   spendGrantUsd = 0,
   platformApiKeyPresent = false,
   allowPaidFallback = false,
@@ -194,6 +197,7 @@ export function planCreditFreeWork({
   extraVercelProjects = 0,
   now = new Date(),
 } = {}) {
+  localReasonerReady = localReasonerReady === true && isLocalAiDevelopmentEnabled(env);
   const intentKind = classifyCreditFreeIntent(message);
   const maintenance = maintainCreditFreeAutonomy({
     spendGrantUsd,
@@ -201,6 +205,7 @@ export function planCreditFreeWork({
     allowPaidFallback,
     providers,
     localReasonerReady,
+    env,
     requestedProvider,
     vercelDeploymentsToday,
     vercelDailyCap,
@@ -241,6 +246,7 @@ export function maintainCreditFreeAutonomy({
   allowPaidFallback = false,
   providers = ["repository", "local-core", "self-healer"],
   localReasonerReady = false,
+  env = process.env,
   cloudBudgetAdmissible = false,
   requestedProvider = "repository",
   vercelDeploymentsToday = 0,
@@ -262,6 +268,7 @@ export function maintainCreditFreeAutonomy({
     allowPaidFallback,
     localReasonerReady,
     cloudBudgetAdmissible,
+    env,
   });
   const hostedCompute = attestHostedComputeBudget({ vercelDeploymentsToday, vercelDailyCap, extraVercelProjects });
   const nextAction = resolveCreditFreeNextAction({ health: healthAttestation, plane, hostedCompute });
@@ -337,3 +344,4 @@ function canonicalNow(value) {
   if (!(value instanceof Date) || Number.isNaN(value.getTime())) return new Date().toISOString();
   return value.toISOString();
 }
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";

@@ -13,6 +13,17 @@ import { buildAutonomyObjective } from "../src/autonomy-orchestrator.mjs";
 import { runCloudCycle } from "../src/cloud-cycle-worker.mjs";
 
 const NOW = new Date("2026-09-05T08:00:00.000Z");
+const LOCAL_AI_DEV_ENV = { NODE_ENV: "development", ALLOW_LOCAL_AI_DEV: "true" };
+function withLocalAiDevelopment(run) {
+  const previous = { NODE_ENV: process.env.NODE_ENV, ALLOW_LOCAL_AI_DEV: process.env.ALLOW_LOCAL_AI_DEV };
+  process.env.NODE_ENV = LOCAL_AI_DEV_ENV.NODE_ENV;
+  process.env.ALLOW_LOCAL_AI_DEV = LOCAL_AI_DEV_ENV.ALLOW_LOCAL_AI_DEV;
+  try { return run(); }
+  finally {
+    if (previous.NODE_ENV === undefined) delete process.env.NODE_ENV; else process.env.NODE_ENV = previous.NODE_ENV;
+    if (previous.ALLOW_LOCAL_AI_DEV === undefined) delete process.env.ALLOW_LOCAL_AI_DEV; else process.env.ALLOW_LOCAL_AI_DEV = previous.ALLOW_LOCAL_AI_DEV;
+  }
+}
 const EXECUTION_CONTRACT = Object.freeze({
   baseCommit: "a".repeat(40),
   allowedPaths: Object.freeze(["src", "test"]),
@@ -73,6 +84,7 @@ test("generation heartbeats keep containment and record a steward gap until a lo
     now: NOW,
     requiresGeneration: true,
     localReasonerReady: true,
+    env: LOCAL_AI_DEV_ENV,
     message: "Update the Mahoraga interface and apply the change",
   });
   assert.equal(ready.stewardGap, null);
@@ -84,6 +96,18 @@ test("generation heartbeats keep containment and record a steward gap until a lo
   assert.equal(ready.localReasonerExecution.creditCost, 0);
   assert.equal(waiting.resultChannel, null);
   assert.equal(waiting.localReasonerExecution.executionEnabled, false);
+});
+
+test("non-development heartbeat cannot admit a ready local reasoner", () => {
+  const heartbeat = runCreditFreeHeartbeat({
+    now: NOW,
+    requiresGeneration: true,
+    localReasonerReady: true,
+    env: { NODE_ENV: "production", ALLOW_LOCAL_AI_DEV: "true" },
+  });
+  assert.equal(heartbeat.resultChannel, null);
+  assert.equal(heartbeat.localReasonerExecution.executionEnabled, false);
+  assert.equal(heartbeat.localReasonerExecution.reason, "local-reasoner-not-ready");
 });
 
 test("compounded learning stores method identifiers and counts, never prompts", () => {
@@ -121,7 +145,7 @@ test("credit-free objectives honor live local-reasoner evidence instead of defau
   });
   assert.equal(deferred.stewardGap.id, "credit-free-deferred-implementation");
 
-  const ready = buildAutonomyObjective({
+  const request = {
     conversationId: "con-00000000-0000-0000-0000-000000000000",
     messageId: "msg-00000000-0000-0000-0000-000000000000",
     message: "Update the interface and apply the change",
@@ -129,7 +153,9 @@ test("credit-free objectives honor live local-reasoner evidence instead of defau
     creditFreeRequired: true,
     executionContract: EXECUTION_CONTRACT,
     creditFreeContext: { localReasonerReady: true },
-  });
+  };
+  assert.equal(buildAutonomyObjective(request).stewardGap.id, "credit-free-deferred-implementation");
+  const ready = withLocalAiDevelopment(() => buildAutonomyObjective(request));
   assert.equal(ready.stewardGap, null);
   assert.equal(ready.nextAction, "dispatch-credit-free");
   assert.equal(ready.creditCost, 0);

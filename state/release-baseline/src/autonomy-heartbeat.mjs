@@ -10,6 +10,7 @@ import {
 } from "./credit-free-autonomy.mjs";
 import { admitLocalReasonerExecution, openTransientResultChannel } from "./local-reasoner-channel.mjs";
 import { evaluateDestinyTriggerReadiness } from "./destiny-trigger-trust.mjs";
+import { isLocalAiDevelopmentEnabled } from "./config.mjs";
 
 export const HEARTBEAT_KIND = "credit-free-heartbeat";
 export const HEARTBEAT_SCHEMA_VERSION = 1;
@@ -63,6 +64,7 @@ export function runCreditFreeHeartbeat({
   allowPaidFallback = false,
   providers = ["repository", "local-core", "self-healer"],
   localReasonerReady = false,
+  env = process.env,
   requestedProvider = "repository",
   vercelDeploymentsToday = 0,
   vercelDailyCap = 100,
@@ -76,12 +78,14 @@ export function runCreditFreeHeartbeat({
   destinyTrigger = null,
   modelBackedDispatch = false,
 } = {}) {
+  localReasonerReady = localReasonerReady === true && isLocalAiDevelopmentEnabled(env);
   const maintenance = maintainCreditFreeAutonomy({
     spendGrantUsd,
     platformApiKeyPresent,
     allowPaidFallback,
     providers,
     localReasonerReady,
+    env,
     requestedProvider,
     vercelDeploymentsToday,
     vercelDailyCap,
@@ -92,6 +96,7 @@ export function runCreditFreeHeartbeat({
   const plan = planCreditFreeWork({
     message,
     localReasonerReady,
+    env,
     spendGrantUsd,
     platformApiKeyPresent,
     allowPaidFallback,
@@ -108,11 +113,13 @@ export function runCreditFreeHeartbeat({
     platformApiKeyPresent,
     allowPaidFallback,
     localReasonerReady,
+    env,
   };
   const steps = graph.map((node) => {
     const decision = selectCreditFreeExecutionPlane({
       ...planeInput,
       requestedProvider: node.provider,
+      env,
     });
     return Object.freeze({
       id: node.id,
@@ -366,7 +373,7 @@ export function readCreditFreeRuntime(env = process.env) {
 
 export function runCreditFreeHeartbeatFromEnv({ env = process.env, now = new Date(), destinyManifest = null, modelBackedDispatch = false } = {}) {
   const runtime = readCreditFreeRuntime(env);
-  return runCreditFreeHeartbeat({ now, ...runtime, destinyManifest, modelBackedDispatch });
+  return runCreditFreeHeartbeat({ now, ...runtime, env, destinyManifest, modelBackedDispatch });
 }
 
 function envFlag(value) {
@@ -463,6 +470,7 @@ async function runHeartbeatCli() {
   const cycle = runUnattendedCreditFreeCycle({
     now: new Date(),
     ...runtime,
+    env: process.env,
     localReasonerReady,
     destinyManifest,
     probe,
