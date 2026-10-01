@@ -37,6 +37,11 @@ describe("Next dependency provenance UI", () => {
     assert.match(command, /github\.io is presentation only and must not call authenticated APIs/);
     assert.match(command, /github\.io must not issue authenticated API calls/);
     assert.match(cockpit, /presentation surfaces only/);
-    assert.match(cockpit, /Traffic authority.*separate \/ unverified/);
+    assert.match(cockpit, /label="Traffic authority"/);
+    assert.match(cockpit, /value="Separate \/ unverified"/);
+    const provenanceRows = [command, cockpit]
+      .map((surface) => surface.split("\n").find((line) => line.includes("Next dependency provenance")) ?? "");
+    assert.ok(provenanceRows.every((row) => row.length > 0));
+    assert.doesNotMatch(provenanceRows.join("\n"), /\bfetch\s*\(|api\.github\.com|authorization/i);
   });
 });
