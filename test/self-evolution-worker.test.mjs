@@ -206,3 +206,12 @@ test("dynamic evolution payload validation rejects traversal and schema drift", 
   );
   assert.match(evolutionModule.createEvolutionModelInstruction(envelope), /Return JSON only/);
 });
+
+test("external evolution schema enforces customized nested constraints", () => {
+  const envelope = {
+    evolutionSettings: { activeLineChangeLimit: 10, maxLineChangeThreshold: 20, targetDirectories: ["src"], enforceStrictSchemaMatch: true },
+    payloadMappingSchema: { type: "object", properties: { modifications: { type: "array", maxItems: 1, items: { type: "object", properties: { content: { type: "string", maxLength: 3 } } } } } },
+  };
+  const payload = { componentTarget: "src/router.mjs", patchType: "REPAIR", modifications: [{ action: "APPEND", content: "long content" }] };
+  assert.throws(() => evolutionModule.validateEvolutionPayload(payload, envelope), error => error?.code === "self-evolution-payload-schema-mismatch");
+});
