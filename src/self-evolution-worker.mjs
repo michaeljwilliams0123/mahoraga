@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { executeSelfExtensionCapability } from "./self-extension-worker.mjs";
 import { createGitHubNativeCandidatePublisher } from "./sovereign-candidate-producer.mjs";
+import { validateStructuredOutput } from "./structured-output.ts";
 
 const EVOLUTION_CAPABILITIES = new Set(["self.patch", "self.enhance"]);
 const PATCH_TYPES = new Set(["REFACTOR", "OPTIMIZATION", "REPAIR"]);
@@ -68,6 +69,8 @@ export function validateEvolutionPayload(payload, envelope) {
   if (!payload || typeof payload !== "object" || Array.isArray(payload)) fail("self-evolution-payload-invalid");
   const settings = envelope?.evolutionSettings;
   if (!settings) fail("self-evolution-envelope-invalid");
+  try { validateStructuredOutput(payload, envelope.payloadMappingSchema); }
+  catch { fail("self-evolution-payload-schema-mismatch"); }
   const allowedRootKeys = new Set(["componentTarget", "patchType", "modifications"]);
   if (settings.enforceStrictSchemaMatch && !hasOnlyKeys(payload, allowedRootKeys)) fail("self-evolution-payload-schema-mismatch");
   if (typeof payload.componentTarget !== "string" || !isAllowedComponentTarget(payload.componentTarget, settings.targetDirectories)) {
