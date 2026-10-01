@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 
 import { validateCurrentHeadAssurance } from "./current-head-assurance.ts";
 
@@ -6,7 +8,7 @@ export function validateGitLabAssurance(input = {}, options = {}) {
   return validateCurrentHeadAssurance(input, options);
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const raw = process.env.MAHORAGA_GITLAB_ASSURANCE_JSON || (process.stdin.isTTY ? "" : readFileSync(0, "utf8"));
   if (!raw.trim()) {
     console.error(JSON.stringify({ ok: false, reason: "assurance-input-missing" }));
