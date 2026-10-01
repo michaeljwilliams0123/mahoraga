@@ -13,6 +13,7 @@ import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
+import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -262,6 +263,7 @@ export function CockpitView({
       <div className="eclipse-status-grid">
         <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
         <UndiciSecurityBumpCard />
+        <LocalAiDevOnlyCard />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
