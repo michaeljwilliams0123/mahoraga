@@ -35,6 +35,7 @@ export const ESSENTIAL_FILES = [
   "src/cognitive-mitosis.ts",
   "src/cognitive-clone-worker.ts",
   "src/control-session.mjs",
+  "src/current-head-assurance.ts",
   "src/task-policy.mjs",
   "src/receipt-registry.mjs",
   "src/capability-readiness.mjs",

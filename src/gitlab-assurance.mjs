@@ -1,33 +1,40 @@
 import { readFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 
-export function validateGitLabAssurance({ objective = {}, github = {}, gitlab = {} } = {}) {
-  const mismatches = [];
-  compare("repositoryIdentity", github.repositoryIdentity, gitlab.repositoryIdentity, mismatches);
-  compare("branch", github.branch, gitlab.branch, mismatches);
-  compare("commitSha", github.commitSha, gitlab.commitSha, mismatches);
-  compare("workflowVersion", github.workflowVersion, gitlab.workflowVersion, mismatches);
-  const githubCommands = normalizeCommands(github.commands);
-  const gitlabCommands = normalizeCommands(gitlab.commands);
-  compare("commandIds", githubCommands.map((command) => command.id).join(","), gitlabCommands.map((command) => command.id).join(","), mismatches);
-  for (const command of [...githubCommands, ...gitlabCommands]) if (!["success", "passed"].includes(command.conclusion)) mismatches.push({ field: `command:${command.id}`, reason: "unsuccessful-conclusion" });
-  for (const command of githubCommands) {
-    const peer = gitlabCommands.find((candidate) => candidate.id === command.id);
-    if (peer && command.conclusion !== peer.conclusion && !(command.conclusion === "success" && peer.conclusion === "passed")) mismatches.push({ field: `command:${command.id}`, reason: "conclusion-mismatch" });
-  }
-  if (mismatches.length > 0) return Object.freeze({ ok: false, reason: "dual-ledger-sha-mismatch", objectiveId: objective.id ?? null, mismatches });
-  return Object.freeze({ ok: true, reason: null, objectiveId: objective.id ?? null, repositoryIdentity: github.repositoryIdentity, branch: github.branch, commitSha: github.commitSha });
+import { validateCurrentHeadAssurance } from "./current-head-assurance.ts";
+
+export function validateGitLabAssurance(input = {}, options = {}) {
+  return validateCurrentHeadAssurance(input, options);
 }
 
-function compare(field, left, right, mismatches) { if (!left || !right || left !== right) mismatches.push({ field, github: left ?? null, gitlab: right ?? null }); }
-function normalizeCommands(commands = []) { return commands.map((command) => ({ id: String(command.id), conclusion: String(command.conclusion).toLowerCase() })).sort((a, b) => a.id.localeCompare(b.id)); }
-
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const raw = process.env.MAHORAGA_GITLAB_ASSURANCE_JSON || (process.stdin.isTTY ? "" : readFileSync(0, "utf8"));
   if (!raw.trim()) {
     console.error(JSON.stringify({ ok: false, reason: "assurance-input-missing" }));
     process.exit(1);
   }
-  const result = validateGitLabAssurance(JSON.parse(raw));
+  let input;
+  try {
+    if (Buffer.byteLength(raw) > 131_072) throw new Error("oversized");
+    input = JSON.parse(raw);
+    if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("invalid");
+  } catch {
+    console.error(JSON.stringify({ ok: false, reason: "assurance-input-invalid" }));
+    process.exit(1);
+  }
+  // Resolve current source authority ourselves; matching caller ledgers are insufficient.
+  let authoritativeMain;
+  try {
+    const response = await fetch("https://api.github.com/repos/michaeljwilliams0123/mahoraga/git/ref/heads/main", {
+      headers: { accept: "application/vnd.github+json" }, redirect: "error", signal: AbortSignal.timeout(10_000),
+    });
+    if (!response.ok) throw new Error("main-unavailable");
+    const content = await response.text();
+    if (Buffer.byteLength(content) > 65_536) throw new Error("main-response-too-large");
+    authoritativeMain = { repositoryIdentity: "michaeljwilliams0123/mahoraga", commitSha: JSON.parse(content).object?.sha, observedAt: new Date().toISOString() };
+  } catch { authoritativeMain = null; }
+  const result = validateGitLabAssurance({ ...input, authoritativeMain });
   console.log(JSON.stringify(result));
   process.exit(result.ok ? 0 : 1);
 }
