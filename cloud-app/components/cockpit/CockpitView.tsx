@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { projectAcceptanceEvidence } from "@/lib/acceptance-evidence";
 import { AcceptanceEvidenceCards } from "./AcceptanceEvidenceCards";
 import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
@@ -22,28 +22,17 @@ import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { TelemetrySparkline } from "./TelemetrySparkline";
+import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
 const EXPECTED_PROVIDER_ID = "cloudflare-workers-ai";
 const EXPECTED_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
-type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
 const HARD_ZERO_ACTIONS = new Set<HardZeroQuotaAction>([
   "dispatch-hard-zero",
   "quota-hold-until-utc-reset",
   "resume-queued",
   "refuse-paid-route",
 ]);
-
-function parseReadinessObservation(value: unknown): ReadinessObservation | null {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate.status !== "string") return null;
-  return {
-    status: candidate.status,
-    sha: typeof candidate.sha === "string" ? candidate.sha : null,
-    durableState: typeof candidate.durableState === "string" ? candidate.durableState : null,
-  };
-}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
@@ -139,6 +128,7 @@ export function CockpitView({
   health,
   healthError,
   runtimeCapabilities,
+  relay = null,
   onRequestPairing,
   onOpenOperations,
   onOpenConnections,
@@ -208,22 +198,15 @@ export function CockpitView({
   const noRailwayDetail = noRailwayVerified
     ? "Verified no Railway fallback on sanitized receipt; Railway remains legacy evidence only with zero route, influence, fallback, or authority"
     : "Unproven until noRailwayFallbackVerified is true; Railway still has zero route, influence, fallback, or authority";
-  const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
+  const readinessState = useRuntimeReadiness(relay, readinessSourceSha(health), coreReady);
+  const readiness = readinessState.readiness;
   const dissentReceipt = (health as { collectiveDissent?: CollectiveDissentReceipt } | null)?.collectiveDissent ?? null;
   const interactionTruth = projectInteractionTruth({
     interaction: health?.runtime?.interactionTruth ?? health?.interactionTruth,
     delivery: health?.runtime?.deliveryTruth ?? health?.deliveryTruth,
   });
 
-  useEffect(() => {
-    let active = true;
-    setReadiness(null);
-    void fetch("/api/ready")
-      .then(async (response) => response.ok ? parseReadinessObservation(await response.json()) : null)
-      .then((observation) => { if (active) setReadiness(observation); })
-      .catch(() => { if (active) setReadiness(null); });
-    return () => { active = false; };
-  }, [coreReady]);
+
 
   const readinessOk = readiness?.status === "ready";
   const readyOk = coreReady && readinessOk;
@@ -277,7 +260,7 @@ export function CockpitView({
           detail="telemetry-session-unavailable until a genuine owner-authenticated transport exists · no browser bearer from localStorage · TELEMETRY_STREAM_TOKEN optional and not uploaded · no live Railway fallback · not traffic authority"
           tone="warn"
         />
-        <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
+        <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`Observation ${readinessState.phase} · SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
         <StatusCard
           label="Predictive scenario route"
