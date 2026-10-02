@@ -52,6 +52,7 @@ function runtimeErrorMessage(code: string) {
     "runtime-response-missing": "Mahoraga finished the task, but its reply did not reach this conversation. Try again or open Work for the task state.",
     "cognition-provider-timeout": "Mahoraga's brain did not answer within the bounded response window. The request stopped safely; try again.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
+    "cloud-request-timeout": "The runtime did not respond before the connection deadline. Work may still be running; reconnect to check its result before submitting it again.",
     "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Sign in to the canonical cloud workspace or use the recovery connection only if needed.",
     "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
     "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Execution remains fail-closed while the cloud session recovers.",
@@ -79,6 +80,7 @@ export function Workspace() {
   const [ownerLoginRequired, setOwnerLoginRequired] = useState(false);
   const [ownerLoginPin, setOwnerLoginPin] = useState("");
   const [ownerLoginBusy, setOwnerLoginBusy] = useState(false);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [relayState, setRelayState] = useState<RelayState>("resuming");
   const [pairedRelay, setPairedRelay] = useState<RuntimeRelay | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
@@ -143,7 +145,17 @@ export function Workspace() {
   useEffect(() => {
     const transport = new RuntimeRelay();
     let active = true;
+    const unsubscribe = transport.onDisconnected(() => {
+      if (!active) return;
+      setRelayState("unpaired");
+      setRuntimeCapabilities([]);
+      const ownerRequired = transport.sessionDiagnostic?.code === "cloud-owner-auth-required";
+      setOwnerLoginRequired(ownerRequired);
+      setRuntimeError(runtimeErrorMessage(ownerRequired ? "cloud-owner-auth-required" : "relay-disconnected"));
+    });
     setRelayState("resuming");
+    setRuntimeCapabilities([]);
+    setRuntimeError(null);
     void (async () => {
       const attached = await transport.attach();
       if (!active) { transport.disconnect(); return; }
@@ -173,14 +185,24 @@ export function Workspace() {
       setRelayState("connected");
     })().catch(() => {
       transport.disconnect();
-      if (active) setRelayState("unpaired");
+      if (active) { setRelayState("unpaired"); setRuntimeError(runtimeErrorMessage("cloud-session-unreachable")); }
     });
     return () => {
       active = false;
+      unsubscribe();
       voice.current?.stop();
       transport.disconnect();
     };
-  }, []);
+  }, [connectionAttempt]);
+
+  function reconnectRuntime() {
+    if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;
+    relay.current?.disconnect();
+    relay.current = null;
+    setPairedRelay(null);
+    setOwnerLoginRequired(false);
+    setConnectionAttempt(attempt => attempt + 1);
+  }
 
   async function loginDirectOwner() {
     if (!/^\d{4}$/.test(ownerLoginPin) || ownerLoginBusy) return;
@@ -347,6 +369,10 @@ export function Workspace() {
         }
         setRuntimeError(runtimeErrorMessage(code));
         if (!transport.connected) setRelayState("error");
+        if (code === "cloud-owner-auth-required") {
+          setOwnerLoginRequired(true);
+          setRuntimeCapabilities([]);
+        }
       }
     } finally {
       if (runtimePollGeneration.current === pollGeneration) {
@@ -486,7 +512,7 @@ export function Workspace() {
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
           setOwnerLoginPin={setOwnerLoginPin}
           addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
-          stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
+          reconnectRuntime={reconnectRuntime} stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
         />
       )}
 
