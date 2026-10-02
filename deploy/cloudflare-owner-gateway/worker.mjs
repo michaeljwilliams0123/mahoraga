@@ -1,3 +1,5 @@
+import { renderCloudflareBridgeFrame as bridgeFrame } from "./bridge-frame.ts";
+
 const DEFAULT_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io";
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 
@@ -14,50 +16,6 @@ function configuredPagesOrigin(env) {
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
     return parsed.origin;
   } catch { return null; }
-}
-
-function bridgeFrame(pagesOrigin) {
-  const encodedOrigin = JSON.stringify(pagesOrigin).replaceAll("<", "\\u003c");
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Mahoraga bridge</title></head><body><script>
-(() => {
-  "use strict";
-  const PAGES_ORIGIN = ${encodedOrigin};
-  const PROTOCOL_VERSION = 1;
-  function reply(requestId, ok, result, error) {
-    const value = { protocolVersion: PROTOCOL_VERSION, requestId, ok };
-    if (ok && result !== undefined) value.result = result;
-    if (!ok && error) value.error = error;
-    window.parent.postMessage(value, PAGES_ORIGIN);
-  }
-  async function action(request) {
-    const response = await fetch("/api/runtime/pages-bridge/action", {
-      method: "POST",
-      credentials: "include",
-      cache: "no-store",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ type: request.action, payload: request.payload }),
-    });
-    const value = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof value.error === "string" ? value.error : "cloud-gateway-unavailable");
-    return value;
-  }
-  window.addEventListener("message", async (event) => {
-    if (event.origin !== PAGES_ORIGIN || event.source !== window.parent) return;
-    const request = event.data;
-    if (!request || request.protocolVersion !== PROTOCOL_VERSION || typeof request.requestId !== "string" || typeof request.type !== "string") return;
-    try {
-      if (request.type === "bridge.status") { reply(request.requestId, true, { authenticated: true }); return; }
-      if (request.type === "bridge.disconnect") { reply(request.requestId, true, { authenticated: false }); return; }
-      if (request.type === "bridge.login") { reply(request.requestId, true, { authenticated: true }); return; }
-      if (request.type === "bridge.action") { reply(request.requestId, true, await action(request)); return; }
-      if (request.type === "bridge.artifact") { throw new Error("cloud-native-artifact-unavailable"); }
-    } catch (caught) {
-      const code = caught instanceof Error && /^[a-z0-9.-]+$/.test(caught.message) ? caught.message : "cloud-gateway-unavailable";
-      reply(request.requestId, false, undefined, code);
-    }
-  });
-})();
-</script></body></html>`;
 }
 
 function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pending") {
