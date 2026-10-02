@@ -145,4 +145,27 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });
+
+  it("surfaces the bounded Pages frame contract as observational cockpit status", () => {
+    const card = readFileSync(join(root, "components/cockpit/PagesFrameContractCard.tsx"), "utf8");
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    const commandCockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+    const statusGrid = cockpit.match(/<div className="eclipse-status-grid">([\s\S]*?)<\/div>/)?.[1];
+
+    assert.match(card, /protocolVersion, requestId, type, action, and payload/);
+    assert.match(card, /32 \* 1024/);
+    assert.match(card, /60/);
+    assert.match(card, /no replay/);
+    assert.match(card, /HTTP 401\/403 clears frame authentication/);
+    assert.match(card, /cloud-owner-auth-required/);
+    assert.match(card, /Parent origin\/source checks remain/);
+    assert.match(card, /not a private owner-browser transaction or traffic authority/);
+    assert.match(card, /170e373af12e/);
+    assert.match(cockpit, /import \{ PagesFrameContractCard \} from "\.\/PagesFrameContractCard"/);
+    assert.match(statusGrid ?? "", /<PagesFrameContractCard \/>/);
+    assert.match(commandCockpit, /PAGES_FRAME_CONTRACT_OBS/);
+    assert.match(commandCockpit, /OWNER_AUTH_REQUIRED_BOUNDED/);
+    assert.match(commandCockpit, /active\.lines\.map/);
+    assert.match(commandCockpit, /not a private owner-browser transaction or traffic authority/);
+  });
 });
