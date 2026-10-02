@@ -39,7 +39,7 @@ test("the workspace delegates owner PIN sign-in to the selected authenticated tr
   assert.match(chat, /maxLength=\{4\}/);
   assert.match(types, /onOwnerLogin/);
   assert.match(relay, /cloud-owner-auth-required/);
-  assert.match(relay, /fetch\("\/api\/runtime\/login"/);
+  assert.match(relay, /this\.httpJson\("\/api\/runtime\/login"/);
   assert.doesNotMatch(`${workspace}\n${chat}\n${types}`, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
 });
 
