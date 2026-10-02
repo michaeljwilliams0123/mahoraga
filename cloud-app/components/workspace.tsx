@@ -532,7 +532,7 @@ export function Workspace() {
             <OperationsView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} />
             <details className="legacy-detail">
               <summary>Deep control center</summary>
-              <CockpitView coreReady={coreReady} health={health} healthError={healthError} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onOpenOperations={() => navigate("advanced")} onOpenConnections={() => navigate("advanced")} />
+              <CockpitView relay={pairedRelay} coreReady={coreReady} health={health} healthError={healthError} runtimeCapabilities={runtimeCapabilities} onRequestPairing={() => navigate("chat")} onOpenOperations={() => navigate("advanced")} onOpenConnections={() => navigate("advanced")} />
             </details>
           </div>
         </>
