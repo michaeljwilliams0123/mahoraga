@@ -66,13 +66,15 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
       id: "cloud",
       title: "CLOUD",
       tone: health?.ok ? "ok" : health ? "warn" : "neutral",
-      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; Railway is legacy evidence only with zero route, influence, fallback, or authority; do not repair or revive it. Vercel is retired and observation-only.",
+      summary: "Cloudflare is the native workspace and execution runtime. Source, deployment, live-runtime, provider, and traffic authority stay independently fail-closed; the Pages frame protocol is observational only, not a private owner-browser transaction or traffic authority. Railway is legacy evidence only with zero route, influence, fallback, or authority; do not repair or revive it. Vercel is retired and observation-only.",
       lines: [
         { label: "product", value: health?.product ?? "unknown" },
         { label: "authority", value: health?.authority ?? "unknown" },
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
+        { label: "pagesFrameContract", value: "PAGES_FRAME_CONTRACT_OBS · protocol v1 · exact action fields · 32 KiB body cap · 60-second abort · no replay · parent origin/source checks" },
+        { label: "pagesFrameAuthentication", value: "OWNER_AUTH_REQUIRED_BOUNDED · HTTP 401/403 clears frame authentication · cloud-owner-auth-required" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
         { label: "railwayStatus", value: "legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority" },
@@ -219,6 +221,8 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">ZERO_CREDIT_NO_FALLTHROUGH</span>
             <span className="cockpit-pill steel">TEAMS_ATTENDED_OBS</span>
             <span className="cockpit-pill ok">AUTH_NO_STORE_#486</span>
+            <span className="cockpit-pill steel">PAGES_FRAME_CONTRACT_OBS</span>
+            <span className="cockpit-pill steel">OWNER_AUTH_REQUIRED_BOUNDED</span>
             <span className="cockpit-pill ok">ARTIFACT_BRIDGE_#505</span>
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>

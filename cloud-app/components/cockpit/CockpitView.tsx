@@ -22,6 +22,7 @@ import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
 import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { TelemetrySparkline } from "./TelemetrySparkline";
+import { PagesFrameContractCard } from "./PagesFrameContractCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -334,6 +335,7 @@ export function CockpitView({
         <StatusCard label="Expected SHA pin" value={expectedDeploymentCommit ? shortSha(expectedDeploymentCommit) : "Unset"} detail="MAHORAGA_EXPECTED_GIT_SHA · deploy and accept exact main on Cloudflare only after Ubuntu and Windows Verify; mismatch fails closed." tone={expectedDeploymentCommit ? (cloudflareExactMain ? "good" : "warn") : "warn"} />
         <StatusCard label="Owner login" value="AUTH_NO_STORE_#486" detail="Cache-Control: no-store · failure and success responses are not cached" tone="good" />
         <StatusCard label="Execution core" value={coreReady ? "Paired" : "Ready to pair"} detail={coreReady ? "Process health is not the answer lane" : "No execution authority claimed"} tone={coreReady ? "good" : "neutral"} />
+        <PagesFrameContractCard />
         <StatusCard label="Answer lane" value={interaction.ready ? "Routable" : "Not routable"} detail={`${interaction.provider} · ${interaction.canary}${interaction.reason ? ` · ${interaction.reason}` : ""}`} tone={interaction.ready ? "good" : "warn"} />
         <StatusCard label="Zero-credit answers" value={zeroCredit.state === "allow" ? "Admitted" : zeroCredit.state === "deny" ? "Denied" : "On hold"} detail={`${zeroCredit.provider} · ${zeroCredit.costClass} · ${zeroCredit.reason}`} tone={zeroCredit.state === "allow" ? "good" : "warn"} />
         <StatusCard
