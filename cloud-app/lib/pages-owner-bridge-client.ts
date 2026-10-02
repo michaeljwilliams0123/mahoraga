@@ -18,6 +18,7 @@ export function validatePublicBridgeOrigin(value: string | undefined) {
 
 export class PagesOwnerBridgeClient {
   private frame: HTMLIFrameElement | null = null;
+  private cancelFrame: (() => void) | null = null;
   private frameReady: Promise<void> | null = null;
   private pending = new Map<string, Pending>();
   private listening = false;
@@ -52,7 +53,7 @@ export class PagesOwnerBridgeClient {
 
   async disconnect() {
     try {
-      if (this.frame?.contentWindow) await this.request({ type: "bridge.disconnect" });
+      if (this.frame?.contentWindow && !this.cancelFrame) await this.request({ type: "bridge.disconnect" });
     } catch { /* best-effort in-memory bridge teardown */ }
     this.destroy();
   }
@@ -72,10 +73,22 @@ export class PagesOwnerBridgeClient {
     iframe.tabIndex = -1;
     this.frame = iframe;
     this.frameReady = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(bridgeError("cloud-session-unreachable")), FRAME_TIMEOUT_MS);
-      iframe.addEventListener("load", () => { clearTimeout(timer); resolve(); }, { once: true });
-      iframe.addEventListener("error", () => { clearTimeout(timer); reject(bridgeError("cloud-session-unreachable")); }, { once: true });
+      const cleanup = () => {
+        clearTimeout(timer);
+        iframe.removeEventListener("load", loaded);
+        iframe.removeEventListener("error", failed);
+        this.cancelFrame = null;
+      };
+      const loaded = () => { cleanup(); resolve(); };
+      const failed = () => { cleanup(); reject(bridgeError("cloud-session-unreachable")); };
+      const timer = setTimeout(failed, FRAME_TIMEOUT_MS);
+      this.cancelFrame = failed;
+      iframe.addEventListener("load", loaded, { once: true });
+      iframe.addEventListener("error", failed, { once: true });
       document.body.appendChild(iframe);
+    }).catch(error => {
+      if (this.frame === iframe) this.destroy();
+      throw error;
     });
     return this.frameReady;
   }
@@ -107,6 +120,8 @@ export class PagesOwnerBridgeClient {
   };
 
   private destroy() {
+    this.cancelFrame?.();
+    this.cancelFrame = null;
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(bridgeError("cloud-session-unreachable")); }
     this.pending.clear();
     this.frame?.remove();
