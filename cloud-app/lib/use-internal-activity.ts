@@ -23,7 +23,7 @@ export function useInternalActivity(relay: RuntimeRelay | null, sourceSha: strin
   return () => { generation.current++; watch.stop(); watcher.current = null; document.removeEventListener('visibilitychange', watch.refresh); };
  }, [relay, sourceSha, connected, revision]);
  async function setEnabled(enabled: boolean) {
-  if (controlPending.current || busy || !relay?.connected || !connected || !sourceSha || !state.observation) return;
+  if (controlPending.current || busy || !relay?.connected || !connected || !sourceSha || !parseInternalActivity(state.observation, sourceSha)) return;
   controlPending.current = true;
   const epoch = generation.current;
   watcher.current?.stop(); setBusy(true); setError(null); setState({ phase: 'connecting', observation: null });
@@ -37,6 +37,6 @@ export function useInternalActivity(relay: RuntimeRelay | null, sourceSha: strin
    controlPending.current = false; setBusy(false); if (generation.current === epoch) setRevision(value => value + 1);
   }
  }
- const activity = connected && relay?.connected ? state.observation : null;
+ const activity = connected && relay?.connected ? parseInternalActivity(state.observation, sourceSha) : null;
  return { activity, phase: state.phase, label: internalActivityLabel(activity), busy, error, setEnabled };
 }
