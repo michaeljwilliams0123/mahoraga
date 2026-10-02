@@ -193,6 +193,8 @@ function sanitizeInteractionTruthResult(value) {
   };
 }
 
+import { runtimeReadiness } from "./runtime-readiness.ts";
+
 const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
@@ -240,6 +242,10 @@ async function nativeBridgeResponse(request, requestUrl, env, owner) {
   if (requestUrl.pathname === "/api/runtime/pages-bridge/action" && request.method === "POST") {
     const value = await request.json().catch(() => null);
     if (!value || typeof value !== "object" || Array.isArray(value)) return json({ error: "cloud-action-not-allowed" }, 400);
+    if (value.type === "readiness") {
+      if (Object.keys(value).sort().join(",") !== "payload,type" || !value.payload || typeof value.payload !== "object" || Array.isArray(value.payload) || Object.keys(value.payload).length) return json({ error:"cloud-readiness-request-invalid" },400);
+      return runtimeReadiness(env?.MAHORAGA_EXECUTION_RUNTIME);
+    }
     if (value.type === "capabilities") return json(await runtimeCapabilities(env));
     if (NATIVE_ACTIONS.has(value.type)) return nativeRuntimeAction(value.type, value.payload, env, owner);
     return json({ error: "cloud-native-capability-unavailable" }, 503);
