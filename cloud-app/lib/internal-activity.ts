@@ -9,7 +9,7 @@ export function parseInternalActivity(value: unknown, expectedSha: unknown, now 
  const o = value as Record<string, unknown>;
  if (Object.keys(o).sort().join(',') !== 'artifactCount,artifactFingerprint,candidateActionCount,durableState,enabled,lastError,lastWakeAt,modelInvocations,nextWakeAt,observedAt,phase,schemaVersion,snapshotFingerprint,sourceSha,wakeCount'
   || o.schemaVersion !== 1 || o.sourceSha !== expectedSha || typeof o.enabled !== 'boolean'
-  || !['scheduled','watching','planned','held','paused'].includes(String(o.phase)) || o.modelInvocations !== 0 || o.durableState !== 'cloudflare-do-sqlite') return null;
+  || typeof o.phase !== 'string' || !['scheduled','watching','planned','held','paused'].includes(o.phase) || o.modelInvocations !== 0 || o.durableState !== 'cloudflare-do-sqlite') return null;
  for (const key of ['wakeCount','artifactCount','candidateActionCount']) if (!Number.isSafeInteger(o[key]) || (o[key] as number) < 0) return null;
  if ((o.candidateActionCount as number) > 8) return null;
  for (const key of ['lastWakeAt','nextWakeAt']) if (o[key] !== null && (!Number.isSafeInteger(o[key]) || (o[key] as number) < 0)) return null;
