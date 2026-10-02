@@ -3,6 +3,8 @@
 import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
 import { PagesOwnerBridgeClient, validatePublicBridgeOrigin } from "./pages-owner-bridge-client";
 
+import { RuntimeHttpScope } from "./runtime-http-scope";
+
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
 const encoder = new TextEncoder();
@@ -177,6 +179,13 @@ export type RuntimeOperationsActionResult = {
 };
 
 export class RuntimeRelay {
+  private disconnectListeners = new Set<() => void>();
+  onDisconnected(listener: () => void) {
+    this.disconnectListeners.add(listener);
+    return () => { this.disconnectListeners.delete(listener); };
+  }
+
+  private http = new RuntimeHttpScope();
   private socket: WebSocket | null = null;
   private session: RelaySession | null = null;
   private pending = new Map<string, PendingRequest>();
@@ -195,9 +204,15 @@ export class RuntimeRelay {
     return this.bridgeAuthenticated || this.cloudSession !== null || (this.socket?.readyState === WebSocket.OPEN && this.session !== null);
   }
 
+  get transportKind() {
+    return this.bridgeAuthenticated ? "pages-owner-bridge" : this.cloudSession ? "same-origin-cloud" : this.connected ? "encrypted-relay" : "disconnected";
+  }
+
   get sessionDiagnostic() { return this.cloudSessionDiagnostic; }
 
   async attach() {
+    this.cloudSession = null;
+    this.bridgeAuthenticated = false;
     this.cloudSessionDiagnostic = null;
     const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : null;
@@ -217,8 +232,7 @@ export class RuntimeRelay {
       }
     }
     try {
-      const response = await fetch("/api/runtime/session", { credentials: "include", cache: "no-store" });
-      const value = await response.json().catch(() => ({})) as JsonObject;
+      const { response, value } = await this.httpJson("/api/runtime/session", { credentials: "include", cache: "no-store" }, 10_000);
       if (!response.ok || value.authenticated !== true || typeof value.csrf !== "string") {
         this.cloudSessionDiagnostic = sessionDiagnostic(value);
         return null;
@@ -238,12 +252,11 @@ export class RuntimeRelay {
       this.cloudSessionDiagnostic = null;
       return;
     }
-    const response = await fetch("/api/runtime/login", {
+    const { response, value } = await this.httpJson("/api/runtime/login", {
       method: "POST", credentials: "include", cache: "no-store",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ownerPin: pin }),
-    });
-    const value = await response.json().catch(() => ({})) as JsonObject;
+    }, 10_000);
     if (!response.ok) throw relayError(publicCode(value.error));
     const attached = await this.attach();
     if (!attached || !this.cloudSession) throw relayError(this.cloudSessionDiagnostic?.code ?? "cloud-owner-auth-required");
@@ -263,7 +276,7 @@ export class RuntimeRelay {
     this.socket = socket;
     await waitForOpen(socket);
     socket.addEventListener("message", (event) => { void this.receive(event); });
-    socket.addEventListener("close", () => this.rejectPending("relay-disconnected"));
+    socket.addEventListener("close", () => { this.rejectPending("relay-disconnected"); this.notifyDisconnected(); });
     const result = await new Promise<JsonObject>((resolve, reject) => {
       const timer = setTimeout(() => { this.pairing = null; reject(relayError("relay-pairing-timeout")); }, 10_000);
       this.pairing = {
@@ -299,7 +312,7 @@ export class RuntimeRelay {
       this.socket = socket;
       await waitForOpen(socket);
       socket.addEventListener("message", (event) => { void this.receive(event); });
-      socket.addEventListener("close", () => this.rejectPending("relay-disconnected"));
+      socket.addEventListener("close", () => { this.rejectPending("relay-disconnected"); this.notifyDisconnected(); });
       const result = await new Promise<JsonObject>((resolve, reject) => {
         const timer = setTimeout(() => { this.pairing = null; reject(relayError("relay-pairing-timeout")); }, 10_000);
         this.pairing = {
@@ -324,7 +337,7 @@ export class RuntimeRelay {
       catch (error) { this.handleBridgeError(error); throw error; }
     }
     if (!this.cloudSession) throw relayError("relay-attachments-local-only");
-    const response = await fetch("/api/runtime/artifacts", {
+    const { response, value } = await this.httpJson("/api/runtime/artifacts", {
       method: "POST", credentials: "include", cache: "no-store",
       headers: {
         "content-type": file.type || "application/octet-stream",
@@ -335,8 +348,8 @@ export class RuntimeRelay {
         "x-mahoraga-request-timestamp": String(Date.now()),
       },
       body: file,
-    });
-    const value = await response.json().catch(() => ({})) as JsonObject;
+    }, 60_000);
+    this.checkCloudAuthentication(response, value);
     if (!response.ok) throw relayError(publicCode(value.error));
     if (typeof value.artifactId !== "string" || !/^art-[a-f0-9-]+$/.test(value.artifactId)) throw relayError("cloud-artifact-receipt-invalid");
     return { id: value.artifactId };
@@ -382,6 +395,7 @@ export class RuntimeRelay {
   }
 
   disconnect() {
+    this.http.cancel();
     this.socket?.close(1000, "browser-disconnect");
     this.socket = null;
     this.session = null;
@@ -397,9 +411,11 @@ export class RuntimeRelay {
     this.cloudSession = null;
     this.cloudSessionDiagnostic = null;
     this.rejectPending("relay-disconnected");
+    this.notifyDisconnected();
   }
 
   async revoke() {
+    this.http.cancel();
     if (this.bridgeClient) {
       const bridge = this.bridgeClient;
       this.bridgeClient = null;
@@ -437,13 +453,13 @@ export class RuntimeRelay {
       catch (error) { this.handleBridgeError(error); throw error; }
     }
     if (this.cloudSession) {
-      const response = await fetch("/api/runtime/action", {
+      const { response, value } = await this.httpJson("/api/runtime/action", {
         method: "POST", credentials: "include", cache: "no-store",
         headers: { "content-type": "application/json", "x-mahoraga-csrf": this.cloudSession.csrf,
           "x-mahoraga-request-nonce": crypto.randomUUID(), "x-mahoraga-request-timestamp": String(Date.now()) },
         body: JSON.stringify({ type, payload }),
-      });
-      const value = await response.json() as JsonObject;
+      }, 60_000);
+      this.checkCloudAuthentication(response, value);
       if (!response.ok) throw relayError(publicCode(value.error));
       return value as T;
     }
@@ -459,11 +475,33 @@ export class RuntimeRelay {
     return result as Promise<T>;
   }
 
+  private httpJson(url: string, init: RequestInit, timeoutMs: number) {
+    return this.http.run(async (signal) => {
+      const response = await fetch(url, { ...init, signal });
+      const decoded: unknown = await response.json();
+      return { response, value: isObject(decoded) ? decoded : {} };
+    }, timeoutMs);
+  }
+
+  private checkCloudAuthentication(response: Response, value: JsonObject) {
+    if (response.status === 401 || value.error === "cloud-owner-auth-required") {
+      this.cloudSession = null;
+      this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
+      this.notifyDisconnected();
+      throw relayError("cloud-owner-auth-required");
+    }
+  }
+
   private handleBridgeError(error: unknown) {
     if (error instanceof Error && error.message === "cloud-owner-auth-required") {
       this.bridgeAuthenticated = false;
       this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
+      this.notifyDisconnected();
     }
+  }
+
+  private notifyDisconnected() {
+    if (!this.connected) for (const listener of this.disconnectListeners) listener();
   }
 
   private async receive(event: MessageEvent) {
