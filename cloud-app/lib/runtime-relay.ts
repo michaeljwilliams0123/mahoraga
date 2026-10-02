@@ -387,6 +387,14 @@ export class RuntimeRelay {
   async composioGithubRepository(owner: string, repo: string) {
     return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
   }
+  async readiness() {
+    if (this.bridgeAuthenticated && this.bridgeClient) return this.call<unknown>("readiness", {});
+    if (!this.cloudSession) throw relayError("cloud-readiness-unavailable");
+    const { response, value } = await this.httpJson("/api/ready", { credentials:"include", cache:"no-store" },10_000);
+    this.checkCloudAuthentication(response,value);
+    if (!response.ok) throw relayError("cloud-readiness-unavailable");
+    return value;
+  }
   async operationsSnapshot() {
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
   }
