@@ -21,6 +21,8 @@ test('corrupt persisted state and private fields cannot become a public observat
  const h = harness(); await new InternalActivityLoop(h.store, sha).ensureScheduled(1000);
  assert.throws(() => readActivityState({ ...h.state(), token: 'private' }), /internal-state-invalid/);
  assert.throws(() => readActivityState({ ...h.state(), enabled: false }), /internal-state-invalid/);
+ for (const phase of [['scheduled'], { toString: () => 'scheduled' }, 1, null])
+  assert.throws(() => readActivityState({ ...h.state(), phase }), /internal-state-invalid/);
 });
 test('durable wake survives a new loop instance without an open browser or model calls', async () => {
  const h = harness(); const loop = new InternalActivityLoop(h.store, sha);

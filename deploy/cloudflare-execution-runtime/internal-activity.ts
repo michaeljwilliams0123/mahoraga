@@ -33,7 +33,7 @@ export function readActivityState(value: unknown): ActivityState {
  const o = value as Record<string, unknown>;
  if (Object.keys(o).sort().join(',') !== 'artifactCount,artifactFingerprint,candidateActionCount,enabled,lastError,lastWakeAt,nextWakeAt,phase,schemaVersion,snapshotFingerprint,sourceSha,wakeCount'
   || o.schemaVersion !== 1 || typeof o.sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(o.sourceSha)
-  || typeof o.enabled !== 'boolean' || !['scheduled','watching','planned','held','paused'].includes(String(o.phase))) return fail();
+  || typeof o.enabled !== 'boolean' || typeof o.phase !== 'string' || !['scheduled','watching','planned','held','paused'].includes(o.phase)) return fail();
  for (const key of ['wakeCount','artifactCount','candidateActionCount']) if (!Number.isSafeInteger(o[key]) || (o[key] as number) < 0) return fail();
  if ((o.candidateActionCount as number) > 8) return fail();
  for (const key of ['lastWakeAt','nextWakeAt']) if (o[key] !== null && (!Number.isSafeInteger(o[key]) || (o[key] as number) < 0)) return fail();

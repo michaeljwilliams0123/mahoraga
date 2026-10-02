@@ -10,6 +10,8 @@ test('only fresh matching-source durable observations can show background work a
  const value = parseInternalActivity(status, sha, now); assert.ok(value); assert.equal(internalActivityLabel(value, now), 'Background active');
  for (const bad of [{ ...status, sourceSha: 'd'.repeat(40) }, { ...status, token: 'private' }, { ...status, modelInvocations: 1 }, { ...status, wakeCount: -1 }, { ...status, durableState: 'memory' }, { ...status, observedAt: new Date(now - 61000).toISOString() }]) assert.equal(parseInternalActivity(bad, sha, now), null);
  assert.equal(parseInternalActivity(status, null, now), null);
+ for (const phase of [['planned'], { toString: () => 'planned' }, 1, null])
+  assert.equal(parseInternalActivity({ ...status, phase }, sha, now), null);
 });
 test('late wakes, bootstrap and owner pause never claim constant activity', () => {
  const value = parseInternalActivity(status, sha, now); assert.ok(value);
