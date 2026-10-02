@@ -78,13 +78,23 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
     readFile(runtimeWorkerPath, "utf8"),
     readFile(runtimeWranglerPath, "utf8"),
   ]);
-  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"11,26,41,56 \* \* \* \*"/);
+  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"2-59\/5 \* \* \* \*"/);
   const renewalJob = workflow.indexOf("renew-provider-admission:");
   const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);
   const refreshCall = workflow.indexOf("/api/provider/refresh", renewalJob);
-  assert.ok(renewalJob >= 0, "quarter-hourly external renewal job must exist");
+  assert.ok(renewalJob >= 0, "offset five-minute external renewal watchdog must exist");
   assert.ok(billingProof > renewalJob, "renewal must re-prove account billing");
   assert.ok(refreshCall > billingProof, "fresh attestation must be submitted only after billing proof");
+  assert.match(workflow, /RENEWAL_MARGIN_MS:\s*1800000/);
+  assert.match(workflow, /name:\s*Inspect current provider freshness margin/);
+  assert.match(workflow, /id:\s*freshness/);
+  assert.match(workflow, /\/api\/runtime\/attestation/);
+  assert.match(workflow, /provider-freshness-sufficient/);
+  assert.equal(
+    (workflow.match(/if:\s*steps\.freshness\.outputs\.renewal_required == 'true'/g) ?? []).length,
+    2,
+    "billing proof and provider refresh must be skipped while sufficient freshness margin remains",
+  );
   const renewalBlock = workflow.slice(renewalJob);
   assert.match(renewalBlock, /billingAttestation/);
   assert.doesNotMatch(renewalBlock, /wrangler@[^\n]* deploy|cloudflare-execution-runtime\.ts deploy|cloudflare:owner-gateway:deploy/);
