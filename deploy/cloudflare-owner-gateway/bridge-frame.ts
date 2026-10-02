@@ -1,10 +1,14 @@
+import { normalizeWorkspaceOrigin } from "./workspace-origins.ts";
+
 /** Access authenticates the frame at the gateway; no credential is sent to its parent. */
-export function renderCloudflareBridgeFrame(pagesOrigin: string): string {
- const origin = JSON.stringify(pagesOrigin).replaceAll('<', '\\u003c');
+export function renderCloudflareBridgeFrame(pagesOrigin: string | readonly string[]): string {
+ const origins = typeof pagesOrigin === 'string' ? [pagesOrigin] : [...pagesOrigin];
+ if (origins.length < 1 || origins.length > 2 || origins.some(value => normalizeWorkspaceOrigin(value) !== value)) throw new Error('gateway-workspace-origin-invalid');
+ const origin = JSON.stringify(origins).replaceAll('<', '\\u003c');
  return `<!doctype html><html><head><meta charset="utf-8"><title>Mahoraga bridge</title></head><body><script>
 (() => {
  "use strict";
- const PAGES_ORIGIN = ${origin};
+ const WORKSPACE_ORIGINS = new Set(${origin});
  const PROTOCOL_VERSION = 1;
  let authenticated = true;
  function exact(value, keys) { return Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key)); }
@@ -17,11 +21,11 @@ export function renderCloudflareBridgeFrame(pagesOrigin: string): string {
   if (value.type === "bridge.artifact") return exact(value, [...base,"file"]) && value.file instanceof Blob && typeof value.file.name === "string";
   return false;
  }
- function reply(requestId, ok, result, error) {
+ function reply(targetOrigin, requestId, ok, result, error) {
   const value = { protocolVersion: PROTOCOL_VERSION, requestId, ok };
   if (ok) value.result = result;
   else value.error = error;
-  window.parent.postMessage(value, PAGES_ORIGIN);
+  window.parent.postMessage(value, targetOrigin);
  }
  async function action(request) {
   const body = JSON.stringify({ type: request.action, payload: request.payload });
@@ -40,18 +44,18 @@ export function renderCloudflareBridgeFrame(pagesOrigin: string): string {
   } finally { clearTimeout(timer); }
  }
  window.addEventListener("message", async event => {
-  if (event.origin !== PAGES_ORIGIN || event.source !== window.parent || !valid(event.data)) return;
+  if (!WORKSPACE_ORIGINS.has(event.origin) || event.source !== window.parent || !valid(event.data)) return;
   const request = event.data;
   try {
-   if (request.type === "bridge.status") { reply(request.requestId, true, { authenticated }); return; }
-   if (request.type === "bridge.disconnect") { authenticated = false; reply(request.requestId, true, { authenticated:false }); return; }
+   if (request.type === "bridge.status") { reply(event.origin, request.requestId, true, { authenticated }); return; }
+   if (request.type === "bridge.disconnect") { authenticated = false; reply(event.origin, request.requestId, true, { authenticated:false }); return; }
    if (!authenticated) throw new Error("cloud-owner-auth-required");
-   if (request.type === "bridge.login") { reply(request.requestId, true, { authenticated: true }); return; }
-   if (request.type === "bridge.action") { reply(request.requestId, true, await action(request)); return; }
+   if (request.type === "bridge.login") { reply(event.origin, request.requestId, true, { authenticated: true }); return; }
+   if (request.type === "bridge.action") { reply(event.origin, request.requestId, true, await action(request)); return; }
    throw new Error("cloud-native-artifact-unavailable");
   } catch (error) {
    const code = error instanceof Error && /^[a-z][a-z0-9.-]{0,79}$/.test(error.message) ? error.message : "cloud-gateway-unavailable";
-   reply(request.requestId, false, undefined, code);
+   reply(event.origin, request.requestId, false, undefined, code);
   }
  });
 })();

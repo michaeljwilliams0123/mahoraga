@@ -3,7 +3,7 @@ name: Publish Mahoraga Cloudflare Workspace Candidate
 on:
   workflow_dispatch:
   workflow_run:
-    workflows: ["Verify Mahoraga"]
+    workflows: ["Deploy and Accept Exact Main on Cloudflare"]
     types: [completed]
 
 permissions:
@@ -23,16 +23,25 @@ jobs:
        github.ref == 'refs/heads/main') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
+       github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.event.workflow_run.name == 'Deploy and Accept Exact Main on Cloudflare' &&
+       github.event.workflow_run.path == '.github/workflows/cloudflare-execution-runtime.yml' &&
+       github.event.workflow_run.status == 'completed' &&
        github.event.workflow_run.head_branch == 'main' &&
        github.event.workflow_run.head_repository.full_name == github.repository &&
-       github.event.workflow_run.actor.login == github.repository_owner)
+       ((github.event.workflow_run.actor.login == github.repository_owner &&
+         (github.event.workflow_run.event == 'workflow_run' || github.event.workflow_run.event == 'workflow_dispatch')) ||
+        (github.event.workflow_run.actor.login == 'github-actions[bot]' && github.event.workflow_run.event == 'workflow_run')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_TOKEN }}
+      CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
+      CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+      NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev
       MAHORAGA_DEPLOYMENT_PROVIDER: cloudflare-workers
       MAHORAGA_DEPLOYMENT_ENV: candidate
       MAHORAGA_DEPLOYMENT_URL: https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev
@@ -52,6 +61,10 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Validate accepted runtime publication receipt
+        if: github.event_name == 'workflow_run'
+        run: node scripts/cloudflare-workspace-proof.ts
+
       - name: Verify exact SHA is still authoritative main
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -70,24 +83,28 @@ jobs:
         working-directory: cloud-app
         run: npm ci --no-audit --no-fund
 
+      - name: Typecheck and test the existing workspace
+        working-directory: cloud-app
+        run: npm run typecheck && npm run test
+
       - name: Build the root-path workspace candidate
         run: npm run cloudflare:workspace:build
+
+      - name: Recheck authoritative main before publishing
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
 
       - name: Deploy static UI candidate
         run: npx --yes wrangler@4.132.0 deploy --config deploy/cloudflare-workspace/wrangler.jsonc
 
-      - name: Verify browser URL and exact UI build
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in {1..10}; do
-            if curl --fail --silent --show-error --output /tmp/mahoraga-ui.html "$MAHORAGA_DEPLOYMENT_URL/" &&
-               curl --fail --silent --show-error --output /tmp/mahoraga-health.json "$MAHORAGA_DEPLOYMENT_URL/api/health.json" &&
-               node -e 'const fs = require("node:fs"); const html = fs.readFileSync("/tmp/mahoraga-ui.html", "utf8"); const health = JSON.parse(fs.readFileSync("/tmp/mahoraga-health.json", "utf8")); if (!html.includes("/_next/static/") || health.deployment.provider !== "cloudflare-workers" || health.deployment.commitSha !== process.env.VERIFIED_SHA || health.deployment.promotion !== "unverified-cloudflare-static") process.exit(1);'; then
-              echo "Candidate UI verified at $MAHORAGA_DEPLOYMENT_URL for $VERIFIED_SHA" >> "$GITHUB_STEP_SUMMARY"
-              exit 0
-            fi
-            if [ "$attempt" -lt 10 ]; then sleep 3; fi
-          done
-          echo "::error::Cloudflare candidate did not serve the exact UI build after propagation retries."
-          exit 1
+      - name: Verify static headers, exact UI build and paired runtime source
+        run: node scripts/cloudflare-workspace-proof.ts accept reports/cloudflare-workspace-candidate-acceptance.json
+
+      - name: Retain bounded workspace acceptance receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: cloudflare-workspace-candidate-${{ env.VERIFIED_SHA }}
+          path: reports/cloudflare-workspace-candidate-acceptance.json
+          retention-days: 7
+          if-no-files-found: error

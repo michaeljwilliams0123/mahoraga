@@ -1,3 +1,4 @@
+import { workspaceSecurityHeaders } from "./cloudflare-workspace-proof.ts";
 import { spawn } from "node:child_process";
 import { cp, lstat, mkdir, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -51,6 +52,9 @@ export async function writePagesStaticHealth(destination, env = process.env) {
     boundaries: { executionPlane: "client-shell-with-owner-paired-core", localExtensionRequired: false, localDeviceMutationAllowed: false, relaySeesPlaintext: false },
     routing: { authority: "paired-mahoraga-core", automaticPaidFallback: false, browserMaySelectProvider: false },
   })}\n`, "utf8");
+  if (env.MAHORAGA_STATIC_EXPORT_TARGET === "cloudflare") {
+    await writeFile(path.join(destination, "public", "_headers"), workspaceSecurityHeaders(env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN || undefined), "utf8");
+  }
   return target;
 }
 

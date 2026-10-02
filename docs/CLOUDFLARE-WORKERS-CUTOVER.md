@@ -143,3 +143,18 @@ following are true for the same exact commit:
 After those checks pass, use a separate cutover PR to replace the canonical
 workspace URL and launcher target. Keep the previous known-good deployment as a
 bounded rollback reference until the new host has passed the canary.
+
+
+## Stronger cloud: Actions builds, Cloudflare serves
+
+For the public repository, standard GitHub-hosted Actions runners are free. More Actions capacity strengthens verification and bounded candidate jobs; it does not turn Pages into a stateful runtime or make Actions jobs persistent servers. Keep standard hosted Ubuntu/Windows runners and protected exact-head checks. Larger runners and artifact storage have separate billing rules.
+
+The recommended target is the existing Cloudflare static workspace plus the existing Access-protected owner gateway and execution Durable Object. Pages remains a derived mirror of the same `cloud-app/` source. No second application or provider is introduced. The candidate URL is https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev; it remains a candidate until the owner bridge and activation transaction are observed end to end.
+
+The gateway permits precisely the configured Pages and Cloudflare workspace origins in its frame CSP and message listener. Replies stay bound to the requesting validated origin even when requests overlap. Owner Access identity, same-origin gateway mutations, signed runtime binding, and one-use replay protection still govern execution. No wildcard origin, public direct action route, browser token, or paid provider fallback is added.
+
+The workspace publisher consumes successful canonical **Cloudflare deployment and acceptance**, including verified bot-merge handoffs. Scheduled provider-renewal runs cannot authorize UI publication. It pins checkout/build health to that source and rechecks current main before deployment. The candidate receives native `_headers` security policy, the exact gateway frame origin, and noncached health metadata. A bounded receipt verifies Cloudflare route headers, static source, security headers, and the paired runtime's exact source/readiness. It explicitly grants no execution authority.
+
+Workers Static Assets serves the bundle without a Worker script; static requests and asset storage are free. The stateful runtime and provider remain under their existing independently proved Free billing and admission limits. The owner pause and durable internal schedule remain separate from browser connections.
+
+Sources: [GitHub public standard runners](https://docs.github.com/en/actions/reference/runners/github-hosted-runners), [Actions runtime limits](https://docs.github.com/en/actions/reference/limits), [Pages static hosting](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages), [Workers static asset billing](https://developers.cloudflare.com/workers/static-assets/billing-and-limitations/), and [native static headers](https://developers.cloudflare.com/workers/static-assets/headers/). Windows production remains `3.6.0`.
