@@ -385,9 +385,10 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (url.pathname === "/api/runtime/attestation") {
       if (request.method !== "GET") return json({ error: "Method Not Allowed" }, 405, { allow: "GET" });
       this.initialize();
-      const capability = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
+      const providerState = this.storage.getProviderState(ASSISTANT_PROVIDER_ID);
+      const capability = projectPersistedAssistantCapability(providerState);
       const admitted = capability.routable === true && capability.enabled === true && capability.provider === ASSISTANT_PROVIDER_ID;
-      return json({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: admitted ? "ready" : "degraded", targetSha: this.env.TARGET_SHA, runtime: "cloudflare-worker", durableState: DURABLE_STATE, trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: ASSISTANT_PROVIDER_ID, admitted, zeroCreditEligible: admitted } }, admitted ? 200 : 503);
+      return json({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: admitted ? "ready" : "degraded", targetSha: this.env.TARGET_SHA, runtime: "cloudflare-worker", durableState: DURABLE_STATE, trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: ASSISTANT_PROVIDER_ID, admitted, zeroCreditEligible: admitted, verifiedAt: providerState?.verifiedAt ?? null, canaryExpiresAt: providerState?.canaryExpiresAt ?? null } }, admitted ? 200 : 503);
     }
     if (url.pathname === "/api/provider/refresh") {
       if (request.method !== "POST") return json({ error: "Method Not Allowed" }, 405, { allow: "POST" });
