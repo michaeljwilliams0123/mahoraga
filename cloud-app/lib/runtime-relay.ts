@@ -395,6 +395,8 @@ export class RuntimeRelay {
     if (!response.ok) throw relayError("cloud-readiness-unavailable");
     return value;
   }
+  async internalActivity() { return this.call<unknown>("internal-activity", {}); }
+  async setInternalActivity(enabled: boolean) { return this.call<unknown>("internal-activity-control", { enabled }); }
   async operationsSnapshot() {
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
   }

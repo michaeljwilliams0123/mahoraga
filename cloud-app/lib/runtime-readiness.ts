@@ -7,11 +7,15 @@ export function parseRuntimeReadiness(value:unknown,expectedSha:unknown,now=Date
  return Object.freeze({status:'ready',sha:expectedSha,durableState:'cloudflare-do-sqlite',observedAt:o.observedAt});
 }
 export type ReadinessState = Readonly<{phase:'connecting'|'fresh'|'unavailable'|'paused'|'stale';readiness:RuntimeReadiness|null}>;
+export type ObservationState<Value> = Readonly<{phase:ReadinessState['phase'];observation:Value|null}>;
 /** Read-only, serial polling. Expiry clears Ready even when a request remains pending. */
 export function watchRuntimeReadiness<T>(options:{read:()=>Promise<unknown>;expectedSha:unknown;emit:(state:ReadinessState)=>void;visible:()=>boolean;now:()=>number;schedule:(fn:()=>void,ms:number)=>T;cancel:(timer:T)=>void}) {
+ return watchRuntimeObservation<RuntimeReadiness,T>({...options,parse:(value,now)=>parseRuntimeReadiness(value,options.expectedSha,now),emit:state=>options.emit({phase:state.phase,readiness:state.observation})});
+}
+export function watchRuntimeObservation<Value extends {observedAt:string},T>(options:{read:()=>Promise<unknown>;parse:(value:unknown,now:number)=>Value|null;emit:(state:ObservationState<Value>)=>void;visible:()=>boolean;now:()=>number;schedule:(fn:()=>void,ms:number)=>T;cancel:(timer:T)=>void}) {
  let active=true,inFlight=false;let poll:T|undefined,expiry:T|undefined;
  const clear=()=>{if(poll!==undefined)options.cancel(poll);poll=undefined;};
- const emit=(phase:ReadinessState['phase'],readiness:RuntimeReadiness|null=null)=>{if(active)options.emit({phase,readiness});};
+ const emit=(phase:ReadinessState['phase'],observation:Value|null=null)=>{if(active)options.emit({phase,observation});};
  async function refresh() {
   clear();if(!active)return;
   if(!options.visible()){if(expiry!==undefined)options.cancel(expiry);expiry=undefined;emit('paused');return;}
@@ -19,7 +23,7 @@ export function watchRuntimeReadiness<T>(options:{read:()=>Promise<unknown>;expe
   try {
    const value=await options.read();if(!active)return;
    if(!options.visible()){emit('paused');return;}
-   const ready=parseRuntimeReadiness(value,options.expectedSha,options.now());
+   const ready=options.parse(value,options.now());
    if(expiry!==undefined)options.cancel(expiry);expiry=undefined;
    if(ready){emit('fresh',ready);expiry=options.schedule(()=>emit('stale'),Math.max(0,60000-(options.now()-Date.parse(ready.observedAt))));}
    else emit('unavailable');

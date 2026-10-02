@@ -40,7 +40,7 @@ jobs:
 
       - name: Test workspace
         working-directory: cloud-app
-        run: node --test test/*.test.mjs
+        run: npm run test
 
       - name: Build and inspect static workspace
         working-directory: cloud-app

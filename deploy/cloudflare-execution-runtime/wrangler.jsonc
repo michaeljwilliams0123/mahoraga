@@ -6,6 +6,7 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "triggers": { "crons": ["*/5 * * * *"] },
   "durable_objects": {
     "bindings": [
       {

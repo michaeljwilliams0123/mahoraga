@@ -10,6 +10,9 @@ import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type Runtime
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
 import { CockpitView } from "./cockpit/CockpitView";
+import { InternalActivityCard } from "./cockpit/InternalActivityCard";
+import { useInternalActivity } from "@/lib/use-internal-activity";
+import { readinessSourceSha } from "@/lib/use-runtime-readiness";
 import { ConnectionsView } from "./workspace/connections-view";
 import { FilesView } from "./workspace/files-view";
 import { OperationsView } from "./workspace/operations-view";
@@ -103,6 +106,7 @@ export function Workspace() {
 
   const busy = runtimeBusy;
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
+  const internalActivity = useInternalActivity(pairedRelay, readinessSourceSha(health), coreReady);
   const totalBytes = useMemo(() => files.reduce((sum, file) => sum + file.size, 0), [files]);
   const routableCapabilities = useMemo(() => runtimeCapabilities.filter((item) => item.routable), [runtimeCapabilities]);
   const assistantReady = coreReady && runtimeCapabilities.some((item) => item.capability === "assistant.respond" && item.routable && item.enabled !== false);
@@ -501,7 +505,7 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
+    <WorkspaceShell backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
       {view === "chat" && (
         <ChatView
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
@@ -528,6 +532,7 @@ export function Workspace() {
             <span className={coreReady ? "brain-status ready" : "brain-status"}>{coreReady ? "Brain connected" : "Unpaired"}</span>
           </header>
           <div className="advanced-stack">
+            <InternalActivityCard activity={internalActivity.activity} label={internalActivity.label} busy={internalActivity.busy} error={internalActivity.error} onSetEnabled={internalActivity.setEnabled} />
             <ConnectionsView coreReady={coreReady} health={health} runtimeCapabilities={runtimeCapabilities} relay={pairedRelay} onRequestPairing={() => navigate("chat")} onDisconnect={revokeRuntime} />
             <OperationsView coreReady={coreReady} relay={pairedRelay} onRequestPairing={() => navigate("chat")} />
             <details className="legacy-detail">

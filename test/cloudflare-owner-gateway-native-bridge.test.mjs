@@ -11,6 +11,23 @@ const env = {
 const access = { access: { async getIdentity() { return { email: env.MAHORAGA_CLOUD_OWNER_ID }; } } };
 const base = "https://mahoraga-owner-gateway.example";
 
+test("internal activity reads and owner controls use only the signed execution binding", async () => {
+  const calls = [];
+  const runtime = { async fetch(request) {
+    calls.push(await request.json());
+    assert.equal(new URL(request.url).pathname, "/api/native/bridge");
+    assert.match(request.headers.get("x-mahoraga-owner-signature"), /^[a-f0-9]{64}$/);
+    return Response.json({ enabled: true });
+  } };
+  for (const [type, payload] of [["internal-activity", {}], ["internal-activity-control", { enabled: false }]]) {
+    const response = await gateway.fetch(new Request(`${base}/api/runtime/pages-bridge/action`, {
+      method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify({ type, payload }),
+    }), { ...env, MAHORAGA_EXECUTION_RUNTIME: runtime }, access);
+    assert.equal(response.status, 200);
+  }
+  assert.deepEqual(calls, [{ type: "internal-activity", payload: {} }, { type: "internal-activity-control", payload: { enabled: false } }]);
+});
+
 test("readiness uses the fixed binding only behind exact owner and same-origin gates", async () => {
   let calls = 0;
   const binding = { async fetch(request) {

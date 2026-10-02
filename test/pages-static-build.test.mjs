@@ -185,10 +185,12 @@ test("Pages runner policy defaults to GitHub-hosted but supports a temporary rep
 test("Pages CI runs cloud-app typecheck and full tests before export", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   const typecheck = workflow.indexOf("npm run typecheck");
-  const tests = workflow.indexOf("node --test test/*.test.mjs");
+  const tests = workflow.indexOf("npm run test");
   const build = workflow.indexOf("- name: Build and inspect static workspace");
   assert.ok(typecheck >= 0);
   assert.ok(tests >= 0);
+  const pkg = JSON.parse(await readFile(new URL("../cloud-app/package.json", import.meta.url), "utf8"));
+  assert.match(pkg.scripts.test, /test\/\*\.test\.ts/);
   assert.ok(typecheck < build);
   assert.ok(tests < build);
 });

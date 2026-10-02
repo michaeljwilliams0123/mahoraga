@@ -141,6 +141,17 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 
 .advanced-topbar { justify-content: space-between; } .advanced-topbar > div { display: grid; gap: 2px; } .advanced-topbar strong { font-size: 11px; }
 .advanced-stack { max-width: 1100px; display: grid; gap: 14px; margin: 0 auto; padding: 28px 30px 120px; }
+.background-status { width: 100%; padding: 9px 11px; margin-bottom: 10px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; font-size: 11px; }
+.internal-activity-card { padding: 22px; border: 1px solid var(--border); border-radius: 18px; background: rgba(255,255,255,.58); }
+.internal-activity-card header { display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.internal-activity-card h2 { font-size: 20px; margin: 6px 0; }
+.internal-activity-card p { font-size: 13px; line-height: 1.6; }
+.internal-activity-card dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 12px; }
+.internal-activity-card dt { font-size: 11px; opacity: .7; }
+.internal-activity-card dd { margin: 6px 0 0; font-size: 14px; }
+.internal-activity-control { padding: 10px 14px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: inherit; cursor: pointer; }
+.internal-activity-control:disabled { opacity: .5; cursor: default; }
+.internal-activity-note { opacity: .7; }
 .connection-panel { padding: 18px; border: 1px solid var(--border); border-radius: 20px; background: rgba(255,255,255,.72); }
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .section-heading h2 { margin: 4px 0 0; font-size: 20px; letter-spacing: -.03em; } .eyebrow { color: #8b8c89; font-size: 8px; letter-spacing: .13em; text-transform: uppercase; }
 .connection-panel > p, .muted { color: #81827f; font-size: 9px; line-height: 1.5; }
