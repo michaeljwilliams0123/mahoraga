@@ -136,6 +136,7 @@ export type ChatViewProps = {
   stopActiveResponse: () => void | Promise<void>;
   pairRuntime: () => void | Promise<void>;
   onOwnerLogin: () => void | Promise<void>;
+  reconnectRuntime: () => void;
   revokeRuntime: () => void | Promise<void>;
   retryLicensed: () => void | Promise<void>;
 };
