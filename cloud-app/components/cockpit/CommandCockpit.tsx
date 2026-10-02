@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   COCKPIT_PANEL_IDS,
   HARD_DENIES,
@@ -34,16 +34,11 @@ const HELPERS = [
   { label: "Workers Builds detect", command: "Describe Cloudflare Workers Builds root wrangler.toml (#562): production npx wrangler deploy and preview npx wrangler versions upload resolve deploy/cloudflare-owner-gateway/worker.mjs from repo root. Nested wrangler.toml remains valid. No Worker logic or secret values changed." },
 ] as const;
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
-type ReadinessObservation = { status: string; sha: string | null; durableState: string | null };
+import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
+import type { RuntimeRelay } from "@/lib/runtime-relay";
 const shortReadinessSha = (value: string | null | undefined) => value ? value.slice(0, 12) : "unavailable";
-const parseReadinessObservation = (value: unknown): ReadinessObservation | null => {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
-  const candidate = value as Record<string, unknown>;
-  if (typeof candidate.status !== "string") return null;
-  return { status: candidate.status, sha: typeof candidate.sha === "string" ? candidate.sha : null, durableState: typeof candidate.durableState === "string" ? candidate.durableState : null };
-};
-
 type CommandCockpitProps = {
+  relay?: RuntimeRelay | null;
   coreReady: boolean;
   healthJson: HealthRouteJson | null;
   healthError: boolean;
@@ -109,6 +104,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
 export function CommandCockpit({
   coreReady,
   healthJson,
+  relay = null,
   healthError,
   onRequestPairing,
   onOpenOperations,
@@ -118,17 +114,10 @@ export function CommandCockpit({
     `// Pressure-test AST sandbox (local only)\nexport const optimize = (node: { rewriteLoops: () => unknown }) => {\n  return node.rewriteLoops();\n};\n`,
   );
   const [copied, setCopied] = useState<string | null>(null);
-  const [readiness, setReadiness] = useState<ReadinessObservation | null>(null);
+  const readinessState = useRuntimeReadiness(relay, readinessSourceSha(healthJson), coreReady);
+  const readiness = readinessState.readiness;
 
-  useEffect(() => {
-    let active = true;
-    setReadiness(null);
-    void fetch("/api/ready")
-      .then(async (response) => response.ok ? parseReadinessObservation(await response.json()) : null)
-      .then((observation) => { if (active) setReadiness(observation); })
-      .catch(() => { if (active) setReadiness(null); });
-    return () => { active = false; };
-  }, [coreReady]);
+
 
   const healthCard = useMemo(() => {
     if (!healthJson) return null;
@@ -237,6 +226,7 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
             <span className="cockpit-pill warn">TELEMETRY_UNAVAILABLE</span>
             <span className="cockpit-pill warn">telemetry-session-unavailable</span>
+            <span className="cockpit-pill">readiness {readinessState.phase}</span>
             <span className="cockpit-pill steel">VERCEL_RETIRED</span>
           </div>
         </header>
