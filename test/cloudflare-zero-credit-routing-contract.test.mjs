@@ -15,8 +15,10 @@ test("execution runtime cannot invoke Workers AI directly or self-renew billing 
   assert.doesNotMatch(worker, /env\.AI|invokeWorkersAi/);
   assert.match(worker, /invokeZeroCreditProvider/);
   assert.match(worker, /\/api\/provider\/refresh/);
-  assert.doesNotMatch(config, /\"crons\"\s*:/);
-  assert.doesNotMatch(worker, /async scheduled\(/);
+  assert.match(config, /"crons"\s*:\s*\["\*\/5 \* \* \* \*"\]/);
+  const schedule = worker.slice(worker.indexOf('  async scheduled('), worker.indexOf('  async fetch(request: Request, env: Env)'));
+  assert.match(schedule, /await env\.EXECUTION_DO\.getByName\("execution-v1"\)\.ensureInternalActivity\(\)/);
+  assert.doesNotMatch(schedule, /fetch\(|probeZeroCreditProvider|invokeZeroCreditProvider|providerStateFromProbe|billingAttestation/);
   assert.doesNotMatch(worker, /ZERO_CREDIT_BILLING_ATTESTATION/);
 });
 

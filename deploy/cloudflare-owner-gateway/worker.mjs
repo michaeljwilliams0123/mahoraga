@@ -153,7 +153,7 @@ function sanitizeInteractionTruthResult(value) {
 
 import { runtimeReadiness } from "./runtime-readiness.ts";
 
-const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth"]);
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth", "internal-activity", "internal-activity-control"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
   if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);

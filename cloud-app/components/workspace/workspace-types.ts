@@ -142,6 +142,7 @@ export type ChatViewProps = {
 };
 
 export type WorkspaceShellProps = {
+  backgroundLabel?: string;
   view: WorkspaceView;
   setView: (view: WorkspaceView) => void;
   sidebarOpen: boolean;

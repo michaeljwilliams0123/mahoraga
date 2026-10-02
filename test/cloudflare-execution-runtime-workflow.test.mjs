@@ -98,9 +98,11 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
   const renewalBlock = workflow.slice(renewalJob);
   assert.match(renewalBlock, /billingAttestation/);
   assert.doesNotMatch(renewalBlock, /wrangler@[^\n]* deploy|cloudflare-execution-runtime\.ts deploy|cloudflare:owner-gateway:deploy/);
-  assert.doesNotMatch(runtimeWrangler, /"crons"\s*:/, "Cloudflare cron must not recycle deployment-time billing evidence");
-  assert.doesNotMatch(runtimeWorker, /async scheduled\(/, "runtime must not self-renew billing evidence without account API proof");
   assert.match(runtimeWorker, /provider-refresh-attestation-invalid/);
+  assert.match(runtimeWrangler, /"crons"\s*:\s*\["\*\/5 \* \* \* \*"\]/);
+  const schedule = runtimeWorker.slice(runtimeWorker.indexOf('  async scheduled('), runtimeWorker.indexOf('  async fetch(request: Request, env: Env)'));
+  assert.match(schedule, /await env\.EXECUTION_DO\.getByName\("execution-v1"\)\.ensureInternalActivity\(\)/);
+  assert.doesNotMatch(schedule, /fetch\(|probeZeroCreditProvider|invokeZeroCreditProvider|providerStateFromProbe|billingAttestation/);
   assert.doesNotMatch(runtimeWorker, /ZERO_CREDIT_BILLING_ATTESTATION/);
 });
 

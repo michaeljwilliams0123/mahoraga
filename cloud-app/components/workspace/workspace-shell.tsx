@@ -9,6 +9,7 @@ export function WorkspaceShell({
   setSidebarOpen,
   busy,
   coreReady,
+  backgroundLabel = "Background unverified",
   onNewConversation,
   children,
 }: WorkspaceShellProps) {
@@ -41,6 +42,7 @@ export function WorkspaceShell({
           <span className="brain-orb"><span /></span>
           <div><strong>{coreReady ? "Brain connected" : "Brain offline"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : "Connect in Chat to execute work."}</span></div>
         </div>
+        <button type="button" className="background-status" onClick={() => { setView("advanced"); setSidebarOpen(false); }} aria-label="Open background work details">{backgroundLabel}</button>
 
         <div className="privacy-card">
           <ShieldCheck size={16} />

@@ -14,6 +14,7 @@ import { parsePredictiveChatIntent } from "../../src/predictive-chat-intent";
 import type { ConnectorBrokerBinding } from "./connector-capability-router";
 import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from "./universal-capability-router";
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
+import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -150,6 +151,51 @@ export class ExecutionDurableObject extends DurableObject<Env> {
   private initialized = false;
   constructor(ctx: DurableObjectState, env: Env) { super(ctx, env); this.storage = new CloudflareDOSQLiteAdapter(ctx); }
   private initialize(): void { if (!this.initialized) { this.storage.initSchema(); this.initialized = true; } }
+  private activityLoop(): InternalActivityLoop {
+    this.initialize();
+    this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS internal_activity_state (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS internal_plan_candidates (fingerprint TEXT PRIMARY KEY, created_at INTEGER NOT NULL, payload TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_turns_activity_created ON turns(created_at);`);
+    return new InternalActivityLoop({
+      load: () => {
+        const row = this.storage.sql.exec<{ payload: string }>("SELECT payload FROM internal_activity_state WHERE id = 1").toArray()[0];
+        return row ? readActivityState(JSON.parse(row.payload)) : null;
+      },
+      save: (value: ActivityState) => { this.storage.sql.exec("INSERT OR REPLACE INTO internal_activity_state (id,payload) VALUES (1,?)", JSON.stringify(value)); },
+      archive: (value: ActivityArtifact) => {
+        this.storage.sql.exec("INSERT OR REPLACE INTO internal_plan_candidates (fingerprint,created_at,payload) VALUES (?,?,?)", value.fingerprint, value.createdAt, JSON.stringify(value));
+        this.storage.sql.exec("DELETE FROM internal_plan_candidates WHERE fingerprint NOT IN (SELECT fingerprint FROM internal_plan_candidates ORDER BY created_at DESC LIMIT 64)");
+      },
+      transaction: <T>(fn: () => T) => this.ctx.storage.transactionSync(fn),
+      getAlarm: () => this.ctx.storage.getAlarm(),
+      setAlarm: async value => { await this.ctx.storage.setAlarm(value); },
+      deleteAlarm: () => this.ctx.storage.deleteAlarm(),
+    }, this.env.TARGET_SHA);
+  }
+  /** Called by the existing Worker's cron, never by a browser heartbeat. */
+  async ensureInternalActivity(): Promise<void> {
+    if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("internal-source-invalid");
+    await this.ctx.blockConcurrencyWhile(async () => { await this.activityLoop().ensureScheduled(); });
+  }
+  async alarm(): Promise<void> {
+    if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("internal-source-invalid");
+    await this.ctx.blockConcurrencyWhile(async () => {
+      const loop = this.activityLoop();
+      if (!loop.store.load()) return;
+      const rows = this.storage.sql.exec<{ id: string; status: string }>("SELECT id,status FROM turns ORDER BY created_at DESC,id DESC LIMIT 64").toArray();
+      const provider = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
+      const observation: ActivityObservation = {
+        ...summarizeRecentTurns(rows),
+        providerReason: provider.providerReasonCode,
+      };
+      await loop.wake(observation);
+    });
+  }
+  private activityStatus(): Record<string, unknown> {
+    const state = this.activityLoop().store.load();
+    if (!state || state.sourceSha !== this.env.TARGET_SHA) return { error: "internal-activity-unavailable" };
+    return { ...state, observedAt: new Date().toISOString(), durableState: DURABLE_STATE, modelInvocations: 0 };
+  }
   private providerConfig(): ZeroCreditProviderConfig { return { origin: this.env.ZERO_CREDIT_PROVIDER_URL, token: this.env.ZERO_CREDIT_PROVIDER_TOKEN, accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH, targetSha: this.env.TARGET_SHA }; }
   private providerGapResponse(error: unknown): Response | null {
     const reasonCode = providerGapReasonFromError(error);
@@ -185,6 +231,15 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     try { input = objectValue(await request.json()); } catch { input = null; }
     const payload = objectValue(input?.payload);
     if (!payload) return json({ error: "cloud-action-not-allowed" }, 400);
+    if (input?.type === "internal-activity" || input?.type === "internal-activity-control") {
+      if (Object.keys(input).sort().join(",") !== "payload,type") return json({ error: "internal-control-invalid" }, 400);
+      if (input.type === "internal-activity-control") {
+        if (Object.keys(payload).join(",") !== "enabled" || typeof payload.enabled !== "boolean") return json({ error: "internal-control-invalid" }, 400);
+        await this.ctx.blockConcurrencyWhile(async () => { await this.activityLoop().control(payload.enabled as boolean); });
+      } else if (Object.keys(payload).length) return json({ error: "internal-control-invalid" }, 400);
+      const status = this.activityStatus();
+      return json(status, status.error ? 503 : 200);
+    }
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
     if (input?.type === "interaction-truth") {
       if (Object.keys(payload).length !== 1 || typeof payload.interactionId !== "string" || !/^interaction-[a-f0-9]{32}$/.test(payload.interactionId)) return json({ error: "interaction-truth-request-invalid" }, 400);
@@ -443,6 +498,10 @@ export class ExecutionDurableObject extends DurableObject<Env> {
 }
 
 export default {
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    if (!targetShaValid(env.TARGET_SHA)) throw new Error("internal-source-invalid");
+    await env.EXECUTION_DO.getByName("execution-v1").ensureInternalActivity();
+  },
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (!targetShaValid(env.TARGET_SHA)) return json({ status: "unready", error: "target-sha-invalid" }, 503);
