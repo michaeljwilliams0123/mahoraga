@@ -6,7 +6,7 @@ on:
     workflows: ["Verify Mahoraga"]
     types: [completed]
   schedule:
-    - cron: "11,26,41,56 * * * *"
+    - cron: "2,7,12,17,22,27,32,37,42,47,52,57 * * * *"
 
 permissions:
   contents: read
@@ -226,6 +226,7 @@ jobs:
       CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
       PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
+      RENEWAL_MARGIN_MS: 1800000
 
     steps:
       - name: Check out scheduled authoritative main
@@ -269,7 +270,57 @@ jobs:
             exit 1
           fi
 
+      - name: Inspect current provider freshness margin
+        id: freshness
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { appendFileSync } from 'node:fs';
+          const headers = new Headers({ 'cache-control': 'no-store' });
+          const token = (process.env.CLOUDFLARE_ACCESS_TOKEN ?? '').trim();
+          const clientId = (process.env.CLOUDFLARE_ACCESS_CLIENT_ID ?? '').trim();
+          const clientSecret = (process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ?? '').trim();
+          if (token) headers.set('cf-access-token', token);
+          else {
+            headers.set('cf-access-client-id', clientId);
+            headers.set('cf-access-client-secret', clientSecret);
+          }
+          const response = await fetch('https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev/api/runtime/attestation', {
+            method: 'GET', headers, redirect: 'manual',
+          });
+          const body = await response.json().catch(() => ({}));
+          if ((response.status !== 200 && response.status !== 503) || body.targetSha !== process.env.VERIFIED_SHA) {
+            throw new Error(`provider-freshness-authority-${response.status}:${String(body.targetSha ?? 'unverified')}`);
+          }
+          const provider = body.provider && typeof body.provider === 'object' ? body.provider : {};
+          if (provider.providerId !== 'cloudflare-workers-ai') throw new Error('provider-freshness-identity-unverified');
+          const now = Date.now();
+          const margin = Number(process.env.RENEWAL_MARGIN_MS);
+          const verifiedAt = provider.verifiedAt;
+          const canaryExpiresAt = provider.canaryExpiresAt;
+          const freshEnough = body.status === 'ready'
+            && provider.admitted === true
+            && provider.zeroCreditEligible === true
+            && Number.isSafeInteger(verifiedAt)
+            && Number.isSafeInteger(canaryExpiresAt)
+            && verifiedAt <= now
+            && canaryExpiresAt > now + margin;
+          const renewalRequired = !freshEnough;
+          appendFileSync(process.env.GITHUB_OUTPUT, `renewal_required=${renewalRequired}\n`);
+          process.stdout.write(`${JSON.stringify({
+            status: renewalRequired ? 'provider-renewal-required' : 'provider-freshness-sufficient',
+            targetSha: body.targetSha,
+            providerId: provider.providerId,
+            verifiedAt: Number.isSafeInteger(verifiedAt) ? verifiedAt : null,
+            canaryExpiresAt: Number.isSafeInteger(canaryExpiresAt) ? canaryExpiresAt : null,
+            remainingMs: Number.isSafeInteger(canaryExpiresAt) ? canaryExpiresAt - now : null,
+            renewalMarginMs: margin,
+          })}\n`);
+          NODE
+
       - name: Re-prove account-level hard-zero billing
+        if: steps.freshness.outputs.renewal_required == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -279,6 +330,7 @@ jobs:
           node scripts/cloudflare-zero-credit-attestation.mjs --output "$BILLING_ATTESTATION_FILE"
 
       - name: Renew provider admission without deployment
+        if: steps.freshness.outputs.renewal_required == 'true'
         shell: bash
         run: |
           set -euo pipefail

@@ -127,13 +127,13 @@ describe("ExecutionDurableObject", () => {
   it("publishes a bounded runtime attestation with exact SHA and no external route", async () => {
     const stub = env.EXECUTION_DO.getByName("runtime-attestation");
     await stub.fetch("https://execution.example/api/ready");
+    const now = Date.now();
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
-      const now = Date.now();
       instance.storage.saveProviderState({ providerId: "cloudflare-workers-ai", available: true, zeroCreditEligible: true, observedAt: now, verifiedAt: now, canaryExpiresAt: now + 60_000, reasonCode: null });
     });
     const response = await stub.fetch("https://execution.example/api/runtime/attestation");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: "ready", targetSha: SHA, runtime: "cloudflare-worker", durableState: "cloudflare-do-sqlite", trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: "cloudflare-workers-ai", admitted: true, zeroCreditEligible: true } });
+    expect(await response.json()).toEqual({ schemaVersion: 1, kind: "mahoraga-runtime-attestation", status: "ready", targetSha: SHA, runtime: "cloudflare-worker", durableState: "cloudflare-do-sqlite", trafficAuthority: "cloudflare", railwayRoutingEnabled: false, railwayInfluence: false, provider: { providerId: "cloudflare-workers-ai", admitted: true, zeroCreditEligible: true, verifiedAt: now, canaryExpiresAt: now + 60_000 } });
   });
 
   it("routes acceptance probes to per-run Durable Object state instead of production state", async () => {
