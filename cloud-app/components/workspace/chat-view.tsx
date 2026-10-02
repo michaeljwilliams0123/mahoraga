@@ -86,6 +86,7 @@ export function ChatView(props: ChatViewProps) {
     stopActiveResponse,
     pairRuntime,
     onOwnerLogin,
+    reconnectRuntime,
     revokeRuntime,
     retryLicensed,
   } = props;
@@ -253,7 +254,7 @@ export function ChatView(props: ChatViewProps) {
             <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Authenticate with Cloudflare first, then retry the cloud connection. Relay pairing is recovery only.</p></div></div>
             <div className="connect-controls">
               <button type="button" onClick={openCloudSignIn} disabled={!cloudBridgeOrigin}><Link2 size={16} /> Open Cloudflare sign-in</button>
-              <button type="button" onClick={() => window.location.reload()}>Retry cloud connection</button>
+              <button type="button" onClick={reconnectRuntime} disabled={busy}>Retry cloud connection</button>
             </div>
             <details>
               <summary>Recovery connection (advanced) <ChevronDown size={15} /></summary>

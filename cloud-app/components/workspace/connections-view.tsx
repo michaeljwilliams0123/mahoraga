@@ -69,8 +69,8 @@ export function ConnectionsView({
 
       <div className="capability-list" style={{ marginTop: 16 }}>
         <div>
-          <strong>Encrypted relay</strong>
-          <span>{coreReady ? "connected · wss relay · encrypted frames" : "not paired"}</span>
+          <strong>Runtime connection</strong>
+          <span>{coreReady ? relay?.transportKind === "pages-owner-bridge" ? "connected · authenticated Pages bridge" : relay?.transportKind === "same-origin-cloud" ? "connected · authenticated cloud session" : "connected · encrypted WebSocket relay" : "disconnected"}</span>
         </div>
         <div>
           <strong>Execution authority</strong>

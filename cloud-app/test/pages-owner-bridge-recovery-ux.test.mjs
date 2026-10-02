@@ -17,6 +17,7 @@ test("cloud bridge failure keeps Cloudflare sign-in primary and relay recovery e
   assert.match(chat, /Open Cloudflare sign-in/i);
   assert.match(chat, /Retry cloud connection/i);
   assert.match(chat, /window\.open\(/);
-  assert.match(chat, /window\.location\.reload\(\)/);
+  assert.match(chat, /onClick=\{reconnectRuntime\}/);
+  assert.doesNotMatch(chat, /window\.location\.reload\(\)/);
   assert.match(chat, /Do not enter your owner PIN here/i);
 });
