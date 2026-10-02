@@ -11,6 +11,30 @@ const env = {
 const access = { access: { async getIdentity() { return { email: env.MAHORAGA_CLOUD_OWNER_ID }; } } };
 const base = "https://mahoraga-owner-gateway.example";
 
+test("readiness uses the fixed binding only behind exact owner and same-origin gates", async () => {
+  let calls = 0;
+  const binding = { async fetch(request) {
+    calls++;
+    assert.equal(request.url, "https://mahoraga-execution-runtime/api/ready");
+    return Response.json({ status: "ready", sha: "a".repeat(40), durableState: "cloudflare-do-sqlite" });
+  } };
+  const request = (origin = base, payload = {}, extra = {}) => new Request(`${base}/api/runtime/pages-bridge/action`, {
+    method: "POST", headers: { "content-type": "application/json", origin },
+    body: JSON.stringify({ type: "readiness", payload, ...extra }),
+  });
+  const boundEnv = { ...env, MAHORAGA_EXECUTION_RUNTIME: binding };
+  assert.equal((await gateway.fetch(request(), boundEnv, {})).status, 403);
+  assert.equal((await gateway.fetch(request(), boundEnv, { access: { async getIdentity() { return { email: "other@example.com" }; } } })).status, 401);
+  assert.equal((await gateway.fetch(request("https://attacker.example"), boundEnv, access)).status, 403);
+  assert.equal((await gateway.fetch(request(base, { url: "https://attacker.example" }), boundEnv, access)).status, 400);
+  assert.equal((await gateway.fetch(request(base, {}, { token: "private" }), boundEnv, access)).status, 400);
+  assert.equal(calls, 0);
+  const response = await gateway.fetch(request(), boundEnv, access);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).sha, "a".repeat(40));
+  assert.equal(calls, 1);
+});
+
 async function withoutUpstream(callback) {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () => { throw new Error("railway-proxy-must-not-run"); };
