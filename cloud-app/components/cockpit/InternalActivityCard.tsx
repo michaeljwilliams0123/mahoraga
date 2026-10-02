@@ -11,7 +11,11 @@ export function InternalActivityCard({ activity, label, busy, error, onSetEnable
    <button type="button" className="internal-activity-control" disabled={!activity || busy} onClick={() => { if (activity) void onSetEnabled(!activity.enabled); }}>
     {busy ? 'Confirming…' : activity?.enabled ? 'Pause internal work' : 'Resume internal work'}
    </button></header>
-  <p>Scheduled checks continue when this dashboard is closed. Mahoraga assesses recent work and builds candidate plans when observations change.</p>
+  <p>While enabled, scheduled checks continue when this dashboard is closed. Mahoraga assesses recent work and builds candidate plans when observations change.</p>
+  <p className="internal-activity-note">Assessment runs every minute while enabled. A five-minute recovery check restores a missing schedule and preserves owner pause.</p>
+  {!activity && <p role="status">Connect the owner bridge to verify background activity. This view has no fresh, source-matched observation.</p>}
+  {activity?.enabled && label === 'Wake delayed' && <p role="status">The expected wake is overdue. Recovery can restore the schedule; live progress remains unconfirmed.</p>}
+  {activity?.enabled === false && <p role="status">Owner pause persists across restarts and deployments. Resume internal work to schedule another assessment.</p>}
   <dl><div><dt>Last wake</dt><dd>{time(activity?.lastWakeAt ?? null)}</dd></div>
    <div><dt>Next wake</dt><dd>{activity?.enabled === false ? 'Paused by owner' : time(activity?.nextWakeAt ?? null)}</dd></div>
    <div><dt>Plans built</dt><dd>{activity?.artifactCount ?? 'Unverified'}</dd></div>

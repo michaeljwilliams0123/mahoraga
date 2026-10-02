@@ -211,3 +211,19 @@ test("Pages availability probe explicitly uses Bash on every trusted runner", as
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
   assert.match(workflow, /- name: Check Pages site availability[\s\S]*?id: pages_site\n\s+shell: bash/);
 });
+
+
+test("Pages bot-merge publication pins the verified main source and checks authority before build and publish", async () => {
+ const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+ assert.match(workflow, /workflow_run:\s*\n\s*workflows: \["Verify Mahoraga"\]/);
+ for (const guard of ["conclusion == 'success'", "status == 'completed'", "head_branch == 'main'", "event == 'workflow_dispatch'", "actor.login == 'github-actions[bot]'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'"]) assert.ok(workflow.includes(guard));
+ assert.match(workflow, /VERIFIED_SHA:.*workflow_run.head_sha/);
+ assert.match(workflow, /MAHORAGA_GIT_COMMIT_SHA: \$\{\{ env.VERIFIED_SHA \}\}/);
+ assert.equal((workflow.match(/ref: \$\{\{ env.VERIFIED_SHA \}\}/g) ?? []).length, 2);
+ assert.equal((workflow.match(/run: node scripts\/verified-main-publication.ts/g) ?? []).length, 2);
+ const build = workflow.slice(workflow.indexOf('  build:'), workflow.indexOf('  deploy:'));
+ const deploy = workflow.slice(workflow.indexOf('  deploy:'));
+ assert.ok(build.indexOf('verify-exact-head.mjs') < build.indexOf('npm ci'));
+ assert.ok(deploy.indexOf('verify-exact-head.mjs') < deploy.indexOf('actions/deploy-pages'));
+ assert.doesNotMatch(workflow, /pull_request_target|secrets\./);
+});

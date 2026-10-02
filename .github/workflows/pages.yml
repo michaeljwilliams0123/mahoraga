@@ -6,9 +6,15 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
 
 permissions:
   contents: read
+
+env:
+  VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 concurrency:
   group: mahoraga-pages-${{ github.ref }}
@@ -17,6 +23,18 @@ concurrency:
 jobs:
   build:
     name: Build and inspect static workspace
+    # Ordinary push/PR builds retain their existing path. Bot merges need the verified-main handoff.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.event.workflow_run.name == 'Verify Mahoraga' &&
+       github.event.workflow_run.path == '.github/workflows/verify.yml' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == 'github-actions[bot]')
     runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     permissions:
@@ -24,11 +42,24 @@ jobs:
     steps:
       - name: Check out current revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.VERIFIED_SHA }}
+          persist-credentials: false
 
       - name: Use Node 24
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Validate canonical verification publication receipt
+        if: github.event_name == 'workflow_run'
+        run: node scripts/verified-main-publication.ts
+
+      - name: Verify publication source is still authoritative main
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
 
       - name: Install workspace dependencies
         working-directory: cloud-app
@@ -51,7 +82,7 @@ jobs:
           MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
           NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health.json
           NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: ${{ vars.MAHORAGA_PAGES_BRIDGE_ORIGIN || 'https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev' }}
-          MAHORAGA_GIT_COMMIT_SHA: ${{ github.sha }}
+          MAHORAGA_GIT_COMMIT_SHA: ${{ env.VERIFIED_SHA }}
           MAHORAGA_GIT_COMMIT_REF: main
         run: node ../scripts/build-pages-static.mjs
 
@@ -74,6 +105,27 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - name: Check out publication source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.VERIFIED_SHA }}
+          persist-credentials: false
+
+      - name: Use Node 24 for final source check
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Validate canonical verification publication receipt
+        if: github.event_name == 'workflow_run'
+        run: node scripts/verified-main-publication.ts
+
+      - name: Verify publication source is still authoritative main
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
+
       - name: Check Pages site availability
         id: pages_site
         shell: bash
