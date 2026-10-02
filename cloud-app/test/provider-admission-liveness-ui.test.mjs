@@ -12,17 +12,21 @@ const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "
 
 describe("provider admission renewal UI", () => {
   it("binds liveness to authoritative runtime capability evidence and fails closed", () => {
-    assert.match(surface, /11,26,41,56/);
-    assert.match(surface, /not top-of-hour/);
-    assert.match(surface, /isolated from deploy workflow concurrency/);
-    assert.match(surface, /assistant\.respond/);
-    assert.match(surface, /assistant\.routable === true/);
-    assert.match(surface, /providerReasonCode/);
-    assert.match(surface, /zeroCreditEligible === true/);
-    assert.match(surface, /expiry\.timestamp > now/);
+    assert.match(surface, /2,7,12,17,22,27,32,37,42,47,52,57/);
+    assert.doesNotMatch(surface, /11,26,41,56/);
+    assert.match(surface, /offsets away from top-of-hour/);
+    assert.match(surface, /1800000|1_800_000/);
+    assert.match(surface, /independently verified admission/);
+    assert.match(surface, /verifiedAt/);
     assert.match(surface, /canaryExpiresAt/);
-    assert.match(surface, /never invent live proof/);
-    assert.match(card, /runtimeCapabilities/);
+    assert.match(surface, /no self-attestation/);
+    assert.match(surface, /no runtime Cron/);
+    assert.match(surface, /Railway zero authority/);
+    assert.match(surface, /not continuous freshness/);
+    assert.match(surface, /assistant\.respond/);
+    assert.match(card, /Provider admission freshness/);
+    assert.match(card, /Merge #952 is not live continuity or traffic authority/);
+    assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(card, /projectProviderAdmissionLiveness\(runtimeCapabilities\)/);
     assert.match(grid, /ProviderAdmissionRenewalCard runtimeCapabilities=\{runtimeCapabilities\}/);
     assert.doesNotMatch(card, /health/);
@@ -31,7 +35,6 @@ describe("provider admission renewal UI", () => {
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
 });
-
 
 describe("provider admission liveness semantics", () => {
   it("requires explicit zero-credit and future-canary proof instead of inferring health from routability", async () => {
@@ -43,6 +46,7 @@ describe("provider admission liveness semantics", () => {
     assert.equal(routableOnly.statusLabel, "Unavailable / fail-closed");
     assert.equal(routableOnly.tone, "warn");
     assert.equal(routableOnly.zeroCreditEligible, null);
+    assert.equal(routableOnly.verifiedAt, null);
     assert.equal(routableOnly.canaryExpiresAt, null);
   });
 
@@ -50,12 +54,14 @@ describe("provider admission liveness semantics", () => {
     const { projectProviderAdmissionLiveness } = await import("../lib/provider-admission-liveness.ts");
     const now = Date.parse("2026-09-29T21:00:00.000Z");
     const project = (extra) => projectProviderAdmissionLiveness([{ capability:"assistant.respond", routable:true, enabled:true, ...extra }], now);
-    assert.equal(project({ zeroCreditEligible:true, canaryExpiresAt:"2026-09-29T21:05:00.000Z" }).tone, "good");
-    assert.equal(project({ zeroCreditEligible:true, canaryExpiresAt:"2026-09-29T21:00:30.000Z" }).tone, "warn");
-    assert.equal(project({ zeroCreditEligible:false, canaryExpiresAt:"2026-09-29T21:05:00.000Z" }).tone, "warn");
-    assert.equal(project({ zeroCreditEligible:true }).tone, "warn");
-    assert.equal(project({ canaryExpiresAt:"2026-09-29T21:05:00.000Z" }).tone, "warn");
-    assert.equal(project({ zeroCreditEligible:true, canaryExpiresAt:"not-a-time" }).tone, "warn");
-    assert.equal(project({ zeroCreditEligible:true, canaryExpiresAt:"2026-09-29T20:59:59.000Z" }).tone, "warn");
+    const verified = "2026-09-29T20:59:00.000Z";
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:verified, canaryExpiresAt:"2026-09-29T21:40:00.000Z" }).statusLabel, "Margin held / admitted");
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:verified, canaryExpiresAt:"2026-09-29T21:05:00.000Z" }).statusLabel, "Current / admitted");
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:verified, canaryExpiresAt:"2026-09-29T21:00:30.000Z" }).tone, "warn");
+    assert.equal(project({ zeroCreditEligible:false, verifiedAt:verified, canaryExpiresAt:"2026-09-29T21:40:00.000Z" }).tone, "warn");
+    assert.equal(project({ zeroCreditEligible:true, canaryExpiresAt:"2026-09-29T21:40:00.000Z" }).tone, "warn");
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:verified }).tone, "warn");
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:"not-a-time", canaryExpiresAt:"2026-09-29T21:40:00.000Z" }).tone, "warn");
+    assert.equal(project({ zeroCreditEligible:true, verifiedAt:verified, canaryExpiresAt:"2026-09-29T20:59:59.000Z" }).tone, "warn");
   });
 });
