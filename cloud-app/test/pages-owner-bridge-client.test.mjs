@@ -11,7 +11,7 @@ async function clientModule() {
   return import(`data:text/javascript,${encodeURIComponent(source)}`);
 }
 
-function installBridgeHarness(t, bridgeOrigin) {
+function installBridgeHarness(t, bridgeOrigin, autoLoad = true) {
   const original = {
     window: globalThis.window,
     document: globalThis.document,
@@ -37,6 +37,7 @@ function installBridgeHarness(t, bridgeOrigin) {
     src: "",
     setAttribute() {},
     addEventListener(type, listener) { iframeListeners.set(type, listener); },
+    removeEventListener(type) { iframeListeners.delete(type); },
     remove() {},
   };
 
@@ -52,7 +53,7 @@ function installBridgeHarness(t, bridgeOrigin) {
     body: {
       appendChild(node) {
         assert.equal(node, iframe);
-        iframeListeners.get("load")?.();
+        if (autoLoad) iframeListeners.get("load")?.();
       },
     },
   };
@@ -108,7 +109,7 @@ function installBridgeHarness(t, bridgeOrigin) {
     });
   }
 
-  return { posts, advance, reply, flush };
+  return { posts, advance, reply, flush, load: () => iframeListeners.get("load")?.() };
 }
 
 test("public bridge configuration accepts only an HTTPS origin with no path or credentials", async () => {
@@ -180,4 +181,21 @@ test("RuntimeRelay prefers the Pages bridge, keeps PIN login on the transport, a
   assert.match(chat, /Recovery connection/);
   assert.match(relay, /decodePairingOffer/);
   assert.match(relay, /await bridge\.disconnect\(\);[\s\S]*if \(!this\.socket && !this\.session && !this\.cloudSession\) return;/);
+});
+
+
+test("failed frame load can be retried and disconnect cancels an in-flight load", async (t) => {
+ const harness = installBridgeHarness(t, "https://gateway.example", false);
+ const { PagesOwnerBridgeClient } = await clientModule();
+ const bridge = new PagesOwnerBridgeClient("https://gateway.example");
+ const first = bridge.attach(); const rejected = assert.rejects(first, /cloud-session-unreachable/);
+ await harness.advance(10_001); await rejected;
+ const second = bridge.attach(); harness.load(); await harness.flush();
+ assert.equal(harness.posts.length, 1); harness.reply({ authenticated: true });
+ assert.equal(await second, "authenticated");
+ // A separate still-loading frame must settle immediately on disconnect.
+ const other = new PagesOwnerBridgeClient("https://gateway.example");
+ const loading = other.attach(); const cancelled = assert.rejects(loading, /cloud-session-unreachable/);
+ const disconnected = other.disconnect();
+ await disconnected; await cancelled;
 });
