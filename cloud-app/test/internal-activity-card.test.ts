@@ -29,6 +29,8 @@ test('unknown activity renders disabled controls and unverified metrics', uiOnly
  const html = renderToStaticMarkup(createElement(Card, { activity: null, label: 'Background unverified', busy: false, error: null, onSetEnabled: async () => {} }));
  assert.match(html, /Background unverified/); assert.match(html, /disabled=""/); assert.match(html, /Not observed yet/);
  assert.doesNotMatch(html, /Background active/);
+ assert.match(html, /Connect the owner bridge to verify background activity/);
+ assert.match(html, /source-matched observation/);
 });
 test('paused observations render owner stop and candidate-only plans', uiOnly, async () => {
  const { Card, renderToStaticMarkup, createElement } = await component();
@@ -36,6 +38,19 @@ test('paused observations render owner stop and candidate-only plans', uiOnly, a
   wakeCount: 0, artifactCount: 0, candidateActionCount: 0, lastError: null, snapshotFingerprint: null, artifactFingerprint: null,
   observedAt: new Date().toISOString(), durableState: 'cloudflare-do-sqlite', modelInvocations: 0 } as InternalActivity;
  const html = renderToStaticMarkup(createElement(Card, { activity, label: 'Background paused', busy: false, error: null, onSetEnabled: async () => {} }));
+ assert.match(html, /Owner pause persists across restarts and deployments/);
  assert.match(html, /Resume internal work/); assert.match(html, /Paused by owner/);
  assert.match(html, /builds candidate plans when observations change/); assert.doesNotMatch(html, /disabled=""/);
+});
+
+test('delayed wake explains recovery without attesting progress or overriding owner pause', uiOnly, async () => {
+ const { Card, renderToStaticMarkup, createElement } = await component();
+ const activity = { enabled: true, lastWakeAt: Date.now() - 180000, nextWakeAt: Date.now() - 120000,
+  artifactCount: 2, candidateActionCount: 1, lastError: null } as InternalActivity;
+ const html = renderToStaticMarkup(createElement(Card, { activity, label: 'Wake delayed', busy: false, error: null, onSetEnabled: async () => {} }));
+ assert.match(html, /Assessment runs every minute while enabled/);
+ assert.match(html, /five-minute recovery check/);
+ assert.match(html, /live progress remains unconfirmed/);
+ assert.match(html, /preserves owner pause/);
+ assert.match(html, /Pause internal work/);
 });

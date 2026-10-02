@@ -11,3 +11,14 @@ The UI shows a background status on every view and details/controls in Advanced.
 The loop creates internal planning artifacts. Existing sovereign evolution and provider execution remain separately gated; an active heartbeat does not prove code builds, model cognition, learning promotion or real external execution. Runtime readiness and provider admission are separate observations.
 
 References: [Cloudflare Durable Object alarms](https://developers.cloudflare.com/durable-objects/api/alarms/) document persisted scheduling, at-least-once delivery and retries. Context7 was used to verify the current scheduling contract. Tests cover persisted wakes, retry idempotency, owner pause/resume, source transitions, bounded/private-field validation, platform alarm execution, public spoof rejection, and UI observation/rendering. Platform billing and verified deployment remain under the existing hard-zero workflow; no new credential or provider is added.
+
+
+## Verified-main publication and cockpit evidence
+
+A merge performed with GitHub's repository token suppresses ordinary push workflows, including Pages builds. Mahoraga's integration bot already dispatches `Verify Mahoraga` on main after merging. Publication now consumes that completed verification without adding a PAT or a new deployment credential. Cloudflare accepts canonical successful main verification from the owner (push/manual dispatch) or `github-actions[bot]` (manual dispatch only). Pages keeps normal push/PR builds and adds the bot dispatch handoff, avoiding duplicate owner-push publication.
+
+Both lanes reject fork/feature/PR/failed verification and pin checkout to the verified run's `head_sha`. A bounded TypeScript receipt validator checks the canonical repository, workflow file, status, actor and source event before publication. Pages records that SHA in health metadata and checks authoritative main before building and again before deployment. Cloudflare preserves its exact-main check, independent Free billing attestation, provider admission and live acceptance gates. Stale source fails closed; neither a heartbeat nor a successful static build replaces runtime acceptance.
+
+The cockpit explains the one-minute assessment cadence, five-minute schedule recovery, persistent owner pause, and unverified/delayed observations. No connection is represented as proof of running work. Windows production remains unchanged at `3.6.0`.
+
+References: [GitHub token workflow suppression](https://docs.github.com/en/actions/concepts/security/github_token), [workflow-run events and source context](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run), and [avoiding untrusted workflow checkout](https://docs.github.com/en/actions/reference/security/secure-use). Context7 and the repository's actual bot-dispatched verification receipt were checked for this handoff.
