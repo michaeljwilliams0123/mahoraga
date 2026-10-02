@@ -2,15 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runInNewContext } from 'node:vm';
 import { renderCloudflareBridgeFrame } from '../deploy/cloudflare-owner-gateway/bridge-frame.ts';
-function harness(fetchImpl: typeof fetch) {
+function harness(fetchImpl: typeof fetch, origins: string | readonly string[] = 'https://pages.example') {
  const posts: Record<string, unknown>[] = []; const timers = new Map<number, () => void>(); let next=0;
  let handler: (e: unknown) => Promise<void> = async()=>{};
- const parent={postMessage(value: Record<string,unknown>,origin:string){assert.equal(origin,'https://pages.example');posts.push(value);}};
- const script=renderCloudflareBridgeFrame('https://pages.example').split('<script>')[1]?.split('</script>')[0]; assert.ok(script);
+ const postedOrigins: string[] = [];
+ const parent={postMessage(value: Record<string,unknown>,origin:string){assert.ok((typeof origins === 'string' ? [origins] : origins).includes(origin)); postedOrigins.push(origin); posts.push(value);}};
+ const script=renderCloudflareBridgeFrame(origins).split('<script>')[1]?.split('</script>')[0]; assert.ok(script);
  runInNewContext(script,{window:{parent,addEventListener(_type:string,fn:typeof handler){handler=fn;}},fetch:fetchImpl,AbortController,TextEncoder,Blob,Error,setTimeout(fn:()=>void){const id=++next;timers.set(id,fn);return id;},clearTimeout(id:number){timers.delete(id);}});
  const send=(data:Record<string,unknown>,origin='https://pages.example',source:unknown=parent)=>handler({data,origin,source});
  const message={protocolVersion:1,requestId:'breq-test-1',type:'bridge.action',action:'capabilities',payload:{}};
- return {send,message,posts,timers,parent};
+ return {send,message,posts,timers,parent,postedOrigins};
 }
 test('wrong origins, sources and extra request fields never reach the service',async()=>{
  let calls=0;const h=harness(async()=>{calls++;return Response.json({capabilities:[]});});
@@ -33,4 +34,19 @@ test('stalled response decoding has a deadline, aborts once and never replays',a
 test('oversized actions and malformed responses return bounded errors',async()=>{
  const h=harness(async()=>Response.json(null));await h.send({...h.message,payload:{content:'x'.repeat(33000)}});
  assert.equal(h.posts[0]?.error,'cloud-action-too-large');await h.send(h.message);assert.equal(h.posts[1]?.error,'cloud-runtime-contract-incompatible');
+});
+
+test('configured Cloudflare and Pages parents get replies only at their own validated origins', async () => {
+ const origins = ['https://pages.example', 'https://workspace.example'];
+ const resolve: Array<(value: Response) => void> = [];
+ const h = harness(async () => await new Promise<Response>(done => resolve.push(done)), origins);
+ const page = h.send(h.message);
+ const cloud = h.send({ ...h.message, requestId: 'breq-test-2' }, origins[1]);
+ await h.send(h.message, 'https://workspace.example.attacker.test');
+ assert.equal(resolve.length, 2);
+ resolve[1]?.(Response.json({ status: 'cloud' })); await cloud;
+ resolve[0]?.(Response.json({ status: 'pages' })); await page;
+ assert.deepEqual(h.postedOrigins, ['https://workspace.example', 'https://pages.example']);
+ assert.equal(h.posts[0]?.requestId, 'breq-test-2');
+ assert.equal(h.timers.size, 0);
 });

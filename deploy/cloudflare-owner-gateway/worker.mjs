@@ -1,21 +1,10 @@
 import { renderCloudflareBridgeFrame as bridgeFrame } from "./bridge-frame.ts";
 
-const DEFAULT_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io";
+import { configuredWorkspaceOrigins } from "./workspace-origins.ts";
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 
 function json(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
-}
-
-function configuredPagesOrigin(env) {
-  const value = typeof env?.MAHORAGA_PAGES_ORIGIN === "string" && env.MAHORAGA_PAGES_ORIGIN.trim()
-    ? env.MAHORAGA_PAGES_ORIGIN.trim()
-    : DEFAULT_PAGES_ORIGIN;
-  try {
-    const parsed = new URL(value);
-    if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
-    return parsed.origin;
-  } catch { return null; }
 }
 
 function pendingAssistantCapability(reasonCode = "cloudflare-native-provider-pending") {
@@ -189,11 +178,11 @@ async function nativeBridgeResponse(request, requestUrl, env, owner) {
     return json({ gateway: "mahoraga-owner-gateway", ownerAuthenticated: true, runtime: "cloudflare-native-migration", state: "degraded" });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/frame" && request.method === "GET") {
-    const pagesOrigin = configuredPagesOrigin(env);
-    if (!pagesOrigin) return new Response("gateway-pages-origin-invalid", { status: 503 });
-    return new Response(bridgeFrame(pagesOrigin), { status: 200, headers: {
+    const workspaceOrigins = configuredWorkspaceOrigins(env);
+    if (!workspaceOrigins) return new Response("gateway-pages-origin-invalid", { status: 503 });
+    return new Response(bridgeFrame(workspaceOrigins), { status: 200, headers: {
       "cache-control": "no-store", "content-type": "text/html; charset=utf-8",
-      "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${pagesOrigin}; base-uri 'none'; form-action 'none'`,
+      "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${workspaceOrigins.join(" ")}; base-uri 'none'; form-action 'none'`,
       "referrer-policy": "no-referrer", "x-content-type-options": "nosniff",
     } });
   }
