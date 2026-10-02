@@ -3,15 +3,33 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 
-async function relayModule(): Promise<typeof import('../lib/runtime-relay.ts')> {
+async function relayModule(bridgeSource?: string): Promise<typeof import('../lib/runtime-relay.ts')> {
  const url = (s: string) => `data:text/javascript,${encodeURIComponent(s)}`;
  let source = stripTypeScriptTypes(await readFile(new URL('../lib/runtime-relay.ts', import.meta.url), 'utf8'));
  const store = 'export async function clearRelaySession(){}; export async function loadRelaySession(){return null}; export async function saveRelaySession(){}';
- for (const [name, body] of [['relay-session-store', store], ['pages-owner-bridge-client', stripTypeScriptTypes(await readFile(new URL('../lib/pages-owner-bridge-client.ts', import.meta.url), 'utf8'))], ['runtime-http-scope', stripTypeScriptTypes(await readFile(new URL('../lib/runtime-http-scope.ts', import.meta.url), 'utf8'))]]) {
+ for (const [name, body] of [['relay-session-store', store], ['pages-owner-bridge-client', bridgeSource ?? stripTypeScriptTypes(await readFile(new URL('../lib/pages-owner-bridge-client.ts', import.meta.url), 'utf8'))], ['runtime-http-scope', stripTypeScriptTypes(await readFile(new URL('../lib/runtime-http-scope.ts', import.meta.url), 'utf8'))]]) {
   source = source.replace(`"./${name}"`, JSON.stringify(url(body)));
  }
  return import(url(source));
 }
+test('Pages readiness uses its authenticated bridge and never fetches the static Pages API', async t => {
+ setup(t);
+ const oldWindow = globalThis.window;
+ t.after(() => { if (oldWindow === undefined) Reflect.deleteProperty(globalThis, 'window'); else globalThis.window = oldWindow; });
+ Reflect.set(globalThis, 'window', { location: { origin: 'https://michaeljwilliams0123.github.io' } });
+ process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN = 'https://gateway.example';
+ globalThis.fetch = async () => { throw new Error('static-pages-must-not-fetch'); };
+ const { RuntimeRelay } = await relayModule(`
+ export function validatePublicBridgeOrigin(value) { return value; }
+ export class PagesOwnerBridgeClient {
+  async attach() { return 'authenticated'; }
+  async call(type,payload) { if(type!=='readiness'||Object.keys(payload).length)throw new Error('unexpected-action');return {status:'ready'}; }
+  async disconnect() {}
+ }`);
+ const relay = new RuntimeRelay();
+ await relay.attach();assert.equal(relay.transportKind,'pages-owner-bridge');
+ assert.deepEqual(await relay.readiness(),{status:'ready'});relay.disconnect();
+});
 function setup(t: import('node:test').TestContext) {
  const originalFetch = globalThis.fetch; const origin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN;
  delete process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN;

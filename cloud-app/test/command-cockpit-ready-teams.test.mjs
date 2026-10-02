@@ -82,8 +82,7 @@ describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
   });
 
   it("derives Ready from fail-closed /api/ready evidence rather than static health metadata", () => {
-    assert.match(cockpitView, /fetch\("\/api\/ready"/);
-    assert.match(cockpitView, /response\.ok/);
+    assert.match(cockpitView, /useRuntimeReadiness\(relay, readinessSourceSha\(health\), coreReady\)/);
     assert.match(cockpitView, /const readyOk = coreReady && readinessOk/);
     assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
   });
