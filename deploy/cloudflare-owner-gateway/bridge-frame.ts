@@ -1,0 +1,59 @@
+/** Access authenticates the frame at the gateway; no credential is sent to its parent. */
+export function renderCloudflareBridgeFrame(pagesOrigin: string): string {
+ const origin = JSON.stringify(pagesOrigin).replaceAll('<', '\\u003c');
+ return `<!doctype html><html><head><meta charset="utf-8"><title>Mahoraga bridge</title></head><body><script>
+(() => {
+ "use strict";
+ const PAGES_ORIGIN = ${origin};
+ const PROTOCOL_VERSION = 1;
+ let authenticated = true;
+ function exact(value, keys) { return Object.keys(value).length === keys.length && Object.keys(value).every(key => keys.includes(key)); }
+ function valid(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.protocolVersion !== 1 || typeof value.requestId !== "string" || !/^[A-Za-z0-9_-]{8,96}$/.test(value.requestId)) return false;
+  const base = ["protocolVersion", "requestId", "type"];
+  if (value.type === "bridge.status" || value.type === "bridge.disconnect") return exact(value, base);
+  if (value.type === "bridge.login") return exact(value, [...base,"pin"]) && typeof value.pin === "string" && /^\\d{4}$/.test(value.pin);
+  if (value.type === "bridge.action") return exact(value, [...base,"action","payload"]) && typeof value.action === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value.action) && value.payload && typeof value.payload === "object" && !Array.isArray(value.payload);
+  if (value.type === "bridge.artifact") return exact(value, [...base,"file"]) && value.file instanceof Blob && typeof value.file.name === "string";
+  return false;
+ }
+ function reply(requestId, ok, result, error) {
+  const value = { protocolVersion: PROTOCOL_VERSION, requestId, ok };
+  if (ok) value.result = result;
+  else value.error = error;
+  window.parent.postMessage(value, PAGES_ORIGIN);
+ }
+ async function action(request) {
+  const body = JSON.stringify({ type: request.action, payload: request.payload });
+  if (new TextEncoder().encode(body).byteLength > 32768) throw new Error("cloud-action-too-large");
+  const controller = new AbortController(); let timer;
+  const timeout = new Promise((_, reject) => { timer = setTimeout(() => { reject(new Error("cloud-request-timeout")); controller.abort(); }, 60000); });
+  try {
+   return await Promise.race([timeout, (async () => {
+    const response = await fetch("/api/runtime/pages-bridge/action", { method:"POST", credentials:"include", cache:"no-store", signal:controller.signal, headers:{"content-type":"application/json"}, body });
+    if (response.status === 401 || response.status === 403) { authenticated = false; throw new Error("cloud-owner-auth-required"); }
+    const value = await response.json();
+    if (!response.ok) throw new Error(value && typeof value.error === "string" && /^[a-z][a-z0-9.-]{0,79}$/.test(value.error) ? value.error : "cloud-gateway-unavailable");
+    if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("cloud-runtime-contract-incompatible");
+    return value;
+   })()]);
+  } finally { clearTimeout(timer); }
+ }
+ window.addEventListener("message", async event => {
+  if (event.origin !== PAGES_ORIGIN || event.source !== window.parent || !valid(event.data)) return;
+  const request = event.data;
+  try {
+   if (request.type === "bridge.status") { reply(request.requestId, true, { authenticated }); return; }
+   if (request.type === "bridge.disconnect") { authenticated = false; reply(request.requestId, true, { authenticated:false }); return; }
+   if (!authenticated) throw new Error("cloud-owner-auth-required");
+   if (request.type === "bridge.login") { reply(request.requestId, true, { authenticated: true }); return; }
+   if (request.type === "bridge.action") { reply(request.requestId, true, await action(request)); return; }
+   throw new Error("cloud-native-artifact-unavailable");
+  } catch (error) {
+   const code = error instanceof Error && /^[a-z][a-z0-9.-]{0,79}$/.test(error.message) ? error.message : "cloud-gateway-unavailable";
+   reply(request.requestId, false, undefined, code);
+  }
+ });
+})();
+</script></body></html>`;
+}
