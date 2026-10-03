@@ -123,7 +123,7 @@ test('publication workflows keep jq artifact predicates portable', async () => {
  ];
  for (const relativePath of workflowPaths) {
   const content = await readFile(new URL(relativePath, import.meta.url), 'utf8');
-  assert.doesNotMatch(content, /select\\(\\.name == \\$name && \\.expired == false\\)/);
-  assert.match(content, /select\\(\\.name == \\$name and \\.expired == false\\)/);
+  assert.doesNotMatch(content, /select\(\.name == \$name && \.expired == false\)/);
+  assert.match(content, /select\(\.name == \$name and \.expired == false\)/);
  }
 });
