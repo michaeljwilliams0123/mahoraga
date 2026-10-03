@@ -111,3 +111,19 @@ test('publication CLI validates a bounded receipt without dumping private event 
   await rm(directory, { recursive: true, force: true });
  }
 });
+
+
+test('publication workflows keep jq artifact predicates portable', async () => {
+ const { readFile } = await import('node:fs/promises');
+ const workflowPaths = [
+  '../.github/workflows/verify.yml',
+  '../.github/workflows/pages.yml',
+  '../.github/workflows/release.yml',
+  '../.github/workflows/cloudflare-execution-runtime.yml',
+ ];
+ for (const relativePath of workflowPaths) {
+  const content = await readFile(new URL(relativePath, import.meta.url), 'utf8');
+  assert.doesNotMatch(content, /select\(\.name == \$name && \.expired == false\)/);
+  assert.match(content, /select\(\.name == \$name and \.expired == false\)/);
+ }
+});

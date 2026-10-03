@@ -124,13 +124,13 @@ jobs:
           artifact_count=0
           for attempt in $(seq 1 12); do
             gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_SOURCE_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
-            artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+            artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name and .expired == false)] | length' "$artifacts_json")"
             if [ "$artifact_count" = "1" ]; then break; fi
             if [ "$artifact_count" -gt 1 ]; then echo "::error::Ambiguous autonomous publication artifact."; exit 1; fi
             sleep 1
           done
           test "$artifact_count" = "1"
-          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name and .expired == false) | .id' "$artifacts_json")"
           export ARTIFACT_ID="$artifact_id"
 
           receipt_zip="$RUNNER_TEMP/autonomous-main-publication.zip"
