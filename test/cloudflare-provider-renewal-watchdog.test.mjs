@@ -14,19 +14,22 @@ const SHA = "0537edc5ef0866ddd576b1531868ebf84341327a";
 const NOW = 1_800_000_000_000;
 const MARGIN = 30 * 60_000;
 
-const runtime = (overrides = {}) => ({
-  status: "ready",
-  targetSha: SHA,
-  provider: {
-    providerId: "cloudflare-workers-ai",
-    admitted: true,
-    zeroCreditEligible: true,
-    verifiedAt: NOW - 1_000,
-    canaryExpiresAt: NOW + MARGIN + 1,
-    ...overrides.provider,
-  },
-  ...overrides,
-});
+const runtime = (overrides = {}) => {
+  const { provider: providerOverrides = {}, ...topLevelOverrides } = overrides;
+  return {
+    status: "ready",
+    targetSha: SHA,
+    provider: {
+      providerId: "cloudflare-workers-ai",
+      admitted: true,
+      zeroCreditEligible: true,
+      verifiedAt: NOW - 1_000,
+      canaryExpiresAt: NOW + MARGIN + 1,
+      ...providerOverrides,
+    },
+    ...topLevelOverrides,
+  };
+};
 
 test("provider watchdog requires exact current lineage and margin, not merely unexpired state", () => {
   assert.equal(providerFreshEnough(runtime(), NOW, MARGIN, SHA), true);
@@ -53,5 +56,6 @@ test("bounded renewal watchdog preserves zero-cost and no-authority-expansion co
   assert.match(script, /buildZeroCreditBillingAttestation/);
   assert.match(script, /\/api\/provider\/refresh/);
   assert.match(script, /provider-watchdog-post-renewal-freshness-unverified/);
+  assert.match(script, /provider-watchdog-renewal-margin-immutable/);
   assert.doesNotMatch(script, /railway|vercel/i);
 });
