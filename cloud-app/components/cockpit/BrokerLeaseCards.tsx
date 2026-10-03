@@ -68,6 +68,16 @@ function UnobservedCard({ label, reason }: { label: string; reason: string }) {
   );
 }
 
+function sourceBindValue(expectedSourceSha?: string): { value: string; tone: "good" | "warn" | "neutral" } {
+  if (typeof expectedSourceSha !== "string" || expectedSourceSha.length === 0) {
+    return { value: "UNBOUND", tone: "warn" };
+  }
+  if (!/^[a-f0-9]{40}$/.test(expectedSourceSha)) {
+    return { value: "INVALID SHA", tone: "warn" };
+  }
+  return { value: expectedSourceSha.slice(0, 12), tone: "neutral" };
+}
+
 export function BrokerLeaseCards({
   observation,
   expectedSourceSha,
@@ -79,11 +89,21 @@ export function BrokerLeaseCards({
 } = {}) {
   const surface = projectBrokerLeaseSurface();
   const observationWindow = classifyBrokerObservationWindow(observation, nowMs, expectedSourceSha);
+  const sourceBind = sourceBindValue(expectedSourceSha);
+  const sourceCard = (
+    <Card
+      label="Source-bind"
+      value={sourceBind.value}
+      detail={`${surface.buildProvenanceOnly} · ${surface.product} · exact 40-char source SHA required before any lease metric renders · ${observationWindow.ok ? "observation window open" : observationWindow.reason} · observational only · no traffic-authority grant · zero-credit fallthrough false`}
+      tone={sourceBind.tone}
+    />
+  );
 
   if (!observationWindow.ok || !observation) {
     const reason = observationWindow.ok ? "broker-observation-unverified" : observationWindow.reason;
     return (
       <>
+        {sourceCard}
         <UnobservedCard label="Broker attestation metrics" reason={reason} />
         <UnobservedCard label="Execution deadline" reason={reason} />
         <UnobservedCard label="Route-lease scope" reason={reason} />
@@ -109,6 +129,7 @@ export function BrokerLeaseCards({
 
   return (
     <>
+      {sourceCard}
       {metrics ? (
         <Card
           label="Broker attestation metrics"
