@@ -1,52 +1,215 @@
-name: Deploy Mahoraga Cloud Workspace
+name: Export Mahoraga Workspace to Pages
 
 on:
   push:
     branches: [main]
-    paths:
-      - cloud/**
-      - .github/workflows/pages.yml
+  pull_request:
+    branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
 
 permissions:
+  actions: read
   contents: read
-  pages: write
-  id-token: write
+
+env:
+  VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 concurrency:
-  group: mahoraga-cloud-workspace
+  group: mahoraga-pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  build:
+    name: Build and inspect static workspace
+    # Ordinary push/PR builds retain their existing path. Bot merges need the verified-main handoff.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.event.workflow_run.name == 'Verify Mahoraga' &&
+       github.event.workflow_run.path == '.github/workflows/verify.yml' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'workflow_dispatch' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == 'github-actions[bot]')
+    runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out current revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.VERIFIED_SHA }}
+          persist-credentials: false
+
+      - name: Use Node 24
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Fetch trusted bot publication receipt
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.actor.login == 'github-actions[bot]' &&
+          github.event.workflow_run.event == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLICATION_VERIFY_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          artifacts_json="$RUNNER_TEMP/verified-main-publication-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
+          artifact_name="verified-main-publication-$VERIFIED_SHA"
+          artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+          test "$artifact_count" = "1"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          receipt_zip="$RUNNER_TEMP/verified-main-publication.zip"
+          receipt_path="$RUNNER_TEMP/verified-main-publication.json"
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$receipt_zip"
+          unzip -p "$receipt_zip" verified-main-publication.json > "$receipt_path"
+          echo "VERIFIED_MAIN_PUBLICATION_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
+
+      - name: Validate canonical verification publication receipt
+        if: github.event_name == 'workflow_run'
+        run: node scripts/verified-main-publication.ts
+
+      - name: Verify publication source is still authoritative main
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
+
+      - name: Install workspace dependencies
+        working-directory: cloud-app
+        run: npm ci
+
+      - name: Typecheck workspace
+        working-directory: cloud-app
+        run: npm run typecheck
+
+      - name: Test workspace
+        working-directory: cloud-app
+        run: npm run test
+
+      - name: Build and inspect static workspace
+        working-directory: cloud-app
+        env:
+          MAHORAGA_PAGES_EXPORT: "1"
+          MAHORAGA_DEPLOYMENT_PROVIDER: github-pages
+          MAHORAGA_DEPLOYMENT_ENV: production
+          MAHORAGA_DEPLOYMENT_URL: https://michaeljwilliams0123.github.io/mahoraga/
+          NEXT_PUBLIC_HEALTH_ENDPOINT: /mahoraga/api/health.json
+          NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: ${{ vars.MAHORAGA_PAGES_BRIDGE_ORIGIN || 'https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev' }}
+          MAHORAGA_GIT_COMMIT_SHA: ${{ env.VERIFIED_SHA }}
+          MAHORAGA_GIT_COMMIT_REF: main
+        run: node ../scripts/build-pages-static.mjs
+
+      - name: Upload workspace artifact
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: cloud-app/out
+
   deploy:
-    name: Publish credential-free cloud interface
-    if: ${{ github.event.repository.private == false }}
-    runs-on: ubuntu-latest
+    name: Publish exact-main static workspace
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Check out authoritative repository
+      - name: Check out publication source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ env.VERIFIED_SHA }}
           persist-credentials: false
 
-      - name: Bind deployment to the event head
+      - name: Use Node 24 for final source check
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Fetch trusted bot publication receipt
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.actor.login == 'github-actions[bot]' &&
+          github.event.workflow_run.event == 'workflow_dispatch'
         shell: bash
         env:
-          EXPECTED_SHA: ${{ github.sha }}
-        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLICATION_VERIFY_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          artifacts_json="$RUNNER_TEMP/verified-main-publication-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
+          artifact_name="verified-main-publication-$VERIFIED_SHA"
+          artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+          test "$artifact_count" = "1"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          receipt_zip="$RUNNER_TEMP/verified-main-publication.zip"
+          receipt_path="$RUNNER_TEMP/verified-main-publication.json"
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$receipt_zip"
+          unzip -p "$receipt_zip" verified-main-publication.json > "$receipt_path"
+          echo "VERIFIED_MAIN_PUBLICATION_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
 
-      - name: Configure GitHub Pages
+      - name: Validate canonical verification publication receipt
+        if: github.event_name == 'workflow_run'
+        run: node scripts/verified-main-publication.ts
+
+      - name: Verify publication source is still authoritative main
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
+
+      - name: Check Pages site availability
+        id: pages_site
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api_url="https://api.github.com/repos/${GITHUB_REPOSITORY}/pages"
+          http_code="$(curl -sS -o /tmp/pages-site.json -w '%{http_code}' \
+            -u "x-access-token:${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            "${api_url}")"
+
+          case "${http_code}" in
+            200)
+              echo "available=true" >> "${GITHUB_OUTPUT}"
+              ;;
+            404)
+              echo "::warning::Pages site is not enabled for ${GITHUB_REPOSITORY}; skipping Pages deployment."
+              echo "available=false" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "::error::Unable to determine Pages site status (HTTP ${http_code})."
+              cat /tmp/pages-site.json
+              exit 1
+              ;;
+          esac
+
+      - name: Configure Pages
+        if: steps.pages_site.outputs.available == 'true'
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
 
-      - name: Upload static workspace
-        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
-        with:
-          path: cloud
-
-      - name: Deploy cloud workspace
+      - name: Publish exact-main static export
+        if: steps.pages_site.outputs.available == 'true'
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

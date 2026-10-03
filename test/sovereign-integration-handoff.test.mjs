@@ -86,6 +86,21 @@ test("successful sovereign verification explicitly dispatches trusted integratio
   assert.match(integration, /detail\.head\.repo\?\.full_name !== `\$\{owner\}\/\$\{repo\}`/);
   assert.match(integration, /events:\s*\["pull_request",\s*"workflow_dispatch"\]/);
   assert.match(integration, /ignoredConclusions:\s*\["action_required"\]/);
+  assert.match(integration, /autonomous-main-publication-receipt\.json/);
+  assert.match(integration, /autonomous-main-publication-\$\{\{ steps\.integrate\.outputs\.merged_sha \}\}/);
+  assert.match(integration, /publication_source_run_id/);
+  assert.match(integration, /publication_merged_sha/);
+  assert.match(verify, /publication_source_run_id:/);
+  assert.match(verify, /publication_merged_sha:/);
+  assert.match(verify, /Autonomous Integration/);
+  assert.match(verify, /verified-main-publication-\$\{\{ github\.sha \}\}/);
+  assert.match(verify, /trusted-autonomous-publication-receipt-invalid/);
+  assert.match(integration, /receipt\.verifyRunId = String\(matches\[0\]\.id\)/);
+  assert.match(integration, /publication-verify-run-ambiguous/);
+  assert.match(verify, /for attempt in \$\(seq 1 30\)/);
+  assert.match(verify, /\.status == "completed"/);
+  assert.match(verify, /\.conclusion == "success"/);
+  assert.match(verify, /String\(receipt\?\.verifyRunId \?\? ""\) !== String\(process\.env\.GITHUB_RUN_ID\)/);
 });
 
 test("automatic main beta release stays on workflow_run, not a second verify dispatch", async () => {
@@ -97,6 +112,9 @@ test("automatic main beta release stays on workflow_run, not a second verify dis
   assert.match(release, /workflow_run:/);
   assert.match(release, /head_branch == 'main'/);
   assert.match(release, /github-actions\[bot\]/);
+  assert.match(release, /actions:\s*read/);
+  assert.match(release, /Fetch trusted bot publication receipt/);
+  assert.match(release, /run: node scripts\/verified-main-publication\.ts/);
   assert.match(release, /run: node scripts\/verify-exact-head\.mjs/);
   assert.match(verifier, /currentMainSha/);
   assert.match(verifier, /stale-verified-main/);

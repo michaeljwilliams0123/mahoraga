@@ -176,6 +176,7 @@ jobs:
           node-version: 24
 
       - name: Revalidate and merge exact verified head
+        id: integrate
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
         env:
           PULL_REQUEST: ${{ needs.evaluate.outputs.pull_request }}
@@ -263,7 +264,22 @@ jobs:
             if (!mergeGate.ok) throw new Error(`policy-changed-before-merge:${mergeGate.reason}`);
             try {
               const result = await github.rest.pulls.merge({ owner, repo, pull_number, sha: expectedHead, merge_method: "squash" });
-              if (!result.data.merged) throw new Error(`merge-rejected:${result.data.message}`);
+              if (!result.data.merged || !/^[a-f0-9]{40}$/.test(result.data.sha ?? "")) throw new Error(`merge-rejected:${result.data.message}`);
+              const mergedSha = result.data.sha;
+              const receiptPath = path.join(workspace, "state", "autonomous-main-publication-receipt.json");
+              fs.writeFileSync(receiptPath, JSON.stringify({
+                schemaVersion: 1,
+                kind: "autonomous-main-publication-v1",
+                repository: `${owner}/${repo}`,
+                sourceWorkflow: "Autonomous Integration",
+                sourceWorkflowPath: ".github/workflows/autonomous-integration.yml",
+                sourceRunId: String(context.runId),
+                pullRequest: pull_number,
+                candidateHeadSha: expectedHead,
+                mergedSha,
+              }, null, 2) + "\n");
+              core.setOutput("merged_sha", mergedSha);
+              core.setOutput("receipt_path", "state/autonomous-main-publication-receipt.json");
             } catch (error) {
               const classified = classifyMergeRuleViolation(error);
               if (classified.status === "hold") {
@@ -272,4 +288,74 @@ jobs:
               }
               throw error;
             }
-            await github.rest.actions.createWorkflowDispatch({ owner, repo, workflow_id: "verify.yml", ref: "main" });
+
+      - name: Dispatch and bind exact merged main verification
+        id: dispatch_verify
+        if: steps.integrate.outputs.merged_sha != ''
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          MERGED_SHA: ${{ steps.integrate.outputs.merged_sha }}
+          PUBLICATION_SOURCE_RUN_ID: ${{ github.run_id }}
+          PUBLICATION_RECEIPT_PATH: ${{ steps.integrate.outputs.receipt_path }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const { owner, repo } = context.repo;
+            const mergedSha = process.env.MERGED_SHA;
+            const sourceRunId = process.env.PUBLICATION_SOURCE_RUN_ID;
+            const receiptPath = path.join(process.env.GITHUB_WORKSPACE, process.env.PUBLICATION_RECEIPT_PATH);
+            if (!/^[a-f0-9]{40}$/.test(mergedSha ?? "") || !/^[1-9][0-9]{0,19}$/.test(sourceRunId ?? "")) {
+              throw new Error("publication-dispatch-binding-invalid");
+            }
+            const dispatchedAt = Date.now();
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: "verify.yml",
+              ref: "main",
+              inputs: {
+                publication_source_run_id: sourceRunId,
+                publication_merged_sha: mergedSha,
+              },
+            });
+            let matches = [];
+            for (let attempt = 0; attempt < 12; attempt++) {
+              const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+                owner,
+                repo,
+                workflow_id: "verify.yml",
+                branch: "main",
+                event: "workflow_dispatch",
+                per_page: 50,
+              });
+              matches = runs.filter((run) =>
+                run.head_sha === mergedSha &&
+                run.event === "workflow_dispatch" &&
+                run.actor?.login === "github-actions[bot]" &&
+                Date.parse(run.created_at) >= dispatchedAt - 5_000
+              );
+              if (matches.length === 1) break;
+              if (matches.length > 1) throw new Error("publication-verify-run-ambiguous");
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
+            if (matches.length !== 1 || !Number.isSafeInteger(matches[0].id)) {
+              throw new Error("publication-verify-run-unresolved");
+            }
+            const receipt = JSON.parse(fs.readFileSync(receiptPath, "utf8"));
+            if (receipt?.mergedSha !== mergedSha || String(receipt?.sourceRunId ?? "") !== sourceRunId) {
+              throw new Error("publication-source-receipt-drift");
+            }
+            receipt.verifyRunId = String(matches[0].id);
+            fs.writeFileSync(receiptPath, JSON.stringify(receipt, null, 2) + "\n");
+            core.setOutput("verify_run_id", String(matches[0].id));
+
+      - name: Upload trusted autonomous publication receipt
+        if: steps.dispatch_verify.outputs.verify_run_id != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: autonomous-main-publication-${{ steps.integrate.outputs.merged_sha }}
+          path: ${{ steps.integrate.outputs.receipt_path }}
+          retention-days: 7
+          if-no-files-found: error
