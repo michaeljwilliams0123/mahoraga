@@ -11,6 +11,6 @@ Every child created through `src/agent-foundry.mjs` inherits these non-optional 
 - `ownerApprovalRequired: false`
 - `platformAuthorizationRequired: true`
 
-The last two fields mean Mahoraga does not add a separate owner-approval gate for credential or privilege changes, while still respecting GitHub/OAuth/provider authorization that the underlying platform actually enforces.
+The last two fields mean Mahoraga does not add a second approval merely because a permanent child performs an operational action already covered by the active owner grant. Child bots do not receive a separate permission universe: they inherit `mahoraga-core` operational authority only through the same owner/platform/capability intersection, and the action must remain bound to fresh objective, authority, source-SHA, trust-epoch, evaluator, cost, audience, and security evidence. Any material drift fails closed. Ownership transfer, permanent owner-recovery removal, destruction of every rollback generation, and root-credential transfer remain non-delegable.
 
 The two-hour learning workflow may add new manifests only for deterministic, actionable, uncovered capability gaps. It never activates the Windows production runtime.
