@@ -179,8 +179,8 @@ test("universal execution broker is private and deploys before execution runtime
 test("Cloudflare publication admits only canonical verified main bot dispatch and retains owner manual authority", async () => {
  const workflow = await readFile(workflowPath, 'utf8');
  const lane = workflow.slice(workflow.indexOf('  deploy-accept:'), workflow.indexOf('    runs-on:'));
- for (const guard of ["github.actor == github.repository_owner", "github.ref == 'refs/heads/main'", "github.repository == 'michaeljwilliams0123/mahoraga'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'", "status == 'completed'", "actor.login == 'github-actions[bot]'", "event == 'workflow_dispatch'"]) assert.ok(lane.includes(guard));
- assert.match(lane, /actor.login == 'github-actions\[bot\]' &&\s*github.event.workflow_run.event == 'workflow_dispatch'/);
+ for (const guard of ["github.actor == github.repository_owner", "github.ref == 'refs/heads/main'", "github.repository == 'michaeljwilliams0123/mahoraga'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'", "status == 'completed'", "actor.login == 'github-actions[bot]'", "event == 'push'", "event == 'workflow_dispatch'"]) assert.ok(lane.includes(guard));
+ assert.match(lane, /actor.login == 'github-actions\[bot\]' &&\s*\(github.event.workflow_run.event == 'push' \|\| github.event.workflow_run.event == 'workflow_dispatch'\)/);
  const receipt = workflow.indexOf('run: node scripts/verified-main-publication.ts');
  const exact = workflow.indexOf('run: node scripts/verify-exact-head.mjs');
  const billing = workflow.indexOf('cloudflare-zero-credit-attestation.mjs');
