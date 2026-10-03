@@ -253,7 +253,7 @@ jobs:
     name: Renew hard-zero provider admission evidence
     if: github.event_name == 'schedule' && github.repository == 'michaeljwilliams0123/mahoraga'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 330
     env:
       VERIFIED_SHA: ${{ github.sha }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -264,6 +264,8 @@ jobs:
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
       PROVIDER_REFRESH_SECRET: ${{ secrets.PROVIDER_REFRESH_SECRET }}
       RENEWAL_MARGIN_MS: 1800000
+      WATCHDOG_INTERVAL_MS: 300000
+      WATCHDOG_DURATION_MS: 19200000
 
     steps:
       - name: Check out scheduled authoritative main
@@ -402,6 +404,12 @@ jobs:
             canaryExpiresAt: body.canaryExpiresAt,
           })}\n`);
           NODE
+
+      - name: Maintain provider admission continuity within bounded watchdog window
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/cloudflare-provider-renewal-watchdog.mjs
 
       - name: Remove temporary billing attestation
         if: always()
