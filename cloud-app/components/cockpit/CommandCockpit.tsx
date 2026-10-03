@@ -77,6 +77,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "pagesFrameAuthentication", value: "OWNER_AUTH_REQUIRED_BOUNDED · HTTP 401/403 clears frame authentication · cloud-owner-auth-required" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },
         { label: "ciLane", value: "self-hosted Linux/X64 (publish + steward, informational)" },
+        { label: "sovereignQueue", value: "queue: max · cancel-in-progress false · observational #977 · not traffic authority" },
         { label: "railwayStatus", value: "legacy evidence only · zero-route · zero-influence · zero-fallback · zero-authority" },
         { label: "vercelStatus", value: "retired · observation-only · no origin, gateway, traffic, or runtime authority" },
         { label: "predictiveRoute", value: "deterministic cognitive.predict only when observed · explicit /predict · receipt-producing scenario simulation" },
@@ -227,6 +228,7 @@ export function CommandCockpit({
             <span className="cockpit-pill ok">ORIGIN_BOUNDARY_#550</span>
             <span className="cockpit-pill ok">WORKERS_BUILDS_#562</span>
             <span className="cockpit-pill steel">CI_LINUX_X64</span>
+            <span className="cockpit-pill steel">SOVEREIGN_QUEUE_MAX_#977</span>
             <span className="cockpit-pill steel">RAILWAY_RETIRED</span>
             <span className="cockpit-pill warn">TELEMETRY_UNAVAILABLE</span>
             <span className="cockpit-pill warn">telemetry-session-unavailable</span>

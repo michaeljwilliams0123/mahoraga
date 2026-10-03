@@ -18,6 +18,7 @@ import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
+import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
@@ -254,6 +255,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
+          <SovereignSchedulerQueueCard />
           <ProviderRenewalWatchdogCard />
           <PairedWorkspacePublicationCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
@@ -379,6 +381,7 @@ export function CockpitView({
           <dl className="eclipse-metrics">
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
+            <div><dt>Sovereign scheduler queue</dt><dd>queue: max · cancel-in-progress false · observational · merge #977 is not traffic authority</dd></div>
             <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>Host provider</dt><dd>{railwayRetired ? "railway (legacy evidence only; zero-route / zero-influence / zero-fallback / zero-authority)" : deploymentProvider}</dd></div>
             <div><dt>Vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
