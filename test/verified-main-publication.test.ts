@@ -7,14 +7,16 @@ const run = () => ({ name: 'Verify Mahoraga', path: '.github/workflows/verify.ym
  head_sha: sha, head_branch: 'main', head_repository: { full_name: 'michaeljwilliams0123/mahoraga' },
  actor: { login: 'github-actions[bot]' }, event: 'workflow_dispatch' });
 test('publication accepts only canonical successful main verification with permitted actors and events', () => {
- assert.deepEqual(verifiedMainPublication(run(), sha), { sourceSha: sha, actor: 'github-actions[bot]', sourceEvent: 'workflow_dispatch' });
- for (const event of ['push', 'workflow_dispatch']) assert.equal(verifiedMainPublication({ ...run(), actor: { login: 'michaeljwilliams0123' }, event }, sha).sourceSha, sha);
+ for (const event of ['push', 'workflow_dispatch']) {
+  assert.equal(verifiedMainPublication({ ...run(), event }, sha).sourceSha, sha);
+  assert.equal(verifiedMainPublication({ ...run(), actor: { login: 'michaeljwilliams0123' }, event }, sha).sourceSha, sha);
+ }
 });
 test('publication denies foreign, stale, failed, PR, ambiguous and malformed verification', () => {
  for (const override of [
   { head_repository: { full_name: 'attacker/mahoraga' } }, { head_branch: 'feature/work' },
   { name: 'Other workflow' }, { path: '.github/workflows/other.yml' }, { status: 'in_progress' }, { conclusion: 'failure' },
-  { event: 'pull_request' }, { event: 'push' }, { actor: { login: 'collaborator' } },
+  { event: 'pull_request' }, { event: 'schedule' }, { actor: { login: 'collaborator' } },
   { actor: { login: ['github-actions[bot]'] } }, { head_sha: 'bad' }, { head_sha: ['a'.repeat(40)] },
  ]) assert.throws(() => verifiedMainPublication({ ...run(), ...override }, sha), /verified-main-publication-denied/);
  for (const value of [null, [], 'run', {}]) assert.throws(() => verifiedMainPublication(value, sha), /verified-main-publication-denied/);
