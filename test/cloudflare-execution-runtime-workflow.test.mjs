@@ -72,6 +72,24 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   );
 });
 
+test("scheduled provider renewal replaces stale watchdog runs while deployment remains non-cancelling", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  assert.match(
+    workflow,
+    /group:\s*mahoraga-cloudflare-execution-runtime-\$\{\{ github\.event_name == 'schedule' && 'renewal' \|\| 'deploy' \}\}/,
+  );
+  assert.match(
+    workflow,
+    /cancel-in-progress:\s*\$\{\{ github\.event_name == 'schedule' \}\}/,
+    "scheduled renewal must replace a stale queued/rerun watchdog instead of blocking later five-minute renewals",
+  );
+  assert.doesNotMatch(
+    workflow,
+    /cancel-in-progress:\s*true\s*$/m,
+    "deployment publication must remain non-cancelling",
+  );
+});
+
 test("Cloudflare billing proof renews externally before expiry without redeploying Workers", async () => {
   const [workflow, runtimeWorker, runtimeWrangler] = await Promise.all([
     readFile(workflowPath, "utf8"),
