@@ -237,6 +237,56 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     workspaceAgentReceiverMissing.length ? { files: workspaceAgentReceiverMissing } : undefined,
   );
 
+
+  const ownerAuthoritySource = await readFile(path.join(root, "src/owner-authority.mjs"), "utf8");
+  const cloudflareExecutionRuntime = workflowSources.find(([file]) => file === ".github/workflows/cloudflare-execution-runtime.yml")?.[1] ?? "";
+  const cloudflareWorkspaceCandidate = workflowSources.find(([file]) => file === ".github/workflows/cloudflare-workspace-candidate.yml")?.[1] ?? "";
+  const releaseWorkflow = workflowSources.find(([file]) => file === ".github/workflows/release.yml")?.[1] ?? "";
+  const sovereignCycleWorkflow = workflowSources.find(([file]) => file === ".github/workflows/sovereign-eight-hour-cycle.yml")?.[1] ?? "";
+  const lifecycleWorkflow = workflowSources.find(([file]) => file === ".github/workflows/cloudflare-lifecycle-evaluation.yml")?.[1] ?? "";
+  const botAuthorityParityTrusted = [
+    "resolveBotOperationalAuthority",
+    "bot-authority-drift",
+    "owner-root-nondelegable",
+    "ownership.transfer",
+    "owner-recovery.remove",
+    "rollback-generations.destroy-all",
+    "root-credentials.transfer",
+  ].every((token) => ownerAuthoritySource.includes(token))
+    && cloudflareExecutionRuntime.includes("github.event.workflow_run.actor.login == 'github-actions[bot]'")
+    && cloudflareExecutionRuntime.includes("(github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')")
+    && cloudflareExecutionRuntime.includes("run: node scripts/verified-main-publication.ts")
+    && cloudflareExecutionRuntime.includes("run: node scripts/verify-exact-head.mjs")
+    && cloudflareExecutionRuntime.includes("cloudflare-zero-credit-attestation.mjs")
+    && cloudflareExecutionRuntime.includes("cloudflare-production-acceptance.ts")
+    && cloudflareWorkspaceCandidate.includes('workflows: ["Deploy and Accept Exact Main on Cloudflare"]')
+    && cloudflareWorkspaceCandidate.includes("github.event.workflow_run.actor.login == 'github-actions[bot]'")
+    && (cloudflareWorkspaceCandidate.match(/run: node scripts\/verify-exact-head\.mjs/g) ?? []).length >= 2
+    && releaseWorkflow.includes("github.event_name == 'workflow_run'")
+    && releaseWorkflow.includes("github.event.workflow_run.head_branch == 'main'")
+    && releaseWorkflow.includes("run: node scripts/verify-exact-head.mjs")
+    && sovereignCycleWorkflow.includes("github.event_name == 'schedule'")
+    && sovereignCycleWorkflow.includes("github.event_name == 'workflow_run'")
+    && sovereignCycleWorkflow.includes("github.event.workflow_run.head_branch == 'main'")
+    && lifecycleWorkflow.includes('workflows: ["Verify Mahoraga"]')
+    && lifecycleWorkflow.includes("github.event.workflow_run.path == '.github/workflows/verify.yml'")
+    && lifecycleWorkflow.includes("github.event.workflow_run.event == 'push'")
+    && lifecycleWorkflow.includes("github.event.workflow_run.actor.login == 'github-actions[bot]'")
+    && lifecycleWorkflow.includes("id: bot_scope")
+    && (lifecycleWorkflow.match(/node scripts\/verify-exact-head\.mjs/g) ?? []).length >= 2
+    && lifecycleWorkflow.includes("cloudflare:lifecycle:cleanup")
+    && !/github\.event_name == 'workflow_dispatch'[\s\S]{0,320}github\.actor == 'github-actions\[bot\]'/.test(lifecycleWorkflow)
+    && /if:\s*github\.actor == github\.repository_owner/.test(cloudTaskGateway)
+    && !/if:\s*github\.actor == 'github-actions\[bot\]'/.test(cloudTaskGateway);
+  add(
+    "bot-authority-parity",
+    botAuthorityParityTrusted,
+    "blocking",
+    botAuthorityParityTrusted
+      ? "Bot operational authority is source-bound, drift-checked, zero-credit gated where applicable, and separated from owner-root/manual ingress."
+      : "Bot authority parity or its anti-drift/owner-root boundary has regressed.",
+  );
+
   const actions = [];
   for (const [file, source] of workflowSources) {
     for (const match of source.matchAll(/^\s*-?\s*uses:\s*([^\s#]+)(?:\s+#.*)?\s*$/gm)) {
