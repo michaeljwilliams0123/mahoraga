@@ -47,8 +47,16 @@ test('Cloudflare export writes native asset security headers; Pages retains its 
 test('workspace workflow waits for accepted runtime, rejects renewal paths, and preserves exact-main source checks', async () => {
  const { readFile } = await import('node:fs/promises');
  const workflow = await readFile(new URL('../.github/workflows/cloudflare-workspace-candidate.yml', import.meta.url), 'utf8');
- assert.ok(workflow.includes('workflows: ["Deploy and Accept Exact Main on Cloudflare"]'));
- for (const guard of ["conclusion == 'success'", "status == 'completed'", "head_branch == 'main'", "head_repository.full_name == github.repository", "path == '.github/workflows/cloudflare-execution-runtime.yml'", "actor.login == 'github-actions[bot]'", "github.actor == github.repository_owner"]) assert.ok(workflow.includes(guard));
+ assert.match(workflow, /workflow_call:\s*\n\s*inputs:\s*\n\s*verified_sha:\s*\n\s*required: true\s*\n\s*type: string/);
+ assert.doesNotMatch(workflow, /workflow_run:/);
+ assert.ok(workflow.includes("github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main'"));
+ assert.ok(workflow.includes('run: node scripts/cloudflare-workspace-proof.ts caller'));
+ assert.ok(workflow.includes('VERIFIED_SHA: ${{ inputs.verified_sha || github.sha }}'));
+ const caller = await readFile(new URL('../.github/workflows/cloudflare-execution-runtime.yml', import.meta.url), 'utf8');
+ const lane = caller.slice(caller.indexOf('  workspace-candidate:'), caller.indexOf('  deploy-accept:'));
+ assert.match(lane, /needs: deploy-accept/); assert.match(lane, /if: needs.deploy-accept.result == 'success'/);
+ assert.match(lane, /uses: \.\/\.github\/workflows\/cloudflare-workspace-candidate.yml/);
+ assert.match(lane, /verified_sha:.*workflow_run.head_sha.*github.sha/);
  assert.equal((workflow.match(/run: node scripts\/verify-exact-head.mjs/g) ?? []).length, 2);
  assert.ok(workflow.indexOf('cloudflare-workspace-proof.ts accept') > workflow.indexOf('Deploy static UI candidate'));
  assert.ok(workflow.indexOf('npm run typecheck && npm run test') < workflow.indexOf('Build the root-path workspace candidate'));

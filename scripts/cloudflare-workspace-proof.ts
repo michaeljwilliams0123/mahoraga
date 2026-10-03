@@ -8,6 +8,23 @@ export const WORKSPACE_URL = 'https://mahoraga-workspace-candidate.mahoraga-mjw0
 export const BRIDGE_ORIGIN = 'https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev';
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const validSha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+/** Used only by the reusable job whose caller has a successful deploy-accept dependency.
+ * The incumbent runtime job retains its verification-artifact and provider acceptance gates.
+ */
+export function verifiedWorkspaceCaller(value: unknown, expectedSha: string) {
+ const caller = record(value), event = record(caller.event), run = record(event.workflow_run);
+ if (!validSha(expectedSha) || caller.sourceSha !== expectedSha || caller.repository !== 'michaeljwilliams0123/mahoraga'
+  || caller.workflowRef !== 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main'
+  || (caller.actor !== 'michaeljwilliams0123' && caller.actor !== 'github-actions[bot]')) throw new Error('workspace-caller-denied');
+ if (caller.eventName === 'workflow_dispatch' && caller.actor === 'michaeljwilliams0123') return { sourceSha: expectedSha, sourceEvent: 'workflow_dispatch', trustSource: 'accepted-runtime-job' };
+ const actor = record(run.actor).login;
+ if (caller.eventName !== 'workflow_run' || run.name !== 'Verify Mahoraga' || run.path !== '.github/workflows/verify.yml'
+  || run.status !== 'completed' || run.conclusion !== 'success' || run.head_branch !== 'main'
+  || record(run.head_repository).full_name !== 'michaeljwilliams0123/mahoraga' || run.head_sha !== expectedSha
+  || (actor !== 'michaeljwilliams0123' && actor !== 'github-actions[bot]')
+  || (run.event !== 'push' && run.event !== 'workflow_dispatch')) throw new Error('workspace-caller-denied');
+ return { sourceSha: expectedSha, sourceEvent: run.event, trustSource: 'accepted-runtime-job' };
+}
 export function verifiedWorkspacePublication(value: unknown, expectedSha: string) {
  const run = record(value), actor = record(run.actor).login;
  const permitted = (actor === 'michaeljwilliams0123' && (run.event === 'workflow_run' || run.event === 'workflow_dispatch'))
@@ -62,6 +79,17 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const output = process.argv[3];
   if (output) { await mkdir(dirname(output), { recursive: true }); await writeFile(output, `${JSON.stringify(result, null, 2)}\n`); }
   console.log(JSON.stringify(result));
+ } else if (process.argv[2] === 'caller') {
+  if (!process.env.GITHUB_EVENT_PATH) throw new Error('workspace-caller-denied');
+  const metadata = await stat(process.env.GITHUB_EVENT_PATH);
+  if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error('workspace-caller-denied');
+  let event: unknown;
+  try { event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) as unknown; }
+  catch { throw new Error('workspace-caller-denied'); }
+  console.log(JSON.stringify(verifiedWorkspaceCaller({ repository: process.env.GITHUB_REPOSITORY,
+   workflowRef: process.env.GITHUB_WORKFLOW_REF, eventName: process.env.GITHUB_EVENT_NAME,
+   actor: process.env.GITHUB_ACTOR, sourceSha: process.env.GITHUB_SHA,
+   event }, sha)));
  } else {
   if (process.env.GITHUB_EVENT_NAME !== 'workflow_run' || process.env.GITHUB_REPOSITORY !== 'michaeljwilliams0123/mahoraga' || !process.env.GITHUB_EVENT_PATH) throw new Error('workspace-publication-denied');
   const metadata = await stat(process.env.GITHUB_EVENT_PATH);

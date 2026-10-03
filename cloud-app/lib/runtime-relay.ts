@@ -198,6 +198,7 @@ export class RuntimeRelay {
   private cloudSession: { csrf: string } | null = null;
   private bridgeClient: PagesOwnerBridgeClient | null = null;
   private bridgeAuthenticated = false;
+  private authenticationGeneration = 0;
   private cloudSessionDiagnostic: CloudSessionDiagnostic | null = null;
 
   get connected() {
@@ -211,6 +212,7 @@ export class RuntimeRelay {
   get sessionDiagnostic() { return this.cloudSessionDiagnostic; }
 
   async attach() {
+    const generation = ++this.authenticationGeneration;
     this.cloudSession = null;
     this.bridgeAuthenticated = false;
     this.cloudSessionDiagnostic = null;
@@ -221,11 +223,13 @@ export class RuntimeRelay {
         const client = this.bridgeClient ?? new PagesOwnerBridgeClient(bridgeOrigin);
         this.bridgeClient = client;
         const state = await client.attach();
+        if (generation !== this.authenticationGeneration) return null;
         this.bridgeAuthenticated = state === "authenticated";
         if (this.bridgeAuthenticated) return { sessionId: "pages-owner-bridge" };
         this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
         return null;
       } catch {
+        if (generation !== this.authenticationGeneration) return null;
         this.bridgeAuthenticated = false;
         this.cloudSessionDiagnostic = { code: "cloud-session-unreachable" };
         return null;
@@ -233,6 +237,7 @@ export class RuntimeRelay {
     }
     try {
       const { response, value } = await this.httpJson("/api/runtime/session", { credentials: "include", cache: "no-store" }, 10_000);
+      if (generation !== this.authenticationGeneration) return null;
       if (!response.ok || value.authenticated !== true || typeof value.csrf !== "string") {
         this.cloudSessionDiagnostic = sessionDiagnostic(value);
         return null;
@@ -240,14 +245,17 @@ export class RuntimeRelay {
       this.cloudSession = { csrf: value.csrf };
       return { sessionId: "same-origin-cloud" };
     } catch {
+      if (generation !== this.authenticationGeneration) return null;
       this.cloudSessionDiagnostic = { code: "cloud-session-unreachable" };
       return null;
     }
   }
 
   async loginOwnerPin(pin: string) {
+    const generation = ++this.authenticationGeneration;
     if (this.bridgeClient) {
       await this.bridgeClient.login(pin);
+      this.requireAuthenticationGeneration(generation);
       this.bridgeAuthenticated = true;
       this.cloudSessionDiagnostic = null;
       return;
@@ -257,6 +265,7 @@ export class RuntimeRelay {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ownerPin: pin }),
     }, 10_000);
+    this.requireAuthenticationGeneration(generation);
     if (!response.ok) throw relayError(publicCode(value.error));
     const attached = await this.attach();
     if (!attached || !this.cloudSession) throw relayError(this.cloudSessionDiagnostic?.code ?? "cloud-owner-auth-required");
@@ -332,9 +341,14 @@ export class RuntimeRelay {
   }
 
   async uploadArtifact(file: File) {
+    const generation = this.authenticationGeneration;
     if (this.bridgeAuthenticated && this.bridgeClient) {
-      try { return await this.bridgeClient.uploadArtifact(file); }
-      catch (error) { this.handleBridgeError(error); throw error; }
+      try {
+        const result = await this.bridgeClient.uploadArtifact(file);
+        this.requireAuthenticationGeneration(generation);
+        return result;
+      }
+      catch (error) { this.handleBridgeError(error, generation); throw error; }
     }
     if (!this.cloudSession) throw relayError("relay-attachments-local-only");
     const { response, value } = await this.httpJson("/api/runtime/artifacts", {
@@ -349,7 +363,7 @@ export class RuntimeRelay {
       },
       body: file,
     }, 60_000);
-    this.checkCloudAuthentication(response, value);
+    this.checkCloudAuthentication(response, value, generation);
     if (!response.ok) throw relayError(publicCode(value.error));
     if (typeof value.artifactId !== "string" || !/^art-[a-f0-9-]+$/.test(value.artifactId)) throw relayError("cloud-artifact-receipt-invalid");
     return { id: value.artifactId };
@@ -388,10 +402,11 @@ export class RuntimeRelay {
     return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
   }
   async readiness() {
+    const generation = this.authenticationGeneration;
     if (this.bridgeAuthenticated && this.bridgeClient) return this.call<unknown>("readiness", {});
     if (!this.cloudSession) throw relayError("cloud-readiness-unavailable");
     const { response, value } = await this.httpJson("/api/ready", { credentials:"include", cache:"no-store" },10_000);
-    this.checkCloudAuthentication(response,value);
+    this.checkCloudAuthentication(response, value, generation);
     if (!response.ok) throw relayError("cloud-readiness-unavailable");
     return value;
   }
@@ -405,6 +420,7 @@ export class RuntimeRelay {
   }
 
   disconnect() {
+    this.authenticationGeneration++;
     this.http.cancel();
     this.socket?.close(1000, "browser-disconnect");
     this.socket = null;
@@ -425,6 +441,7 @@ export class RuntimeRelay {
   }
 
   async revoke() {
+    this.authenticationGeneration++;
     this.http.cancel();
     if (this.bridgeClient) {
       const bridge = this.bridgeClient;
@@ -458,9 +475,14 @@ export class RuntimeRelay {
   }
 
   private async call<T>(type: string, payload: JsonObject) {
+    const generation = this.authenticationGeneration;
     if (this.bridgeAuthenticated && this.bridgeClient) {
-      try { return await this.bridgeClient.call<T>(type, payload); }
-      catch (error) { this.handleBridgeError(error); throw error; }
+      try {
+        const result = await this.bridgeClient.call<T>(type, payload);
+        this.requireAuthenticationGeneration(generation);
+        return result;
+      }
+      catch (error) { this.handleBridgeError(error, generation); throw error; }
     }
     if (this.cloudSession) {
       const { response, value } = await this.httpJson("/api/runtime/action", {
@@ -469,7 +491,7 @@ export class RuntimeRelay {
           "x-mahoraga-request-nonce": crypto.randomUUID(), "x-mahoraga-request-timestamp": String(Date.now()) },
         body: JSON.stringify({ type, payload }),
       }, 60_000);
-      this.checkCloudAuthentication(response, value);
+      this.checkCloudAuthentication(response, value, generation);
       if (!response.ok) throw relayError(publicCode(value.error));
       return value as T;
     }
@@ -493,8 +515,14 @@ export class RuntimeRelay {
     }, timeoutMs);
   }
 
-  private checkCloudAuthentication(response: Response, value: JsonObject) {
+  private requireAuthenticationGeneration(generation: number) {
+    if (generation !== this.authenticationGeneration) throw relayError("relay-disconnected");
+  }
+
+  private checkCloudAuthentication(response: Response, value: JsonObject, generation: number) {
+    this.requireAuthenticationGeneration(generation);
     if (response.status === 401 || value.error === "cloud-owner-auth-required") {
+      this.authenticationGeneration++;
       this.cloudSession = null;
       this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
       this.notifyDisconnected();
@@ -502,8 +530,10 @@ export class RuntimeRelay {
     }
   }
 
-  private handleBridgeError(error: unknown) {
+  private handleBridgeError(error: unknown, generation: number) {
+    if (generation !== this.authenticationGeneration) return;
     if (error instanceof Error && error.message === "cloud-owner-auth-required") {
+      this.authenticationGeneration++;
       this.bridgeAuthenticated = false;
       this.cloudSessionDiagnostic = { code: "cloud-owner-auth-required" };
       this.notifyDisconnected();

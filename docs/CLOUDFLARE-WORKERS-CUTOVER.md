@@ -133,9 +133,16 @@ following are true for the same exact commit:
 1. Workers build succeeds from `cloud-app/`.
 2. The Workers root page returns HTTP 200 and renders Chat, Control Center,
    Operations, and Connections.
-3. `/api/health` returns HTTP 200 with `deployment.provider` equal to
-   `cloudflare-workers` and the expected exact Git SHA.
-4. The browser establishes the existing encrypted pairing flow to the relay.
+3. For the deployed static candidate, `/api/health.json` returns HTTP 200
+   with the expected exact UI Git SHA and `cloudflare-workers` provider.
+   The authenticated owner gateway independently observes the paired execution
+   runtime's same exact source and readiness. Static build health grants no
+   runtime or execution authority; the static export does not implement the
+   server-only `/api/health` route.
+4. The owner browser establishes the existing authenticated owner bridge or
+   encrypted relay pairing and records a genuine zero-credit answer transaction
+   with persisted task/event/result receipt identifiers. Verify owner controls,
+   disconnect/reconnect and rollback without replaying uncertain mutations.
 5. No raw 4782/4783 listener, local browser debugger, or unauthenticated generic
    proxy is externally reachable; any tunnel is owner-authorized and authenticated.
 6. Zero-Codex / no-paid-fallback policy is unchanged.
@@ -154,6 +161,8 @@ The recommended target is the existing Cloudflare static workspace plus the exis
 The gateway permits precisely the configured Pages and Cloudflare workspace origins in its frame CSP and message listener. Replies stay bound to the requesting validated origin even when requests overlap. Owner Access identity, same-origin gateway mutations, signed runtime binding, and one-use replay protection still govern execution. No wildcard origin, public direct action route, browser token, or paid provider fallback is added.
 
 The workspace publisher consumes successful canonical **Cloudflare deployment and acceptance**, including verified bot-merge handoffs. Scheduled provider-renewal runs cannot authorize UI publication. It pins checkout/build health to that source and rechecks current main before deployment. The candidate receives native `_headers` security policy, the exact gateway frame origin, and noncached health metadata. A bounded receipt verifies Cloudflare route headers, static source, security headers, and the paired runtime's exact source/readiness. It explicitly grants no execution authority.
+
+Automatic publication is a dependent reusable job within the active Cloudflare deployment workflow: `workspace-candidate` requires successful `deploy-accept`. It passes the accepted source SHA to the same-commit reusable publisher, avoiding a separate completion-event handoff and duplicate automatic publishing. The publisher validates the canonical caller workflow on protected main, bounded original verification event, and matching SHA before building. The incumbent deployment job retains its bot-dispatch provenance receipt, exact-main, billing, provider admission, and live acceptance gates. Renewal-only runs skip the publishing dependency; owner-only standalone manual publication stays available. The called workflow has its own concurrency group and keeps read-only GitHub permissions. See [GitHub reusable workflow caller context and limits](https://docs.github.com/en/actions/reference/workflows-and-actions/reusing-workflow-configurations).
 
 Workers Static Assets serves the bundle without a Worker script; static requests and asset storage are free. The stateful runtime and provider remain under their existing independently proved Free billing and admission limits. The owner pause and durable internal schedule remain separate from browser connections.
 
