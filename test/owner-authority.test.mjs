@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { loadManifest, validateManifest } from "../src/config.mjs";
 import {
+  NON_DELEGABLE_OWNER_ROOT_ACTIONS,
+  resolveBotOperationalAuthority,
   resolveEffectiveAuthority,
   validateCapabilityAuthorityScopes,
   validateOwnerAuthorityGrant,
@@ -144,4 +146,140 @@ test("capability authority requires every registered scope and cannot be bypasse
   });
   assert.equal(omitted.authorized, false);
   assert.equal(omitted.reason, "platform-authority-missing");
+});
+
+
+const BOT = Object.freeze({
+  agentId: "mahoraga-builder-bot",
+  ownerApprovalRequired: false,
+  platformAuthorizationRequired: true,
+});
+const AUTHORITY_BINDING = Object.freeze({
+  objectiveDigest: "a".repeat(64),
+  authorityDigest: "b".repeat(64),
+  sourceSha: "c".repeat(40),
+  trustEpoch: "epoch-42",
+  evaluatorFingerprint: "d".repeat(64),
+  costClass: "zero-credit",
+  audience: "owner-only",
+  securityBoundary: "unchanged",
+  validUntil: "2026-10-03T04:00:00.000Z",
+});
+const CURRENT_BINDING = Object.freeze({
+  ...Object.fromEntries(Object.entries(AUTHORITY_BINDING).filter(([key]) => key !== "validUntil")),
+  observedAt: "2026-10-03T03:00:00.000Z",
+});
+
+test("bot receives owner-parity operational authority only through the same scope intersection", () => {
+  const decision = resolveBotOperationalAuthority({
+    grant: grant(),
+    bot: BOT,
+    requestedScope: "deployment.execute",
+    requestedTarget: "prod",
+    platformScopes: ["deployment.execute"],
+    capabilityScopes: ["deployment.execute"],
+    authorityBinding: AUTHORITY_BINDING,
+    currentBinding: CURRENT_BINDING,
+    now: "2026-10-03T03:01:00.000Z",
+  });
+  assert.equal(decision.authorized, true);
+  assert.equal(decision.botId, BOT.agentId);
+  assert.equal(decision.inheritedFrom, "mahoraga-core");
+  assert.equal(decision.driftVerified, true);
+
+  const owner = resolveEffectiveAuthority({
+    grant: grant(),
+    requestedScope: "deployment.execute",
+    requestedTarget: "prod",
+    platformScopes: ["deployment.execute"],
+    capabilityScopes: ["deployment.execute"],
+  });
+  assert.equal(decision.authorized, owner.authorized);
+});
+
+test("bot parity cannot self-expand missing, revoked, or platform-denied authority", () => {
+  const base = {
+    bot: BOT,
+    requestedScope: "deployment.execute",
+    requestedTarget: "prod",
+    authorityBinding: AUTHORITY_BINDING,
+    currentBinding: CURRENT_BINDING,
+    now: "2026-10-03T03:01:00.000Z",
+  };
+  assert.equal(resolveBotOperationalAuthority({
+    ...base,
+    grant: grant({ scopes: ALL_SCOPES.filter((scope) => scope !== "deployment.execute") }),
+    platformScopes: ["deployment.execute"],
+    capabilityScopes: ["deployment.execute"],
+  }).reason, "owner-authority-missing");
+  assert.equal(resolveBotOperationalAuthority({
+    ...base,
+    grant: grant({ revokedScopes: ["deployment.execute"] }),
+    platformScopes: ["deployment.execute"],
+    capabilityScopes: ["deployment.execute"],
+  }).reason, "owner-scope-revoked");
+  assert.equal(resolveBotOperationalAuthority({
+    ...base,
+    grant: grant(),
+    platformScopes: [],
+    capabilityScopes: ["deployment.execute"],
+  }).reason, "platform-authority-missing");
+});
+
+test("bot authority fails closed on source, authority, evaluator, epoch, cost, audience, or security drift", () => {
+  const base = {
+    grant: grant(),
+    bot: BOT,
+    requestedScope: "repo.write",
+    platformScopes: ["repo.write"],
+    capabilityScopes: ["repo.write"],
+    authorityBinding: AUTHORITY_BINDING,
+    now: "2026-10-03T03:01:00.000Z",
+  };
+  const drifts = [
+    { sourceSha: "e".repeat(40) },
+    { authorityDigest: "e".repeat(64) },
+    { evaluatorFingerprint: "e".repeat(64) },
+    { trustEpoch: "epoch-43" },
+    { costClass: "metered" },
+    { audience: "external" },
+    { securityBoundary: "expanded" },
+  ];
+  for (const drift of drifts) {
+    const decision = resolveBotOperationalAuthority({
+      ...base,
+      currentBinding: { ...CURRENT_BINDING, ...drift },
+    });
+    assert.equal(decision.authorized, false);
+    assert.equal(decision.reason, "bot-authority-drift");
+  }
+});
+
+test("bot authority rejects stale or future evidence and keeps owner-root actions non-delegable", () => {
+  const base = {
+    grant: grant(),
+    bot: BOT,
+    requestedScope: "governance.manage",
+    platformScopes: ["governance.manage"],
+    capabilityScopes: ["governance.manage"],
+    authorityBinding: AUTHORITY_BINDING,
+    currentBinding: CURRENT_BINDING,
+  };
+  assert.equal(resolveBotOperationalAuthority({
+    ...base,
+    now: "2026-10-03T04:00:00.001Z",
+  }).reason, "bot-authority-binding-stale");
+  assert.equal(resolveBotOperationalAuthority({
+    ...base,
+    currentBinding: { ...CURRENT_BINDING, observedAt: "2026-10-03T03:02:00.001Z" },
+    now: "2026-10-03T03:01:00.000Z",
+  }).reason, "bot-authority-binding-future");
+
+  for (const ownerRootAction of NON_DELEGABLE_OWNER_ROOT_ACTIONS) {
+    assert.equal(resolveBotOperationalAuthority({
+      ...base,
+      ownerRootAction,
+      now: "2026-10-03T03:01:00.000Z",
+    }).reason, "owner-root-nondelegable");
+  }
 });
