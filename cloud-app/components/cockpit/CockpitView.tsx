@@ -228,7 +228,7 @@ export function CockpitView({
       </header>
 
       <p className="eclipse-readiness-note" role="status">
-        Cloudflare workspace candidate: {CLOUDFLARE_WORKSPACE_CANDIDATE}. Candidate publication and runtime acceptance remain separate; paired status stays unverified until an exact-SHA acceptance receipt binds the published UI and accepted runtime. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
+        Cloudflare workspace candidate: {CLOUDFLARE_WORKSPACE_CANDIDATE}. Exact-main provenance is unverified until an exact-SHA acceptance receipt binds the published UI and accepted runtime. Candidate publication and runtime acceptance remain separate; paired status stays unverified until that receipt is observed. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
       </p>
 
       {healthError && (
