@@ -13,6 +13,12 @@ test("manual exact-head workflow runs deterministic gate and unconditional clean
   assert.match(text, /timeout-minutes: 30/);
   assert.match(text, /permissions:\s*\n\s*contents: read/);
   assert.match(text, /github\.actor == github\.repository_owner/);
+  assert.match(text, /github\.actor == 'github-actions\[bot\]'/);
+  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(text, /inputs\.target_sha == github\.sha/);
+  assert.match(text, /CREATE_AND_RETIRE_DISPOSABLE_WORKERS/);
+  assert.equal((text.match(/node scripts\/verify-exact-head\.mjs/g) ?? []).length, 2);
+  assert.ok(text.indexOf("Recheck bot target before lifecycle mutation") < text.indexOf("cloudflare:lifecycle:run"));
   assert.match(text, /node-version: ['"]?24/);
   assert.match(text, /git rev-parse HEAD/);
   assert.match(text, /check-runs/);
