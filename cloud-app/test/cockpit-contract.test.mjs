@@ -145,4 +145,21 @@ describe("singular control center contract", () => {
     assert.match(cockpit, /Activate through the verified boundary and retain rollback/);
     assert.doesNotMatch(cockpit, /Owner-authorized merge and deployment/);
   });
+
+  it("keeps bot-triggered publication actor-gated, observational, and receipt-bound", () => {
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    const card = readFileSync(join(root, "components/cockpit/BotPushPublicationCard.tsx"), "utf8");
+    const lifecycle = readFileSync(join(root, "..", ".github/workflows/cloudflare-lifecycle-evaluation.yml"), "utf8");
+
+    assert.match(cockpit, /BotPushPublicationCard/);
+    assert.match(card, /Eligible only · observational/);
+    assert.match(card, /github-actions\[bot\]/);
+    assert.match(card, /Owner\/manual pushes remain separately governed/);
+    assert.match(card, /Cloudflare acceptance remains receipt-bound/);
+    assert.match(card, /Railway remains zero-route, zero-influence, zero-fallback, and zero-authority/);
+    assert.match(lifecycle, /github\.event\.workflow_run\.actor\.login == 'github-actions\[bot\]'/);
+    assert.match(lifecycle, /github\.event\.workflow_run\.event == 'push'/);
+    assert.match(lifecycle, /github\.event\.workflow_run\.head_branch == 'main'/);
+    assert.doesNotMatch(card, /traffic authority granted|production cutover complete/i);
+  });
 });

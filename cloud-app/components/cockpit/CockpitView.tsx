@@ -17,6 +17,7 @@ import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
+import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -249,6 +250,7 @@ export function CockpitView({
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
           <LocalAiDevOnlyCard />
+          <BotPushPublicationCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
