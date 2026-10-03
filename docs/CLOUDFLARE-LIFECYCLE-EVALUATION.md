@@ -1,6 +1,6 @@
 # Curious lifecycle evaluation
 
-This manual test creates one clone Worker and one reconstruction Worker in a designated Cloudflare test account. It runs deterministic challenges, retires each Worker, and confirms both script names are absent from the Cloudflare inventory. It requires an exact verified commit SHA and a repository-owner workflow dispatch with `CREATE_AND_RETIRE_DISPOSABLE_WORKERS`.
+This bounded live test creates one clone Worker and one reconstruction Worker in a designated Cloudflare test account. It runs deterministic challenges, retires each Worker, and confirms both script names are absent from the Cloudflare inventory. The repository owner may manually dispatch an exact verified commit SHA with `CREATE_AND_RETIRE_DISPOSABLE_WORKERS`. Bot execution is not authorized by the generic `github-actions[bot]` actor on `workflow_dispatch`. Instead, the bot lane consumes only a successful canonical `Verify Mahoraga` `workflow_run` produced by a protected-`main` push from the repository, and proceeds only when that exact merge changed the bounded lifecycle surface. It revalidates authoritative `main` after checkout and again immediately before lifecycle mutation.
 
 Configure `CLOUDFLARE_API_TOKEN` as a repository secret with scoped Workers Scripts read/write rights on the disposable account. Set `CLOUDFLARE_TEST_ACCOUNT_ID` and `CLOUDFLARE_TEST_SUBDOMAIN` as repository variables. Use a dedicated test account; the controller accepts no caller-selected Worker name or configuration path.
 
