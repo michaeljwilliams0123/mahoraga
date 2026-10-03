@@ -22,6 +22,7 @@ import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
+import { BotAuthorityParityCard } from "./BotAuthorityParityCard";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -212,6 +213,7 @@ export function CommandCockpit({
             <span className="cockpit-pill steel">LINEAGE_409_HOLD</span>
             <span className="cockpit-pill steel">TRANSFORM_PROVENANCE_OBS</span>
             <span className="cockpit-pill steel">BROKER_LEASE_OBS</span>
+            <span className="cockpit-pill steel">BOT_AUTHORITY_PARITY_OBS</span>
             <span className="cockpit-pill steel">METRICS_MANIP_REJECT</span>
             <span className="cockpit-pill steel">DEADLINE_FAIL_CLOSED</span>
             <span className="cockpit-pill steel">LEASE_SCOPE_NARROW</span>
@@ -236,6 +238,7 @@ export function CommandCockpit({
           <TransformationProvenanceCards />
           <BrokerLeaseCards />
           <ExecutionBrokerCard />
+          <BotAuthorityParityCard />
         </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">

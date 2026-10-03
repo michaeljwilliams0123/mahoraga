@@ -16,6 +16,7 @@ import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
+import { BotAuthorityParityCard } from "./BotAuthorityParityCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
@@ -248,6 +249,7 @@ export function CockpitView({
         <div className="eclipse-status-grid">
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
+          <BotAuthorityParityCard />
           <LocalAiDevOnlyCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
