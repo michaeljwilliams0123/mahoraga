@@ -6,15 +6,17 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+const mount = readFileSync(join(root, "components/cockpit/UndiciSecurityBumpCard.tsx"), "utf8");
 const card = readFileSync(join(root, "components/cockpit/BotAuthorityParityCard.tsx"), "utf8");
 
 describe("7.0.0-alpha.2 bot authority parity cockpit", () => {
   it("surfaces drift-guarded bot parity as observational and not traffic authority", () => {
-    assert.match(cockpit, /import \{ BotAuthorityParityCard \} from \"\.\/BotAuthorityParityCard\"/);
-    assert.match(cockpit, /<BotAuthorityParityCard \/>/);
+    assert.match(cockpit, /<UndiciSecurityBumpCard \/>/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
-    assert.match(cockpit, /productName = health\?\.product \?\? \"Mahoraga\"/);
+    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+    assert.match(mount, /import \{ BotAuthorityParityCard \} from "\.\/BotAuthorityParityCard"/);
+    assert.match(mount, /<BotAuthorityParityCard \/>/);
     assert.match(card, /Bot operational parity/);
     assert.match(card, /Drift-guarded \/ not live/);
     assert.match(card, /issue #962/);
