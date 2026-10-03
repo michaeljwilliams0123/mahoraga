@@ -19,6 +19,7 @@ import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
+import { TrustedBotPublicationReceiptCard } from "./TrustedBotPublicationReceiptCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -228,7 +229,7 @@ export function CockpitView({
       </header>
 
       <p className="eclipse-readiness-note" role="status">
-        Cloudflare workspace candidate: {CLOUDFLARE_WORKSPACE_CANDIDATE}. exact-main provenance is unverified until an exact-SHA acceptance receipt binds the published UI and accepted runtime. Candidate publication and runtime acceptance remain separate; paired status stays unverified until that receipt is observed. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
+        Cloudflare workspace candidate: {CLOUDFLARE_WORKSPACE_CANDIDATE}. exact-main provenance is unverified until an exact-SHA acceptance receipt binds the published UI and accepted runtime. Candidate publication and runtime acceptance remain separate; paired status stays unverified until that receipt is observed. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority. Bot workflow-dispatch publication is fail-closed until an immutable Autonomous Integration receipt binds the exact merged SHA and the Verify run ID. Actor identity alone is not publication trust.
       </p>
 
       {healthError && (
@@ -252,6 +253,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
+          <TrustedBotPublicationReceiptCard />
           <PairedWorkspacePublicationCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
