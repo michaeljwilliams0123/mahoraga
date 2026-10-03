@@ -18,7 +18,12 @@ permissions:
 
 jobs:
   lifecycle:
-    if: github.actor == github.repository_owner && inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS'
+    if: >-
+      inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS' &&
+      (github.actor == github.repository_owner ||
+       (github.actor == 'github-actions[bot]' &&
+        github.ref == 'refs/heads/main' &&
+        inputs.target_sha == github.sha))
     environment: cloudflare-lifecycle-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -40,6 +45,12 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Revalidate bot target against current main
+        if: github.actor == 'github-actions[bot]'
+        env:
+          VERIFIED_SHA: ${{ inputs.target_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
       - name: Verify exact checkout
         shell: bash
         env:
@@ -54,6 +65,12 @@ jobs:
           npm run typecheck:lifecycle
           npm run verify:lifecycle-boundary
           npm run test:lifecycle
+      - name: Recheck bot target before lifecycle mutation
+        if: github.actor == 'github-actions[bot]'
+        env:
+          VERIFIED_SHA: ${{ inputs.target_sha }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
       - name: Live lifecycle
         env:
           LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
