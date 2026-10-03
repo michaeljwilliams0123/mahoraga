@@ -11,11 +11,28 @@ export const PAIRED_WORKSPACE_PUBLICATION = {
   windowsProduction: "3.6.0",
 } as const;
 
+const dimensions = [
+  { label: "Product", value: PAIRED_WORKSPACE_PUBLICATION.product },
+  { label: "Build provenance only", value: PAIRED_WORKSPACE_PUBLICATION.buildProvenanceOnly },
+  { label: "Windows production", value: PAIRED_WORKSPACE_PUBLICATION.windowsProduction },
+  { label: "Publication", value: "Candidate bytes only" },
+  { label: "Runtime acceptance", value: "Receipt missing" },
+  { label: "Paired status", value: "Unverified" },
+] as const;
+
 export function PairedWorkspacePublicationCard() {
   return (
     <article className="eclipse-status-card neutral" data-testid="paired-workspace-publication">
       <span>Workspace publication</span>
       <strong>Acceptance receipt required</strong>
+      <dl data-testid="paired-workspace-dimensions">
+        {dimensions.map((row) => (
+          <div key={row.label}>
+            <dt>{row.label}</dt>
+            <dd>{row.value}</dd>
+          </div>
+        ))}
+      </dl>
       <p>
         Candidate publication is not paired acceptance. An owner-triggered publication can place static UI bytes before runtime convergence and acceptance complete, so a published candidate remains unverified until a valid exact-SHA receipt binds the UI source and accepted runtime source. Static readiness grants no execution authority and does not promote the primary host. Pages remains the derived presentation mirror. Product remains Mahoraga. 7.0.0-alpha.2 is build provenance only. Windows production stays 3.6.0. This card does not grant traffic authority, runtime readiness, or production cutover. Railway remains zero-route, zero-influence, zero-fallback, and zero-authority.
       </p>
