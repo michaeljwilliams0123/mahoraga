@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+const continuity = readFileSync(join(root, "components/cockpit/ProviderAdmissionContinuityCard.tsx"), "utf8");
+const routing = readFileSync(join(root, "components/cockpit/ConnectorRoutingCards.tsx"), "utf8");
 const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
 
 describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
@@ -46,19 +48,21 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   });
 
   it("surfaces provider admission continuity across cron gaps as observational only", () => {
-    assert.match(cockpit, /Provider admission continuity/);
-    assert.match(cockpit, /bounded 320-minute watchdog/);
-    assert.match(cockpit, /workflow hard ceiling 330 minutes/);
-    assert.match(cockpit, /inspects canonical runtime admission every 5 minutes/);
-    assert.match(cockpit, /Cron delivery is not continuous readiness/);
-    assert.match(cockpit, /existing 30-minute margin/);
-    assert.match(cockpit, /without redeploying Workers/);
-    assert.match(cockpit, /Fails closed if main advances/);
-    assert.match(cockpit, /actions: read only/);
-    assert.match(cockpit, /No Railway, no Vercel, no paid fallback/);
-    assert.match(cockpit, /Not traffic authority/);
-    assert.match(cockpit, /Product remains Mahoraga/);
-    assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(cockpit, /ConnectorRoutingCards/);
+    assert.match(routing, /ProviderAdmissionContinuityCard/);
+    assert.match(continuity, /Provider admission continuity/);
+    assert.match(continuity, /bounded 320-minute watchdog/);
+    assert.match(continuity, /workflow hard ceiling 330 minutes/);
+    assert.match(continuity, /inspects canonical runtime admission every 5 minutes/);
+    assert.match(continuity, /Cron delivery is not continuous readiness/);
+    assert.match(continuity, /existing 30-minute margin/);
+    assert.match(continuity, /without redeploying Workers/);
+    assert.match(continuity, /Fails closed if main advances/);
+    assert.match(continuity, /actions: read only/);
+    assert.match(continuity, /No Railway, no Vercel, no paid fallback/);
+    assert.match(continuity, /Not traffic authority/);
+    assert.match(continuity, /Product remains Mahoraga/);
+    assert.match(continuity, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
 
