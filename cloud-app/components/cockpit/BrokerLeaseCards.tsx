@@ -1,11 +1,42 @@
 import {
   classifyAttestationMetrics,
+  classifyBrokerObservationWindow,
   classifyCompletionLease,
   classifyExecutionDeadline,
   classifyZeroCreditExhaustion,
   narrowRouteLeaseScope,
   projectBrokerLeaseSurface,
 } from "@/lib/broker-lease-surface";
+
+export type BrokerLeaseObservation = Readonly<{
+  schemaVersion: 1;
+  kind: "broker-lease-observation-v1";
+  receiptId: string;
+  sourceSha: string;
+  verified: true;
+  contradicted?: false;
+  observedAt: string;
+  validUntil: string;
+  metrics?: Readonly<{
+    observedLatencyMs?: unknown;
+    queueDepth?: unknown;
+    reliabilityScore?: unknown;
+  }>;
+  deadlineAt?: unknown;
+  completionLease?: Readonly<{
+    expiresAt: string;
+    completedAtMs: number;
+  }>;
+  routeLeaseScope?: Readonly<{
+    requestedPermission: string;
+    workerAuthorityScopes: readonly string[];
+    requestAuthorityScopes: readonly string[];
+  }>;
+  zeroCredit?: Readonly<{
+    requireZeroCredit: boolean;
+    eligibleZeroCredit: boolean;
+  }>;
+}>;
 
 function Card({
   label,
@@ -27,53 +58,106 @@ function Card({
   );
 }
 
-export function BrokerLeaseCards() {
+function UnobservedCard({ label, reason }: { label: string; reason: string }) {
+  return (
+    <Card
+      label={label}
+      value="UNKNOWN / UNOBSERVED"
+      detail={`${reason} · verified flag alone is insufficient · exact receipt/source binding required · no runtime health or failure is inferred · observational only · no traffic-authority grant`}
+    />
+  );
+}
+
+export function BrokerLeaseCards({
+  observation,
+  expectedSourceSha,
+  nowMs = Date.now(),
+}: {
+  observation?: BrokerLeaseObservation;
+  expectedSourceSha?: string;
+  nowMs?: number;
+} = {}) {
   const surface = projectBrokerLeaseSurface();
-  const metrics = classifyAttestationMetrics({ observedLatencyMs: -1, queueDepth: 1.5, reliabilityScore: 1.01 });
-  const deadline = classifyExecutionDeadline("2026-09-28T21:39:59.000Z", Date.parse("2026-09-28T21:40:00.000Z"));
-  const lease = classifyCompletionLease({
-    expiresAt: "2026-09-28T21:40:00.000Z",
-    completedAtMs: Date.parse("2026-09-28T21:41:01.000Z"),
-  });
-  const scope = narrowRouteLeaseScope({
-    requestedPermission: "read",
-    workerAuthorityScopes: ["repo:mahoraga:read", "cloud:execute"],
-    requestAuthorityScopes: ["repo:mahoraga:read"],
-  });
-  const exhaustion = classifyZeroCreditExhaustion({ requireZeroCredit: true, eligibleZeroCredit: false });
+  const observationWindow = classifyBrokerObservationWindow(observation, nowMs, expectedSourceSha);
+
+  if (!observationWindow.ok || !observation) {
+    const reason = observationWindow.ok ? "broker-observation-unverified" : observationWindow.reason;
+    return (
+      <>
+        <UnobservedCard label="Broker attestation metrics" reason={reason} />
+        <UnobservedCard label="Execution deadline" reason={reason} />
+        <UnobservedCard label="Route-lease scope" reason={reason} />
+        <UnobservedCard label="Mid-provider lease expiry" reason={reason} />
+        <UnobservedCard label="Zero-credit exhaustion" reason={reason} />
+      </>
+    );
+  }
+
+  const metrics = observation.metrics ? classifyAttestationMetrics(observation.metrics) : null;
+  const deadline = observation.deadlineAt !== undefined
+    ? classifyExecutionDeadline(observation.deadlineAt, nowMs)
+    : null;
+  const lease = observation.completionLease
+    ? classifyCompletionLease(observation.completionLease)
+    : null;
+  const scope = observation.routeLeaseScope
+    ? narrowRouteLeaseScope(observation.routeLeaseScope)
+    : null;
+  const exhaustion = observation.zeroCredit
+    ? classifyZeroCreditExhaustion(observation.zeroCredit)
+    : null;
 
   return (
     <>
-      <Card
-        label="Manipulated routing metrics"
-        value={metrics.ok ? "Admitted" : "Rejected / fail-closed"}
-        detail={`${metrics.ok ? "metrics valid" : metrics.reason} · negative latency/queue, non-integer queue depth, and reliability outside [0,1] never rank a route · observational StatusCards and telemetry only`}
-        tone={metrics.ok ? "good" : "warn"}
-      />
-      <Card
-        label="Execution deadline"
-        value={deadline.ok ? "Inside deadline" : "Fail closed"}
-        detail={`${deadline.ok ? "deadline open" : deadline.reason} · already-past deadlineAt cannot select, lease, or hand off · Merge #874 is not live traffic authority`}
-        tone={deadline.ok ? "good" : "warn"}
-      />
-      <Card
-        label="Route-lease scope"
-        value={`${scope.permissionClass} ∩ ${scope.authorityScopes.join(" · ") || "empty"}`}
-        detail="Step permission ∩ worker/request authority · lease cannot widen permissionClass or authorityScopes · BROKER_LEASE_OBS · LEASE_SCOPE_NARROW"
-        tone="neutral"
-      />
-      <Card
-        label="Mid-provider lease expiry"
-        value={lease.ok ? "Lease live" : `HTTP ${lease.httpStatus} ${lease.reason}`}
-        detail={`${surface.leaseExpiryNotHttp200 ? "Not HTTP 200" : "HTTP 200"} · completion/handoff after expiresAt is execution-lease-expired · receipts preserved · no traffic-authority grant`}
-        tone={lease.ok ? "good" : "warn"}
-      />
-      <Card
-        label="Zero-credit exhaustion"
-        value={exhaustion.ok ? "Zero-credit route" : "Closed / no fallthrough"}
-        detail={`${exhaustion.ok ? "zero-credit eligible" : exhaustion.reason} · metered-route fallthrough false · ZERO_CREDIT_NO_FALLTHROUGH · no paid provider route`}
-        tone={exhaustion.ok ? "good" : "warn"}
-      />
+      {metrics ? (
+        <Card
+          label="Broker attestation metrics"
+          value={metrics.ok ? "Observed / valid" : "Rejected / fail-closed"}
+          detail={`${metrics.ok ? "verified broker metrics" : metrics.reason} · receipt ${observation.receiptId} · source ${observation.sourceSha.slice(0, 12)} · invalid observed metrics never rank a route · observational only`}
+          tone={metrics.ok ? "good" : "warn"}
+        />
+      ) : (
+        <UnobservedCard label="Broker attestation metrics" reason="broker-metrics-unobserved" />
+      )}
+      {deadline ? (
+        <Card
+          label="Execution deadline"
+          value={deadline.ok ? "Inside deadline" : "Fail closed"}
+          detail={`${deadline.ok ? "verified deadline open" : deadline.reason} · deadline evidence never grants selection, lease, handoff, or traffic authority`}
+          tone={deadline.ok ? "good" : "warn"}
+        />
+      ) : (
+        <UnobservedCard label="Execution deadline" reason="execution-deadline-unobserved" />
+      )}
+      {scope ? (
+        <Card
+          label="Route-lease scope"
+          value={`${scope.permissionClass} ∩ ${scope.authorityScopes.join(" · ") || "empty"}`}
+          detail="Verified step permission ∩ worker/request authority · lease cannot widen permissionClass or authorityScopes · BROKER_LEASE_OBS · LEASE_SCOPE_NARROW"
+        />
+      ) : (
+        <UnobservedCard label="Route-lease scope" reason="route-lease-scope-unobserved" />
+      )}
+      {lease ? (
+        <Card
+          label="Mid-provider lease expiry"
+          value={lease.ok ? "Lease live" : `HTTP ${lease.httpStatus} ${lease.reason}`}
+          detail={`${surface.leaseExpiryNotHttp200 ? "Expiry is not HTTP 200" : "HTTP 200"} · observed completion after expiresAt fails closed · receipts preserved · no traffic-authority grant`}
+          tone={lease.ok ? "good" : "warn"}
+        />
+      ) : (
+        <UnobservedCard label="Mid-provider lease expiry" reason="completion-lease-unobserved" />
+      )}
+      {exhaustion ? (
+        <Card
+          label="Zero-credit exhaustion"
+          value={exhaustion.ok ? "Zero-credit route observed" : "Closed / no fallthrough"}
+          detail={`${exhaustion.ok ? "verified zero-credit eligible" : exhaustion.reason} · metered-route fallthrough false · ZERO_CREDIT_NO_FALLTHROUGH · no paid provider route`}
+          tone={exhaustion.ok ? "good" : "warn"}
+        />
+      ) : (
+        <UnobservedCard label="Zero-credit exhaustion" reason="zero-credit-state-unobserved" />
+      )}
     </>
   );
 }
