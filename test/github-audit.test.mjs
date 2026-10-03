@@ -15,13 +15,15 @@ test("repository GitHub audit enforces all blocking controls", async () => {
   assert.equal(report.checks.find((check) => check.id === "single-cloud-workspace")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "incumbent-trust-epoch")?.healthy, true);
   assert.equal(report.checks.find((check) => check.id === "live-main-protection-contract")?.healthy, true);
+  assert.equal(report.checks.find((check) => check.id === "bot-authority-parity")?.healthy, true);
 });
 
 test("GitHub audit renders a bounded zero-credit Actions dashboard", async () => {
   const markdown = renderGithubAuditMarkdown(await buildGithubAudit());
   assert.match(markdown, /^## Mahoraga GitHub assurance/m);
-  assert.match(markdown, /\*\*Ready\*\* · 16 controls · 0 blocking failures · 0 advisories/);
+  assert.match(markdown, /\*\*Ready\*\* · 17 controls · 0 blocking failures · 0 advisories/);
   assert.match(markdown, /\| github-action-sha-pinning \| Pass \| blocking \|/);
+  assert.match(markdown, /\| bot-authority-parity \| Pass \| blocking \|/);
   assert.match(markdown, /does not invoke Codex, consume model credits, expose localhost/);
   assert.doesNotMatch(markdown, /[A-Z]:\\Users\\|gh[pousr]_|github_pat_/i);
 });
