@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
 import { validateStructuredOutput } from "./structured-output.ts";
 import { createHash } from "node:crypto";
-type Source = { sourceId: string; text: string; rights: "owner-authorized" | "public-domain" | "permissive-license"; rightsEvidenceDigest: string };
+export type NativeTrainingSource = { sourceId: string; text: string; rights: "owner-authorized" | "public-domain" | "permissive-license"; rightsEvidenceDigest: string };
+type Source = NativeTrainingSource;
 type TrainingInput = { modelId: string; seed: number; epochs: number; learningRate: number; trainingCodeSha: string; training: Source[]; evaluation: Source[] };
 type Manifest = { schemaVersion: 1; modelId: string; architectureVersion: "dense-bigram-softmax-v1"; tokenizerVersion: "unicode-character-v1"; tokenizerDigest: string; trainingDataManifest: string; evaluationDataManifest: string; dataRightsManifest: string; trainingCodeSha: string; trainingConfigurationSha: string; initializationSeed: number; parameterCount: number; trainingTokens: number; optimizer: "sgd-cross-entropy-v1"; learningRateSchedule: "constant"; parentModel: null; trainingRunId: string; evaluationSuite: "disjoint-source-next-token-v1"; knownLimitations: string[]; promotionStatus: "candidate"; rollbackCheckpoint: null; creditCost: 0; productionActivated: false };
 export type NativeCheckpoint = { manifest: Manifest; tokenizer: string[]; weights: number[]; fingerprint: string };
@@ -10,7 +11,7 @@ const hash = (value: unknown): string => createHash("sha256").update(JSON.string
 const digest = (value: unknown): value is string => typeof value === "string" && /^[a-f0-9]{64}$/.test(value);
 const identifier = (value: unknown): value is string => typeof value === "string" && /^[a-z][a-z0-9-]{0,79}$/.test(value);
 function fail(code: string): never { throw new Error(code); }
-function sources(items: Source[]): void {
+export function validateNativeDataSources(items: Source[]): void {
  if (!Array.isArray(items) || items.length < 1 || items.length > 32) fail("foundry-data-invalid");
  const ids = new Set<string>(); let bytes = 0;
  for (const item of items) {
@@ -37,7 +38,7 @@ function loss(weights: number[], dataset: [number, number][], size: number): num
 /** A real trainable next-token baseline, not a transformer, general reasoner, or production route. */
 export function trainNativeSmokeModel(input: TrainingInput) {
  if (!input || Object.keys(input).sort().join(",") !== "epochs,evaluation,learningRate,modelId,seed,training,trainingCodeSha" || !identifier(input.modelId) || !Number.isSafeInteger(input.seed) || input.seed < 1 || input.seed > 0xffffffff || !Number.isSafeInteger(input.epochs) || input.epochs < 1 || input.epochs > 200 || !Number.isFinite(input.learningRate) || input.learningRate <= 0 || input.learningRate > 1 || !/^[a-f0-9]{40}$/.test(input.trainingCodeSha)) fail("foundry-training-config-invalid");
- sources(input.training); sources(input.evaluation);
+ validateNativeDataSources(input.training); validateNativeDataSources(input.evaluation);
  const trainIds = new Set(input.training.map(item => item.sourceId)), trainBytes = new Set(input.training.map(item => hash(item.text)));
  if (input.evaluation.some(item => trainIds.has(item.sourceId) || trainBytes.has(hash(item.text)))) fail("foundry-train-eval-contamination");
  const vocabulary = [...new Set(input.training.flatMap(item => [...item.text]))].sort();
