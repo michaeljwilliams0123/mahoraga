@@ -133,9 +133,16 @@ following are true for the same exact commit:
 1. Workers build succeeds from `cloud-app/`.
 2. The Workers root page returns HTTP 200 and renders Chat, Control Center,
    Operations, and Connections.
-3. `/api/health` returns HTTP 200 with `deployment.provider` equal to
-   `cloudflare-workers` and the expected exact Git SHA.
-4. The browser establishes the existing encrypted pairing flow to the relay.
+3. For the deployed static candidate, `/api/health.json` returns HTTP 200
+   with the expected exact UI Git SHA and `cloudflare-workers` provider.
+   The authenticated owner gateway independently observes the paired execution
+   runtime's same exact source and readiness. Static build health grants no
+   runtime or execution authority; the static export does not implement the
+   server-only `/api/health` route.
+4. The owner browser establishes the existing authenticated owner bridge or
+   encrypted relay pairing and records a genuine zero-credit answer transaction
+   with persisted task/event/result receipt identifiers. Verify owner controls,
+   disconnect/reconnect and rollback without replaying uncertain mutations.
 5. No raw 4782/4783 listener, local browser debugger, or unauthenticated generic
    proxy is externally reachable; any tunnel is owner-authorized and authenticated.
 6. Zero-Codex / no-paid-fallback policy is unchanged.

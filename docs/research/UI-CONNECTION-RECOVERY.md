@@ -9,6 +9,7 @@ Assessed against main `83a0cd39dd0317dbbe5872b1ddd369543ae94d8a`.
 | Failed iframe load remained cached | Failed loads destroy the frame and listener; another attach can create a new frame. Disconnect settles pending loads. |
 | Connection retry reloaded the entire page | Retry rebuilds the connection without clearing the current conversation, composed text, or staged files. It does not replay actions. |
 | Every connection was labeled an encrypted WebSocket | Connections now identifies the authenticated Pages bridge, same-origin session, or encrypted relay actually in use. |
+| Delayed bridge authentication could survive disconnect or overwrite a newer connection | Authentication attempts and responses are bound to the current connection generation. Disconnect/revoke invalidates pending authentication; stale replies and old authentication failures cannot restore or clear a replacement session. Current authentication expiry still clears connected state. |
 
 Timeouts do not prove that server-side work stopped. The UI instructs the owner to inspect work before resubmitting. No automatic mutation retry, provider fallback, credential persistence, new authentication boundary, or Windows activation is introduced.
 
