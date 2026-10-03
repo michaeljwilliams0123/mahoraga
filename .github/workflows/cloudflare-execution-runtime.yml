@@ -13,8 +13,10 @@ permissions:
   contents: read
 
 concurrency:
+  # Deployment publication stays serialized. Scheduled renewal runs replace stale
+  # in-progress/rerun watchdogs so one queued run cannot monopolize the five-minute lane.
   group: mahoraga-cloudflare-execution-runtime-${{ github.event_name == 'schedule' && 'renewal' || 'deploy' }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 jobs:
   deploy-accept:
