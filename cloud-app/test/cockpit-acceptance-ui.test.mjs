@@ -95,4 +95,15 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Vercel status/);
     assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
   });
+
+  it("surfaces verified-main jq publication predicate repair as observational only", () => {
+    assert.match(cockpit, /Verified-main publication predicate/);
+    assert.match(cockpit, /select\(\.name == \$name and \.expired == false\)/);
+    assert.match(cockpit, /jq uses and, not &&/);
+    assert.match(cockpit, /Merged #975/);
+    assert.match(cockpit, /fresh exact-main normalized receipt/);
+    assert.match(cockpit, /Not traffic authority/);
+    assert.match(cockpit, /invalid \{"&&"\} rejected/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
 });
