@@ -5,8 +5,18 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      publication_source_run_id:
+        description: Trusted Autonomous Integration run ID for bot-main publication
+        required: false
+        type: string
+      publication_merged_sha:
+        description: Exact merged main SHA from the trusted integration receipt
+        required: false
+        type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -69,6 +79,111 @@ jobs:
         if: matrix.check_name == 'ubuntu-latest'
         shell: bash
         run: node scripts/github-audit.mjs --format markdown >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Validate trusted autonomous publication source
+        if: >-
+          matrix.check_name == 'ubuntu-latest' &&
+          github.event_name == 'workflow_dispatch' &&
+          (inputs.publication_source_run_id != '' || inputs.publication_merged_sha != '')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_SOURCE_RUN_ID: ${{ inputs.publication_source_run_id }}
+          PUBLICATION_MERGED_SHA: ${{ inputs.publication_merged_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLICATION_SOURCE_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || { echo "::error::Invalid publication source run ID."; exit 1; }
+          [[ "$PUBLICATION_MERGED_SHA" =~ ^[a-f0-9]{40}$ ]] || { echo "::error::Invalid publication merged SHA."; exit 1; }
+          test "$PUBLICATION_MERGED_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/main"
+          current_main="$(gh api "repos/$GITHUB_REPOSITORY/branches/main" --jq '.commit.sha')"
+          test "$current_main" = "$PUBLICATION_MERGED_SHA"
+
+          source_run_json="$RUNNER_TEMP/autonomous-publication-source-run.json"
+          source_status=""
+          for attempt in $(seq 1 30); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_SOURCE_RUN_ID" > "$source_run_json"
+            source_status="$(jq -r '.status // ""' "$source_run_json")"
+            if [ "$source_status" = "completed" ]; then break; fi
+            if [ "$source_status" != "in_progress" ] && [ "$source_status" != "queued" ] && [ "$source_status" != "pending" ]; then
+              echo "::error::Autonomous publication source entered unexpected state: $source_status"
+              exit 1
+            fi
+            sleep 1
+          done
+          jq -e --arg repo "$GITHUB_REPOSITORY" '
+            .name == "Autonomous Integration" and
+            .path == ".github/workflows/autonomous-integration.yml" and
+            .status == "completed" and
+            .conclusion == "success" and
+            .head_repository.full_name == $repo
+          ' "$source_run_json" > /dev/null
+
+          artifacts_json="$RUNNER_TEMP/autonomous-publication-artifacts.json"
+          artifact_name="autonomous-main-publication-$PUBLICATION_MERGED_SHA"
+          artifact_count=0
+          for attempt in $(seq 1 12); do
+            gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_SOURCE_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
+            artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+            if [ "$artifact_count" = "1" ]; then break; fi
+            if [ "$artifact_count" -gt 1 ]; then echo "::error::Ambiguous autonomous publication artifact."; exit 1; fi
+            sleep 1
+          done
+          test "$artifact_count" = "1"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          export ARTIFACT_ID="$artifact_id"
+
+          receipt_zip="$RUNNER_TEMP/autonomous-main-publication.zip"
+          receipt_dir="$RUNNER_TEMP/autonomous-main-publication"
+          mkdir -p "$receipt_dir" state
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$receipt_zip"
+          unzip -p "$receipt_zip" autonomous-main-publication-receipt.json > "$receipt_dir/receipt.json"
+
+          SOURCE_RECEIPT="$receipt_dir/receipt.json" OUTPUT_RECEIPT="state/verified-main-publication.json" node --input-type=module <<'NODE'
+          import { readFile, writeFile } from "node:fs/promises";
+          const receipt = JSON.parse(await readFile(process.env.SOURCE_RECEIPT, "utf8"));
+          const expectedRunId = process.env.PUBLICATION_SOURCE_RUN_ID;
+          const expectedSha = process.env.PUBLICATION_MERGED_SHA;
+          const expectedRepo = process.env.GITHUB_REPOSITORY;
+          if (receipt?.schemaVersion !== 1 || receipt?.kind !== "autonomous-main-publication-v1"
+            || receipt?.repository !== expectedRepo
+            || receipt?.sourceWorkflow !== "Autonomous Integration"
+            || receipt?.sourceWorkflowPath !== ".github/workflows/autonomous-integration.yml"
+            || String(receipt?.sourceRunId ?? "") !== expectedRunId
+            || String(receipt?.verifyRunId ?? "") !== String(process.env.GITHUB_RUN_ID)
+            || !Number.isSafeInteger(receipt?.pullRequest) || receipt.pullRequest < 1
+            || typeof receipt?.candidateHeadSha !== "string" || !/^[a-f0-9]{40}$/.test(receipt.candidateHeadSha)
+            || receipt?.mergedSha !== expectedSha) {
+            throw new Error("trusted-autonomous-publication-receipt-invalid");
+          }
+          const normalized = {
+            schemaVersion: 1,
+            kind: "verified-main-publication-v1",
+            repository: expectedRepo,
+            sourceWorkflow: receipt.sourceWorkflow,
+            sourceWorkflowPath: receipt.sourceWorkflowPath,
+            sourceRunId: expectedRunId,
+            sourceArtifactId: process.env.ARTIFACT_ID,
+            pullRequest: receipt.pullRequest,
+            candidateHeadSha: receipt.candidateHeadSha,
+            mergedSha: expectedSha,
+            verifyRunId: String(process.env.GITHUB_RUN_ID),
+          };
+          await writeFile(process.env.OUTPUT_RECEIPT, JSON.stringify(normalized, null, 2) + "\n");
+          NODE
+
+      - name: Upload trusted verified-main publication receipt
+        if: >-
+          matrix.check_name == 'ubuntu-latest' &&
+          github.event_name == 'workflow_dispatch' &&
+          inputs.publication_source_run_id != '' &&
+          inputs.publication_merged_sha != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: verified-main-publication-${{ github.sha }}
+          path: state/verified-main-publication.json
+          retention-days: 7
+          if-no-files-found: error
 
   # Vercel production deployment is retired. Required repository verification
   # remains Ubuntu + Windows only; historical Vercel references are documentation

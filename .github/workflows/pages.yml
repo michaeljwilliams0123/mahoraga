@@ -11,6 +11,7 @@ on:
     types: [completed]
 
 permissions:
+  actions: read
   contents: read
 
 env:
@@ -38,6 +39,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 15
     permissions:
+      actions: read
       contents: read
     steps:
       - name: Check out current revision
@@ -50,6 +52,30 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Fetch trusted bot publication receipt
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.actor.login == 'github-actions[bot]' &&
+          github.event.workflow_run.event == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLICATION_VERIFY_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          artifacts_json="$RUNNER_TEMP/verified-main-publication-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
+          artifact_name="verified-main-publication-$VERIFIED_SHA"
+          artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+          test "$artifact_count" = "1"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          receipt_zip="$RUNNER_TEMP/verified-main-publication.zip"
+          receipt_path="$RUNNER_TEMP/verified-main-publication.json"
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$receipt_zip"
+          unzip -p "$receipt_zip" verified-main-publication.json > "$receipt_path"
+          echo "VERIFIED_MAIN_PUBLICATION_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
 
       - name: Validate canonical verification publication receipt
         if: github.event_name == 'workflow_run'
@@ -98,6 +124,7 @@ jobs:
     runs-on: ${{ fromJSON(vars.MAHORAGA_PAGES_RUNNER_LABELS || '["ubuntu-latest"]') }}
     timeout-minutes: 10
     permissions:
+      actions: read
       contents: read
       pages: write
       id-token: write
@@ -115,6 +142,30 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "24"
+
+      - name: Fetch trusted bot publication receipt
+        if: >-
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.actor.login == 'github-actions[bot]' &&
+          github.event.workflow_run.event == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          [[ "$PUBLICATION_VERIFY_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          artifacts_json="$RUNNER_TEMP/verified-main-publication-artifacts.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
+          artifact_name="verified-main-publication-$VERIFIED_SHA"
+          artifact_count="$(jq --arg name "$artifact_name" '[.artifacts[] | select(.name == $name && .expired == false)] | length' "$artifacts_json")"
+          test "$artifact_count" = "1"
+          artifact_id="$(jq -r --arg name "$artifact_name" '.artifacts[] | select(.name == $name && .expired == false) | .id' "$artifacts_json")"
+          receipt_zip="$RUNNER_TEMP/verified-main-publication.zip"
+          receipt_path="$RUNNER_TEMP/verified-main-publication.json"
+          gh api -H "Accept: application/vnd.github+json" "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact_id/zip" > "$receipt_zip"
+          unzip -p "$receipt_zip" verified-main-publication.json > "$receipt_path"
+          echo "VERIFIED_MAIN_PUBLICATION_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
 
       - name: Validate canonical verification publication receipt
         if: github.event_name == 'workflow_run'

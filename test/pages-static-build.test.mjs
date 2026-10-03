@@ -198,7 +198,7 @@ test("Pages CI runs cloud-app typecheck and full tests before export", async () 
 
 test("Pages workflow declares the repository-required top-level permission boundary", async () => {
   const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
-  assert.ok(workflow.includes("permissions:\n  contents: read\n"));
+  assert.ok(workflow.includes("permissions:\n  actions: read\n  contents: read\n"));
 });
 
 test("Pages workflow avoids self-hosted cache finalization after artifact upload", async () => {
@@ -213,7 +213,7 @@ test("Pages availability probe explicitly uses Bash on every trusted runner", as
 });
 
 
-test("Pages bot-merge publication pins the verified main source and checks authority before build and publish", async () => {
+test("Pages bot-merge publication requires the trusted Verify artifact before build and publish", async () => {
  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
  assert.match(workflow, /workflow_run:\s*\n\s*workflows: \["Verify Mahoraga"\]/);
  for (const guard of ["conclusion == 'success'", "status == 'completed'", "head_branch == 'main'", "event == 'workflow_dispatch'", "actor.login == 'github-actions[bot]'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'"]) assert.ok(workflow.includes(guard));
@@ -221,9 +221,15 @@ test("Pages bot-merge publication pins the verified main source and checks autho
  assert.match(workflow, /MAHORAGA_GIT_COMMIT_SHA: \$\{\{ env.VERIFIED_SHA \}\}/);
  assert.equal((workflow.match(/ref: \$\{\{ env.VERIFIED_SHA \}\}/g) ?? []).length, 2);
  assert.equal((workflow.match(/run: node scripts\/verified-main-publication.ts/g) ?? []).length, 2);
+ assert.equal((workflow.match(/name:\s*Fetch trusted bot publication receipt/g) ?? []).length, 2);
+ assert.equal((workflow.match(/verified-main-publication-\$VERIFIED_SHA/g) ?? []).length, 2);
  const build = workflow.slice(workflow.indexOf('  build:'), workflow.indexOf('  deploy:'));
  const deploy = workflow.slice(workflow.indexOf('  deploy:'));
+ assert.ok(build.indexOf('Fetch trusted bot publication receipt') < build.indexOf('verified-main-publication.ts'));
+ assert.ok(build.indexOf('verified-main-publication.ts') < build.indexOf('verify-exact-head.mjs'));
  assert.ok(build.indexOf('verify-exact-head.mjs') < build.indexOf('npm ci'));
+ assert.ok(deploy.indexOf('Fetch trusted bot publication receipt') < deploy.indexOf('verified-main-publication.ts'));
+ assert.ok(deploy.indexOf('verified-main-publication.ts') < deploy.indexOf('verify-exact-head.mjs'));
  assert.ok(deploy.indexOf('verify-exact-head.mjs') < deploy.indexOf('actions/deploy-pages'));
  assert.doesNotMatch(workflow, /pull_request_target|secrets\./);
 });
