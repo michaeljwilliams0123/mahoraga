@@ -33,7 +33,8 @@ describe("paired Cloudflare workspace publication UI", () => {
   it("wires the fail-closed publication state into the cockpit", () => {
     assert.match(cockpit, /PairedWorkspacePublicationCard/);
     assert.match(cockpit, /Candidate publication and runtime acceptance remain separate/);
-    assert.match(cockpit, /paired status stays unverified until an exact-SHA acceptance receipt/);
+    assert.match(cockpit, /exact-main provenance is unverified until an exact-SHA acceptance receipt/);
+    assert.match(cockpit, /paired status stays unverified until that receipt is observed/);
     assert.match(cockpit, /\/api\/ready is observational execution\/durable-state evidence only/);
   });
 });
