@@ -19,15 +19,19 @@ describe("paired Cloudflare workspace publication UI", () => {
 
   it("fails closed until an exact-SHA acceptance receipt proves pairing", () => {
     assert.match(card, /data-testid="paired-workspace-publication"/);
-    assert.match(card, /Acceptance receipt required/);
-    assert.match(card, /Candidate publication is not paired acceptance/);
-    assert.match(card, /published candidate remains unverified until a valid exact-SHA receipt/);
+    assert.match(card, /Same-run acceptance gate/);
+    assert.match(card, /workspace-candidate publisher runs only as a dependent job after deploy-accept/);
+    assert.match(card, /exact verified source SHA/);
+    assert.match(card, /Renewal-only and failed acceptance runs cannot publish a UI/);
+    assert.match(card, /Standalone publish remains owner-only recovery/);
+    assert.match(card, /published candidate stays unverified until the owner pairing\/activation transaction is observed/);
     assert.match(card, /Static readiness grants no execution authority/);
     assert.match(card, /does not promote the primary host/);
     assert.match(card, /does not grant traffic authority/);
     assert.match(card, /Railway remains zero-route, zero-influence, zero-fallback, and zero-authority/);
     assert.doesNotMatch(card, /Paired after exact-main acceptance/);
     assert.doesNotMatch(card, /publication is paired/i);
+    assert.doesNotMatch(card, /sourcePr: 959/);
   });
 
   it("wires the fail-closed publication state into the cockpit", () => {
