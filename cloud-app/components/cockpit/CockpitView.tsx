@@ -18,6 +18,7 @@ import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
+import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -227,7 +228,7 @@ export function CockpitView({
       </header>
 
       <p className="eclipse-readiness-note" role="status">
-        Cloudflare workspace: {CLOUDFLARE_WORKSPACE_CANDIDATE} · exact-main provenance is unverified until deployment and acceptance bind to the merged SHA. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
+        Cloudflare workspace candidate: {CLOUDFLARE_WORKSPACE_CANDIDATE}. exact-main provenance is unverified until an exact-SHA acceptance receipt binds the published UI and accepted runtime. Candidate publication and runtime acceptance remain separate; paired status stays unverified until that receipt is observed. /api/ready is observational execution/durable-state evidence only and never grants traffic/domain authority.
       </p>
 
       {healthError && (
@@ -251,6 +252,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
+          <PairedWorkspacePublicationCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
