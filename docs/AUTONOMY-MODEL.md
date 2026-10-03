@@ -12,6 +12,8 @@ effectiveAuthority = ownerGrant ∩ platformGrantedPermissions ∩ registeredCap
 
 All three must agree. Owner intent cannot fabricate GitHub, Microsoft, tenant, connector, or identity permissions that the active platform connection does not possess.
 
+Permanent Mahoraga child bots receive operational parity through this same intersection rather than through an identity shortcut. `resolveBotOperationalAuthority` additionally requires fresh matching objective/authority digests, source SHA, trust epoch, evaluator fingerprint, cost class, audience, and security boundary before a delegated bot action is authoritative. Drift or stale/future evidence fails closed. The owner-sovereignty root remains non-delegable for ownership transfer, permanent recovery removal, destruction of every rollback generation, and root-credential transfer.
+
 ## 1. Self-run
 
 These reversible build-and-propose actions run directly:
