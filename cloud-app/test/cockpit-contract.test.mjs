@@ -162,4 +162,41 @@ describe("singular control center contract", () => {
     assert.match(lifecycle, /github\.event\.workflow_run\.head_branch == 'main'/);
     assert.doesNotMatch(card, /traffic authority granted|production cutover complete/i);
   });
+
+  it("binds rendered Pages frame limits to the canonical Cloudflare frame implementation", async () => {
+    const { PAGES_FRAME_CONTRACT_SURFACE, pagesFrameContractDetail } = await import("../lib/pages-frame-contract-surface.ts");
+    const card = readFileSync(join(root, "components/cockpit/PagesFrameContractCard.tsx"), "utf8");
+    const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    const commandCockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+    const gatewayFrame = readFileSync(join(root, "..", "deploy/cloudflare-owner-gateway/bridge-frame.ts"), "utf8");
+    const bridgeClient = readFileSync(join(root, "lib/pages-owner-bridge-client.ts"), "utf8");
+    const detail = pagesFrameContractDetail();
+
+    assert.equal(PAGES_FRAME_CONTRACT_SURFACE.bodyCapBytes, 32768);
+    assert.equal(PAGES_FRAME_CONTRACT_SURFACE.abortDeadlineMs, 60000);
+    assert.equal(PAGES_FRAME_CONTRACT_SURFACE.trafficAuthority, false);
+    assert.equal(PAGES_FRAME_CONTRACT_SURFACE.replayAllowed, false);
+    assert.deepEqual([...PAGES_FRAME_CONTRACT_SURFACE.actionFields], ["protocolVersion", "requestId", "type", "action", "payload"]);
+
+    assert.match(detail, /32 KiB serialized action-body cap/);
+    assert.match(detail, /60-second abort/);
+    assert.match(detail, /exact action fields: protocolVersion, requestId, type, action, payload/);
+    assert.match(detail, /observational only—not a private owner-browser transaction or traffic authority/);
+
+    assert.match(gatewayFrame, /exact\(value, \[\.\.\.base,"action","payload"\]\)/);
+    assert.match(gatewayFrame, /byteLength > 32768/);
+    assert.match(gatewayFrame, /setTimeout\(\(\) => \{ reject\(new Error\("cloud-request-timeout"\)\); controller\.abort\(\); \}, 60000\)/);
+    assert.match(gatewayFrame, /response\.status === 401 \|\| response\.status === 403/);
+    assert.match(gatewayFrame, /authenticated = false; throw new Error\("cloud-owner-auth-required"\)/);
+    assert.match(gatewayFrame, /WORKSPACE_ORIGINS\.has\(event\.origin\)/);
+    assert.match(gatewayFrame, /event\.source !== window\.parent/);
+    assert.match(bridgeClient, /ACTION_TIMEOUT_MS = 60_000/);
+
+    assert.match(card, /pagesFrameContractDetail\(\)/);
+    assert.match(card, /Source-bound \/ observational/);
+    assert.match(cockpit, /<PagesFrameContractCard \/>/);
+    assert.match(commandCockpit, /PAGES_FRAME_CONTRACT_OBS/);
+    assert.match(commandCockpit, /OWNER_AUTH_REQUIRED_BOUNDED/);
+    assert.doesNotMatch(`${card}\n${detail}`, /traffic authority granted|production cutover complete/i);
+  });
 });
