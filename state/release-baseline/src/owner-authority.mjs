@@ -127,6 +127,112 @@ export function resolveCapabilityAuthority({
   });
 }
 
+
+export const NON_DELEGABLE_OWNER_ROOT_ACTIONS = Object.freeze([
+  "ownership.transfer",
+  "owner-recovery.remove",
+  "rollback-generations.destroy-all",
+  "root-credentials.transfer",
+]);
+
+const BOT_BINDING_FIELDS = Object.freeze([
+  "objectiveDigest", "authorityDigest", "sourceSha", "trustEpoch",
+  "evaluatorFingerprint", "costClass", "audience", "securityBoundary",
+]);
+
+export function resolveBotOperationalAuthority({
+  grant,
+  bot,
+  requestedScope,
+  requestedTarget = null,
+  platformScopes = [],
+  capabilityScopes = [],
+  authorityBinding,
+  currentBinding,
+  ownerRootAction = null,
+  now = new Date().toISOString(),
+} = {}) {
+  const botId = botIdentity(bot);
+  if (ownerRootAction !== null) {
+    if (!NON_DELEGABLE_OWNER_ROOT_ACTIONS.includes(ownerRootAction)) {
+      return botAuthorityDeny("owner-root-action-invalid", requestedScope, requestedTarget, botId);
+    }
+    return botAuthorityDeny("owner-root-nondelegable", requestedScope, requestedTarget, botId);
+  }
+
+  const authority = resolveCapabilityAuthority({
+    grant, requestedScope, requestedTarget, platformScopes, capabilityScopes,
+  });
+  if (!authority.authorized) {
+    return Object.freeze({ ...authority, botId, inheritedFrom: "mahoraga-core", driftVerified: false });
+  }
+
+  const expected = validateBotAuthorityBinding(authorityBinding, { includeValidity: true });
+  const observed = validateBotAuthorityBinding(currentBinding, { includeValidity: false });
+  const nowMs = checkedInstant(now, "Current authority time");
+  const validUntilMs = checkedInstant(expected.validUntil, "Bot authority validity");
+  const observedAtMs = checkedInstant(observed.observedAt, "Bot authority observation time");
+  if (nowMs > validUntilMs) return botAuthorityDeny("bot-authority-binding-stale", requestedScope, requestedTarget, botId);
+  if (observedAtMs > nowMs + 30_000) return botAuthorityDeny("bot-authority-binding-future", requestedScope, requestedTarget, botId);
+  if (observedAtMs > validUntilMs) return botAuthorityDeny("bot-authority-binding-expired-observation", requestedScope, requestedTarget, botId);
+  if (BOT_BINDING_FIELDS.some((field) => expected[field] !== observed[field])) {
+    return botAuthorityDeny("bot-authority-drift", requestedScope, requestedTarget, botId);
+  }
+
+  return Object.freeze({
+    ...authority,
+    botId,
+    inheritedFrom: "mahoraga-core",
+    driftVerified: true,
+  });
+}
+
+function validateBotAuthorityBinding(value, { includeValidity }) {
+  if (!isRecord(value)) fail("Bot authority binding is invalid.");
+  const required = includeValidity ? [...BOT_BINDING_FIELDS, "validUntil"] : [...BOT_BINDING_FIELDS, "observedAt"];
+  if (Object.keys(value).length !== required.length || required.some((field) => !Object.hasOwn(value, field))) fail("Bot authority binding field is invalid.");
+  for (const field of ["objectiveDigest", "authorityDigest", "evaluatorFingerprint"]) {
+    if (typeof value[field] !== "string" || !/^[a-f0-9]{64}$/.test(value[field])) fail(`Bot authority ${field} is invalid.`);
+  }
+  if (typeof value.sourceSha !== "string" || !/^[a-f0-9]{40}$/.test(value.sourceSha)) fail("Bot authority source SHA is invalid.");
+  for (const field of ["trustEpoch", "costClass", "audience", "securityBoundary"]) checkedAuthorityToken(value[field], `Bot authority ${field}`);
+  const timeField = includeValidity ? "validUntil" : "observedAt";
+  checkedInstant(value[timeField], `Bot authority ${timeField}`);
+  return value;
+}
+
+function botIdentity(value) {
+  if (!isRecord(value) || typeof value.agentId !== "string" || !SLUG.test(value.agentId)
+    || value.ownerApprovalRequired !== false || value.platformAuthorizationRequired !== true) {
+    fail("Bot authority boundary is invalid.");
+  }
+  return value.agentId;
+}
+
+function botAuthorityDeny(reason, requestedScope, requestedTarget, botId) {
+  return Object.freeze({
+    authorized: false,
+    reason,
+    requestedScope,
+    requestedTarget,
+    requiredScopes: Object.freeze([]),
+    confirmationRequired: false,
+    botId,
+    inheritedFrom: "mahoraga-core",
+    driftVerified: false,
+  });
+}
+
+function checkedAuthorityToken(value, label) {
+  if (typeof value !== "string" || !/^[a-z0-9][a-z0-9._:-]{0,127}$/.test(value)) fail(`${label} is invalid.`);
+  return value;
+}
+
+function checkedInstant(value, label) {
+  if (typeof value !== "string" || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) fail(`${label} is invalid.`);
+  return Date.parse(value);
+}
+
 function capabilityDeny(reason, requestedScope, requestedTarget, requiredScopes) {
   return Object.freeze({
     authorized: false, reason, requestedScope, requestedTarget,
