@@ -13,3 +13,55 @@ The test corpus is hand-authored alternating synthetic characters with separate 
 Promotion eligibility requires independent evaluator identity/digest, exact evaluated checkpoint, an improved finite held-out loss, incumbent authority agreement and a separate rollback digest. Eligibility does not activate anything. A trusted incumbent must independently verify those assertions and retain the rollback artifact. Production inference route, tokenizer-training scalability, transformer architecture, independent evaluator execution, continual learning and real rollback activation remain future tranches.
 
 Run `node --test test/native-model-foundry.test.ts` for the bounded experiment. The JSON checkpoint manifest contract is in `contracts/checkpoint.schema.json`.
+
+## Native context learning tranche
+
+`src/native-context-model.ts` adds a separately identified native architecture:
+learned character and position embeddings, a last-prefix query with single-head
+scaled dot-product attention, a residual connection, a tanh hidden readout and
+next-token softmax. Analytic backpropagation trains every parameter from seeded
+random initialization with shuffled SGD and gradient-norm clipping. The previous
+bigram experiment and its checkpoint format remain supported. This compact
+architecture is not the full stacked, normalized, multi-head Transformer.
+
+The architecture follows the attention and positional-representation principles
+in [Attention Is All You Need](https://arxiv.org/abs/1706.03762). Its implementation
+and experiment are original TypeScript, use no model download/provider and make
+no frontier-performance claim.
+
+Each source is one fixed-width context followed by a supervised target. Only the
+preceding context enters the network; the final target is excluded from attention.
+The vocabulary comes solely from training sources. Source IDs, content digests,
+and effective tokenized contexts must be disjoint across training/evaluation;
+duplicate effective contexts within a split are rejected too. Rights assertions
+still require independent provenance review. These checks do not prove semantic
+non-contamination or independent evaluator identity.
+
+Bounds are 32 examples per split, 8 KiB per split, 2–8 context characters,
+4–16 embedding dimensions, 4–32 hidden units, 128 vocabulary entries, 200 epochs
+and at most 16,384 parameters. Checkpoints have a separate strict contract in
+`contracts/context-checkpoint.schema.json`; they bind data/rights/configuration
+and code digests, dimensions, seed, optimizer and candidate status. Digests prove
+content integrity, not authentic execution or promotion authority.
+
+Run `npm run foundry:context` from a clean committed checkout. The CLI binds the
+experiment to the actual Git HEAD and emits a bounded JSON receipt. Its three
+predeclared seeds (7, 42, 1337) train on ten hand-authored selective-recall examples
+and evaluate eight unseen context recombinations. Both labels occur equally for
+every final context character: any predictor using only that character has a
+50% accuracy ceiling on this evaluation sample. A qualified receipt requires
+100% held-out accuracy for all three seeds, reduced held-out loss and unchanged
+save/load predictions. The taught recall rule is shared across splits; these are
+new combinations, not new tasks or evidence of general intelligence.
+
+Tests also compare every analytic parameter gradient to finite differences,
+prove identical-seed reproducibility and evaluation-independent weights/vocabulary,
+and reject checkpoint mutation, data overlap, dimension/capacity drift and
+production authority claims. Training/evaluation remains development-only.
+No provider, owner bridge, runtime route, incumbent weights, model promotion,
+execution authority or Windows production is changed.
+
+Next research tranches remain separately testable: independent hidden-task
+evaluation, verified-experience replay with retention tests, neural state/action
+prediction, calibrated uncertainty, adaptive reasoning budgets and eventually
+larger multi-layer architectures. Each requires its own evidence before promotion.
