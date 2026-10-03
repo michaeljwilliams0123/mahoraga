@@ -10,7 +10,7 @@ const DEFAULT_INTERVAL_MS = 5 * 60_000;
 const DEFAULT_DURATION_MS = 320 * 60_000;
 const DEFAULT_RENEWAL_MARGIN_MS = 30 * 60_000;
 const MAX_DURATION_MS = 320 * 60_000;
-const MAX_INTERVAL_MS = 10 * 60_000;
+const MAX_INTERVAL_MS = DEFAULT_INTERVAL_MS;
 
 const integerEnv = (name, fallback, max) => {
   const raw = (process.env[name] ?? "").trim();
@@ -144,6 +144,7 @@ export const runProviderAdmissionWatchdog = async ({
   const intervalMs = integerEnv("WATCHDOG_INTERVAL_MS", DEFAULT_INTERVAL_MS, MAX_INTERVAL_MS);
   const durationMs = integerEnv("WATCHDOG_DURATION_MS", DEFAULT_DURATION_MS, MAX_DURATION_MS);
   const marginMs = integerEnv("RENEWAL_MARGIN_MS", DEFAULT_RENEWAL_MARGIN_MS, DEFAULT_RENEWAL_MARGIN_MS);
+  if (marginMs !== DEFAULT_RENEWAL_MARGIN_MS) throw new Error("provider-watchdog-renewal-margin-immutable");
   const startedAt = nowFn();
   let cycle = 0;
   let renewals = 0;
