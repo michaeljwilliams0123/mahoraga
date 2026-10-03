@@ -19,7 +19,7 @@ test("sovereign scheduler uses heartbeat wakeups around a durable anchored clock
   assert.match(source, /sleep "\$\{wait_seconds\}"/);
   assert.match(source, /duplicate heartbeat suppressed/);
   assert.match(source, /refs\/tags\/\$\{complete_tag\}/);
-  assert.match(source, /concurrency:\s*\n\s*group: sovereign-four-hour-\$\{\{ github\.repository \}\}\s*\n\s*cancel-in-progress: false/);
+  assert.match(source, /concurrency:\s*\n\s*group: sovereign-four-hour-\$\{\{ github\.repository \}\}\s*\n\s*queue: max\s*\n\s*cancel-in-progress: false/);
   assert.doesNotMatch(source, /\bnpm ci\b/);
   assert.match(source, /workflow_dispatch:/);
 });
