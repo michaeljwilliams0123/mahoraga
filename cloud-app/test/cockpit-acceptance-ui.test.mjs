@@ -45,6 +45,23 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Observational \/ fail-closed/);
   });
 
+  it("surfaces provider admission continuity across cron gaps as observational only", () => {
+    assert.match(cockpit, /Provider admission continuity/);
+    assert.match(cockpit, /bounded 320-minute watchdog/);
+    assert.match(cockpit, /workflow hard ceiling 330 minutes/);
+    assert.match(cockpit, /inspects canonical runtime admission every 5 minutes/);
+    assert.match(cockpit, /Cron delivery is not continuous readiness/);
+    assert.match(cockpit, /existing 30-minute margin/);
+    assert.match(cockpit, /without redeploying Workers/);
+    assert.match(cockpit, /Fails closed if main advances/);
+    assert.match(cockpit, /actions: read only/);
+    assert.match(cockpit, /No Railway, no Vercel, no paid fallback/);
+    assert.match(cockpit, /Not traffic authority/);
+    assert.match(cockpit, /Product remains Mahoraga/);
+    assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
+
   it("surfaces the optional Codespaces environment without granting authority", () => {
     assert.match(cockpit, /Codespaces development environment/);
     assert.match(cockpit, /Optional \/ non-authoritative/);
