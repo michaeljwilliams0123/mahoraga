@@ -59,3 +59,110 @@ test('disconnect aborts a pending session read and a late response cannot reconn
  const pending = relay.attach(); relay.disconnect(); finish(Response.json({authenticated:true, csrf:'test-csrf'}));
  assert.equal(await pending, null); assert.equal(relay.connected, false); assert.equal(signal?.aborted, true);
 });
+
+let bridgeFixtureId = 0;
+async function delayedBridge(t: import('node:test').TestContext) {
+ setup(t);
+ const previousWindow = globalThis.window;
+ t.after(() => { if (previousWindow === undefined) Reflect.deleteProperty(globalThis, 'window'); else globalThis.window = previousWindow; });
+ Reflect.set(globalThis, 'window', { location: { origin: 'https://workspace.example' } });
+ process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN = 'https://gateway.example';
+ const bridgeSource = `// fixture ${++bridgeFixtureId}
+ export const attaches = [], logins = [], actions = [];
+ export function validatePublicBridgeOrigin(value) { return value; }
+ export class PagesOwnerBridgeClient {
+  attach() { return new Promise((resolve,reject) => attaches.push({resolve,reject})); }
+  login() { return new Promise((resolve,reject) => logins.push({resolve,reject})); }
+  call() { return new Promise((resolve,reject) => actions.push({resolve,reject})); }
+  async disconnect() {}
+ }`;
+ const fixture = await import(`data:text/javascript,${encodeURIComponent(bridgeSource)}`) as {
+  attaches: Deferred[]; logins: Deferred[]; actions: Deferred[];
+ };
+ const { RuntimeRelay } = await relayModule(bridgeSource);
+ return { relay: new RuntimeRelay(), ...fixture };
+}
+type Deferred = { resolve(value?: unknown): void; reject(error: Error): void };
+
+test('late bridge attach cannot authenticate after owner disconnect', async t => {
+ const { relay, attaches } = await delayedBridge(t);
+ const attaching = relay.attach(); relay.disconnect();
+ attaches[0].resolve('authenticated');
+ assert.equal(await attaching, null);
+ assert.equal(relay.connected, false); assert.equal(relay.transportKind, 'disconnected');
+ assert.equal(relay.sessionDiagnostic, null);
+});
+
+test('late bridge PIN login cannot restore authentication after disconnect or revoke', async t => {
+ const { relay, attaches, logins } = await delayedBridge(t);
+ for (const stop of [() => relay.disconnect(), () => relay.revoke()]) {
+  const attaching = relay.attach(); attaches.at(-1)!.resolve('owner-auth-required'); await attaching;
+  const login = relay.loginOwnerPin('1234');
+  const rejected = assert.rejects(login, /relay-disconnected/);
+  await stop(); logins.at(-1)!.resolve(); await rejected;
+  assert.equal(relay.connected, false); assert.equal(relay.transportKind, 'disconnected');
+ }
+});
+
+test('newer attach wins when an older bridge status reply arrives last', async t => {
+ const { relay, attaches } = await delayedBridge(t);
+ const first = relay.attach(); const second = relay.attach();
+ attaches[1].resolve('authenticated'); assert.ok(await second);
+ attaches[0].resolve('owner-auth-required'); assert.equal(await first, null);
+ assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
+ relay.disconnect();
+});
+
+test('a delayed old bridge authentication error cannot disconnect the replacement session', async t => {
+ const { relay, attaches, actions } = await delayedBridge(t);
+ const first = relay.attach(); attaches[0].resolve('authenticated'); await first;
+ const action = relay.readiness(); const rejected = assert.rejects(action, /cloud-owner-auth-required/);
+ relay.disconnect();
+ const second = relay.attach(); attaches[1].resolve('authenticated'); await second;
+ actions[0].reject(new Error('cloud-owner-auth-required')); await rejected;
+ assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
+ assert.equal(actions.length, 1); // An uncertain operation is never replayed.
+ relay.disconnect();
+});
+
+test('current bridge login authenticates and a current expiry still disconnects it', async t => {
+ const { relay, attaches, logins, actions } = await delayedBridge(t);
+ const attaching = relay.attach(); attaches[0].resolve('owner-auth-required'); await attaching;
+ const login = relay.loginOwnerPin('1234'); logins[0].resolve(); await login;
+ assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
+ const action = relay.readiness(); const rejected = assert.rejects(action, /cloud-owner-auth-required/);
+ actions[0].reject(new Error('cloud-owner-auth-required')); await rejected;
+ assert.equal(relay.connected, false); assert.deepEqual(relay.sessionDiagnostic, {code: 'cloud-owner-auth-required'});
+ relay.disconnect();
+});
+
+test('a late failed bridge attach leaves owner disconnect diagnostics cleared', async t => {
+ const { relay, attaches } = await delayedBridge(t);
+ const attaching = relay.attach(); relay.disconnect();
+ attaches[0].reject(new Error('cloud-session-unreachable'));
+ assert.equal(await attaching, null); assert.equal(relay.sessionDiagnostic, null);
+});
+
+test('an older same-origin attach cannot overwrite the latest session', async t => {
+ setup(t); const requests: Array<(r: Response) => void> = [];
+ globalThis.fetch = async () => new Promise(resolve => requests.push(resolve));
+ const { RuntimeRelay } = await relayModule(); const relay = new RuntimeRelay();
+ const first = relay.attach(); const second = relay.attach();
+ requests[1](Response.json({authenticated: true, csrf: 'new-csrf'})); await second;
+ requests[0](Response.json({authenticated: false}, {status: 401}));
+ assert.equal(await first, null); assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
+ relay.disconnect();
+});
+
+test('an old same-origin action expiry cannot clear a newer authenticated session', async t => {
+ setup(t); let finish: (r: Response) => void = () => {};
+ globalThis.fetch = async input => String(input) === '/api/runtime/session'
+  ? Response.json({authenticated: true, csrf: 'test-csrf'})
+  : new Promise(resolve => { finish = resolve; });
+ const { RuntimeRelay } = await relayModule(); const relay = new RuntimeRelay();
+ await relay.attach(); const action = relay.chat({content: 'hello'});
+ const rejected = assert.rejects(action, /relay-disconnected/);
+ await relay.attach(); finish(Response.json({error: 'cloud-owner-auth-required'}, {status: 401})); await rejected;
+ assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
+ relay.disconnect();
+});
