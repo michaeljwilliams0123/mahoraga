@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-test("manual exact-head workflow runs deterministic gate and unconditional cleanup", () => {
+test("owner manual and verified-main bot lifecycle lanes preserve exact-head and cleanup gates", () => {
   const text = readFileSync(join(process.cwd(), ".github/workflows/cloudflare-lifecycle-evaluation.yml"), "utf8");
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /^\s+(push|pull_request|schedule):/m);
@@ -13,11 +13,21 @@ test("manual exact-head workflow runs deterministic gate and unconditional clean
   assert.match(text, /timeout-minutes: 30/);
   assert.match(text, /permissions:\s*\n\s*contents: read/);
   assert.match(text, /github\.actor == github\.repository_owner/);
-  assert.match(text, /github\.actor == 'github-actions\[bot\]'/);
-  assert.match(text, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(text, /inputs\.target_sha == github\.sha/);
+  assert.match(text, /workflow_run:/);
+  assert.match(text, /workflows:\s*\["Verify Mahoraga"\]/);
+  assert.match(text, /github\.event\.workflow_run\.path == '\.github\/workflows\/verify\.yml'/);
+  assert.match(text, /github\.event\.workflow_run\.status == 'completed'/);
+  assert.match(text, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(text, /github\.event\.workflow_run\.event == 'push'/);
+  assert.match(text, /github\.event\.workflow_run\.head_branch == 'main'/);
+  assert.match(text, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
+  assert.match(text, /github\.event\.workflow_run\.actor\.login == 'github-actions\[bot\]'/);
+  assert.doesNotMatch(text, /github\.event_name == 'workflow_dispatch'[\s\S]{0,300}github\.actor == 'github-actions\[bot\]'/);
   assert.match(text, /CREATE_AND_RETIRE_DISPOSABLE_WORKERS/);
   assert.equal((text.match(/node scripts\/verify-exact-head\.mjs/g) ?? []).length, 2);
+  assert.match(text, /git diff-tree --no-commit-id --name-only/);
+  assert.match(text, /steps\.bot_scope\.outputs\.should_run == 'true'/);
+  assert.ok(text.indexOf("Detect bot lifecycle-relevant change") < text.indexOf("Recheck bot target before lifecycle mutation"));
   assert.ok(text.indexOf("Recheck bot target before lifecycle mutation") < text.indexOf("cloudflare:lifecycle:run"));
   assert.match(text, /node-version: ['"]?24/);
   assert.match(text, /git rev-parse HEAD/);
