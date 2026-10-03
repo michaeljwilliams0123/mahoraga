@@ -11,6 +11,9 @@ on:
         description: Type CREATE_AND_RETIRE_DISPOSABLE_WORKERS
         required: true
         type: string
+  workflow_run:
+    workflows: ["Verify Mahoraga"]
+    types: [completed]
 
 permissions:
   contents: read
@@ -19,16 +22,23 @@ permissions:
 jobs:
   lifecycle:
     if: >-
-      inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS' &&
-      (github.actor == github.repository_owner ||
-       (github.actor == 'github-actions[bot]' &&
-        github.ref == 'refs/heads/main' &&
-        inputs.target_sha == github.sha))
+      (github.event_name == 'workflow_dispatch' &&
+       github.actor == github.repository_owner &&
+       inputs.confirmation == 'CREATE_AND_RETIRE_DISPOSABLE_WORKERS') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.name == 'Verify Mahoraga' &&
+       github.event.workflow_run.path == '.github/workflows/verify.yml' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.actor.login == 'github-actions[bot]')
     environment: cloudflare-lifecycle-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TARGET_SHA: ${{ inputs.target_sha }}
+      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.target_sha }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_TEST_ACCOUNT_ID }}
       CLOUDFLARE_TEST_SUBDOMAIN: ${{ vars.CLOUDFLARE_TEST_SUBDOMAIN }}
@@ -39,19 +49,77 @@ jobs:
           [[ "$TARGET_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          ref: ${{ inputs.target_sha }}
+          ref: ${{ env.TARGET_SHA }}
+          fetch-depth: 2
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '24'
           cache: npm
       - name: Revalidate bot target against current main
-        if: github.actor == 'github-actions[bot]'
+        if: github.event_name == 'workflow_run'
         env:
-          VERIFIED_SHA: ${{ inputs.target_sha }}
+          VERIFIED_SHA: ${{ env.TARGET_SHA }}
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-exact-head.mjs
+      - name: Detect bot lifecycle-relevant change
+        if: github.event_name == 'workflow_run'
+        id: bot_scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          changed="$(git diff-tree --no-commit-id --name-only -r "$TARGET_SHA^" "$TARGET_SHA")"
+          if printf '%s\n' "$changed" | grep -Eq '^(.github/workflows/cloudflare-lifecycle-evaluation\.yml|docs/CLOUDFLARE-LIFECYCLE-EVALUATION\.md|evaluation/curious-lifecycle-fixtures\.ts|deploy/cloudflare-lifecycle-evaluation/|scripts/cloudflare-lifecycle-evaluation\.ts|scripts/lifecycle-dependency-policy\.ts|test/cloudflare-lifecycle[^/]*\.test\.ts|vitest\.lifecycle\.config\.ts)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$TARGET_SHA/check-runs?per_page=100" | TARGET_SHA="$TARGET_SHA" jq -e '
+            [.check_runs[] | select((.name == "Verify (ubuntu-latest)" or .name == "Verify (windows-latest)")
+              and .head_sha == env.TARGET_SHA and .conclusion == "success") | .name] | unique | length == 2'
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm run typecheck:lifecycle
+          npm run verify:lifecycle-boundary
+          npm run test:lifecycle
+      - name: Recheck bot target before lifecycle mutation
+        if: github.event_name == 'workflow_run' && steps.bot_scope.outputs.should_run == 'true'
+        env:
+          VERIFIED_SHA: ${{ env.TARGET_SHA }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/verify-exact-head.mjs
+      - name: Live lifecycle
+        if: github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true'
+        env:
+          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
+        run: npm run cloudflare:lifecycle:run
+      - name: Receipt-bound cleanup and inventory proof
+        if: always() && (github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true')
+        shell: bash
+        env:
+          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
+        run: |
+          if test -f "$LIFECYCLE_RUN_RECORD"; then
+            npm run cloudflare:lifecycle:cleanup
+          fi
+      - name: Upload sanitized receipts
+        if: always() && (github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true')
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: curious-lifecycle-${{ inputs.target_sha }}
+          path: |
+            ${{ runner.temp }}/curious-lifecycle/final-receipt.json
+            ${{ runner.temp }}/curious-lifecycle/orphan-receipt.json
+            ${{ runner.temp }}/curious-lifecycle/cleanup-receipt.json
+          if-no-files-found: ignore
+; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Verify exact checkout
+        if: github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
