@@ -69,7 +69,13 @@ jobs:
         run: |
           set -euo pipefail
           changed="$(git diff-tree --no-commit-id --name-only -r "$TARGET_SHA^" "$TARGET_SHA")"
-          if printf '%s\n' "$changed" | grep -Eq '^(.github/workflows/cloudflare-lifecycle-evaluation\.yml|docs/CLOUDFLARE-LIFECYCLE-EVALUATION\.md|evaluation/curious-lifecycle-fixtures\.ts|deploy/cloudflare-lifecycle-evaluation/|scripts/cloudflare-lifecycle-evaluation\.ts|scripts/lifecycle-dependency-policy\.ts|test/cloudflare-lifecycle[^/]*\.test\.ts|vitest\.lifecycle\.config\.ts)
+          if printf '%s\n' "$changed" | grep -Eq '^(evaluation/curious-lifecycle-fixtures\.ts|deploy/cloudflare-lifecycle-evaluation/.+|scripts/cloudflare-lifecycle-evaluation\.ts|scripts/lifecycle-dependency-policy\.ts|vitest\.lifecycle\.config\.ts)$'; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify exact checkout
+        if: github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -107,56 +113,7 @@ jobs:
         if: always() && (github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true')
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: curious-lifecycle-${{ inputs.target_sha }}
-          path: |
-            ${{ runner.temp }}/curious-lifecycle/final-receipt.json
-            ${{ runner.temp }}/curious-lifecycle/orphan-receipt.json
-            ${{ runner.temp }}/curious-lifecycle/cleanup-receipt.json
-          if-no-files-found: ignore
-; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Verify exact checkout
-        if: github.event_name == 'workflow_dispatch' || steps.bot_scope.outputs.should_run == 'true'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
-          gh api "repos/$GITHUB_REPOSITORY/commits/$TARGET_SHA/check-runs?per_page=100" | TARGET_SHA="$TARGET_SHA" jq -e '
-            [.check_runs[] | select((.name == "Verify (ubuntu-latest)" or .name == "Verify (windows-latest)")
-              and .head_sha == env.TARGET_SHA and .conclusion == "success") | .name] | unique | length == 2'
-          npm ci --ignore-scripts
-          npm run typecheck
-          npm run typecheck:lifecycle
-          npm run verify:lifecycle-boundary
-          npm run test:lifecycle
-      - name: Recheck bot target before lifecycle mutation
-        if: github.actor == 'github-actions[bot]'
-        env:
-          VERIFIED_SHA: ${{ inputs.target_sha }}
-          GITHUB_TOKEN: ${{ github.token }}
-        run: node scripts/verify-exact-head.mjs
-      - name: Live lifecycle
-        env:
-          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
-        run: npm run cloudflare:lifecycle:run
-      - name: Receipt-bound cleanup and inventory proof
-        if: always()
-        shell: bash
-        env:
-          LIFECYCLE_RUN_RECORD: ${{ runner.temp }}/curious-lifecycle/run-record.json
-        run: |
-          if test -f "$LIFECYCLE_RUN_RECORD"; then
-            npm run cloudflare:lifecycle:cleanup
-          fi
-      - name: Upload sanitized receipts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: curious-lifecycle-${{ inputs.target_sha }}
+          name: curious-lifecycle-${{ env.TARGET_SHA }}
           path: |
             ${{ runner.temp }}/curious-lifecycle/final-receipt.json
             ${{ runner.temp }}/curious-lifecycle/orphan-receipt.json
