@@ -19,6 +19,15 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'schedule' }}
 
 jobs:
+  workspace-candidate:
+    name: Publish the paired Cloudflare cockpit
+    needs: deploy-accept
+    if: needs.deploy-accept.result == 'success'
+    uses: ./.github/workflows/cloudflare-workspace-candidate.yml
+    with:
+      verified_sha: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+    secrets: inherit
+
   deploy-accept:
     name: Deploy and accept exact verified main
     if: >-
