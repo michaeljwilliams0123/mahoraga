@@ -10,7 +10,7 @@ export function verifiedMainPublication(value: unknown, expectedSha: string) {
  const run = record(value);
  const actor = record(run.actor).login;
  const permitted = (actor === OWNER && (run.event === 'push' || run.event === 'workflow_dispatch'))
-  || (actor === 'github-actions[bot]' && run.event === 'workflow_dispatch');
+  || (actor === 'github-actions[bot]' && (run.event === 'push' || run.event === 'workflow_dispatch'));
  if (run.name !== 'Verify Mahoraga' || run.path !== '.github/workflows/verify.yml'
   || run.status !== 'completed' || run.conclusion !== 'success' || run.head_branch !== 'main'
   || record(run.head_repository).full_name !== REPOSITORY || !permitted
