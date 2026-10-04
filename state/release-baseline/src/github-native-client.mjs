@@ -55,6 +55,62 @@ export async function readMahoragaRepositoryViaGithubApp(_request = {}, options 
   });
 }
 
+export async function mergeMahoragaPullRequestViaGithubApp(proposal, options = {}) {
+  const normalized = normalizeMergeProposal(proposal);
+  const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });
+  const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
+  const pullRequest = await request("GET", repoPath(`pulls/${normalized.number}`));
+  if (pullRequest?.state !== "open" || pullRequest?.draft !== false
+    || pullRequest?.head?.sha !== normalized.expectedHeadSha
+    || pullRequest?.base?.ref !== "main" || pullRequest?.base?.sha !== normalized.expectedMainSha) {
+    fail("github-native-merge-readback-mismatch", 409);
+  }
+  const baseRef = await request("GET", repoPath("git/ref/heads/main"));
+  const baseSha = sha(baseRef?.object?.sha, "github-native-base-response-invalid");
+  if (baseSha !== normalized.expectedMainSha) fail("github-native-main-moved", 409);
+  const merged = await request("PUT", repoPath(`pulls/${normalized.number}/merge`), {
+    sha: normalized.expectedHeadSha,
+    merge_method: "squash",
+    commit_title: normalized.commitTitle,
+  });
+  if (merged?.merged !== true) fail("github-native-merge-rejected", 409);
+  const mergeSha = sha(merged?.sha, "github-native-merge-response-invalid");
+  const finalRef = await request("GET", repoPath("git/ref/heads/main"));
+  if (sha(finalRef?.object?.sha, "github-native-main-readback-invalid") !== mergeSha) fail("github-native-main-readback-mismatch", 502);
+  return Object.freeze({
+    provider: "github-app", repository: `${OWNER}/${REPO}`, number: normalized.number, merged: true, mergeMethod: "squash",
+    head: Object.freeze({ ref: pullRequest.head.ref, sha: normalized.expectedHeadSha }),
+    base: Object.freeze({ ref: "main", sha: baseSha }), main: Object.freeze({ ref: "main", sha: mergeSha }),
+  });
+}
+
+export async function createMahoragaDirectMainCommitViaGithubApp(proposal, options = {}) {
+  const normalized = normalizeDirectMainProposal(proposal);
+  const token = await mintInstallationToken(options, { contents: "write", metadata: "read" });
+  const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
+  const baseRef = await request("GET", repoPath("git/ref/heads/main"));
+  const baseSha = sha(baseRef?.object?.sha, "github-native-base-response-invalid");
+  if (baseSha !== normalized.expectedMainSha) fail("github-native-main-moved", 409);
+  const baseCommit = await request("GET", repoPath(`git/commits/${baseSha}`));
+  const entries = [];
+  for (const file of normalized.files) {
+    const blob = await request("POST", repoPath("git/blobs"), { content: bytesToBase64(new TextEncoder().encode(file.content)), encoding: "base64" });
+    entries.push({ path: file.path, mode: "100644", type: "blob", sha: sha(blob?.sha, "github-native-write-response-invalid") });
+  }
+  const tree = await request("POST", repoPath("git/trees"), { base_tree: sha(baseCommit?.tree?.sha, "github-native-base-response-invalid"), tree: entries });
+  const commit = await request("POST", repoPath("git/commits"), {
+    message: normalized.commitMessage, tree: sha(tree?.sha, "github-native-write-response-invalid"), parents: [baseSha],
+  });
+  const commitSha = sha(commit?.sha, "github-native-write-response-invalid");
+  await request("PATCH", repoPath("git/refs/heads/main"), { sha: commitSha, force: false });
+  const finalRef = await request("GET", repoPath("git/ref/heads/main"));
+  if (sha(finalRef?.object?.sha, "github-native-main-readback-invalid") !== commitSha) fail("github-native-main-readback-mismatch", 502);
+  return Object.freeze({
+    provider: "github-app", repository: `${OWNER}/${REPO}`, directMain: true,
+    previous: Object.freeze({ ref: "main", sha: baseSha }), main: Object.freeze({ ref: "main", sha: commitSha }),
+  });
+}
+
 export async function createMahoragaPullRequestViaGithubApp(proposal, options = {}) {
   const normalized = normalizeProposal(proposal);
   const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });
@@ -164,6 +220,27 @@ function normalizeProposal(value) {
   });
   if (bytes > MAX_BYTES) fail("github-native-proposal-content-too-large", 413);
   return Object.freeze({ expectedMainSha, branch, title, body, commitMessage, files: Object.freeze(files) });
+}
+
+function normalizeMergeProposal(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("github-native-merge-proposal-invalid", 422);
+  return Object.freeze({
+    number: positiveInteger(value.number, "github-native-merge-number-invalid"),
+    expectedMainSha: sha(value.expectedMainSha, "github-native-proposal-base-invalid"),
+    expectedHeadSha: sha(value.expectedHeadSha, "github-native-merge-head-invalid"),
+    commitTitle: bounded(value.commitTitle, 1, 200, "github-native-merge-title-invalid"),
+  });
+}
+
+function normalizeDirectMainProposal(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("github-native-direct-main-proposal-invalid", 422);
+  const normalized = normalizeProposal({
+    ...value,
+    branch: "mahoraga/direct-main-validation",
+    title: "Direct main validation",
+    body: "Direct main validation",
+  });
+  return Object.freeze({ expectedMainSha: normalized.expectedMainSha, commitMessage: normalized.commitMessage, files: normalized.files });
 }
 
 function sensitive(path, content) {

@@ -9,6 +9,8 @@ export const ALLOWED_CLOUD_RUNTIME_ACTIONS = new Set([
   "task-action",
   "native-github-repository",
   "native-github-pull-request",
+  "native-github-merge",
+  "native-github-main-write",
   "operations-snapshot",
   "operations-action",
 ] as const);

@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createGithubAppJwt,
+  createMahoragaDirectMainCommitViaGithubApp,
   createMahoragaPullRequestViaGithubApp,
   githubAppConfigured,
+  mergeMahoragaPullRequestViaGithubApp,
   readMahoragaRepositoryViaGithubApp,
 } from "../src/github-native-client.mjs";
 
@@ -171,6 +173,77 @@ test("native PR creation compensates a moved base by closing its PR and deleting
     ["PATCH", "https://api.github.com/repos/michaeljwilliams0123/mahoraga/pulls/1045"],
     ["DELETE", "https://api.github.com/repos/michaeljwilliams0123/mahoraga/git/refs/heads/mahoraga%2Frace"],
   ]);
+});
+
+test("native PR merge requires exact ready head and returns the merged main receipt", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const MERGE_SHA = "f".repeat(40);
+  const responses = [
+    json({ token: "installation-token", expires_at: "2026-10-04T15:00:00Z" }, 201),
+    json({ number: 1046, state: "open", draft: false, head: { ref: "mahoraga/ready", sha: COMMIT_SHA }, base: { ref: "main", sha: BASE_SHA } }),
+    json({ object: { sha: BASE_SHA } }),
+    json({ merged: true, sha: MERGE_SHA, message: "Pull Request successfully merged" }),
+    json({ object: { sha: MERGE_SHA } }),
+  ];
+  const receipt = await mergeMahoragaPullRequestViaGithubApp({
+    number: 1046,
+    expectedMainSha: BASE_SHA,
+    expectedHeadSha: COMMIT_SHA,
+    commitTitle: "Merge native GitHub operator canary",
+  }, {
+    env,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return responses.shift();
+    },
+  });
+  assert.deepEqual(requests[3].body, { sha: COMMIT_SHA, merge_method: "squash", commit_title: "Merge native GitHub operator canary" });
+  assert.deepEqual(receipt, {
+    provider: "github-app",
+    repository: "michaeljwilliams0123/mahoraga",
+    number: 1046,
+    merged: true,
+    mergeMethod: "squash",
+    head: { ref: "mahoraga/ready", sha: COMMIT_SHA },
+    base: { ref: "main", sha: BASE_SHA },
+    main: { ref: "main", sha: MERGE_SHA },
+  });
+});
+
+test("native direct-main write requires the exact current main SHA and verifies the new ref", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const responses = [
+    json({ token: "installation-token", expires_at: "2026-10-04T15:00:00Z" }, 201),
+    json({ object: { sha: BASE_SHA } }),
+    json({ tree: { sha: TREE_SHA } }),
+    json({ sha: "c".repeat(40) }, 201),
+    json({ sha: "d".repeat(40) }, 201),
+    json({ sha: COMMIT_SHA }, 201),
+    json({ ref: "refs/heads/main", object: { sha: COMMIT_SHA } }),
+    json({ ref: "refs/heads/main", object: { sha: COMMIT_SHA } }),
+  ];
+  const receipt = await createMahoragaDirectMainCommitViaGithubApp({
+    expectedMainSha: BASE_SHA,
+    commitMessage: "Record native direct-main canary",
+    files: [{ path: "docs/direct-main-canary.md", content: "verified\n" }],
+  }, {
+    env,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      return responses.shift();
+    },
+  });
+  assert.equal(requests[4].body.base_tree, TREE_SHA);
+  assert.deepEqual(requests[6].body, { sha: COMMIT_SHA, force: false });
+  assert.deepEqual(receipt, {
+    provider: "github-app",
+    repository: "michaeljwilliams0123/mahoraga",
+    directMain: true,
+    previous: { ref: "main", sha: BASE_SHA },
+    main: { ref: "main", sha: COMMIT_SHA },
+  });
 });
 
 test("native GitHub App configuration fails closed when any credential component is absent", async () => {

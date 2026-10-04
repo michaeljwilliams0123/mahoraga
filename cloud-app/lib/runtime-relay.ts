@@ -107,6 +107,34 @@ export type RuntimeGithubAppPullRequestReceipt = {
   head: { ref: string; sha: string };
   base: { ref: "main"; sha: string };
 };
+export type RuntimeGithubAppMergeProposal = {
+  number: number;
+  expectedMainSha: string;
+  expectedHeadSha: string;
+  commitTitle: string;
+};
+export type RuntimeGithubAppMergeReceipt = {
+  provider: "github-app";
+  repository: "michaeljwilliams0123/mahoraga";
+  number: number;
+  merged: true;
+  mergeMethod: "squash";
+  head: { ref: string; sha: string };
+  base: { ref: "main"; sha: string };
+  main: { ref: "main"; sha: string };
+};
+export type RuntimeGithubAppDirectMainProposal = {
+  expectedMainSha: string;
+  commitMessage: string;
+  files: Array<{ path: string; content: string }>;
+};
+export type RuntimeGithubAppDirectMainReceipt = {
+  provider: "github-app";
+  repository: "michaeljwilliams0123/mahoraga";
+  directMain: true;
+  previous: { ref: "main"; sha: string };
+  main: { ref: "main"; sha: string };
+};
 export type RuntimeTask = {
   id: string;
   conversationId: string;
@@ -420,6 +448,12 @@ export class RuntimeRelay {
   }
   async nativeGithubPullRequest(proposal: RuntimeGithubAppPullRequestProposal) {
     return this.call<RuntimeGithubAppPullRequestReceipt>("native-github-pull-request", { ...proposal });
+  }
+  async nativeGithubMerge(proposal: RuntimeGithubAppMergeProposal) {
+    return this.call<RuntimeGithubAppMergeReceipt>("native-github-merge", { ...proposal });
+  }
+  async nativeGithubMainWrite(proposal: RuntimeGithubAppDirectMainProposal) {
+    return this.call<RuntimeGithubAppDirectMainReceipt>("native-github-main-write", { ...proposal });
   }
   async readiness() {
     const generation = this.authenticationGeneration;
