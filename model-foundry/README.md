@@ -65,3 +65,58 @@ Next research tranches remain separately testable: independent hidden-task
 evaluation, verified-experience replay with retention tests, neural state/action
 prediction, calibrated uncertainty, adaptive reasoning budgets and eventually
 larger multi-layer architectures. Each requires its own evidence before promotion.
+
+## Candidate continuation and replay
+
+`continueNativeContextModel(parent, input)` resumes training from a copy of the
+parent's actual weights. It never mutates the parent. The original v1 checkpoint
+format and seeded initialization remain unchanged; continuations use the separate
+v2 `contracts/context-continuation.schema.json` manifest. A continuation binds its
+exact parent and rollback digest, root digest, generation, original initialization
+seed, new shuffle seed, current corpora, source SHA and accumulated source history.
+The parent training/evaluation corpora must match their recorded manifests.
+
+The tokenizer and dimensions are pinned to the parent. Vocabulary growth requires
+a future versioned expansion path. Historical evaluation IDs, content and effective
+contexts stay reserved across every generation. Replaying an earlier training
+source requires its exact content, rights and evidence metadata; renamed replay,
+changed labels and rebound rights are rejected. History contains digests/rights
+references, not raw text. Bounds remain 32 examples per training/update split,
+8 KiB per split and 200 epochs per update; lineage is capped at 16 generations
+and 512 reserved sources per history split. Digests do not authenticate rights,
+training execution, ancestry supplied by an untrusted caller or a verifier.
+Rollback pointers require separately retaining the actual parent artifact.
+
+`qualifyNativeContextUpdate` recomputes real losses and predictions from both
+checkpoints. It requires the complete earlier held-out suite (all reserved examples
+for a v2 parent), exact current adaptation corpus, unchanged tokenizer/dimensions,
+exact parent/rollback lineage, no unknown evaluation tokens, no old-task accuracy
+regression, bounded retention-loss growth, perfect current-task accuracy and a
+declared minimum loss reduction. It returns a same-process research qualification,
+never independent evaluator authority or model promotion.
+
+Replay follows the principle of mixing earlier training examples with new examples,
+as studied in [Experience Replay for Continual Learning](https://arxiv.org/abs/1811.11682).
+This is an original supervised SGD experiment, not an implementation of that paper's
+reinforcement-learning/CLEAR system.
+
+Run `npm run foundry:continual` from a clean committed checkout. The CLI binds the
+actual Git HEAD, fixes seeds 7/42/1337 and uses the existing 510-parameter architecture.
+Phase one learns recall with labels a/b on ten training/eight held-out examples.
+Phase two adds labels c/d on eight new training/four held-out examples, using
+100 epochs and learning rate 0.08 in each phase. The recall rule is shared: this
+tests class-incremental learning, not new reasoning rules or general intelligence.
+The development-selected experiment measures a replay candidate and the same
+parent trained without replay. With replay, all three seeds learn the added labels
+while retaining the earlier task; without replay the earlier task is forgotten
+and qualification is held even though the new task succeeds.
+
+The receipt also preserves a harder conditional copy/invert rule stress test.
+That test remains short of full correctness under this fixed configuration and
+is held by the accuracy gate. Capacity/epoch probes during development did not
+establish reliable qualification of the harder rule. Do not hide this limitation
+or reinterpret class growth as unseen-rule reasoning. Independent hidden tasks,
+authenticated live-experience ingestion, durable model registry, learned world
+transitions and incumbent-governed production promotion remain separate work.
+The CLI emits counts, scores and hashes, with no corpus text, rights evidence
+contents, weights, provider calls or authority changes. Windows stays `3.6.0`.
