@@ -90,6 +90,24 @@ export type RuntimeComposioRepositoryProbe = {
     permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean; triage: boolean };
   };
 };
+export type RuntimeComposioPullRequestProposal = {
+  expectedMainSha: string;
+  branch: string;
+  title: string;
+  body: string;
+  commitMessage: string;
+  files: Array<{ path: string; content: string }>;
+};
+export type RuntimeComposioPullRequestReceipt = {
+  provider: "composio";
+  repository: "michaeljwilliams0123/mahoraga";
+  number: number;
+  url: string;
+  state: "open" | "unknown";
+  draft: true;
+  head: { ref: string; sha: string };
+  base: { ref: "main"; sha: string };
+};
 export type RuntimeTask = {
   id: string;
   conversationId: string;
@@ -400,6 +418,9 @@ export class RuntimeRelay {
   }
   async composioGithubRepository(owner: string, repo: string) {
     return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
+  }
+  async composioGithubPullRequest(proposal: RuntimeComposioPullRequestProposal) {
+    return this.call<RuntimeComposioPullRequestReceipt>("composio-github-pull-request", { ...proposal });
   }
   async readiness() {
     const generation = this.authenticationGeneration;

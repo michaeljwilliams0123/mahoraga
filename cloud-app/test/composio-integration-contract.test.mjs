@@ -14,9 +14,12 @@ test("cloud workspace exposes the bounded Composio GitHub probe through the owne
   ]);
   assert.match(routeText, /dispatchCloudRuntimeAction/);
   assert.match(actionText, /"composio-github-repository"/);
+  assert.match(actionText, /"composio-github-pull-request"/);
   assert.match(actionText, /ALLOWED_CLOUD_RUNTIME_ACTIONS/);
   assert.match(relayText, /composioGithubRepository\(owner: string, repo: string\)/);
   assert.match(relayText, /this\.call<RuntimeComposioRepositoryProbe>\("composio-github-repository"/);
+  assert.match(relayText, /composioGithubPullRequest\(proposal: RuntimeComposioPullRequestProposal\)/);
+  assert.match(relayText, /this\.call<RuntimeComposioPullRequestReceipt>\("composio-github-pull-request"/);
   assert.match(viewText, /Probe Composio GitHub/);
   assert.match(viewText, /GitHub write authority observed; probe remains read-only/);
   assert.match(workspaceText, /relay=\{pairedRelay\}/);

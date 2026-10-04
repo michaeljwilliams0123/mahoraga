@@ -8,6 +8,7 @@ export const ALLOWED_CLOUD_RUNTIME_ACTIONS = new Set([
   "message-content",
   "task-action",
   "composio-github-repository",
+  "composio-github-pull-request",
   "operations-snapshot",
   "operations-action",
 ] as const);
