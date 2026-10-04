@@ -74,7 +74,8 @@
     "typecheck:execution-broker": "tsc --noEmit -p deploy/cloudflare-execution-broker/tsconfig.json",
     "cloudflare:execution-broker:deploy": "npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-execution-broker/wrangler.jsonc",
     "cloudflare:execution-broker:deployments": "npx --yes wrangler@4.136.1 deployments list --config deploy/cloudflare-execution-broker/wrangler.jsonc",
-    "foundry:context": "node scripts/native-context-experiment.ts"
+    "foundry:context": "node scripts/native-context-experiment.ts",
+    "foundry:continual": "node scripts/native-continual-experiment.ts"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",

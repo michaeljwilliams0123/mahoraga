@@ -10,18 +10,25 @@ export type NativeContextTrainingInput = {
  training: NativeTrainingSource[]; evaluation: NativeTrainingSource[];
 };
 type Configuration = Pick<NativeContextTrainingInput, 'seed' | 'epochs' | 'learningRate' | 'contextLength' | 'embeddingSize' | 'hiddenSize'>;
+type SourceReference = {sourceId: string; contentDigest: string; contextDigest: string; rights: NativeTrainingSource['rights']; rightsEvidenceDigest: string};
+export type NativeContextContinuationInput = Pick<NativeContextTrainingInput, 'modelId' | 'seed' | 'epochs' | 'learningRate' | 'trainingCodeSha' | 'training' | 'evaluation'> & {
+ parentData: {training: NativeTrainingSource[]; evaluation: NativeTrainingSource[]};
+};
 type Manifest = Configuration & {
- schemaVersion: 1; modelId: string; architectureVersion: 'single-head-causal-context-v1'; tokenizerVersion: 'unicode-character-v1';
+ schemaVersion: 1 | 2; modelId: string; architectureVersion: 'single-head-causal-context-v1'; tokenizerVersion: 'unicode-character-v1';
  tokenizerDigest: string; trainingDataManifest: string; evaluationDataManifest: string; dataRightsManifest: string;
  trainingCodeSha: string; trainingConfigurationSha: string; initializationSeed: number; parameterCount: number;
  trainingTokens: number; trainingExamples: number; evaluationExamples: number;
- optimizer: 'sgd-cross-entropy-clipped-v1'; learningRateSchedule: 'constant'; parentModel: null; trainingRunId: string;
+ optimizer: 'sgd-cross-entropy-clipped-v1'; learningRateSchedule: 'constant'; parentModel: string | null; trainingRunId: string;
  evaluationSuite: 'disjoint-context-last-token-v1'; knownLimitations: string[]; promotionStatus: 'candidate';
- rollbackCheckpoint: null; creditCost: 0; productionActivated: false;
+ rollbackCheckpoint: string | null; creditCost: 0; productionActivated: false;
+ generation?: number; rootCheckpoint?: string; trainingHistory?: SourceReference[]; evaluationHistory?: SourceReference[];
 };
 export type NativeContextCheckpoint = { manifest: Manifest; tokenizer: string[]; weights: number[]; fingerprint: string };
 const schema = JSON.parse(readFileSync(new URL('../model-foundry/contracts/context-checkpoint.schema.json', import.meta.url), 'utf8'));
+const continuationSchema = JSON.parse(readFileSync(new URL('../model-foundry/contracts/context-continuation.schema.json', import.meta.url), 'utf8'));
 const hash = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const dataManifest = (sources: NativeTrainingSource[]) => hash(sources.map(({ text, ...metadata }) => ({ ...metadata, contentDigest: hash(text) })));
 const isDigest = (value: unknown) => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const identifier = (value: unknown) => typeof value === 'string' && /^[a-z][a-z0-9-]{0,79}$/.test(value);
 function fail(code: string): never { throw new Error(code); }
@@ -100,7 +107,49 @@ function gradient(weights: number[], ids: number[], target: number, vocabulary: 
 function encode(tokenizer: string[], text: string) { return [...text].map(token => Math.max(0, tokenizer.indexOf(token))); }
 function freeze<T>(value: T): T { if (value && typeof value === 'object') { Object.freeze(value); Object.values(value).forEach(freeze); } return value; }
 
-export function trainNativeContextModel(input: NativeContextTrainingInput) {
+export function trainNativeContextModel(input: NativeContextTrainingInput) { return trainContext(input, null); }
+
+/** Warm-start a copied candidate; no registry mutation, authority or activation. Parent corpora bind prior history. */
+export function continueNativeContextModel(parent: NativeContextCheckpoint, input: NativeContextContinuationInput) {
+ const checked = loadNativeContextCheckpoint(JSON.stringify(parent)), m = checked.manifest;
+ if (!input || Object.keys(input).sort().join(',') !== 'epochs,evaluation,learningRate,modelId,parentData,seed,training,trainingCodeSha'
+  || !input.parentData || Object.keys(input.parentData).sort().join(',') !== 'evaluation,training') fail('context-continuation-input-invalid');
+ validateNativeDataSources(input.parentData.training); validateNativeDataSources(input.parentData.evaluation);
+ if (dataManifest(input.parentData.training) !== m.trainingDataManifest || dataManifest(input.parentData.evaluation) !== m.evaluationDataManifest) fail('context-parent-data-mismatch');
+ if ((m.generation ?? 0) >= 16) fail('context-lineage-budget-exceeded');
+ const references = (sources: NativeTrainingSource[]) => sources.map(s => sourceReference(s, checked.tokenizer));
+ const history = {training: m.trainingHistory ?? references(input.parentData.training), evaluation: m.evaluationHistory ?? references(input.parentData.evaluation)};
+ if (m.schemaVersion === 2 && [...references(input.parentData.training).map(s => ({s,items:history.training})),
+  ...references(input.parentData.evaluation).map(s => ({s,items:history.evaluation}))].some(({s,items}) => !items.some(prior => sameReference(prior,s)))) fail('context-parent-history-mismatch');
+ return trainContext({modelId:input.modelId, seed:input.seed, epochs:input.epochs, learningRate:input.learningRate, trainingCodeSha:input.trainingCodeSha,
+  training:input.training, evaluation:input.evaluation, contextLength:m.contextLength, embeddingSize:m.embeddingSize, hiddenSize:m.hiddenSize}, checked, history);
+}
+function sourceReference(source: NativeTrainingSource, tokenizer: string[]): SourceReference {
+ return {sourceId:source.sourceId, contentDigest:hash(source.text), contextDigest:hash(encode(tokenizer, source.text).slice(0,-1)), rights:source.rights, rightsEvidenceDigest:source.rightsEvidenceDigest};
+}
+function mergeHistory(previous: SourceReference[], current: SourceReference[]): SourceReference[] {
+ const byId = new Map(previous.map(s => [s.sourceId,s]));
+ for (const source of current) {
+  const prior = byId.get(source.sourceId);
+  if (prior ? !sameReference(prior,source) : [...byId.values()].some(s => s.contextDigest === source.contextDigest || s.contentDigest === source.contentDigest)) fail('context-historical-source-rewrite');
+  byId.set(source.sourceId,source);
+ }
+ if (byId.size > 512) fail('context-lineage-budget-exceeded');
+ return [...byId.values()].sort((a,b) => a.sourceId < b.sourceId ? -1 : a.sourceId > b.sourceId ? 1 : 0);
+}
+function sameReference(a: SourceReference,b: SourceReference) { return a.sourceId===b.sourceId && a.contentDigest===b.contentDigest && a.contextDigest===b.contextDigest && a.rights===b.rights && a.rightsEvidenceDigest===b.rightsEvidenceDigest; }
+function validateHistory(training: SourceReference[], evaluation: SourceReference[]) {
+ const valid = (items: SourceReference[]) => Array.isArray(items) && items.length >= 1 && items.length <= 512
+  && items.every(s => s && Object.keys(s).sort().join(',') === 'contentDigest,contextDigest,rights,rightsEvidenceDigest,sourceId'
+   && identifier(s.sourceId) && [s.contentDigest,s.contextDigest,s.rightsEvidenceDigest].every(isDigest)
+   && ['owner-authorized','public-domain','permissive-license'].includes(s.rights))
+  && new Set(items.map(s => s.sourceId)).size === items.length && new Set(items.map(s => s.contextDigest)).size === items.length
+  && items.every((s,i) => i === 0 || items[i-1]!.sourceId < s.sourceId);
+ if (!valid(training) || !valid(evaluation)) fail('context-lineage-invalid');
+ const ids = new Set(training.map(s => s.sourceId)), bytes = new Set(training.map(s => s.contentDigest)), contexts = new Set(training.map(s => s.contextDigest));
+ if (evaluation.some(s => ids.has(s.sourceId) || bytes.has(s.contentDigest) || contexts.has(s.contextDigest))) fail('context-historical-evaluation-contamination');
+}
+function trainContext(input: NativeContextTrainingInput, parent: NativeContextCheckpoint | null, history?: {training:SourceReference[];evaluation:SourceReference[]}) {
  if (!input || Object.keys(input).sort().join(',') !== 'contextLength,embeddingSize,epochs,evaluation,hiddenSize,learningRate,modelId,seed,training,trainingCodeSha'
   || !identifier(input.modelId) || !/^[a-f0-9]{40}$/.test(input.trainingCodeSha)) fail('context-training-config-invalid');
  const config = configuration(input);
@@ -110,19 +159,25 @@ export function trainNativeContextModel(input: NativeContextTrainingInput) {
  if ([...input.training, ...input.evaluation].some(s => [...s.text].length !== config.contextLength + 1)) fail('context-data-width-invalid');
  const tokens = [...new Set(input.training.flatMap(s => [...s.text]))].sort();
  if (tokens.length > 127) fail('context-tokenizer-capacity');
- const tokenizer = ['<unk>', ...tokens], vocabulary = tokenizer.length;
+ const tokenizer = parent ? [...parent.tokenizer] : ['<unk>', ...tokens], vocabulary = tokenizer.length;
+ if (parent && input.training.some(s => [...s.text].some(token => !tokenizer.includes(token)))) fail('context-continuation-vocabulary-growth');
  const dataset = (sources: NativeTrainingSource[]) => sources.map(s => { const ids = encode(tokenizer, s.text); return { context: ids.slice(0, -1), target: ids.at(-1)! }; });
  const training = dataset(input.training), evaluation = dataset(input.evaluation);
  const trainContexts = new Set(training.map(s => hash(s.context))), evalContexts = new Set(evaluation.map(s => hash(s.context)));
  if (trainContexts.size !== training.length || evalContexts.size !== evaluation.length || evaluation.some(s => trainContexts.has(hash(s.context)))) fail('context-effective-input-contamination');
+ const lineage = history ? {training:mergeHistory(history.training,input.training.map(s => sourceReference(s,tokenizer))),
+  evaluation:mergeHistory(history.evaluation,input.evaluation.map(s => sourceReference(s,tokenizer)))} : null;
+ if (lineage) validateHistory(lineage.training,lineage.evaluation);
  const o = layout(vocabulary, config); let state = config.seed >>> 0;
  const random = () => { state ^= state << 13; state ^= state >>> 17; state ^= state << 5; return (state >>> 0) / 4294967296; };
- const weights = Array<number>(o.count).fill(0);
+ const weights = parent ? [...parent.weights] : Array<number>(o.count).fill(0);
  const initialize = (start: number, end: number, scale: number) => { for (let i = start; i < end; i++) weights[i] = (random() * 2 - 1) * scale; };
- initialize(o.embedding, o.query, 0.5);
- initialize(o.query, o.hidden, Math.sqrt(3 / config.embeddingSize));
- initialize(o.hidden, o.hiddenBias, Math.sqrt(6 / (config.hiddenSize + config.embeddingSize)));
- initialize(o.output, o.outputBias, Math.sqrt(6 / (config.hiddenSize + vocabulary)));
+ if (!parent) {
+  initialize(o.embedding, o.query, 0.5);
+  initialize(o.query, o.hidden, Math.sqrt(3 / config.embeddingSize));
+  initialize(o.hidden, o.hiddenBias, Math.sqrt(6 / (config.hiddenSize + config.embeddingSize)));
+  initialize(o.output, o.outputBias, Math.sqrt(6 / (config.hiddenSize + vocabulary)));
+ }
  const measure = (samples: typeof training) => samples.reduce((sum, sample) => sum + lossValue(forward(weights, sample.context, vocabulary, config).logits, sample.target), 0) / samples.length;
  const trainingBefore = measure(training), heldoutBefore = measure(evaluation);
  for (let epoch = 0; epoch < config.epochs; epoch++) {
@@ -136,16 +191,17 @@ export function trainNativeContextModel(input: NativeContextTrainingInput) {
   }
  }
  if (weights.some(n => !Number.isFinite(n) || Math.abs(n) > 100)) fail('context-training-nonfinite');
- const dataManifest = (sources: NativeTrainingSource[]) => hash(sources.map(({ text, ...metadata }) => ({ ...metadata, contentDigest: hash(text) })));
- const manifest: Manifest = { ...config, schemaVersion: 1, modelId: input.modelId, architectureVersion: 'single-head-causal-context-v1', tokenizerVersion: 'unicode-character-v1',
+ const manifest: Manifest = { ...config, schemaVersion: parent ? 2 : 1, modelId: input.modelId, architectureVersion: 'single-head-causal-context-v1', tokenizerVersion: 'unicode-character-v1',
   tokenizerDigest: hash(tokenizer), trainingDataManifest: dataManifest(input.training), evaluationDataManifest: dataManifest(input.evaluation),
   dataRightsManifest: hash([...input.training, ...input.evaluation].map(({sourceId, rights, rightsEvidenceDigest}) => ({sourceId, rights, rightsEvidenceDigest}))),
-  trainingCodeSha: input.trainingCodeSha, trainingConfigurationSha: hash(config), initializationSeed: config.seed, parameterCount: weights.length,
+  trainingCodeSha: input.trainingCodeSha, trainingConfigurationSha: hash(config), initializationSeed: parent?.manifest.initializationSeed ?? config.seed, parameterCount: weights.length,
   trainingTokens: training.length * config.contextLength, trainingExamples: training.length, evaluationExamples: evaluation.length,
-  optimizer: 'sgd-cross-entropy-clipped-v1', learningRateSchedule: 'constant', parentModel: null,
-  trainingRunId: hash({modelId: input.modelId, config, training: dataManifest(input.training), evaluation: dataManifest(input.evaluation), code: input.trainingCodeSha}),
+  optimizer: 'sgd-cross-entropy-clipped-v1', learningRateSchedule: 'constant', parentModel: parent?.fingerprint ?? null,
+  trainingRunId: hash({modelId: input.modelId, config, training: dataManifest(input.training), evaluation: dataManifest(input.evaluation), code: input.trainingCodeSha, ...(parent ? {parent:parent.fingerprint} : {})}),
   evaluationSuite: 'disjoint-context-last-token-v1', knownLimitations: ['single query and attention head', 'last-token supervision only', 'bounded synthetic context experiment', 'no general reasoning qualification', 'digests do not authenticate rights or evaluator'],
-  promotionStatus: 'candidate', rollbackCheckpoint: null, creditCost: 0, productionActivated: false };
+  promotionStatus: 'candidate', rollbackCheckpoint: parent?.fingerprint ?? null, creditCost: 0, productionActivated: false,
+  ...(parent && lineage ? {generation:(parent.manifest.generation ?? 0)+1, rootCheckpoint:parent.manifest.rootCheckpoint ?? parent.fingerprint,
+   trainingHistory:lineage.training,evaluationHistory:lineage.evaluation} : {}) };
  const core = { manifest, tokenizer, weights };
  const checkpoint = loadNativeContextCheckpoint(JSON.stringify({...core, fingerprint: hash(core)}));
  return freeze({ checkpoint, metrics: {trainingBefore, trainingAfter: measure(training), heldoutBefore, heldoutAfter: measure(evaluation),
@@ -157,9 +213,9 @@ export function loadNativeContextCheckpoint(serialized: string): NativeContextCh
  let raw: NativeContextCheckpoint;
  try { raw = JSON.parse(serialized); } catch { fail('context-checkpoint-invalid'); }
  if (!raw || Object.keys(raw).sort().join(',') !== 'fingerprint,manifest,tokenizer,weights' || !raw.manifest) fail('context-checkpoint-invalid');
- try { validateStructuredOutput(raw.manifest, schema); } catch { fail('context-checkpoint-manifest-invalid'); }
+ try { validateStructuredOutput(raw.manifest, raw.manifest.schemaVersion === 2 ? continuationSchema : schema); } catch { fail('context-checkpoint-manifest-invalid'); }
  const m = raw.manifest, config = configuration(m);
- if (!identifier(m.modelId) || !/^[a-f0-9]{40}$/.test(m.trainingCodeSha) || m.initializationSeed !== config.seed
+ if (!identifier(m.modelId) || !/^[a-f0-9]{40}$/.test(m.trainingCodeSha) || !Number.isSafeInteger(m.initializationSeed) || m.initializationSeed < 1 || m.initializationSeed > 0xffffffff || (m.schemaVersion === 1 && m.initializationSeed !== config.seed)
   || m.trainingConfigurationSha !== hash(config) || ![m.tokenizerDigest,m.trainingDataManifest,m.evaluationDataManifest,m.dataRightsManifest,m.trainingRunId].every(isDigest)
   || !Array.isArray(raw.tokenizer) || raw.tokenizer.length < 2 || raw.tokenizer.length > 128 || raw.tokenizer[0] !== '<unk>'
   || raw.tokenizer.slice(1).some(t => typeof t !== 'string' || [...t].length !== 1) || new Set(raw.tokenizer).size !== raw.tokenizer.length
@@ -167,6 +223,13 @@ export function loadNativeContextCheckpoint(serialized: string): NativeContextCh
   || !Array.isArray(raw.weights) || raw.weights.length !== layout(raw.tokenizer.length, config).count || m.parameterCount !== raw.weights.length
   || raw.weights.some(n => typeof n !== 'number' || !Number.isFinite(n) || Math.abs(n) > 100)
   || m.trainingTokens !== m.trainingExamples * m.contextLength) fail('context-checkpoint-invalid');
+ if (m.schemaVersion === 2) {
+  if (!isDigest(m.parentModel) || m.parentModel !== m.rollbackCheckpoint || !isDigest(m.rootCheckpoint)
+   || !Number.isSafeInteger(m.generation) || m.generation! < 1 || m.generation! > 16
+   || (m.generation === 1 && m.rootCheckpoint !== m.parentModel) || !m.trainingHistory || !m.evaluationHistory
+   || m.trainingHistory.length < m.trainingExamples || m.evaluationHistory.length < m.evaluationExamples) fail('context-lineage-invalid');
+  validateHistory(m.trainingHistory,m.evaluationHistory);
+ }
  const { fingerprint, ...core } = raw;
  if (!isDigest(fingerprint) || fingerprint !== hash(core)) fail('context-checkpoint-integrity');
  return freeze(raw);
@@ -187,4 +250,16 @@ export function nativeContextLossGradient(checkpoint: NativeContextCheckpoint, c
  const {checked, ids} = checkedInput(checkpoint, context);
  if (typeof target !== 'string' || [...target].length !== 1) fail('context-target-invalid');
  return freeze(gradient(checked.weights, ids, encode(checked.tokenizer, target)[0]!, checked.tokenizer.length, checked.manifest));
+}
+/** Bounded offline measurement. Source/rights digests and scores do not grant independent evaluator authority. */
+export function evaluateNativeContextModel(checkpoint: NativeContextCheckpoint, sources: NativeTrainingSource[]) {
+ const checked = loadNativeContextCheckpoint(JSON.stringify(checkpoint)); validateNativeDataSources(sources);
+ if (sources.some(s => [...s.text].length !== checked.manifest.contextLength + 1)) fail('context-data-width-invalid');
+ let loss = 0, correct = 0, unknownTokens = 0;
+ for (const source of sources) {
+  const ids = encode(checked.tokenizer,source.text), target = ids.at(-1)!, f = forward(checked.weights,ids.slice(0,-1),checked.tokenizer.length,checked.manifest);
+  loss += lossValue(f.logits,target); correct += Number(f.probabilities.indexOf(Math.max(...f.probabilities)) === target); unknownTokens += ids.filter(id => id === 0).length;
+ }
+ return freeze({loss:loss / sources.length, accuracy:correct / sources.length, unknownTokens, examples:sources.length, checkpointDigest:checked.fingerprint, dataManifest:dataManifest(sources),
+  creditCost:0, productionActivated:false, executionAuthorityGranted:false});
 }
