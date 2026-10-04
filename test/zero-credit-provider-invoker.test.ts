@@ -252,6 +252,32 @@ test("GitHub source authority is distinguished from direct repository tool avail
   assert.doesNotMatch(result.response ?? "", /^I am not connected to GitHub\.?$/i);
 });
 
+test("repository setup guidance names the executable broker boundary instead of invented runtime flags", async () => {
+  let calls = 0;
+  const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(providerEnvelope("Enable repository flags in the Cloudflare Control Edge.")); };
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "Tell me step by step what I need to do to enable repository inspection and writing." }],
+    runtimeContext: {
+      capabilities: {
+        "assistant.respond": "routable",
+        "repository.inspect": "unavailable",
+        "repository.write": "unavailable",
+      },
+      receipts: [],
+      connectionState: "connected",
+    },
+  }, fetchImpl) as { response?: string };
+
+  assert.equal(calls, 0);
+  assert.match(result.response ?? "", /repository\.inspect is unavailable/i);
+  assert.match(result.response ?? "", /repository\.write is unavailable/i);
+  assert.match(result.response ?? "", /executable repository provider/i);
+  assert.match(result.response ?? "", /fresh capability attestation/i);
+  assert.match(result.response ?? "", /execution broker/i);
+  assert.match(result.response ?? "", /server-side/i);
+  assert.doesNotMatch(result.response ?? "", /enable.*runtime flags|likely has the appropriate integrations/i);
+});
+
 test("a permissioned repository connector remains usable when codex execution is unavailable", async () => {
   let calls = 0;
   const fetchImpl: typeof fetch = async () => { calls += 1; return Response.json(providerEnvelope("should-not-run")); };

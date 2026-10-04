@@ -27,6 +27,7 @@ export const DEFAULT_BROWSER_RUNTIME_CONTEXT: ProviderRuntimeContext = Object.fr
     "image.generate": "unavailable",
     "memory.write": "unavailable",
     "repository.inspect": "unavailable",
+    "repository.write": "unavailable",
   }),
   receipts: Object.freeze([]) as unknown as string[],
   connectionState: "connected",
@@ -197,6 +198,10 @@ const runtimeTruthAnswer = (
   if (/\b(?:agentic|generative|predictive|level 6|level six)\b/i.test(message) && /\b(?:capabilit(?:y|ies)|can you|are you|level 6|level six)\b/i.test(message)) {
     const state = (capability: string) => runtimeContext.capabilities[capability] === "routable" ? "routable" : "unavailable";
     return `In this browser runtime: generative assistant.respond is ${state("assistant.respond")}; agentic decision loop cognitive.cycle is ${state("cognitive.cycle")}; external action codex.execute is ${state("codex.execute")}; predictive cognitive.predict is ${state("cognitive.predict")}; collective cognitive.deliberate is ${state("cognitive.deliberate")}. cognitive.cycle emits a receipt and does not execute its proposed action. Other repository components may exist without being callable from this turn. Collective advantage is not measured; it requires held-out comparative receipts. I cannot claim an AGI level from route availability.`;
+  }
+  if (/\b(?:github|repository|repo)\b/i.test(message) && /\b(?:enable|configure|setup|set up|fix|step by step|inspection|writing)\b/i.test(message)) {
+    const state = (capability: string) => runtimeContext.capabilities[capability] === "routable" ? "routable" : "unavailable";
+    return `Direct capability status: repository.inspect is ${state("repository.inspect")}; repository.write is ${state("repository.write")}. These are not UI or runtime flags. Each capability becomes routable only when an executable repository provider is connected to the Cloudflare execution broker and supplies a fresh capability attestation that is healthy and has the required permission class. Keep GitHub credentials server-side in that provider, preserve protected-branch checks, and verify the resulting route plus a bounded real transaction. Cloudflare Access may authenticate the owner request, but it does not itself grant GitHub execution capability.`;
   }
   if (/\b(?:github|repository|repo)\b/i.test(message) && /\b(?:connected|connection|connect|relationship|access)\b/i.test(message)) {
     const directState = runtimeContext.capabilities["repository.inspect"] === "routable"
