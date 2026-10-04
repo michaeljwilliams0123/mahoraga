@@ -16,7 +16,7 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -264,6 +264,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     }
     if (input?.type === "native-github-pull-request") {
       try { return json(await createMahoragaPullRequestViaGithubApp(payload, { env: this.env })); }
+      catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
+    }
+    if (input?.type === "native-github-merge") {
+      try { return json(await mergeMahoragaPullRequestViaGithubApp(payload, { env: this.env })); }
+      catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
+    }
+    if (input?.type === "native-github-main-write") {
+      try { return json(await createMahoragaDirectMainCommitViaGithubApp(payload, { env: this.env })); }
       catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
     }
     if (input?.type === "execute") {
