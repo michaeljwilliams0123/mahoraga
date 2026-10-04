@@ -79,9 +79,8 @@ export type RuntimeDeliveryTruth = {
   observedAt?: string | null;
   reason?: string | null;
 };
-export type RuntimeComposioRepositoryProbe = {
-  provider: "composio";
-  tool: "GITHUB_GET_A_REPOSITORY";
+export type RuntimeGithubAppRepositoryProbe = {
+  provider: "github-app";
   repository: {
     fullName: string | null;
     private: boolean;
@@ -90,7 +89,7 @@ export type RuntimeComposioRepositoryProbe = {
     permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean; triage: boolean };
   };
 };
-export type RuntimeComposioPullRequestProposal = {
+export type RuntimeGithubAppPullRequestProposal = {
   expectedMainSha: string;
   branch: string;
   title: string;
@@ -98,8 +97,8 @@ export type RuntimeComposioPullRequestProposal = {
   commitMessage: string;
   files: Array<{ path: string; content: string }>;
 };
-export type RuntimeComposioPullRequestReceipt = {
-  provider: "composio";
+export type RuntimeGithubAppPullRequestReceipt = {
+  provider: "github-app";
   repository: "michaeljwilliams0123/mahoraga";
   number: number;
   url: string;
@@ -416,11 +415,11 @@ export class RuntimeRelay {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
     return Array.isArray(value.capabilities) ? value.capabilities : [];
   }
-  async composioGithubRepository(owner: string, repo: string) {
-    return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
+  async nativeGithubRepository() {
+    return this.call<RuntimeGithubAppRepositoryProbe>("native-github-repository", {});
   }
-  async composioGithubPullRequest(proposal: RuntimeComposioPullRequestProposal) {
-    return this.call<RuntimeComposioPullRequestReceipt>("composio-github-pull-request", { ...proposal });
+  async nativeGithubPullRequest(proposal: RuntimeGithubAppPullRequestProposal) {
+    return this.call<RuntimeGithubAppPullRequestReceipt>("native-github-pull-request", { ...proposal });
   }
   async readiness() {
     const generation = this.authenticationGeneration;

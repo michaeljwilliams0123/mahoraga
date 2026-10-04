@@ -1,5 +1,5 @@
 export type ConnectorCapability = "repository.inspect" | "repository.write" | "cloud.inspect" | "cloud.execute" | "integration.execute";
-export type ConnectorProvider = "github" | "cloudflare" | "composio";
+export type ConnectorProvider = "github" | "cloudflare" | "integration";
 export type ConnectorPermissionClass = "read" | "write" | "execute";
 
 type ConnectorGrant = {
@@ -42,7 +42,7 @@ const REQUIRED_PERMISSION: Readonly<Record<ConnectorCapability, ConnectorPermiss
 const PROVIDER_CAPABILITIES = Object.freeze({
   github: Object.freeze(["repository.inspect", "repository.write"]),
   cloudflare: Object.freeze(["cloud.inspect", "cloud.execute"]),
-  composio: Object.freeze(["repository.inspect", "repository.write", "cloud.inspect", "cloud.execute", "integration.execute"]),
+  integration: Object.freeze(["integration.execute"]),
 } satisfies Record<ConnectorProvider, readonly ConnectorCapability[]>);
 
 export type ConnectorBrokerBinding = { fetch(request: Request): Promise<Response> };

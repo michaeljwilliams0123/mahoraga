@@ -30,7 +30,7 @@ function bindingProviderNames(env: BrokerEnv): Set<string> {
   const providers = new Set<string>();
   if (env.REPOSITORY_PROVIDER) providers.add("github");
   if (env.CLOUD_PROVIDER) providers.add("cloudflare");
-  if (env.INTEGRATION_PROVIDER) providers.add("composio");
+  if (env.INTEGRATION_PROVIDER) providers.add("integration");
   return providers;
 }
 

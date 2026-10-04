@@ -1,6 +1,6 @@
 type LegacyGrant = {
   capability: string;
-  provider: "github" | "cloudflare" | "composio";
+  provider: "github" | "cloudflare" | "integration";
   permissionClass: "read" | "write" | "execute";
   zeroCreditEligible: boolean;
   healthy: boolean;
@@ -17,7 +17,7 @@ type LegacyAttestation = {
 const ALLOWED: Readonly<Record<LegacyGrant["provider"], readonly string[]>> = Object.freeze({
   github: Object.freeze(["repository.inspect", "repository.write"]),
   cloudflare: Object.freeze(["cloud.inspect", "cloud.execute"]),
-  composio: Object.freeze(["repository.inspect", "repository.write", "cloud.inspect", "cloud.execute", "integration.execute"]),
+  integration: Object.freeze(["integration.execute"]),
 });
 
 const REQUIRED_PERMISSION: Readonly<Record<string, LegacyGrant["permissionClass"]>> = Object.freeze({

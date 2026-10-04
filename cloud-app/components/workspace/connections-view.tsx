@@ -2,7 +2,7 @@
 
 import { Link2, ShieldCheck, Unplug } from "lucide-react";
 import { useState } from "react";
-import type { RuntimeCapability, RuntimeComposioRepositoryProbe } from "@/lib/runtime-relay";
+import type { RuntimeCapability, RuntimeGithubAppRepositoryProbe } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
 import { projectCapabilityFamilies } from "@/lib/capability-families";
 
@@ -23,21 +23,21 @@ export function ConnectionsView({
 }: ConnectionsViewProps) {
   const displayCapabilities = runtimeCapabilities as DisplayCapability[];
   const routableCount = displayCapabilities.filter((capability) => capability.routable).length;
-  const [composioProbe, setComposioProbe] = useState<RuntimeComposioRepositoryProbe | null>(null);
-  const [composioBusy, setComposioBusy] = useState(false);
-  const [composioError, setComposioError] = useState<string | null>(null);
+  const [githubProbe, setGithubProbe] = useState<RuntimeGithubAppRepositoryProbe | null>(null);
+  const [githubBusy, setGithubBusy] = useState(false);
+  const [githubError, setGithubError] = useState<string | null>(null);
 
-  async function probeComposio() {
-    if (!relay || composioBusy) return;
-    setComposioBusy(true);
-    setComposioError(null);
+  async function probeGithubApp() {
+    if (!relay || githubBusy) return;
+    setGithubBusy(true);
+    setGithubError(null);
     try {
-      setComposioProbe(await relay.composioGithubRepository("michaeljwilliams0123", "mahoraga"));
+      setGithubProbe(await relay.nativeGithubRepository());
     } catch (error) {
-      setComposioProbe(null);
-      setComposioError(error instanceof Error ? error.message : "composio-probe-failed");
+      setGithubProbe(null);
+      setGithubError(error instanceof Error ? error.message : "github-native-probe-failed");
     } finally {
-      setComposioBusy(false);
+      setGithubBusy(false);
     }
   }
 
@@ -111,19 +111,19 @@ export function ConnectionsView({
       {coreReady && (
         <div className="capability-list" style={{ marginTop: 16 }}>
           <div>
-            <strong>Composio → GitHub</strong>
+            <strong>Native GitHub App</strong>
             <span>
-              {composioProbe?.repository.fullName
-                ? `verified · ${composioProbe.repository.fullName} · ${composioProbe.repository.defaultBranch ?? "unknown branch"}`
-                : composioError
-                  ? `not ready · ${composioError}`
+              {githubProbe?.repository.fullName
+                ? `verified · ${githubProbe.repository.fullName} · ${githubProbe.repository.defaultBranch ?? "unknown branch"}`
+                : githubError
+                  ? `not ready · ${githubError}`
                   : "bounded read probe available"}
             </span>
           </div>
-          {composioProbe && (
+          {githubProbe && (
             <div>
-              <strong>Composio authority</strong>
-              <span>{composioProbe.repository.permissions.push ? "GitHub write authority observed; probe remains read-only" : "GitHub read authority observed"}</span>
+              <strong>GitHub App authority</strong>
+              <span>{githubProbe.repository.permissions.push ? "Repository-scoped write authority observed; probe remains read-only" : "Repository-scoped read authority observed"}</span>
             </div>
           )}
         </div>
@@ -131,8 +131,8 @@ export function ConnectionsView({
 
       <div className="pairing-actions" style={{ marginTop: 16 }}>
         {coreReady && (
-          <button type="button" disabled={composioBusy || !relay} onClick={() => void probeComposio()}>
-            <Link2 size={16} /> {composioBusy ? "Probing Composio…" : "Probe Composio GitHub"}
+          <button type="button" disabled={githubBusy || !relay} onClick={() => void probeGithubApp()}>
+            <Link2 size={16} /> {githubBusy ? "Probing GitHub App…" : "Probe native GitHub App"}
           </button>
         )}
         {!coreReady ? (

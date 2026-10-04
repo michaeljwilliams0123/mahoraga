@@ -57,8 +57,8 @@ test('current authority surfaces keep Railway legacy-only without rollback seman
   const cloudOnly = readRepoFile('docs/CLOUD-ONLY-DEPLOYMENT.md');
   assertCurrentRailwayBoundary(cloudOnly, 'cloud-only deployment guidance');
 
-  const composio = readRepoFile('docs/COMPOSIO-INTEGRATION.md');
-  assertCurrentRailwayBoundary(composio, 'Composio runtime boundary');
+  const githubApp = readRepoFile('docs/GITHUB-APP-INTEGRATION.md');
+  assertCurrentRailwayBoundary(githubApp, 'native GitHub App runtime boundary');
 
   const hardZero = readRepoFile('docs/CLOUDFLARE-HARD-ZERO-INFERENCE.md');
   assertCurrentRailwayBoundary(hardZero, 'hard-zero cognition boundary');

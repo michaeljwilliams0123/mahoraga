@@ -3,7 +3,7 @@ import { createTwinInbox, validateTwinEvent } from "./twin-federation.mjs";
 
 const DEFAULT_RELAY_URL = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair/local";
 const LOCAL_RELAY_PROTOCOL = "mahoraga-local-v1";
-const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement", "operations-snapshot", "operations-action"]);
+const ACTIONS = new Set(["run", "chat", "tasks", "messages", "message-content", "task-action", "events", "cancel", "capabilities", "improvement", "native-github-repository", "native-github-pull-request", "operations-snapshot", "operations-action"]);
 const REATTACH_FALLBACK_ERRORS = new Set(["relay-session-missing", "relay-session-reattach-invalid"]);
 const STATE_KEYS = new Set(["schemaVersion", "context", "privateKeyJwk", "publicKey", "peerPublicKey", "sessionId", "sendCounter", "receivedCounters"]);
 const DIRECTIONS = new Set(["ui-to-runtime", "runtime-to-ui"]);
@@ -216,6 +216,8 @@ export function createRelayRuntimePeer({
     if (type === "cancel") return gateway.cancelRun(payload?.runId);
     if (type === "capabilities") return { capabilities: gateway.capabilities() };
     if (type === "improvement") return { improvement: gateway.getImprovement?.(payload?.id) ?? null };
+    if (type === "native-github-repository") return gateway.nativeGithubRepository(payload, context);
+    if (type === "native-github-pull-request") return gateway.nativeGithubPullRequest(payload, context);
     if (type === "operations-snapshot") return gateway.operationsSnapshot(context);
     if (type === "operations-action") return gateway.operationsAction(payload, context);
     throw error("relay-runtime-request-invalid");
