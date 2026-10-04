@@ -11,6 +11,23 @@ const DEFAULT_DURATION_MS = 320 * 60_000;
 const DEFAULT_RENEWAL_MARGIN_MS = 30 * 60_000;
 const MAX_DURATION_MS = 320 * 60_000;
 const MAX_INTERVAL_MS = DEFAULT_INTERVAL_MS;
+const MAX_TRANSPORT_ATTEMPTS = 3;
+const TRANSPORT_ATTEMPT_TIMEOUT_MS = 30_000;
+const TRANSPORT_RETRY_WINDOW_MS = 120_000;
+const TRANSPORT_BACKOFF_BASE_MS = 1_000;
+const TRANSPORT_BACKOFF_CAP_MS = 4_000;
+const TRANSIENT_TRANSPORT_CODES = Object.freeze([
+  "UND_ERR_CONNECT_TIMEOUT",
+  "UND_ERR_HEADERS_TIMEOUT",
+  "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_SOCKET",
+  "ECONNRESET",
+  "ETIMEDOUT",
+  "EAI_AGAIN",
+  "ENETUNREACH",
+  "EHOSTUNREACH",
+  "ECONNREFUSED",
+]);
 
 const integerEnv = (name, fallback, max) => {
   const raw = (process.env[name] ?? "").trim();
@@ -20,6 +37,78 @@ const integerEnv = (name, fallback, max) => {
     throw new Error(`provider-watchdog-${name.toLowerCase()}-invalid`);
   }
   return value;
+};
+
+const errorChain = (error) => {
+  const chain = [];
+  let current = error;
+  for (let depth = 0; current && depth < 4; depth += 1) {
+    chain.push(current);
+    current = current?.cause;
+  }
+  return chain;
+};
+
+export const isTransientTransportError = (error) => errorChain(error).some((candidate) =>
+  candidate?.name === "TimeoutError"
+  || TRANSIENT_TRANSPORT_CODES.includes(candidate?.code),
+);
+
+const transportErrorCode = (error) => {
+  for (const candidate of errorChain(error)) {
+    if (typeof candidate?.code === "string" && candidate.code) return candidate.code;
+    if (candidate?.name === "TimeoutError") return "TimeoutError";
+  }
+  return "unclassified";
+};
+
+export const withTransientTransportRetry = async (operation, {
+  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  nowFn = Date.now,
+  onRetry = ({ attempt, code, backoffMs }) => {
+    process.stderr.write(`${JSON.stringify({
+      status: "provider-watchdog-transient-retry",
+      attempt,
+      code,
+      backoffMs,
+    })}\n`);
+  },
+  maxAttempts = MAX_TRANSPORT_ATTEMPTS,
+  attemptTimeoutMs = TRANSPORT_ATTEMPT_TIMEOUT_MS,
+  maxElapsedMs = TRANSPORT_RETRY_WINDOW_MS,
+} = {}) => {
+  if (typeof operation !== "function" || typeof sleep !== "function" || typeof nowFn !== "function" || typeof onRetry !== "function") {
+    throw new Error("provider-watchdog-transport-retry-config-invalid");
+  }
+  for (const value of [maxAttempts, attemptTimeoutMs, maxElapsedMs]) {
+    if (!Number.isSafeInteger(value) || value <= 0) {
+      throw new Error("provider-watchdog-transport-retry-config-invalid");
+    }
+  }
+
+  const startedAt = nowFn();
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      return await operation({
+        attempt,
+        signal: AbortSignal.timeout(attemptTimeoutMs),
+      });
+    } catch (error) {
+      if (!isTransientTransportError(error) || attempt >= maxAttempts) throw error;
+
+      const backoffMs = Math.min(
+        TRANSPORT_BACKOFF_BASE_MS * (2 ** (attempt - 1)),
+        TRANSPORT_BACKOFF_CAP_MS,
+      );
+      const elapsedMs = Math.max(0, nowFn() - startedAt);
+      if (elapsedMs + backoffMs + attemptTimeoutMs > maxElapsedMs) throw error;
+
+      onRetry({ attempt, code: transportErrorCode(error), backoffMs });
+      await sleep(backoffMs);
+    }
+  }
+
+  throw new Error("provider-watchdog-transport-retry-exhausted");
 };
 
 const accessHeaders = () => {
@@ -74,7 +163,7 @@ const requireConfiguration = () => {
   };
 };
 
-const githubJson = async (url, token) => {
+const githubJson = async (url, token, retryOptions = {}) => withTransientTransportRetry(async ({ signal }) => {
   const response = await fetch(url, {
     headers: {
       authorization: `Bearer ${token}`,
@@ -82,34 +171,42 @@ const githubJson = async (url, token) => {
       "x-github-api-version": "2022-11-28",
       "cache-control": "no-store",
     },
+    signal,
   });
   if (!response.ok) throw new Error(`provider-watchdog-github-${response.status}`);
   return response.json();
-};
+}, retryOptions);
 
-const verifyRepositoryAndHead = async ({ repository, token, targetSha }) => {
-  const repo = await githubJson(`https://api.github.com/repos/${repository}`, token);
+const verifyRepositoryAndHead = async ({ repository, token, targetSha }, retryOptions = {}) => {
+  const repo = await githubJson(`https://api.github.com/repos/${repository}`, token, retryOptions);
   if (repo?.private !== false) throw new Error("provider-watchdog-public-zero-cost-required");
-  const branch = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token);
+  const branch = await githubJson(`https://api.github.com/repos/${repository}/branches/main`, token, retryOptions);
   if (branch?.commit?.sha !== targetSha) throw new Error("provider-watchdog-source-advanced");
 };
 
-const readRuntimeAttestation = async (targetSha) => {
+const readRuntimeAttestation = async (targetSha, retryOptions = {}) => withTransientTransportRetry(async ({ signal }) => {
   const response = await fetch("https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev/api/runtime/attestation", {
     method: "GET",
     headers: accessHeaders(),
     redirect: "manual",
+    signal,
   });
-  const body = await response.json().catch(() => ({}));
+  let body;
+  try {
+    body = await response.json();
+  } catch (error) {
+    if (isTransientTransportError(error)) throw error;
+    body = {};
+  }
   if ((response.status !== 200 && response.status !== 503) || body?.targetSha !== targetSha) {
     throw new Error(`provider-watchdog-runtime-authority-${response.status}:${String(body?.targetSha ?? "unverified")}`);
   }
   if (body?.provider?.providerId !== PROVIDER_ID) throw new Error("provider-watchdog-provider-identity-unverified");
   return body;
-};
+}, retryOptions);
 
-const renew = async (config) => {
-  await verifyRepositoryAndHead(config);
+const renew = async (config, retryOptions = {}) => {
+  await verifyRepositoryAndHead(config, retryOptions);
   const accountIdHash = createHash("sha256").update(config.accountId).digest("hex");
   const evidence = await fetchZeroCreditBillingEvidence({
     accountId: config.accountId,
@@ -148,18 +245,19 @@ export const runProviderAdmissionWatchdog = async ({
   const startedAt = nowFn();
   let cycle = 0;
   let renewals = 0;
+  const retryOptions = { nowFn, sleep };
 
-  await verifyRepositoryAndHead(config);
+  await verifyRepositoryAndHead(config, retryOptions);
 
   while (true) {
     const observedAt = nowFn();
-    let attestation = await readRuntimeAttestation(config.targetSha);
+    let attestation = await readRuntimeAttestation(config.targetSha, retryOptions);
     let renewed = false;
     if (!providerFreshEnough(attestation, observedAt, marginMs, config.targetSha)) {
-      const receipt = await renew(config);
+      const receipt = await renew(config, retryOptions);
       renewals += 1;
       renewed = true;
-      attestation = await readRuntimeAttestation(config.targetSha);
+      attestation = await readRuntimeAttestation(config.targetSha, retryOptions);
       if (!providerFreshEnough(attestation, nowFn(), marginMs, config.targetSha)) {
         throw new Error("provider-watchdog-post-renewal-freshness-unverified");
       }
@@ -189,7 +287,7 @@ export const runProviderAdmissionWatchdog = async ({
     const elapsed = nowFn() - startedAt;
     if (elapsed >= durationMs) break;
     await sleep(Math.min(intervalMs, durationMs - elapsed));
-    await verifyRepositoryAndHead(config);
+    await verifyRepositoryAndHead(config, retryOptions);
   }
 
   process.stdout.write(`${JSON.stringify({

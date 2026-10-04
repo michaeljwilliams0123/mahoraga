@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 
-import { providerFreshEnough } from "../scripts/cloudflare-provider-renewal-watchdog.mjs";
+import {
+  isTransientTransportError,
+  providerFreshEnough,
+  withTransientTransportRetry,
+} from "../scripts/cloudflare-provider-renewal-watchdog.mjs";
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = path.join(root, "scripts/cloudflare-provider-renewal-watchdog.mjs");
@@ -39,6 +43,84 @@ test("provider watchdog requires exact current lineage and margin, not merely un
   assert.equal(providerFreshEnough(runtime({ provider: { providerId: "other" } }), NOW, MARGIN, SHA), false);
 });
 
+test("provider watchdog retries recognized transient transport failure then recovers", async () => {
+  let attempts = 0;
+  let now = 0;
+  const delays = [];
+
+  const result = await withTransientTransportRetry(async ({ signal }) => {
+    attempts += 1;
+    assert.equal(signal instanceof AbortSignal, true);
+    if (attempts === 1) {
+      const cause = new Error("headers timeout");
+      cause.code = "UND_ERR_HEADERS_TIMEOUT";
+      const error = new TypeError("fetch failed");
+      error.cause = cause;
+      throw error;
+    }
+    return "recovered";
+  }, {
+    sleep: async (ms) => {
+      delays.push(ms);
+      now += ms;
+    },
+    nowFn: () => now,
+    onRetry: () => {},
+    attemptTimeoutMs: 1_000,
+    maxElapsedMs: 10_000,
+  });
+
+  assert.equal(result, "recovered");
+  assert.equal(attempts, 2);
+  assert.deepEqual(delays, [1_000]);
+});
+
+test("provider watchdog exhausts repeated transient failures and remains fail-closed", async () => {
+  let attempts = 0;
+  const timeout = new Error("socket timeout");
+  timeout.code = "ETIMEDOUT";
+
+  await assert.rejects(
+    withTransientTransportRetry(async () => {
+      attempts += 1;
+      throw timeout;
+    }, {
+      sleep: async () => {},
+      onRetry: () => {},
+      attemptTimeoutMs: 1_000,
+      maxElapsedMs: 10_000,
+      maxAttempts: 3,
+    }),
+    /socket timeout/,
+  );
+
+  assert.equal(attempts, 3);
+});
+
+test("provider watchdog does not retry semantic authority failures", async () => {
+  let attempts = 0;
+  let retries = 0;
+
+  await assert.rejects(
+    withTransientTransportRetry(async () => {
+      attempts += 1;
+      throw new Error("provider-watchdog-runtime-authority-503:unverified");
+    }, {
+      sleep: async () => {},
+      onRetry: () => {
+        retries += 1;
+      },
+      attemptTimeoutMs: 1_000,
+      maxElapsedMs: 10_000,
+    }),
+    /provider-watchdog-runtime-authority-503/,
+  );
+
+  assert.equal(attempts, 1);
+  assert.equal(retries, 0);
+  assert.equal(isTransientTransportError(new Error("semantic-failure")), false);
+});
+
 test("bounded renewal watchdog preserves zero-cost and no-authority-expansion constraints", async () => {
   const [script, workflow] = await Promise.all([
     readFile(scriptPath, "utf8"),
@@ -57,5 +139,8 @@ test("bounded renewal watchdog preserves zero-cost and no-authority-expansion co
   assert.match(script, /\/api\/provider\/refresh/);
   assert.match(script, /provider-watchdog-post-renewal-freshness-unverified/);
   assert.match(script, /provider-watchdog-renewal-margin-immutable/);
+  assert.match(script, /UND_ERR_HEADERS_TIMEOUT/);
+  assert.match(script, /AbortSignal\.timeout/);
+  assert.match(script, /provider-watchdog-transient-retry/);
   assert.doesNotMatch(script, /railway|vercel/i);
 });
