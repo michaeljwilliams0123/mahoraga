@@ -40,7 +40,7 @@ export async function createGithubAppJwt(env = process.env, {
 }
 
 export async function readMahoragaRepositoryViaGithubApp(_request = {}, options = {}) {
-  const token = await mintInstallationToken(options);
+  const token = await mintInstallationToken(options, { contents: "read", metadata: "read" });
   const value = await githubRequest("GET", repoPath(""), null, { ...options, token });
   const permissions = value?.permissions && typeof value.permissions === "object" ? value.permissions : {};
   return Object.freeze({
@@ -57,7 +57,7 @@ export async function readMahoragaRepositoryViaGithubApp(_request = {}, options 
 
 export async function createMahoragaPullRequestViaGithubApp(proposal, options = {}) {
   const normalized = normalizeProposal(proposal);
-  const token = await mintInstallationToken(options);
+  const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });
   const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
   const existing = await request("GET", repoPath(`pulls?state=all&head=${encodeURIComponent(`${OWNER}:${normalized.branch}`)}`));
   if (!Array.isArray(existing)) fail("github-native-response-invalid", 502);
@@ -72,7 +72,7 @@ export async function createMahoragaPullRequestViaGithubApp(proposal, options = 
   const baseTree = sha(baseCommit?.tree?.sha, "github-native-base-response-invalid");
   const entries = [];
   for (const file of normalized.files) {
-    const blob = await request("POST", repoPath("git/blobs"), { content: Buffer.from(file.content, "utf8").toString("base64"), encoding: "base64" });
+    const blob = await request("POST", repoPath("git/blobs"), { content: bytesToBase64(new TextEncoder().encode(file.content)), encoding: "base64" });
     entries.push({ path: file.path, mode: "100644", type: "blob", sha: sha(blob?.sha, "github-native-write-response-invalid") });
   }
   const tree = await request("POST", repoPath("git/trees"), { base_tree: baseTree, tree: entries });
@@ -104,11 +104,11 @@ async function compensate(request, number, branch, branchCreated) {
   }
 }
 
-async function mintInstallationToken({ env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}) {
+async function mintInstallationToken({ env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}, permissions) {
   const jwt = await createGithubAppJwt(env);
   const installationId = String(env.GITHUB_INSTALLATION_ID).trim();
   const value = await rawRequest("POST", `/app/installations/${installationId}/access_tokens`, {
-    repositories: [REPO], permissions: { contents: "write", pull_requests: "write", metadata: "read" },
+    repositories: [REPO], permissions,
   }, { authorization: `Bearer ${jwt}`, fetchImpl, timeoutMs });
   const token = String(value?.token ?? "").trim();
   if (!token || typeof value?.expires_at !== "string") fail("github-native-token-response-invalid", 502);
@@ -159,7 +159,7 @@ function normalizeProposal(value) {
     seen.add(path);
     if (typeof file.content !== "string") fail("github-native-proposal-content-invalid", 422);
     if (sensitive(path, file.content)) fail("github-native-proposal-sensitive", 422);
-    bytes += Buffer.byteLength(file.content, "utf8");
+    bytes += new TextEncoder().encode(file.content).byteLength;
     return Object.freeze({ path, content: file.content });
   });
   if (bytes > MAX_BYTES) fail("github-native-proposal-content-too-large", 413);
@@ -192,6 +192,8 @@ function repoPath(suffix) { return `/repos/${OWNER}/${REPO}${suffix ? `/${suffix
 function sha(value, code) { const result = String(value ?? "").trim().toLowerCase(); if (!/^[a-f0-9]{40}$/.test(result)) fail(code, 422); return result; }
 function bounded(value, min, max, code) { const result = String(value ?? "").trim(); if (result.length < min || result.length > max) fail(code, 422); return result; }
 function positiveInteger(value, code) { const result = Number(value); if (!Number.isSafeInteger(result) || result < 1) fail(code, 502); return result; }
-function pemBytes(value) { return Buffer.from(value.replace(PKCS8_BEGIN, "").replace(PKCS8_END, "").replace(/\s/g, ""), "base64"); }
-function base64url(value) { return Buffer.from(value).toString("base64url"); }
+function pemBytes(value) { return base64ToBytes(value.replace(PKCS8_BEGIN, "").replace(PKCS8_END, "").replace(/\s/g, "")); }
+function base64url(value) { const bytes = typeof value === "string" ? new TextEncoder().encode(value) : value; return bytesToBase64(bytes).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, ""); }
+function bytesToBase64(bytes) { let binary = ""; for (let index = 0; index < bytes.length; index += 1) binary += String.fromCharCode(bytes[index]); return btoa(binary); }
+function base64ToBytes(value) { const binary = atob(value); return Uint8Array.from(binary, (character) => character.charCodeAt(0)); }
 function fail(code, status) { const error = new TypeError(code); error.code = code; error.status = status; throw error; }

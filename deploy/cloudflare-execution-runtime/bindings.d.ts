@@ -5,6 +5,9 @@ interface Env {
   ZERO_CREDIT_PROVIDER_URL: string;
   ZERO_CREDIT_PROVIDER_TOKEN: string;
   ZERO_CREDIT_ACCOUNT_ID_HASH: string;
+  GITHUB_APP_ID: string;
+  GITHUB_INSTALLATION_ID: string;
+  GITHUB_APP_PRIVATE_KEY: string;
   TARGET_SHA: string;
   TELEMETRY_STREAM_TOKEN?: string;
   MAHORAGA_WORKSPACE_ORIGIN: string;
@@ -20,6 +23,9 @@ declare namespace Cloudflare {
     ZERO_CREDIT_PROVIDER_URL: string;
     ZERO_CREDIT_PROVIDER_TOKEN: string;
     ZERO_CREDIT_ACCOUNT_ID_HASH: string;
+    GITHUB_APP_ID: string;
+    GITHUB_INSTALLATION_ID: string;
+    GITHUB_APP_PRIVATE_KEY: string;
     TARGET_SHA: string;
     TELEMETRY_STREAM_TOKEN?: string;
     MAHORAGA_WORKSPACE_ORIGIN: string;

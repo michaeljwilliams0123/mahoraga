@@ -15,6 +15,8 @@ import type { ConnectorBrokerBinding } from "./connector-capability-router";
 import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from "./universal-capability-router";
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
+// @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
+import { createMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -112,6 +114,14 @@ const safeError = (error: unknown): string => {
   if (!(error instanceof Error)) return "cognition-provider-failed";
   if (error.message === "cognition-provider-timeout" || /^content-vault-[a-z-]+$/.test(error.message)) return error.message;
   return "cognition-provider-failed";
+};
+const githubErrorCode = (error: unknown): string => {
+  const code = objectValue(error)?.code;
+  return typeof code === "string" && /^github-native-[a-z0-9-]+$/.test(code) ? code : "github-native-request-failed";
+};
+const errorStatus = (error: unknown): number => {
+  const status = objectValue(error)?.status;
+  return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
 };
 const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
@@ -246,6 +256,15 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const truth = this.storage.getInteractionRuntimeTruth(payload.interactionId);
       if (truth === null) return json({ error: "interaction-truth-unavailable" }, 404);
       try { return json(validateInteractionRuntimeTruth(truth.payload)); } catch { return json({ error:"interaction-runtime-truth-invalid" }, 503); }
+    }
+    if (input?.type === "native-github-repository") {
+      if (Object.keys(payload).length) return json({ error: "github-native-repository-request-invalid" }, 400);
+      try { return json({ provider: "github-app", repository: await readMahoragaRepositoryViaGithubApp({}, { env: this.env }) }); }
+      catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
+    }
+    if (input?.type === "native-github-pull-request") {
+      try { return json(await createMahoragaPullRequestViaGithubApp(payload, { env: this.env })); }
+      catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
     }
     if (input?.type === "execute") {
       const broker = this.env.MAHORAGA_EXECUTION_BROKER;

@@ -65,7 +65,7 @@ test("native repository inspection mints a repository-scoped installation token 
   assert.equal(requests[0].url, "https://api.github.com/app/installations/98765432/access_tokens");
   assert.deepEqual(requests[0].body, {
     repositories: ["mahoraga"],
-    permissions: { contents: "write", pull_requests: "write", metadata: "read" },
+    permissions: { contents: "read", metadata: "read" },
   });
   assert.equal(requests[1].url, "https://api.github.com/repos/michaeljwilliams0123/mahoraga");
   assert.equal(requests[1].options.headers.authorization, "Bearer installation-token");

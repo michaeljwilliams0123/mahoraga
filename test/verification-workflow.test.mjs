@@ -56,6 +56,7 @@ test("fast Verify retains exact-head governance and focused regression coverage"
     "test/autonomous-integration.test.mjs",
     "test/return-reconciler.test.mjs",
     "test/github-native-client.test.mjs",
+    "test/cloudflare-native-github-route.test.mjs",
     "cloud-app/test/github-native-integration-contract.test.mjs",
     "test/workspace-agent-receiver.test.mjs",
     "test/destiny-trigger-trust.test.mjs",
