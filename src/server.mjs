@@ -30,7 +30,7 @@ import { parsePredictiveChatIntent } from "./predictive-chat-intent.ts";
 import { simulateCounterfactual } from "./cognitive-world-model.mjs";
 import { planConversationCapabilities } from "./conversation-capability-planner.mjs";
 import { executeOperationsAction, operationsSnapshot } from "./workspace-operations.mjs";
-import { readGithubRepositoryViaComposio } from "./composio-tool-client.mjs";
+import { createMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "./github-native-client.mjs";
 import { ingestVerifiedStudioLearning } from "./copilot-studio-learning-adapter.mjs";
 
 export const DEFAULT_WORKSPACE_URL = null;
@@ -131,7 +131,8 @@ export function createControlServer({
         if (body?.type === "messages") return json(response, 200, { messages: relayHandlers.messages(input.conversationId) });
         if (body?.type === "message-content") return json(response, 200, relayHandlers.messageContent(input, context));
         if (body?.type === "task-action") return json(response, 200, relayHandlers.taskAction(input));
-        if (body?.type === "composio-github-repository") return json(response, 200, await relayHandlers.composioGithubRepository(input, context));
+        if (body?.type === "native-github-repository") return json(response, 200, await relayHandlers.nativeGithubRepository(input, context));
+        if (body?.type === "native-github-pull-request") return json(response, 200, await relayHandlers.nativeGithubPullRequest(input, context));
         if (body?.type === "operations-snapshot") return json(response, 200, await relayHandlers.operationsSnapshot(input, context));
         if (body?.type === "operations-action") return json(response, 200, await relayHandlers.operationsAction(input, context));
         return json(response, 400, { error: "cloud-core-action-not-allowed" });
@@ -603,12 +604,22 @@ function createRelayHandlers({ database, manifest, supervisor, artifactStore, co
       const task = body.action === "retry" ? database.retryTask(taskId) : database.cancelTask(taskId);
       return { task };
     },
-    async composioGithubRepository(input, _context) {
+    async nativeGithubRepository(_input, _context) {
       try {
-        const repository = await readGithubRepositoryViaComposio({ owner: input?.owner, repo: input?.repo });
-        return { provider: "composio", tool: "GITHUB_GET_A_REPOSITORY", repository };
+        const repository = await readMahoragaRepositoryViaGithubApp();
+        return { provider: "github-app", repository };
       } catch (error) {
-        const code = typeof error?.code === "string" && /^composio-[a-z0-9-]+$/.test(error.code) ? error.code : "composio-tool-failed";
+        const code = typeof error?.code === "string" && /^github-native-[a-z0-9-]+$/.test(error.code) ? error.code : "github-native-request-failed";
+        const status = Number.isInteger(error?.status) ? error.status : 502;
+        throw relayError(code, { status, value: { error: code } });
+      }
+    },
+    async nativeGithubPullRequest(input, context) {
+      if (context?.attendedSession?.active !== true) throw relayError("github-native-owner-session-required", { status: 403 });
+      try {
+        return await createMahoragaPullRequestViaGithubApp(input);
+      } catch (error) {
+        const code = typeof error?.code === "string" && /^github-native-[a-z0-9-]+$/.test(error.code) ? error.code : "github-native-request-failed";
         const status = Number.isInteger(error?.status) ? error.status : 502;
         throw relayError(code, { status, value: { error: code } });
       }

@@ -22,5 +22,8 @@ test("execution runtime fails deployment when protected secrets are missing", ()
     "ZERO_CREDIT_PROVIDER_URL",
     "ZERO_CREDIT_PROVIDER_TOKEN",
     "ZERO_CREDIT_ACCOUNT_ID_HASH",
+    "GITHUB_APP_ID",
+    "GITHUB_INSTALLATION_ID",
+    "GITHUB_APP_PRIVATE_KEY",
   ]);
 });

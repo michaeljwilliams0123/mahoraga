@@ -47,8 +47,8 @@ test("release baseline verification reports missing baseline files", async () =>
   });
 });
 
-test("release baseline includes the Composio client imported by the core server", () => {
-  assert.ok(ESSENTIAL_FILES.includes("src/composio-tool-client.mjs"));
+test("release baseline includes the native GitHub App client imported by the core server", () => {
+  assert.ok(ESSENTIAL_FILES.includes("src/github-native-client.mjs"));
 });
 
 test("release baseline includes the dissent resolver imported by the cognitive loop", () => {

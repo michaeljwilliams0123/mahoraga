@@ -13,7 +13,7 @@ describe("permissioned connector capability routing", () => {
         { capability: "repository.inspect", provider: "github", permissionClass: "read", zeroCreditEligible: true, healthy: true },
         { capability: "repository.write", provider: "github", permissionClass: "write", zeroCreditEligible: true, healthy: true },
         { capability: "cloud.inspect", provider: "cloudflare", permissionClass: "read", zeroCreditEligible: true, healthy: true },
-        { capability: "integration.execute", provider: "composio", permissionClass: "execute", zeroCreditEligible: true, healthy: true },
+        { capability: "integration.execute", provider: "integration", permissionClass: "execute", zeroCreditEligible: true, healthy: true },
       ],
     }, Date.parse("2026-09-28T16:31:00.000Z"));
 

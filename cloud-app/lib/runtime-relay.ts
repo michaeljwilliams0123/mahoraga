@@ -79,9 +79,8 @@ export type RuntimeDeliveryTruth = {
   observedAt?: string | null;
   reason?: string | null;
 };
-export type RuntimeComposioRepositoryProbe = {
-  provider: "composio";
-  tool: "GITHUB_GET_A_REPOSITORY";
+export type RuntimeGithubAppRepositoryProbe = {
+  provider: "github-app";
   repository: {
     fullName: string | null;
     private: boolean;
@@ -89,6 +88,24 @@ export type RuntimeComposioRepositoryProbe = {
     pushedAt: string | null;
     permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean; triage: boolean };
   };
+};
+export type RuntimeGithubAppPullRequestProposal = {
+  expectedMainSha: string;
+  branch: string;
+  title: string;
+  body: string;
+  commitMessage: string;
+  files: Array<{ path: string; content: string }>;
+};
+export type RuntimeGithubAppPullRequestReceipt = {
+  provider: "github-app";
+  repository: "michaeljwilliams0123/mahoraga";
+  number: number;
+  url: string;
+  state: "open" | "unknown";
+  draft: true;
+  head: { ref: string; sha: string };
+  base: { ref: "main"; sha: string };
 };
 export type RuntimeTask = {
   id: string;
@@ -398,8 +415,11 @@ export class RuntimeRelay {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
     return Array.isArray(value.capabilities) ? value.capabilities : [];
   }
-  async composioGithubRepository(owner: string, repo: string) {
-    return this.call<RuntimeComposioRepositoryProbe>("composio-github-repository", { owner, repo });
+  async nativeGithubRepository() {
+    return this.call<RuntimeGithubAppRepositoryProbe>("native-github-repository", {});
+  }
+  async nativeGithubPullRequest(proposal: RuntimeGithubAppPullRequestProposal) {
+    return this.call<RuntimeGithubAppPullRequestReceipt>("native-github-pull-request", { ...proposal });
   }
   async readiness() {
     const generation = this.authenticationGeneration;

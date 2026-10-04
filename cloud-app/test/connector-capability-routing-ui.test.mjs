@@ -76,8 +76,8 @@ describe("permissioned connector capability routing UI", () => {
 
   it("projects permissioned zero-credit connector routes without granting traffic authority", () => {
     const open = projectConnectorCapabilityRouting(true, [
-      { capability: "integration.execute", routable: true, enabled: true, costClass: "zero-credit", provider: "composio", workerIds: ["connector"] },
-    ], { connectorBroker: { bound: true, fresh: true, healthy: true, permissionClass: "execute", provider: "composio" } });
+      { capability: "integration.execute", routable: true, enabled: true, costClass: "zero-credit", provider: "integration", workerIds: ["connector"] },
+    ], { connectorBroker: { bound: true, fresh: true, healthy: true, permissionClass: "execute", provider: "integration" } });
     assert.equal(open.failClosed, false);
     assert.equal(open.trafficAuthority, false);
     assert.equal(open.merge856IsTrafficAuthority, false);

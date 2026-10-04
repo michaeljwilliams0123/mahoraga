@@ -4,7 +4,6 @@ const PROVIDER_BINDING: Readonly<Record<string, keyof BrokerEnv>> = Object.freez
   github: "REPOSITORY_PROVIDER",
   repository: "REPOSITORY_PROVIDER",
   cloudflare: "CLOUD_PROVIDER",
-  composio: "INTEGRATION_PROVIDER",
   integration: "INTEGRATION_PROVIDER",
   browser: "BROWSER_PROVIDER",
   desktop: "DESKTOP_PROVIDER",

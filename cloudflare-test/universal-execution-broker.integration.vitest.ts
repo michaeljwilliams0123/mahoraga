@@ -23,7 +23,7 @@ describe("universal execution broker", () => {
   it("converts fresh legacy connector grants only when their provider has an executable binding", () => {
     const legacy = { schemaVersion: 1, kind: "connector-capability-attestation", observedAt: new Date(NOW - 1000).toISOString(), expiresAt: new Date(NOW + 60000).toISOString(), grants: [
       { capability: "repository.inspect", provider: "github", permissionClass: "read", zeroCreditEligible: true, healthy: true },
-      { capability: "integration.execute", provider: "composio", permissionClass: "execute", zeroCreditEligible: true, healthy: true },
+      { capability: "integration.execute", provider: "integration", permissionClass: "execute", zeroCreditEligible: true, healthy: true },
     ] };
     const converted = adaptLegacyConnectorAttestation(legacy, new Set(["github"]), NOW);
     expect(converted).toHaveLength(1);
