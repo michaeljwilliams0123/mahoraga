@@ -226,7 +226,7 @@ export function Workspace() {
   }, [health?.deployment?.provider, coreReady, pairedRelay]);
 
   useEffect(() => {
-    if (health?.deployment?.provider !== "github-pages" || ownerLoginRequired || runtimeBusy || ownerLoginBusy
+    if (health?.deployment?.provider !== "github-pages" || runtimeBusy || ownerLoginBusy
       || !["unpaired", "error"].includes(relayState)) return;
     return subscribePagesReconnect(reconnectRuntime);
   }, [health?.deployment?.provider, relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
