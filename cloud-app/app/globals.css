@@ -400,3 +400,13 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .planner-receipt summary { cursor: pointer; }
 .planner-receipt dd, .planner-receipt code { overflow-wrap: anywhere; }
 @media (max-width: 620px) { .planner-receipt dl > div { grid-template-columns: 1fr; } }
+
+.capability-explorer { margin: 12px 20px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+.capability-explorer summary { cursor: pointer; font-weight: 600; }
+.capability-explorer p { font-size: 12px; overflow-wrap: anywhere; }
+.capability-explorer label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.capability-explorer input { min-width: 0; max-width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 6px; }
+.capability-explorer-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 10px; margin-top: 12px; }
+.capability-explorer-list article { padding: 12px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
+.capability-explorer-list strong, .capability-explorer-list span { display: block; font-size: 12px; }
+.capability-explorer-list button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }

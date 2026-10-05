@@ -60,3 +60,25 @@ export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabili
   return canSubmitPredictiveChat(coreReady, capabilities, text, fileCount)
     || (/^\/cycle(?:\s|$)/i.test(text.trim()) && cognitiveCycleAvailable(coreReady, capabilities));
 }
+
+export const PREDICTION_STARTER = "/predict {\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"action\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1}}";
+export const CYCLE_STARTER = "/cycle {\"members\":[{\"individualId\":\"builder\",\"parentAgentId\":\"mahoraga-core\",\"displayName\":\"Builder\",\"archetype\":\"builder-mind\",\"perspective\":\"implementation\",\"communicationStyle\":\"evidence-first\",\"traits\":{\"curiosity\":0.7},\"epistemicPosture\":{\"evidenceThreshold\":0.8,\"uncertaintyTolerance\":0.4,\"dissentDisposition\":\"surface-material-dissent\"},\"perspectiveTags\":[\"engineering\"],\"privateEpisodicRefs\":[]}],\"requiredPerspectiveTags\":[\"engineering\"],\"positions\":[{\"individualId\":\"builder\",\"conclusion\":\"hold\",\"confidence\":0.8,\"evidenceRefs\":[\"owner:scenario\"],\"assumptions\":[],\"unknowns\":[],\"dissentTags\":[]}],\"metacognition\":{\"evidenceCoverage\":0.9,\"calibratedConfidence\":0.8,\"knownUnknowns\":[],\"materialConflictCount\":0,\"reversible\":true},\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"proposedAction\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1},\"plannerSnapshot\":{\"workers\":[],\"activeLeases\":[],\"taskCounts\":{},\"objectives\":[],\"repository\":{\"verified\":true},\"providers\":[]}}";
+
+export function projectCapabilityExplorer(coreReady: boolean, capabilities: readonly RuntimeCapability[]) {
+  return capabilities.map((route) => {
+    const available = coreReady && route.enabled !== false && route.routable === true;
+    const paid = route.costClass === "licensed-cloud" || route.costClass === "metered-cloud";
+    const state = !coreReady ? "unobserved" : !available ? "unavailable" : paid ? "core-only" : "routable";
+    const starter = available && route.costClass === "deterministic"
+      ? route.capability === "cognitive.predict" ? PREDICTION_STARTER : route.capability === "cognitive.cycle" ? CYCLE_STARTER : null
+      : null;
+    return {
+      capability: route.capability, state, starter,
+      reason: !coreReady ? "runtime-not-paired" : !available ? route.providerReasonCode ?? route.routingReason ?? (route.enabled === false ? "route-disabled" : "route-unavailable") : paid ? "non-zero-credit-route" : null,
+      workers: coreReady ? route.workerIds : [],
+      costClass: coreReady ? route.costClass ?? "unknown" : "unobserved",
+      evidence: coreReady ? route.evidenceLevel ?? "unknown" : "unobserved",
+      lastVerifiedAt: coreReady ? route.lastVerifiedAt ?? null : null,
+    };
+  });
+}
