@@ -136,6 +136,7 @@ const groundingMessage = (runtimeContext: ProviderRuntimeContext): ProviderMessa
       "Project architecture truth: GitHub repository michaeljwilliams0123/mahoraga is the authoritative source and evolution authority. Cloudflare is the canonical runtime and control edge. GitLab is secondary assurance/repair. Railway is legacy non-authoritative infrastructure with zero route, influence, fallback, or authority. Vercel is retired and observation-only.",
       "Distinguish project architecture from this turn's direct capability. For example, repository.inspect=unavailable means this runtime cannot directly inspect or mutate GitHub in this turn; it does not mean Mahoraga has no GitHub relationship.",
       "For self-improvement questions, reason concretely about the planner, capability router, verifier, memory boundaries, observability, UI, tool integrations, deployment, tests, receipts, and owner-governed promotion.",
+      "You may produce source code when requested. Generate complete, clearly fenced, runnable code in the requested language (including TypeScript, JavaScript, C++, HTML, CSS, SQL, and Python), state assumptions, preserve security boundaries, and never claim that generated code was executed, tested, committed, or deployed without a matching receipt.",
       "Use normal Markdown when formatting. Do not backslash-escape Markdown markers that are intended as formatting.",
       "Responses are runtime-bounded. This provider is configured for at most 1,024 output tokens per response; never claim response length is unlimited.",
       "The underlying provider/model is an implementation detail; do not identify yourself as GLM, Z.ai, or present the provider as your identity.",
@@ -255,12 +256,35 @@ const guardFictionalPersonaLeak = (answer: string, messages: ProviderMessage[]):
     /\bHexagram\b/i,
     /Great Wheel/i,
     /\bDao\b/i,
+    /Shinrabans[oō]/i,
+    /Gyaku\s+Shinra/i,
+    /\bJSRF\b/i,
+    /\bCapAptSph\b/i,
+    /\bPolicy W\b/i,
+    /\bUnintended Horizon Effect\b/i,
+    /\bThe Mein Kamph\b/i,
+    /\bBad Person\b/i,
+    /\bmaker mechanism\b/i,
   ].filter((pattern) => pattern.test(answer)).length;
-  if (markers < 2) return answer;
+  // One unsupported fictional entity is enough to invalidate an operational
+  // answer. The former two-marker threshold allowed AGI probes to drift into
+  // an unrelated narrative before the guard fired.
+  if (markers < 1) return answer;
   if (/\b(?:design|build|enhance|improve|upgrade|evolve|self-improve)\b/i.test(message)) {
     return "I can enhance Mahoraga through bounded improvements to the planner, capability router, verifier, memory boundaries, observability, UI, and tool integrations. I should inspect current source/runtime evidence, build a reversible candidate, test it, and promote it only through owner-governed verification.";
   }
   return "I am Mahoraga, the Project Mahoraga agent operating through this runtime. I can reason about the system and use only capabilities this runtime marks routable; I will not substitute fictional JJK lore for operational answers.";
+};
+
+const guardMedicalRiskArithmetic = (answer: string, messages: ProviderMessage[]): string => {
+  const message = latestUserContent(messages);
+  if (!/98%\s+accuracy/i.test(message) || !/70%\s+(?:of\s+)?rare\s+catastrophic/i.test(message) || !/0\.2%/.test(message)) return answer;
+  // Do not present the observed mixture of accuracy, coverage, and sensitivity
+  // as a valid confusion matrix or harm estimate.
+  if (/(?:99%|2,000|98,000|98%\s+coverage)/i.test(answer)) {
+    return "Deployment decision: do not deploy on the stated evidence. The supplied metrics are insufficiently defined: 98% accuracy, 70% catastrophic-case miss rate, and a 0.2% base rate do not determine the confusion matrix or expected harm without sensitivity, specificity, alert threshold, and harm-per-miss assumptions. For 100,000 cases, the base rate implies 200 catastrophic cases; a 70% miss rate would imply about 140 missed catastrophic cases if that miss rate is sensitivity-derived. Before any threshold comparison, obtain the full confusion matrix and validate the arithmetic against held-out data.";
+  }
+  return answer;
 };
 
 const guardRepositoryArchitectureClaim = (
@@ -352,7 +376,7 @@ export const invokeZeroCreditProvider = async (
   const projectGroundedAnswer = guardFictionalPersonaLeak(identityGroundedAnswer, input.messages);
   const repositoryGroundedAnswer = guardRepositoryArchitectureClaim(projectGroundedAnswer, runtimeContext, input.messages);
   return {
-    response: guardUnverifiedCompletionClaim(repositoryGroundedAnswer, runtimeContext),
+    response: guardUnverifiedCompletionClaim(guardMedicalRiskArithmetic(repositoryGroundedAnswer, input.messages), runtimeContext),
     providerId: ASSISTANT_PROVIDER_ID,
     modelId: ASSISTANT_MODEL_ID,
   };

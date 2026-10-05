@@ -17,6 +17,8 @@ import { interactionNegotiationHoldReason, projectInteractionContext, projectInt
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
 import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
+import { validateAnswerCompleteness } from "./response-completeness";
+export { validateAnswerCompleteness } from "./response-completeness";
 
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 const LEASE_TTL_MS = 300_000;
@@ -355,6 +357,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages, runtimeContext: runtimeContextFromCapabilities(runtimeCapabilities) });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
+      const completeness = validateAnswerCompleteness(message, answer);
+      if (!completeness.complete) return json({ error: "cognition-provider-response-incomplete", expectedScenarios: completeness.expected, missingScenarios: completeness.missing, retryable: true }, 502);
       const now = Date.now(); const userId = crypto.randomUUID(); const assistantId = crypto.randomUUID();
       const [userContent, assistantContent] = await Promise.all([encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY), encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY)]);
       this.storage.executeTransaction(() => {
