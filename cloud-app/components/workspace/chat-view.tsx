@@ -29,6 +29,7 @@ import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiv
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
 import { GithubWorkspacePanel } from "./GithubWorkspacePanel";
+import { CapabilityReadinessPanel } from "./CapabilityReadinessPanel";
 import { CapabilityExplorer } from "./CapabilityExplorer";
 
 const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
@@ -47,6 +48,8 @@ function readableBytes(bytes: number) {
 export function ChatView(props: ChatViewProps) {
   const {
     relay,
+    capabilityObservation,
+    onRefreshCapabilities,
     messages,
     runtimeBusy,
     runtimeError,
@@ -130,6 +133,8 @@ export function ChatView(props: ChatViewProps) {
       </header>
 
       {health?.deployment?.provider === "github-pages" && <GithubWorkspacePanel coreReady={coreReady} relay={relay} publishedCommit={health.deployment.commitSha} />}
+
+      {health?.deployment?.provider === "github-pages" && <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />}
 
       {health?.deployment?.provider === "github-pages" && <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />}
 

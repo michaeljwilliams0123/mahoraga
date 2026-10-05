@@ -4,6 +4,7 @@ import { Calculator, Database, Menu, MonitorUp, Radar, Search } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
+import { observeCapabilities, type CapabilityObservationState } from "@/lib/capability-observer";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
@@ -86,6 +87,8 @@ export function Workspace() {
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [relayState, setRelayState] = useState<RelayState>("resuming");
   const [pairedRelay, setPairedRelay] = useState<RuntimeRelay | null>(null);
+  const [capabilityObservation, setCapabilityObservation] = useState<CapabilityObservationState | null>(null);
+  const refreshCapabilities = useRef<(() => void) | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
@@ -180,7 +183,7 @@ export function Workspace() {
         setRelayState("unpaired");
         return;
       }
-      const capabilities = await transport.capabilities();
+      const capabilities = transport.transportKind === "pages-owner-bridge" ? [] : await transport.capabilities();
       if (!active) { transport.disconnect(); return; }
       relay.current = transport;
       setPairedRelay(transport);
@@ -199,6 +202,27 @@ export function Workspace() {
     };
   }, [connectionAttempt]);
 
+  useEffect(() => {
+    if (health?.deployment?.provider !== "github-pages" || !coreReady || !pairedRelay) {
+      setCapabilityObservation(null);
+      return;
+    }
+    const observer = observeCapabilities(pairedRelay, state => {
+      setCapabilityObservation(state);
+      if (state.phase !== "loading") setRuntimeCapabilities(state.capabilities);
+    });
+    refreshCapabilities.current = observer.refresh;
+    const refreshOnReturn = () => { if (document.visibilityState === "visible") observer.refresh(); };
+    window.addEventListener("focus", observer.refresh);
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    return () => {
+      observer.stop();
+      refreshCapabilities.current = null;
+      window.removeEventListener("focus", observer.refresh);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+    };
+  }, [health?.deployment?.provider, coreReady, pairedRelay]);
+
   function reconnectRuntime() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;
     relay.current?.disconnect();
@@ -216,7 +240,7 @@ export function Workspace() {
       const transport = relay.current;
       if (!transport) throw new Error("cloud-session-unavailable");
       await transport.loginOwnerPin(ownerLoginPin);
-      const capabilities = await transport.capabilities();
+      const capabilities = transport.transportKind === "pages-owner-bridge" ? [] : await transport.capabilities();
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);
       setRelayState("connected");
@@ -478,7 +502,7 @@ export function Workspace() {
       relay.current = null;
       setPairedRelay(null);
       await transport.pair(pairingOffer.trim());
-      const capabilities = await transport.capabilities();
+      const capabilities = transport.transportKind === "pages-owner-bridge" ? [] : await transport.capabilities();
       relay.current = transport;
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);
@@ -515,10 +539,10 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
+    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
       {view === "chat" && (
         <ChatView
-          relay={pairedRelay}
+          capabilityObservation={capabilityObservation} onRefreshCapabilities={() => refreshCapabilities.current?.()} relay={pairedRelay}
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
           busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} runtimeCapabilities={runtimeCapabilities} starters={starters} quickActions={quickActions}
