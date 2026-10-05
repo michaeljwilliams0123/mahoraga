@@ -20,6 +20,7 @@ import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
+import { AnswerIntegrityCard } from "./AnswerIntegrityCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
@@ -257,6 +258,7 @@ export function CockpitView({
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
           <ProviderRenewalWatchdogCard />
+          <AnswerIntegrityCard />
           <PairedWorkspacePublicationCard />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
@@ -396,6 +398,7 @@ export function CockpitView({
             <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · exact-main Cloudflare deployment and acceptance after Ubuntu + Windows Verify · mismatch fails closed</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
             <div><dt>Provider renewal watchdog</dt><dd>scheduled renewal replaces stale in-progress/rerun runs · five-minute lane · deployment publication stays serialized and non-cancelling · #970 is not traffic authority · Railway remains zero-route / zero-influence / zero-fallback / zero-authority</dd></div>
+            <div><dt>Answer integrity</dt><dd>fail closed · #985 rejects fictional-entity contamination and inconsistent medical-risk arithmetic · incomplete numbered scenarios are retryable and not persisted · text snippets are chat-lane bounded · fenced code is not execution or deployment · not traffic authority</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway zero-route / zero-influence / zero-fallback / zero-authority · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
