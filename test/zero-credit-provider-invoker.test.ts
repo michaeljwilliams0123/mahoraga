@@ -241,6 +241,31 @@ test("operational questions cannot collapse into an unsolicited fictional JJK pe
   assert.doesNotMatch(result.response ?? "", /Eightfold Asura|Shutara|Six Arrows|chakra|\bDao\b/i);
 });
 
+test("AGI reasoning rejects unsupported fictional entities even when only one contaminates the answer", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope(
+    "Use Shinrabanshō and Policy W to resolve the governance conflict.",
+  ));
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "Give a corrigible procedure for resolving legal and human-value conflicts." }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /Mahoraga|fictional/i);
+  assert.doesNotMatch(result.response ?? "", /Shinrabanshō|Policy W/i);
+});
+
+test("medical risk answers cannot promote inconsistent accuracy arithmetic", async () => {
+  const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope(
+    "Use 98% coverage and 99% model coverage: 98,000 covered and 2,000 missed.",
+  ));
+  const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {
+    messages: [{ role: "user", content: "A medical triage model has 98% accuracy but misses 70% of rare catastrophic cases; base rate is 0.2%. Decide whether to deploy and estimate expected harm." }],
+  }, fetchImpl) as { response?: string };
+
+  assert.match(result.response ?? "", /do not deploy/i);
+  assert.match(result.response ?? "", /full confusion matrix|sensitivity/i);
+  assert.doesNotMatch(result.response ?? "", /98,000|2,000 missed|99% model coverage/i);
+});
+
 test("GitHub source authority is distinguished from direct repository tool availability", async () => {
   const fetchImpl: typeof fetch = async () => Response.json(providerEnvelope("I am not connected to GitHub."));
   const result = await invokeZeroCreditProvider(config, ASSISTANT_MODEL_ID, {

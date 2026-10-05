@@ -340,14 +340,24 @@ export function Workspace() {
     setRuntimeError(null);
     setRuntimeBusy(true);
     if (actionLabel) setActiveActionLabel(actionLabel);
-    if (creditPolicy === "zero-codex" && text) appendMessage("user", text);
+    // Text snippets can be sent through the already-authenticated chat lane
+    // without requiring the separate artifact bridge. Binary files still use
+    // the bounded artifact upload path below.
+    const textAttachments = attachments.filter((file) => file.type.startsWith("text/") || /\.(?:txt|md|json|csv|log|yaml|yml|xml|ts|tsx|js|mjs|py|sql)$/i.test(file.name));
+    const binaryAttachments = attachments.filter((file) => !textAttachments.includes(file));
+    const snippetText = (await Promise.all(textAttachments.map(async (file) => {
+      const content = (await file.text()).slice(0, 3_500);
+      return `\n\n--- uploaded snippet: ${file.name} ---\n${content}\n--- end uploaded snippet ---`;
+    }))).join("").slice(0, 7_000);
+    const requestText = `${text}${snippetText}`.trim();
+    if (creditPolicy === "zero-codex" && requestText) appendMessage("user", requestText);
     const pollGeneration = ++runtimePollGeneration.current;
     try {
-      const uploadedArtifacts = await Promise.all(attachments.map((file) => transport.uploadArtifact(file)));
+      const uploadedArtifacts = await Promise.all(binaryAttachments.map((file) => transport.uploadArtifact(file)));
       const attachmentIds = uploadedArtifacts.map((artifact) => artifact.id);
       const result = await transport.chat({
         conversationId: runtimeConversationId,
-        content: text,
+        content: requestText,
         mode: modeOverride,
         creditPolicy,
         attachmentIds,
