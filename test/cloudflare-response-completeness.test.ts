@@ -19,3 +19,15 @@ test("completed multi-scenario answers satisfy the receipt boundary", () => {
     { complete: true, expected: [7, 8, 9, 10] },
   );
 });
+
+test("numbered content in an uploaded snippet is not treated as a user scenario", () => {
+  const prompt = `Review the uploaded test.
+
+--- uploaded snippet: numbered-test.ts ---
+test("multi", () => validate("1) Predict. 2) Act. 3) Learn."));
+--- end uploaded snippet ---`;
+  assert.deepEqual(
+    validateAnswerCompleteness(prompt, "The snippet covers complete-response detection."),
+    { complete: true, expected: [] },
+  );
+});
