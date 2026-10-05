@@ -17,6 +17,7 @@ import { interactionNegotiationHoldReason, projectInteractionContext, projectInt
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
 import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
+import { inspectGithubWorkspace } from "./github-workspace";
 import { validateAnswerCompleteness } from "./response-completeness";
 export { validateAnswerCompleteness } from "./response-completeness";
 
@@ -258,6 +259,10 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const truth = this.storage.getInteractionRuntimeTruth(payload.interactionId);
       if (truth === null) return json({ error: "interaction-truth-unavailable" }, 404);
       try { return json(validateInteractionRuntimeTruth(truth.payload)); } catch { return json({ error:"interaction-runtime-truth-invalid" }, 503); }
+    }
+    if (input?.type === "native-github-workspace") {
+      try { return json(await inspectGithubWorkspace(payload, { env: this.env })); }
+      catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
     }
     if (input?.type === "native-github-repository") {
       if (Object.keys(payload).length) return json({ error: "github-native-repository-request-invalid" }, 400);
