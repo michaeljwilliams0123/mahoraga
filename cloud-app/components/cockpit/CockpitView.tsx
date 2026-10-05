@@ -272,6 +272,12 @@ export function CockpitView({
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`Observation ${readinessState.phase} · SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
         <StatusCard
+          label="Uploaded snippet completeness"
+          value="Envelope ignored (observational)"
+          detail="Merged #986 ignores workspace-injected uploaded snippet envelopes when choosing required scenario sections. Numbered source content in a staged snippet is not an incomplete multi-scenario answer. Incomplete detection still applies to the actual user prompt. Not execution authority, not cognition proof, and not traffic authority."
+          tone="neutral"
+        />
+        <StatusCard
           label="Predictive scenario route"
           value={predictiveRouteReady ? "Paired deterministic route" : "Unavailable / unobserved"}
           detail={predictiveRouteReady
