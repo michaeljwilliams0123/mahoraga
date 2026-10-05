@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/*.test.mjs test/*.test.ts",
+    "test": "node --test test/*.test.mjs test/*.test.ts checks/capability-explorer-render.mjs",
     "verify": "npm run typecheck && npm run test && npm run build"
   },
   "engines": {
