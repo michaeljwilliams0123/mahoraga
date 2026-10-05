@@ -233,3 +233,12 @@ test("Pages bot-merge publication requires the trusted Verify artifact before bu
  assert.ok(deploy.indexOf('verify-exact-head.mjs') < deploy.indexOf('actions/deploy-pages'));
  assert.doesNotMatch(workflow, /pull_request_target|secrets\./);
 });
+
+test("verification notifications cannot cancel push or manual Pages publication", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/pages.yml", import.meta.url), "utf8");
+  const group = workflow.match(/^  group: (.+)$/m)?.[1];
+  assert.ok(group);
+  assert.match(group, /github\.event_name == 'workflow_run'/);
+  assert.match(group, /format\('verification-\{0\}', github\.event\.workflow_run\.id\)/);
+  assert.match(group, /\|\| github\.ref/);
+});

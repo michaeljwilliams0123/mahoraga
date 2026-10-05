@@ -9,6 +9,7 @@ export function WorkspaceShell({
   setSidebarOpen,
   busy,
   coreReady,
+  runtimeConnected = coreReady,
   backgroundLabel = "Background unverified",
   onNewConversation,
   children,
@@ -40,7 +41,7 @@ export function WorkspaceShell({
 
         <div className={coreReady ? "brain-card ready" : "brain-card"}>
           <span className="brain-orb"><span /></span>
-          <div><strong>{coreReady ? "Brain connected" : "Brain offline"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : "Connect in Chat to execute work."}</span></div>
+          <div><strong>{coreReady ? "Brain connected" : runtimeConnected ? "Runtime connected" : "Brain offline"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : runtimeConnected ? "Check each ability in Chat." : "Connect in Chat to execute work."}</span></div>
         </div>
         <button type="button" className="background-status" onClick={() => { setView("advanced"); setSidebarOpen(false); }} aria-label="Open background work details">{backgroundLabel}</button>
 

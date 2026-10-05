@@ -1,3 +1,4 @@
+import type { CapabilityObservationState } from "@/lib/capability-observer";
 import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { RuntimeCapability, RuntimeDeliveryTruth, RuntimeInteractionTruth, RuntimeRelay } from "@/lib/runtime-relay";
 import type { CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
@@ -92,6 +93,9 @@ export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: stri
 export type Starter = { icon: ComponentType<{ size?: number }>; title: string; prompt: string };
 
 export type ChatViewProps = {
+  capabilityObservation: CapabilityObservationState | null;
+  onRefreshCapabilities: () => void;
+  relay: RuntimeRelay | null;
   messages: WorkspaceMessage[];
   runtimeBusy: boolean;
   runtimeError: string | null;
@@ -142,6 +146,7 @@ export type ChatViewProps = {
 };
 
 export type WorkspaceShellProps = {
+  runtimeConnected?: boolean;
   backgroundLabel?: string;
   view: WorkspaceView;
   setView: (view: WorkspaceView) => void;

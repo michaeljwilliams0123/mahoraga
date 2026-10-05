@@ -18,7 +18,8 @@ env:
   VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
 
 concurrency:
-  group: mahoraga-pages-${{ github.ref }}
+  # Skipped verification notifications must not cancel a push/manual deployment.
+  group: mahoraga-pages-${{ github.event_name == 'workflow_run' && format('verification-{0}', github.event.workflow_run.id) || github.ref }}
   cancel-in-progress: true
 
 jobs:

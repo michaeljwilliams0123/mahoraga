@@ -199,3 +199,22 @@ test("failed frame load can be retried and disconnect cancels an in-flight load"
  const disconnected = other.disconnect();
  await disconnected; await cancelled;
 });
+
+test("failed Pages handshake removes the stale frame before retrying sign-in", async t => {
+  const origin = "https://gateway.example";
+  const harness = installBridgeHarness(t, origin);
+  let removed = 0;
+  const create = document.createElement;
+  document.createElement = tag => { const frame = create(tag); frame.remove = () => { removed++; }; return frame; };
+  const client = await clientModule();
+  const bridge = new client.PagesOwnerBridgeClient(origin);
+  const attached = bridge.attach();
+  const rejected = assert.rejects(attached, /cloud-session-unreachable/);
+  await harness.flush(); await harness.advance(10_001); await rejected;
+  assert.equal(removed, 1);
+  const retry = bridge.attach(); await harness.flush();
+  harness.reply({ authenticated: true });
+  assert.equal(await retry, "authenticated");
+  const disconnecting = bridge.disconnect(); await harness.flush();
+  harness.reply({ authenticated: false }); await disconnecting;
+});
