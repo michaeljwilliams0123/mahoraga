@@ -128,7 +128,7 @@ export function Workspace() {
         : routeReadiness === "ready"
           ? "Idle"
           : routeReadiness === "offline"
-            ? "Ready"
+            ? "Offline"
             : "Connecting";
   const brainLabel = brainState;
 
