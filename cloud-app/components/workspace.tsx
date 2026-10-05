@@ -4,6 +4,7 @@ import { Calculator, Database, Menu, MonitorUp, Radar, Search } from "lucide-rea
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
+import { subscribePagesReconnect } from "@/lib/pages-reconnect";
 import { observeCapabilities, type CapabilityObservationState } from "@/lib/capability-observer";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
@@ -177,6 +178,7 @@ export function Workspace() {
       const resumed = attached ?? await transport.resume();
       if (!active) { transport.disconnect(); return; }
       if (!resumed) {
+        transport.disconnect();
         const code = transport.sessionDiagnostic?.code ?? "cloud-session-unavailable";
         setOwnerLoginRequired(false);
         setRuntimeError(runtimeErrorMessage(code));
@@ -222,6 +224,12 @@ export function Workspace() {
       document.removeEventListener("visibilitychange", refreshOnReturn);
     };
   }, [health?.deployment?.provider, coreReady, pairedRelay]);
+
+  useEffect(() => {
+    if (health?.deployment?.provider !== "github-pages" || ownerLoginRequired || runtimeBusy || ownerLoginBusy
+      || !["unpaired", "error"].includes(relayState)) return;
+    return subscribePagesReconnect(reconnectRuntime);
+  }, [health?.deployment?.provider, relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
 
   function reconnectRuntime() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;

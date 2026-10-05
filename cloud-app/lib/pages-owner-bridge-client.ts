@@ -28,8 +28,14 @@ export class PagesOwnerBridgeClient {
 
   async attach(): Promise<"authenticated" | "owner-auth-required"> {
     await this.ensureFrame();
-    const value = await this.request<{ authenticated?: boolean }>({ type: "bridge.status" });
-    return value.authenticated === true ? "authenticated" : "owner-auth-required";
+    const frame = this.frame;
+    try {
+      const value = await this.request<{ authenticated?: boolean }>({ type: "bridge.status" });
+      return value.authenticated === true ? "authenticated" : "owner-auth-required";
+    } catch (error) {
+      if (this.frame === frame) this.destroy();
+      throw error;
+    }
   }
 
   async login(pin: string) {
