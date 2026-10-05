@@ -22,14 +22,15 @@ test("connected transport gates normal chat on assistant.respond and explicit si
   assert.match(chat, /disabled=\{!canSend/);
 });
 
-test("sidebar brain readiness follows the assistant route and describes cloud bridge precedence truthfully", async () => {
+test("sidebar execution readiness follows the assistant route and keeps connectors optional", async () => {
   const [workspace, shell] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/workspace-shell.tsx"),
   ]);
 
   assert.match(workspace, /<WorkspaceShell[\s\S]*coreReady=\{assistantReady\}/);
-  assert.match(shell, /authenticated cloud bridge is the primary execution path/i);
+  assert.match(shell, /displays Mahoraga independently of execution connectivity/i);
+  assert.match(shell, /configured authenticated connector is preferred/i);
   assert.match(shell, /encrypted relay remains recovery/i);
 });
 

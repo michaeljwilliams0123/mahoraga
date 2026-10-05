@@ -41,13 +41,13 @@ export function WorkspaceShell({
 
         <div className={coreReady ? "brain-card ready" : "brain-card"}>
           <span className="brain-orb"><span /></span>
-          <div><strong>{coreReady ? "Brain connected" : runtimeConnected ? "Runtime connected" : "Brain offline"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : runtimeConnected ? "Check each ability in Chat." : "Connect in Chat to execute work."}</span></div>
+          <div><strong>{coreReady || runtimeConnected ? "Execution connected" : "Execution disconnected"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : runtimeConnected ? "Check each ability in Chat." : "The workspace remains online. Connect in Chat to execute work."}</span></div>
         </div>
         <button type="button" className="background-status" onClick={() => { setView("advanced"); setSidebarOpen(false); }} aria-label="Open background work details">{backgroundLabel}</button>
 
         <div className="privacy-card">
           <ShieldCheck size={16} />
-          <span>This browser workspace displays Mahoraga. The authenticated cloud bridge is the primary execution path when available; the encrypted relay remains recovery. This browser never stores GitHub credentials.</span>
+          <span>This browser workspace displays Mahoraga independently of execution connectivity. A configured authenticated connector is preferred when available; the encrypted relay remains recovery. This browser never stores GitHub credentials.</span>
         </div>
         <a className="repo-link" href="https://github.com/michaeljwilliams0123/mahoraga" target="_blank" rel="noreferrer">Open GitHub <ExternalLink size={13} /></a>
       </aside>

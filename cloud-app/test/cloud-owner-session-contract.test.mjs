@@ -19,7 +19,8 @@ test("an unauthenticated cloud browser asks for owner auth before assertion-secr
 test("routine chat does not present relay pairing as the normal connection path", async () => {
   const chat = await read("components/workspace/chat-view.tsx");
   assert.doesNotMatch(chat, /<strong>Connect the Mahoraga brain<\/strong>/);
-  assert.match(chat, /Cloud connection unavailable/);
+  assert.match(chat, /Execution connection unavailable/);
+  assert.match(chat, /cloudBridgeOrigin &&/);
   assert.match(chat, /Recovery connection/);
   assert.match(chat, /Paste pairing offer/);
 });

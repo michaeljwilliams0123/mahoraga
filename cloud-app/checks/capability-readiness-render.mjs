@@ -20,7 +20,8 @@ test('prediction and planning stay usable when generation is unavailable', () =>
 });
 test('disconnected Pages identifies the runtime boundary and disables every draft', () => {
   const html = render(false, null);
-  assert.match(html, /authenticated Cloudflare runtime executes requests/);
+  assert.match(html, /GitHub Pages hosts this workspace independently/);
+  assert.match(html, /Connect an execution runtime/);
   assert.equal((html.match(/disabled=""/g) ?? []).length, 4);
   assert.doesNotMatch(html, /<p>Available<\/p>/);
 });

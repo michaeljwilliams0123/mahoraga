@@ -53,15 +53,15 @@ function runtimeErrorMessage(code: string) {
     "relay-not-paired": "The Mahoraga brain is no longer connected. Connect it again to continue.",
     "relay-disconnected": "The encrypted brain connection closed. No alternate execution brain was used.",
     "relay-request-timeout": "Mahoraga did not answer before the bounded timeout. No paid fallback was attempted.",
-    "relay-pairing-offer-invalid": "Recovery pairing offer is invalid. Do not enter the owner PIN here; use Cloudflare sign-in above.",
+    "relay-pairing-offer-invalid": "Recovery pairing offer is invalid. Do not enter the owner PIN here; use the configured execution connector when available.",
     "runtime-response-missing": "Mahoraga finished the task, but its reply did not reach this conversation. Try again or open Work for the task state.",
     "cognition-provider-timeout": "Mahoraga's brain did not answer within the bounded response window. The request stopped safely; try again.",
     "relay-attachments-local-only": "Files are staged locally until the core artifact bridge accepts them.",
     "cloud-request-timeout": "The runtime did not respond before the connection deadline. Work may still be running; reconnect to check its result before submitting it again.",
-    "cloud-session-unavailable": "The authenticated cloud runtime is unavailable. Sign in to the canonical cloud workspace or use the recovery connection only if needed.",
-    "cloud-session-unreachable": "The authenticated cloud runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
-    "cloud-runtime-degraded": "The authenticated cloud runtime is reachable but degraded. Execution remains fail-closed while the cloud session recovers.",
-    "cloud-runtime-contract-incompatible": "The cloud runtime did not present the supported session contract. Legacy rollback remains available under Advanced; normal execution stays blocked.",
+    "cloud-session-unavailable": "The authenticated execution runtime is unavailable. Connect the configured runtime or use the recovery connection only if needed.",
+    "cloud-session-unreachable": "The authenticated execution runtime could not be reached. Mahoraga will not invent a fallback; recovery pairing remains optional under Recovery connection.",
+    "cloud-runtime-degraded": "The authenticated execution runtime is reachable but degraded. Execution remains fail-closed while the session recovers.",
+    "cloud-runtime-contract-incompatible": "The execution runtime did not present the supported session contract. Legacy rollback remains available under Advanced; normal execution stays blocked.",
     "cloud-owner-auth-required": "Enter your 4-digit owner PIN to connect Mahoraga.",
     "cloud-owner-login-required": "The 4-digit owner PIN was not accepted.",
     "cloud-owner-login-rate-limited": "Too many PIN attempts. Wait a few minutes and try again.",
@@ -130,7 +130,7 @@ export function Workspace() {
           : routeReadiness === "offline"
             ? "Ready"
             : "Connecting";
-  const brainLabel = `Mahoraga: ${brainState}`;
+  const brainLabel = brainState;
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })

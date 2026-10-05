@@ -78,7 +78,7 @@ test("Pages staging stays inside the repository root without copying the UI into
   assert.equal(path.relative(source, destination).startsWith(".."), true);
 });
 
-test("Pages publishes the real workspace and maps the browser bridge to Cloudflare", async () => {
+test("Pages publishes the real workspace and uses only an explicitly configured browser bridge", async () => {
   const builder = await readFile(new URL("../scripts/build-pages-static.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(builder, /pagesLauncherHtml/);
   assert.doesNotMatch(builder, /DEFAULT_CANONICAL_WORKSPACE_URL/);
@@ -88,8 +88,8 @@ test("Pages publishes the real workspace and maps the browser bridge to Cloudfla
   assert.match(workflow, /NEXT_PUBLIC_HEALTH_ENDPOINT: \/mahoraga\/api\/health\.json/);
   assert.doesNotMatch(workflow, /NEXT_PUBLIC_MAHORAGA_API_ORIGIN/);
   assert.doesNotMatch(workflow, /MAHORAGA_CANONICAL_WORKSPACE_URL/);
-  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
-  assert.match(workflow, /mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev/);
+  assert.match(workflow, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: \$\{\{ vars\.MAHORAGA_PAGES_BRIDGE_ORIGIN \}\}/);
+  assert.doesNotMatch(workflow, /mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev/);
   assert.doesNotMatch(workflow, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_LOGIN_SECRET/);
   assert.doesNotMatch(workflow, /MAHORAGA_CLOUD_OWNER_PIN_HASH/);
