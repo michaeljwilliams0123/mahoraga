@@ -28,6 +28,7 @@ import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
 import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
+import { CapabilityExplorer } from "./CapabilityExplorer";
 
 const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
   upload: Upload,
@@ -125,6 +126,8 @@ export function ChatView(props: ChatViewProps) {
           <button className="icon-button" type="button" onClick={speakLatest} aria-label="Read latest Mahoraga response aloud" title="Read aloud"><Volume2 size={17} /></button>
         </div>
       </header>
+
+      {health?.deployment?.provider === "github-pages" && <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />}
 
       <section className="conversation-panel">
         {messages.length === 0 ? (
