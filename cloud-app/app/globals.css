@@ -410,3 +410,15 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .capability-explorer-list article { padding: 12px; border: 1px solid var(--border); border-radius: 8px; overflow-wrap: anywhere; }
 .capability-explorer-list strong, .capability-explorer-list span { display: block; font-size: 12px; }
 .capability-explorer-list button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+
+.github-workspace-panel { margin: 12px 20px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; }
+.github-workspace-panel summary { cursor: pointer; font-weight: 600; }
+.github-workspace-heading { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.github-workspace-panel p, .github-workspace-panel li { font-size: 12px; overflow-wrap: anywhere; }
+.github-workspace-panel button { padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.github-workspace-panel button:disabled { opacity: .5; cursor: default; }
+.github-workspace-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
+.github-workspace-grid section { padding: 12px; border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
+.github-workspace-grid h3 { margin-top: 0; font-size: 14px; }
+.github-workspace-grid ul { padding-left: 18px; }
+.github-workspace-grid li { margin-bottom: 8px; }

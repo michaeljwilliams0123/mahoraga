@@ -92,6 +92,7 @@ export const WORKSPACE_NAV_ITEMS: ReadonlyArray<{ id: WorkspaceView; label: stri
 export type Starter = { icon: ComponentType<{ size?: number }>; title: string; prompt: string };
 
 export type ChatViewProps = {
+  relay: RuntimeRelay | null;
   messages: WorkspaceMessage[];
   runtimeBusy: boolean;
   runtimeError: string | null;

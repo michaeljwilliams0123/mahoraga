@@ -518,6 +518,7 @@ export function Workspace() {
     <WorkspaceShell backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
       {view === "chat" && (
         <ChatView
+          relay={pairedRelay}
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
           busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} runtimeCapabilities={runtimeCapabilities} starters={starters} quickActions={quickActions}

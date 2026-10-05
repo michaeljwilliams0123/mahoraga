@@ -3,6 +3,7 @@
 import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
 import { PagesOwnerBridgeClient, validatePublicBridgeOrigin } from "./pages-owner-bridge-client";
 
+import type { GithubWorkspaceSnapshot } from "./github-workspace";
 import { RuntimeHttpScope } from "./runtime-http-scope";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
@@ -442,6 +443,9 @@ export class RuntimeRelay {
   async capabilities() {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
     return Array.isArray(value.capabilities) ? value.capabilities : [];
+  }
+  async nativeGithubWorkspace() {
+    return this.call<GithubWorkspaceSnapshot>("native-github-workspace", {});
   }
   async nativeGithubRepository() {
     return this.call<RuntimeGithubAppRepositoryProbe>("native-github-repository", {});

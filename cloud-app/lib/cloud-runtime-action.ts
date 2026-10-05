@@ -7,6 +7,7 @@ export const ALLOWED_CLOUD_RUNTIME_ACTIONS = new Set([
   "messages",
   "message-content",
   "task-action",
+  "native-github-workspace",
   "native-github-repository",
   "native-github-pull-request",
   "native-github-merge",
