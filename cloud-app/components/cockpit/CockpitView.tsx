@@ -264,6 +264,11 @@ export function CockpitView({
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StatusCard
+          label="Pages owner-connection recovery"
+          value="Observational / fail-closed"
+          detail="Handshake timeout tears down stale bridge frames after preserving the diagnostic code. Recovery requests one fresh connection on visible return, focus, or online only while Pages is unpaired or error; it never replays tasks or submits authentication material. Recovery telemetry is policy-only, separate from execution readiness and traffic authority. github.io is presentation only; this UI makes no authenticated API calls. workflow_run verification notifications use a run-ID concurrency group; push/manual stay per-ref, so a skipped notification cannot cancel current-main Pages publication."
+        />
+        <StatusCard
           label="Telemetry"
           value="telemetry unavailable"
           detail="telemetry-session-unavailable until a genuine owner-authenticated transport exists · no browser bearer from localStorage · TELEMETRY_STREAM_TOKEN optional and not uploaded · no live Railway fallback · not traffic authority"
