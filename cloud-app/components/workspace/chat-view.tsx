@@ -121,8 +121,11 @@ export function ChatView(props: ChatViewProps) {
     <div className="one-chat-page">
       <header className="topbar one-topbar">
         <button className="menu-button" type="button" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></button>
+        <div className="brain-status ready">
+          <span className="brain-dot" /> Workspace online
+        </div>
         <div className={coreReady ? "brain-status ready" : new Set(["pairing", "resuming"]).has(relayState) ? "brain-status pairing" : "brain-status"}>
-          <span className="brain-dot" /> {brainLabel}
+          <span className="brain-dot" /> Execution {brainLabel}
         </div>
         <div className="topbar-actions">
           <button className={voiceListening ? "icon-button active" : "icon-button"} type="button" onClick={toggleVoice} disabled={!voiceSupported} aria-label={voiceListening ? "Stop voice dictation" : "Start voice chat"} title={voiceSupported ? "Voice chat" : "Voice is not supported in this browser"}>
@@ -263,10 +266,10 @@ export function ChatView(props: ChatViewProps) {
 
         {!coreReady && relayState !== "resuming" && !ownerLoginRequired && (
           <div className="connect-card">
-            <div><span className="brain-orb"><span /></span><div><strong>Cloud connection unavailable</strong><p>Authenticate with Cloudflare first, then retry the cloud connection. Relay pairing is recovery only.</p></div></div>
+            <div><span className="brain-orb"><span /></span><div><strong>Execution connection unavailable</strong><p>{cloudBridgeOrigin ? "Authenticate with the configured Cloudflare connector, then retry execution." : "Connect an execution runtime to chat, run tools, and load live GitHub status."} Relay pairing remains recovery only.</p></div></div>
             <div className="connect-controls">
-              <button type="button" onClick={openCloudSignIn} disabled={!cloudBridgeOrigin}><Link2 size={16} /> Open Cloudflare sign-in</button>
-              <button type="button" onClick={reconnectRuntime} disabled={busy}>Retry cloud connection</button>
+              {cloudBridgeOrigin && <button type="button" onClick={openCloudSignIn}><Link2 size={16} /> Open Cloudflare sign-in</button>}
+              <button type="button" onClick={reconnectRuntime} disabled={busy}>Retry execution connection</button>
             </div>
             <details>
               <summary>Recovery connection (advanced) <ChevronDown size={15} /></summary>
@@ -297,7 +300,7 @@ export function ChatView(props: ChatViewProps) {
             onKeyDown={(event) => {
               if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void submit(); }
             }}
-            placeholder={voiceListening ? "Listening…" : assistantReady ? "Ask Mahoraga anything…" : localPredictionReady ? "Use /predict to simulate a numeric scenario…" : coreReady ? "Brain route unavailable — Mahoraga remains fail-closed." : "Sign in or restore the cloud connection to execute work…"}
+            placeholder={voiceListening ? "Listening…" : assistantReady ? "Ask Mahoraga anything…" : localPredictionReady ? "Use /predict to simulate a numeric scenario…" : coreReady ? "Brain route unavailable — Mahoraga remains fail-closed." : "Connect or restore an execution runtime to execute work…"}
             aria-label="Message Mahoraga"
           />
           <div className="composer-actions">

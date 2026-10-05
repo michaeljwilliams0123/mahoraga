@@ -29,7 +29,7 @@ export function GithubWorkspaceView({ coreReady, state, publishedCommit, canRefr
         <p>Mahoraga checks Pages and Actions automatically through its native GitHub App when connected. Read-only inspection.</p>
         <button type="button" onClick={onRefresh} disabled={!coreReady || !canRefresh || state?.phase === "loading"}>Refresh GitHub status</button>
       </div>
-      {!coreReady && <p role="status">Connect to Mahoraga to load Pages and Actions.</p>}
+      {!coreReady && <p role="status">GitHub Pages presentation is online. Connect execution to inspect Pages and Actions through the native GitHub App.</p>}
       {coreReady && state?.phase === "loading" && <p role="status">Checking GitHub Pages and Actions…</p>}
       {error && <p role="alert">GitHub workspace unavailable · {error}. The connected runtime must support native GitHub workspace inspection.</p>}
       <div className="github-workspace-grid">

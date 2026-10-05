@@ -29,7 +29,8 @@ test("the single workspace is a credential-free encrypted client of one Mahoraga
   assert.doesNotMatch(workspace, /conversationRoute|Cloud Pro/);
   assert.match(workspace, /RuntimeRelay/);
   assert.match(workspace, /chat:\s*"workspace".*work:\s*"work".*files:\s*"files".*advanced:\s*"advanced"/s);
-  assert.match(workspace, /authenticated cloud bridge is the primary execution path/i);
+  assert.match(workspace, /workspace displays Mahoraga independently of execution connectivity/i);
+  assert.match(workspace, /configured authenticated connector is preferred/i);
   assert.match(workspace, /encrypted relay remains recovery/i);
   assert.match(workspace, /browser never stores GitHub credentials/i);
   await assert.rejects(access(path.join(ROOT, "cloud-app/app/api/chat/route.ts")), { code: "ENOENT" });
