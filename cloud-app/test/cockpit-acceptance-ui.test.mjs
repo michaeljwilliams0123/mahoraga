@@ -67,6 +67,17 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   });
 
+  it("surfaces uploaded snippet completeness as observational only", () => {
+    assert.match(cockpit, /Uploaded snippet completeness/);
+    assert.match(cockpit, /Envelope ignored \(observational\)/);
+    assert.match(cockpit, /workspace-injected uploaded snippet envelopes/);
+    assert.match(cockpit, /Numbered source content in a staged snippet is not an incomplete multi-scenario answer/);
+    assert.match(cockpit, /Incomplete detection still applies to the actual user prompt/);
+    assert.match(cockpit, /Merged #986/);
+    assert.match(cockpit, /Not execution authority, not cognition proof, and not traffic authority/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
+
   it("surfaces the hard-zero quota decision without implying promotion", () => {
     assert.match(types, /HardZeroQuotaReceipt/);
     assert.match(types, /quota-hold-until-utc-reset/);
