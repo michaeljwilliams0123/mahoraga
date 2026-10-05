@@ -178,8 +178,8 @@ export function Workspace() {
       const resumed = attached ?? await transport.resume();
       if (!active) { transport.disconnect(); return; }
       if (!resumed) {
-        transport.disconnect();
         const code = transport.sessionDiagnostic?.code ?? "cloud-session-unavailable";
+        transport.disconnect();
         setOwnerLoginRequired(false);
         setRuntimeError(runtimeErrorMessage(code));
         setRelayState("unpaired");
