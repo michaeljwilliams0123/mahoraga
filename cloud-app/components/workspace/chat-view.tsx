@@ -24,7 +24,8 @@ import {
 } from "lucide-react";
 import { useLayoutEffect } from "react";
 import { Streamdown } from "streamdown";
-import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
+import { MAX_FILE_BYTES, MAX_FILES, MAX_INPUT_TEXT_CHARS, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
+import { handlingLabel, sessionLane, sessionLaneLabel, stagedHandling } from "@/lib/snippet-handling-truth";
 import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
@@ -96,6 +97,7 @@ export function ChatView(props: ChatViewProps) {
   const localPredictionReady = predictiveChatAvailable(coreReady, runtimeCapabilities);
   const cognitiveCycleReady = cognitiveCycleAvailable(coreReady, runtimeCapabilities);
   const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
+  const lane = sessionLane({ coreReady, relayState, ownerLoginRequired });
 
   useLayoutEffect(() => {
     const element = composer.current;
@@ -269,10 +271,20 @@ export function ChatView(props: ChatViewProps) {
 
         <div className="composer-card one-composer">
           {files.length > 0 && (
-            <div className="file-strip">
-              {files.map((file) => (
-                <span key={`${file.name}-${file.size}`}><Paperclip size={13} /> {file.name}<small>{readableBytes(file.size)}</small><button type="button" onClick={() => setFiles((current) => current.filter((item) => item !== file))} aria-label={`Remove ${file.name}`}><X size={12} /></button></span>
-              ))}
+            <div className="file-strip" aria-label="Staged attachment handling">
+              {files.map((file) => {
+                const kind = stagedHandling(file);
+                return (
+                  <span key={`${file.name}-${file.size}`} title={handlingLabel(kind)}>
+                    <Paperclip size={13} /> {file.name}
+                    <small>{readableBytes(file.size)} · {kind === "text-snippet" ? "text snippet" : "excluded from model"}</small>
+                    <button type="button" onClick={() => setFiles((current) => current.filter((item) => item !== file))} aria-label={`Remove ${file.name}`}><X size={12} /></button>
+                  </span>
+                );
+              })}
+              <small>
+                Limits: {MAX_FILES} files, {readableBytes(MAX_FILE_BYTES)} each, {readableBytes(MAX_TOTAL_FILE_BYTES)} total. Staged {files.length} / {readableBytes(totalBytes)}. Oversized files are rejected and not staged. Binary files are not model-readable.
+              </small>
             </div>
           )}
           <textarea
@@ -292,7 +304,7 @@ export function ChatView(props: ChatViewProps) {
             <input ref={fileInput} type="file" multiple hidden onChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.currentTarget.value = ""; }} />
             <button className="composer-tool" type="button" onClick={() => void runQuickAction("upload")} aria-label="Upload files" title="Upload"><Paperclip size={18} /></button>
             <button className={voiceListening ? "composer-tool listening" : "composer-tool"} type="button" onClick={toggleVoice} disabled={!voiceSupported} aria-label={voiceListening ? "Stop microphone" : "Voice chat"} title={voiceSupported ? "Voice chat" : "Voice unavailable"}>{voiceListening ? <MicOff size={18} /> : <Mic size={18} />}</button>
-            <span className="composer-hint">{files.length > 0 ? `${files.length} staged · ${readableBytes(totalBytes)}` : health?.routing?.automaticPaidFallback === false ? "Brain-routed · no paid fallback" : "Brain-routed"}</span>
+            <span className="composer-hint">{files.length > 0 ? `${files.length} staged · ${readableBytes(totalBytes)} · text snippets only are model-visible` : health?.routing?.automaticPaidFallback === false ? "Brain-routed · no paid fallback" : "Brain-routed"}</span>
             <span id="composer-character-count" className={input.length >= MAX_INPUT_TEXT_CHARS * 0.9 ? "composer-count near-limit" : "composer-count"} aria-live="polite">{input.length.toLocaleString()} / {MAX_INPUT_TEXT_CHARS.toLocaleString()}</span>
             {busy ? (
               <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={15} /></button>
@@ -303,10 +315,13 @@ export function ChatView(props: ChatViewProps) {
         </div>
 
         <div className="status-line" aria-live="polite">
-          {brainState === "Connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
-            : brainState === "Offline" ? <><Unplug size={14} /> Offline</>
-              : brainState === "Ready" ? <><Check size={14} /> Ready to pair</>
-                : <><Check size={14} /> {brainState}</>}
+          {lane === "connecting" ? <><LoaderCircle className="spin" size={14} /> Connecting</>
+            : lane === "unavailable" ? <><Unplug size={14} /> Unavailable</>
+              : lane === "access-required" ? <><CircleAlert size={14} /> Access required</>
+                : lane === "recovery-available" ? <><Link2 size={14} /> Recovery available</>
+                  : <><Check size={14} /> Authenticated</>}
+          <span> · {sessionLaneLabel(lane)}</span>
+          <span> · brain {brainState}</span>
           {voiceListening && <span> · listening</span>}
           {healthError && <span> · workspace health unavailable</span>}
           {coreReady && <button type="button" onClick={() => void revokeRuntime()}>Disconnect</button>}
