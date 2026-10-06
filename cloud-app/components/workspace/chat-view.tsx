@@ -31,6 +31,7 @@ import "./owner-pin.css";
 import { GithubWorkspacePanel } from "./GithubWorkspacePanel";
 import { CapabilityReadinessPanel } from "./CapabilityReadinessPanel";
 import { CapabilityExplorer } from "./CapabilityExplorer";
+import { validatePublicBridgeOrigin } from "@/lib/pages-owner-bridge-client";
 
 const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
   upload: Upload,
@@ -113,8 +114,9 @@ export function ChatView(props: ChatViewProps) {
   }, [composer, input]);
 
   function openCloudSignIn() {
-    if (!cloudBridgeOrigin) return;
-    window.open(cloudBridgeOrigin, "_blank", "noopener,noreferrer");
+    const origin = validatePublicBridgeOrigin(cloudBridgeOrigin);
+    if (!origin) return;
+    window.open(origin, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -137,9 +139,9 @@ export function ChatView(props: ChatViewProps) {
 
       {health?.deployment?.provider === "github-pages" && <GithubWorkspacePanel coreReady={coreReady} relay={relay} publishedCommit={health.deployment.commitSha} />}
 
-      {health?.deployment?.provider === "github-pages" && <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />}
+      <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />
 
-      {health?.deployment?.provider === "github-pages" && <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />}
+      <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />
 
       <section className="conversation-panel">
         {messages.length === 0 ? (

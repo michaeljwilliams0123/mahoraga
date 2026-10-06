@@ -82,3 +82,28 @@ export function projectCapabilityExplorer(coreReady: boolean, capabilities: read
     };
   });
 }
+
+const COGNITIVE_ABILITIES = [
+  { capability: "cognitive.predict", label: "Prediction", description: "Simulate a proposed change and inspect uncertainty." },
+  { capability: "cognitive.cycle", label: "Planning and decisions", description: "Deliberate, assess, predict, and plan with a cognitive receipt. Proposed actions are not executed." },
+  { capability: "cognitive.assess", label: "Metacognitive assessment", description: "Assess evidence coverage, uncertainty, and known unknowns." },
+  { capability: "cognitive.deliberate", label: "Collective deliberation", description: "Compare participant positions and preserve dissent. Advantage requires independent comparative evidence." },
+  { capability: "cognitive.transfer", label: "Cross-domain transfer", description: "Evaluate transfer using domain-tagged held-out trials." },
+  { capability: "cognitive.learn", label: "Institutional learning", description: "Promote lessons only through verified learning receipts and the runtime's authority checks." },
+] as const;
+
+/** Display supported cognitive routes; no intelligence tier or execution authority is inferred. */
+export function projectCognitiveAbilities(coreReady: boolean, capabilities: readonly RuntimeCapability[], phase?: "loading" | "ready" | "error") {
+  const observed = projectCapabilityExplorer(coreReady && phase === "ready", capabilities);
+  return COGNITIVE_ABILITIES.map((ability) => {
+    const row = observed.find((entry) => entry.capability === ability.capability && entry.state === "routable")
+      ?? observed.find((entry) => entry.capability === ability.capability);
+    if (!coreReady || phase !== "ready") return {
+      ...ability, state: coreReady && phase === "error" ? "unavailable" : "unobserved",
+      reason: coreReady && phase === "error" ? "runtime-observation-failed" : "runtime-not-observed",
+      starter: null, evidence: "unobserved",
+    };
+    return { ...ability, state: row?.state ?? "unavailable", reason: row?.reason ?? (row ? null : "route-not-reported"),
+      starter: row?.starter ?? null, evidence: row?.evidence ?? "unobserved" };
+  });
+}
