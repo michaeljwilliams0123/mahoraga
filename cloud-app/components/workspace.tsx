@@ -5,8 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
 import { subscribePagesReconnect } from "@/lib/pages-reconnect";
-import { handoffToRuntimeGateway } from "@/lib/pages-owner-bridge-client";
-import { observeCapabilities, type CapabilityObservationState } from "@/lib/capability-observer";
+import { type CapabilityObservationState } from "@/lib/capability-observer";
+import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capability-stream";
+import { deriveExecutionStatus } from "@/lib/execution-status";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
@@ -132,11 +133,8 @@ export function Workspace() {
           : routeReadiness === "offline"
             ? "Offline"
             : "Connecting";
-  const brainLabel = brainState;
-
-  useEffect(() => {
-    handoffToRuntimeGateway(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN, window);
-  }, []);
+  const executionStatus = deriveExecutionStatus({ connected: coreReady, observation: capabilityObservation, assistantReady });
+  const brainLabel = runtimeBusy || licensedRetry || runtimeError || new Set<RelayState>(["pairing", "resuming"]).has(relayState) ? brainState : executionStatus.label;
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
@@ -215,10 +213,10 @@ export function Workspace() {
       setCapabilityObservation(null);
       return;
     }
-    const observer = observeCapabilities(pairedRelay, state => {
+    const observer = observeCapabilityStream(pairedRelay, state => {
       setCapabilityObservation(state);
       if (state.phase !== "loading") setRuntimeCapabilities(state.capabilities);
-    });
+    }, { mode: capabilityTransportMode(process.env.NEXT_PUBLIC_MAHORAGA_CAPABILITY_POLL_FALLBACK) });
     refreshCapabilities.current = observer.refresh;
     const refreshOnReturn = () => { if (document.visibilityState === "visible") observer.refresh(); };
     window.addEventListener("focus", observer.refresh);

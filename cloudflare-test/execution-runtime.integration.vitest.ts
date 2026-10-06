@@ -159,6 +159,31 @@ describe("ExecutionDurableObject", () => {
     expect(method.headers.get("allow")).toBe("POST");
   });
 
+  it("gates provider refresh on the internal secret header before touching the provider", async () => {
+    const probe = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    const stub = env.EXECUTION_DO.getByName("provider-refresh-auth-gate");
+    const body = JSON.stringify({ billingAttestation: "{}" });
+    for (const headers of [{ "content-type": "application/json" }, { "content-type": "application/json", "x-provider-refresh-token": "wrong-secret" }, { "content-type": "application/json", "x-mahoraga-edge-auth": env.PROVIDER_REFRESH_SECRET }]) {
+      const denied = await stub.fetch("https://execution.example/api/provider/refresh", { method: "POST", headers, body });
+      expect(denied.status).toBe(403);
+      expect(await denied.json()).toEqual({ error: "provider-refresh-auth-required" });
+    }
+    const method = await stub.fetch("https://execution.example/api/provider/refresh", { headers: { "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET } });
+    expect(method.status).toBe(405);
+    expect(probe).not.toHaveBeenCalled();
+  });
+
+  it("serializes concurrent provider refreshes without losing a response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
+    const now = Date.now();
+    const stub = env.EXECUTION_DO.getByName("provider-refresh-concurrency");
+    const body = JSON.stringify({ billingAttestation: JSON.stringify({ schemaVersion: 1, evidenceSource: "cloudflare-account-api", accountIdHash: env.ZERO_CREDIT_ACCOUNT_ID_HASH, defaultUsageModel: "standard", billableAccountSubscriptionCount: 0, verifiedAt: now, expiresAt: now + 90 * 60_000 }) });
+    const request = () => stub.fetch("https://execution.example/api/provider/refresh", { method: "POST", headers: { "content-type": "application/json", "x-provider-refresh-token": env.PROVIDER_REFRESH_SECRET }, body });
+    const responses = await Promise.all([request(), request(), request()]);
+    expect(responses.map((response) => response.status)).toEqual([503, 503, 503]);
+    for (const response of responses) expect(await response.json()).toMatchObject({ zeroCreditEligible: false, reasonCode: "provider-authentication-failed" });
+  });
+
   it("returns a bounded diagnostic matrix when provider admission fails", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 403 }));
     const now = Date.now();

@@ -10,7 +10,7 @@ export function CapabilityReadinessPanel({ connected, capabilities, observation,
   return <section className="github-workspace-panel" aria-label="Pages capability readiness">
     <div className="github-workspace-heading"><h2>Predict, plan, and generate</h2>
       <button type="button" onClick={onRefresh} disabled={!connected || observation?.phase === 'loading'}>Refresh abilities</button></div>
-    <p>{!connected ? 'GitHub Pages hosts this workspace independently. Connect an execution runtime to check live abilities.' : observation?.phase === 'loading' ? 'Checking current runtime abilities…' : observation?.phase === 'error' ? 'Readiness check failed. Previous availability has been cleared; refresh to retry.' : 'Runtime connected. Each ability has its own readiness; prediction and planning can be available while generation is unavailable.'}</p>
+    <p>{observation?.link === 'reconnecting' ? 'Reconnecting to the runtime. Last known abilities are kept briefly; execution is not reported as degraded.' : observation?.link === 'offline' ? 'Offline: the runtime connection was lost. Previous availability has been cleared; it will reconnect automatically.' : !connected ? 'GitHub Pages hosts this workspace independently. Connect an execution runtime to check live abilities.' : observation?.phase === 'loading' ? 'Checking current runtime abilities…' : observation?.phase === 'error' ? 'Readiness check failed. Previous availability has been cleared; refresh to retry.' : 'Runtime connected. Each ability has its own readiness; prediction and planning can be available while generation is unavailable.'}</p>
     <div className="github-workspace-grid">{families.map(family => {
       const prompt = family.id === 'predictive' && predictiveChatAvailable(connected, capabilities) ? PREDICTION_STARTER
         : family.id === 'agentic' && cognitiveCycleAvailable(connected, capabilities) ? CYCLE_STARTER
@@ -22,6 +22,6 @@ export function CapabilityReadinessPanel({ connected, capabilities, observation,
         <button type="button" disabled={!prompt || observation?.phase === 'loading'} onClick={() => prompt && onChooseStarter(prompt)}>{family.id === 'predictive' ? 'Draft prediction scenario' : family.id === 'agentic' ? 'Draft planning scenario' : 'Draft a generation request'}</button>
       </section>;
     })}</div>
-    {observation?.phase === 'ready' && <p className="muted">Checked {observation.observedAt} · updates every 30 seconds and when you return to this tab. Drafts fill the composer for review before sending.</p>}
+    {observation?.phase === 'ready' && <p className="muted">Checked {observation.observedAt} · {observation.link === 'live' ? 'live updates from the edge gateway.' : 'updates every 30 seconds and when you return to this tab.'} Drafts fill the composer for review before sending.</p>}
   </section>;
 }
