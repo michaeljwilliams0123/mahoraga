@@ -1,7 +1,7 @@
 "use client";
 
 import { clearRelaySession, loadRelaySession, saveRelaySession } from "./relay-session-store";
-import { PagesOwnerBridgeClient, validatePublicBridgeOrigin } from "./pages-owner-bridge-client";
+import { PagesOwnerBridgeClient, validatePublicBridgeOrigin, type BridgeCapabilityEvent } from "./pages-owner-bridge-client";
 
 import type { GithubWorkspaceSnapshot } from "./github-workspace";
 import { RuntimeHttpScope } from "./runtime-http-scope";
@@ -262,7 +262,9 @@ export class RuntimeRelay {
     this.cloudSession = null;
     this.bridgeAuthenticated = false;
     this.cloudSessionDiagnostic = null;
-    const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
+    // One primary edge origin (custom domain); the legacy bridge variable remains the fallback.
+    const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN)
+      ?? validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : null;
     if (bridgeOrigin && currentOrigin) {
       try {
@@ -439,6 +441,11 @@ export class RuntimeRelay {
   }
   async taskAction(taskId: string, conversationId: string, action: "retry" | "cancel") {
     return this.call<{ task: RuntimeTask }>("task-action", { taskId, conversationId, action });
+  }
+  /** Resolves to an unsubscribe function when the transport can push capability state (SSE); null when polling is required. */
+  async subscribeCapabilityEvents(handler: (event: BridgeCapabilityEvent) => void): Promise<(() => void) | null> {
+    if (!this.bridgeAuthenticated || !this.bridgeClient) return null;
+    return this.bridgeClient.subscribeCapabilities(handler);
   }
   async capabilities() {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});

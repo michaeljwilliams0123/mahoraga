@@ -14,6 +14,9 @@ export function PagesWorkspaceStatusCard({
         Mahoraga remains the product; 7.0.0-alpha.2 is build provenance only.
       </p>
       <p>
+        Capability refresh follows the authenticated runtime connection regardless of publication host; GitHub Pages health metadata alone is not live capability evidence.
+      </p>
+      <p>
         Execution connection: {coreReady ? "Paired · readiness remains separate" : "Disconnected / offline"}.
         Execution readiness, cognition readiness, and traffic authority remain separate; no production traffic authority is inferred.
       </p>

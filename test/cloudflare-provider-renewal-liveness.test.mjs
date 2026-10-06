@@ -10,11 +10,12 @@ const workflowPath = path.join(root, ".github/workflows/cloudflare-provider-rene
 test("provider admission renewal keeps liveness margin under scheduler jitter", async () => {
   const workflow = await readFile(workflowPath, "utf8");
 
-  assert.match(
+  assert.doesNotMatch(
     workflow,
-    /schedule:\s*\n\s*- cron:\s*"11,26,41,56 \* \* \* \*"/,
-    "dedicated renewal check must receive quarter-hour opportunities away from top-of-hour contention",
+    /schedule:|cron:/,
+    "GitHub Actions must not own provider admission liveness; the gateway Worker cron trigger does",
   );
+  assert.match(workflow, /workflow_dispatch:/, "manual break-glass renewal remains available");
   assert.match(
     workflow,
     /group:\s*mahoraga-cloudflare-provider-renewal/,

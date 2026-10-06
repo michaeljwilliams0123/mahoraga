@@ -1,9 +1,9 @@
 name: Renew Cloudflare Provider Admission
 
+# Break-glass only. Routine renewal is edge-native (gateway Worker cron trigger every minute plus in-request
+# lazy renewal), so provider admission liveness no longer depends on GitHub Actions scheduling.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "11,26,41,56 * * * *"
 
 permissions:
   contents: read
@@ -16,11 +16,10 @@ jobs:
   renew-provider-admission:
     name: Renew hard-zero provider admission evidence
     if: >-
-      (github.event_name == 'schedule' && github.repository == 'michaeljwilliams0123/mahoraga') ||
-      (github.event_name == 'workflow_dispatch' &&
-       github.actor == github.repository_owner &&
-       github.repository == 'michaeljwilliams0123/mahoraga' &&
-       github.ref == 'refs/heads/main')
+      github.event_name == 'workflow_dispatch' &&
+      github.actor == github.repository_owner &&
+      github.repository == 'michaeljwilliams0123/mahoraga' &&
+      github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -35,7 +34,7 @@ jobs:
       RENEWAL_MARGIN_MS: 1800000
 
     steps:
-      - name: Check out scheduled authoritative main
+      - name: Check out authoritative main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ env.VERIFIED_SHA }}
@@ -53,7 +52,7 @@ jobs:
           set -euo pipefail
           echo "BILLING_ATTESTATION_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-billing-attestation.json" >> "$GITHUB_ENV"
 
-      - name: Verify scheduled SHA is still authoritative main
+      - name: Verify SHA is still authoritative main
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/verify-exact-head.mjs
@@ -176,7 +175,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "Scheduled provider admission check completed for $VERIFIED_SHA. The next five-minute schedule tick owns the next observation."
+          echo "Manual provider admission check completed for $VERIFIED_SHA. Routine renewal is owned by the gateway Worker cron trigger and lazy renewal."
 
       - name: Remove temporary billing attestation
         if: always()
