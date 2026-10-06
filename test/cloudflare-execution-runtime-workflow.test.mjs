@@ -72,7 +72,7 @@ test("Cloudflare exact-main workflow proves account billing before deploying pro
   );
 });
 
-test("scheduled provider renewal replaces stale watchdog runs while deployment remains non-cancelling", async () => {
+test("scheduled provider renewal stays one-shot while deployment remains non-cancelling", async () => {
   const workflow = await readFile(workflowPath, "utf8");
   assert.match(
     workflow,
@@ -81,7 +81,7 @@ test("scheduled provider renewal replaces stale watchdog runs while deployment r
   assert.match(
     workflow,
     /cancel-in-progress:\s*\$\{\{ github\.event_name == 'schedule' \}\}/,
-    "scheduled renewal must replace a stale queued/rerun watchdog instead of blocking later five-minute renewals",
+    "scheduled renewal may replace an overlapping one-shot check instead of blocking later five-minute renewals",
   );
   assert.doesNotMatch(
     workflow,
@@ -98,12 +98,15 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
   ]);
   assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/);
   const renewalJob = workflow.indexOf("renew-provider-admission:");
+  const renewalBlock = workflow.slice(renewalJob);
   const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);
   const refreshCall = workflow.indexOf("/api/provider/refresh", renewalJob);
-  assert.ok(renewalJob >= 0, "offset five-minute external renewal watchdog must exist");
+  assert.ok(renewalJob >= 0, "offset five-minute external renewal check must exist");
   assert.ok(billingProof > renewalJob, "renewal must re-prove account billing");
   assert.ok(refreshCall > billingProof, "fresh attestation must be submitted only after billing proof");
   assert.match(workflow, /RENEWAL_MARGIN_MS:\s*1800000/);
+  assert.match(renewalBlock, /timeout-minutes:\s*10/);
+  assert.doesNotMatch(renewalBlock, /WATCHDOG_INTERVAL_MS|WATCHDOG_DURATION_MS|cloudflare-provider-renewal-watchdog\.mjs/);
   assert.match(workflow, /name:\s*Inspect current provider freshness margin/);
   assert.match(workflow, /id:\s*freshness/);
   assert.match(workflow, /\/api\/runtime\/attestation/);
@@ -113,7 +116,6 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
     2,
     "billing proof and provider refresh must be skipped while sufficient freshness margin remains",
   );
-  const renewalBlock = workflow.slice(renewalJob);
   assert.match(renewalBlock, /billingAttestation/);
   assert.doesNotMatch(renewalBlock, /wrangler@[^\n]* deploy|cloudflare-execution-runtime\.ts deploy|cloudflare:owner-gateway:deploy/);
   assert.match(runtimeWorker, /provider-refresh-attestation-invalid/);
