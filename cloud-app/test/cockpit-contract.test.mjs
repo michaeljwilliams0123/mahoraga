@@ -85,14 +85,17 @@ describe("singular control center contract", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     const card = cockpit.slice(cockpit.indexOf('label="Pages owner-connection recovery"'), cockpit.indexOf('label="Telemetry"', cockpit.indexOf('label="Pages owner-connection recovery"')));
 
-    assert.match(card, /value="Observational \/ fail-closed"/);
+    assert.match(cockpit, /const pagesRecoveryEligible = deploymentProvider === "github-pages"/);
+    assert.match(card, /value=\{pagesRecoveryEligible \? "Eligible \/ fail-closed" : "Unavailable \/ inactive"\}/);
+    assert.match(card, /Deployment provider is github-pages, so recovery is eligible only while the Pages relay is unpaired or in error/);
     assert.match(card, /Handshake timeout tears down stale bridge frames after preserving the diagnostic code/);
-    assert.match(card, /one fresh connection on visible return, focus, or online only while Pages is unpaired or error/);
-    assert.match(card, /never replays tasks or submits authentication material/);
-    assert.match(card, /separate from execution readiness and traffic authority/);
-    assert.match(card, /github\.io is presentation only; this UI makes no authenticated API calls/);
+    assert.match(card, /one fresh connection on visible return, focus, or online/);
+    assert.match(card, /never replays tasks/);
+    assert.match(card, /never submits authentication material/);
+    assert.match(card, /Eligibility is not proof that recovery fired, execution is ready, or traffic authority exists/);
+    assert.match(card, /Pages recovery subscription is inactive because deployment provider is/);
+    assert.match(card, /no recovery\/execution\/traffic-authority claim is inferred outside github-pages/);
     assert.match(card, /workflow_run verification notifications use a run-ID concurrency group; push\/manual stay per-ref/);
-    assert.match(card, /a skipped notification cannot cancel current-main Pages publication/);
     assert.doesNotMatch(card, /traffic authority granted|production cutover complete|execution readiness verified/i);
   });
 
