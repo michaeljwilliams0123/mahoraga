@@ -12,7 +12,7 @@ describe("7.0.0-alpha.2 provider admission renewal cockpit", () => {
   it("surfaces short one-shot renewal as observational and not traffic authority", () => {
     assert.match(cockpit, /ProviderRenewalWatchdogCard/);
     assert.match(cockpit, /Provider admission renewal/);
-    assert.match(card, /Short five-minute checks/);
+    assert.match(card, /Short fifteen-minute checks/);
     assert.match(card, /one-shot check rather than a long-lived watchdog/);
     assert.match(card, /Deployment publication stays serialized and non-cancelling/);
     assert.match(card, /30-minute margin/);
