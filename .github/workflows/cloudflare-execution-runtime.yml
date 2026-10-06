@@ -107,6 +107,7 @@ jobs:
           set -euo pipefail
           echo "PROVIDER_SECRETS_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-provider-secrets.json" >> "$GITHUB_ENV"
           echo "RUNTIME_SECRETS_FILE=${RUNNER_TEMP}/mahoraga-execution-runtime-secrets.json" >> "$GITHUB_ENV"
+          echo "OWNER_GATEWAY_SECRETS_FILE=${RUNNER_TEMP}/mahoraga-owner-gateway-renewal-secrets.json" >> "$GITHUB_ENV"
           echo "BILLING_ATTESTATION_FILE=${RUNNER_TEMP}/mahoraga-zero-credit-billing-attestation.json" >> "$GITHUB_ENV"
 
       - name: Verify exact SHA is still authoritative main
@@ -179,6 +180,16 @@ jobs:
             }),
             { encoding: 'utf8', mode: 0o600 },
           );
+          await writeFile(
+            process.env.OWNER_GATEWAY_SECRETS_FILE,
+            JSON.stringify({
+              PROVIDER_REFRESH_SECRET: refreshSecret,
+              CLOUDFLARE_ACCOUNT_ID: (process.env.CLOUDFLARE_ACCOUNT_ID ?? '').trim(),
+              CLOUDFLARE_API_TOKEN: (process.env.CLOUDFLARE_API_TOKEN ?? '').trim(),
+              CLOUDFLARE_BILLING_READ_TOKEN: (process.env.CLOUDFLARE_BILLING_READ_TOKEN ?? '').trim(),
+            }),
+            { encoding: 'utf8', mode: 0o600 },
+          );
           NODE
 
       - name: Deploy isolated budgeted Workers AI provider
@@ -234,7 +245,12 @@ jobs:
           NODE
 
       - name: Deploy exact verified owner gateway
-        run: npm run cloudflare:owner-gateway:deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.132.0 deploy \
+            --config deploy/cloudflare-owner-gateway/wrangler.toml \
+            --secrets-file "$OWNER_GATEWAY_SECRETS_FILE"
 
       - name: Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough
         shell: bash
@@ -265,4 +281,4 @@ jobs:
       - name: Remove temporary Cloudflare secret files
         if: always()
         shell: bash
-        run: rm -f "$PROVIDER_SECRETS_FILE" "$RUNTIME_SECRETS_FILE" "$BILLING_ATTESTATION_FILE"
+        run: rm -f "$PROVIDER_SECRETS_FILE" "$RUNTIME_SECRETS_FILE" "$OWNER_GATEWAY_SECRETS_FILE" "$BILLING_ATTESTATION_FILE"
