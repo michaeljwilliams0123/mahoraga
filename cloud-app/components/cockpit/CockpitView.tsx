@@ -21,6 +21,7 @@ import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
+import { EdgeNativeRenewalCard } from "./EdgeNativeRenewalCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
 import { PagesWorkspaceStatusCard } from "./PagesWorkspaceStatusCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
@@ -263,6 +264,7 @@ export function CockpitView({
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
           <ProviderRenewalWatchdogCard />
+          <EdgeNativeRenewalCard />
           <PairedWorkspacePublicationCard />
           <PagesWorkspaceStatusCard coreReady={coreReady} bridgeOrigin={pagesBridgeOrigin} />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
