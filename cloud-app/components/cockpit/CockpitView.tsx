@@ -17,6 +17,7 @@ import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
+import { EvidenceGatedCognitiveCard } from "./EvidenceGatedCognitiveCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -259,6 +260,7 @@ export function CockpitView({
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
+          <EvidenceGatedCognitiveCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
@@ -404,6 +406,7 @@ export function CockpitView({
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Sovereign scheduler queue</dt><dd>queue: max · cancel-in-progress false · observational · merge #977 is not traffic authority</dd></div>
+            <div><dt>Evidence-gated cognitive tools</dt><dd>merged #1002 · dae84de · readiness panel and explorer on authenticated hosts · drafts only from fresh enabled route observations · AGI/SGI are not intelligence levels · not traffic authority</dd></div>
             <div><dt>GitHub Pages workspace</dt><dd>Online · presentation only · execution {coreReady ? "paired (readiness separate)" : "disconnected/offline"} · bridge origin {pagesBridgeOrigin || "not configured; no live Cloudflare connection claimed"} · no authenticated API calls from static export</dd></div>
             <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>Host provider</dt><dd>{railwayRetired ? "railway (legacy evidence only; zero-route / zero-influence / zero-fallback / zero-authority)" : deploymentProvider}</dd></div>
