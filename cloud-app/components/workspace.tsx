@@ -230,10 +230,10 @@ export function Workspace() {
   }, [coreReady, pairedRelay]);
 
   useEffect(() => {
-    if (health?.deployment?.provider !== "github-pages" || runtimeBusy || ownerLoginBusy
+    if (runtimeBusy || ownerLoginBusy
       || !["unpaired", "error"].includes(relayState)) return;
     return subscribePagesReconnect(reconnectRuntime);
-  }, [health?.deployment?.provider, relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
+  }, [relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
 
   function reconnectRuntime() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;

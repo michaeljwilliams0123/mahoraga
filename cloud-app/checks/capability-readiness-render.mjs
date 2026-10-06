@@ -18,10 +18,29 @@ test('prediction and planning stay usable when generation is unavailable', () =>
   assert.match(html, /<button type="button">Draft planning scenario/);
   assert.match(html, /<button type="button" disabled="">Draft a generation request/);
 });
-test('disconnected Pages identifies the runtime boundary and disables every draft', () => {
+test('disconnected workspace identifies the runtime boundary and disables every draft', () => {
   const html = render(false, null);
-  assert.match(html, /GitHub Pages hosts this workspace independently/);
+  assert.match(html, /Runtime capability readiness/);
   assert.match(html, /Connect an execution runtime/);
   assert.equal((html.match(/disabled=""/g) ?? []).length, 4);
   assert.doesNotMatch(html, /<p>Available<\/p>/);
+});
+
+
+test('no observation or a failed refresh cannot leave cached cognitive drafts enabled', () => {
+ for (const observation of [null, { phase: 'loading' }, { phase: 'error' }]) {
+  const html = render(true, observation);
+  assert.doesNotMatch(html, /<button type="button">Draft /);
+  assert.doesNotMatch(html, /<p>Route available<\/p>/);
+ }
+});
+
+test('cognitive workbench describes unavailable collective abilities without an intelligence claim', () => {
+ const html = render(true, { phase: 'ready', observedAt: '2026-10-05T19:00:00Z', capabilities: routes });
+ assert.match(html, /Collective deliberation/);
+ assert.match(html, /Cross-domain transfer/);
+ assert.match(html, /Institutional learning/);
+ assert.match(html, /AGI and SGI are not runtime switches or established intelligence levels/);
+ assert.match(html, /route-not-reported/);
+ assert.doesNotMatch(html, /AGI enabled|SGI enabled|superiority verified/i);
 });

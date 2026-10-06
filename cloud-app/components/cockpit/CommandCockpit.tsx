@@ -73,6 +73,7 @@ function panelFromHealth(id: CockpitPanelId, health: ObservationalHealthCard | n
         { label: "paidFallback", value: String(health?.automaticPaidFallback ?? false) },
         { label: "executionPlane", value: health?.executionPlane ?? "unknown" },
         { label: "ownerLoginCache", value: "Cache-Control: no-store (#486)" },
+        { label: "providerAdmissionRenewal", value: "Dedicated owner-dispatchable quarter-hour workflow · one-shot exact-main hard-zero renewal · Access-protected · 30-minute margin · deployment does not own scheduled renewal · never redeploys Workers · observational only, not runtime readiness or production traffic authority, and grants no traffic authority · Railway zero-route / zero-influence / zero-fallback / zero-authority" },
         { label: "pagesFrameContract", value: "PAGES_FRAME_CONTRACT_OBS · protocol v1 · source-bound exact fields · 32 KiB body cap · 60-second abort · no replay · parent origin/source checks" },
         { label: "pagesFrameAuthentication", value: "OWNER_AUTH_REQUIRED_BOUNDED · HTTP 401/403 clears frame authentication · cloud-owner-auth-required" },
         { label: "workersBuilds", value: "root wrangler.toml → owner gateway (#562)" },

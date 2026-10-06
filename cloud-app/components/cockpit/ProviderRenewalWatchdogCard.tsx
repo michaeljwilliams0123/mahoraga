@@ -4,7 +4,7 @@ export function ProviderRenewalWatchdogCard() {
       <span>Provider admission renewal</span>
       <strong>Short fifteen-minute checks</strong>
       <p>
-        Each scheduled renewal is a bounded quarter-hour one-shot check rather than a long-lived watchdog. It inspects current freshness, re-proves billing only when the 30-minute margin requires it, renews admission without redeploying, and exits so a later main update cannot strand the renewal lane. Deployment publication stays serialized and non-cancelling. This is operational continuity only, not traffic authority or runtime readiness. Railway remains zero-route, zero-influence, zero-fallback, and zero-authority.
+        Merged #1006 isolates hard-zero provider admission renewal in a dedicated owner-dispatchable quarter-hour scheduled workflow as a one-shot exact-main check. Deployment does not own scheduled renewal. Access-protected requests inspect current freshness and re-prove billing only when the 30-minute margin requires it. Renewal never redeploys Workers. This is observational only—not runtime readiness or production traffic authority, and grants no traffic authority. Railway remains zero-route, zero-influence, zero-fallback, and zero-authority.
       </p>
     </article>
   );

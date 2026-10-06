@@ -4,7 +4,7 @@ export function PagesSameOriginSessionCard() {
       <span>Pages session persistence</span>
       <strong>Same-origin gateway handoff</strong>
       <p>
-        Derived workspaces attempt one automatic handoff per tab to a validated HTTPS gateway origin. A return to Pages stops automatic navigation; explicit Cloudflare sign-in remains available. Mobile browsers can withhold cookies from cross-site frames. The gateway serves the workspace through a service binding after Access verifies the owner; the runtime bridge also works when its configured origin equals the page origin. API mutations stay same-origin, owner-authenticated, and fail-closed. Product remains Mahoraga. 7.0.0-alpha.2 is build provenance only. This card does not grant traffic authority, runtime readiness, or production cutover.
+        A configured gateway is eligible for one automatic handoff per tab only after its HTTPS origin is validated. The handoff retains the current view, and a return to Pages stops automatic navigation. If per-tab loop protection is unavailable, automatic navigation stops and the user must explicitly choose Cloudflare sign-in. This bounded handoff is not an always-on redirect and does not change authenticated runtime-connection handling. Mobile browsers can withhold cookies from cross-site frames. The gateway serves the workspace through a service binding after Access verifies the owner; the runtime bridge also works when its configured origin equals the page origin. API mutations stay same-origin, owner-authenticated, and fail-closed. Product remains Mahoraga. 7.0.0-alpha.2 is build provenance only. This card does not grant traffic authority, runtime readiness, or production cutover.
       </p>
     </article>
   );
