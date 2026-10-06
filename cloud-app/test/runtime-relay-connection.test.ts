@@ -12,6 +12,27 @@ async function relayModule(bridgeSource?: string): Promise<typeof import('../lib
  }
  return import(url(source));
 }
+test('same-origin gateway workspace uses the authenticated bridge without a third-party cookie', async t => {
+ setup(t);
+ const oldWindow = globalThis.window;
+ t.after(() => { if (oldWindow === undefined) Reflect.deleteProperty(globalThis, 'window'); else globalThis.window = oldWindow; });
+ Reflect.set(globalThis, 'window', { location: { origin: 'https://gateway.example' } });
+ process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN = 'https://gateway.example';
+ globalThis.fetch = async () => { throw new Error('same-origin-bridge-must-not-use-session-api'); };
+ const { RuntimeRelay } = await relayModule(`
+ export function validatePublicBridgeOrigin(value) { return value; }
+ export class PagesOwnerBridgeClient {
+  async attach() { return 'authenticated'; }
+  async call(type,payload) { if(type!=='readiness'||Object.keys(payload).length)throw new Error('unexpected-action');return {status:'ready'}; }
+  async disconnect() {}
+ }`);
+ const relay = new RuntimeRelay();
+ await relay.attach();
+ assert.equal(relay.transportKind, 'pages-owner-bridge');
+ assert.deepEqual(await relay.readiness(), {status:'ready'});
+ relay.disconnect();
+});
+
 test('Pages readiness uses its authenticated bridge and never fetches the static Pages API', async t => {
  setup(t);
  const oldWindow = globalThis.window;

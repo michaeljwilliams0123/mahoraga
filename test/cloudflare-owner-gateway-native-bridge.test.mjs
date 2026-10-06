@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import gateway from "../deploy/cloudflare-owner-gateway/worker.mjs";
 
 const env = {
@@ -59,6 +60,43 @@ async function withoutUpstream(callback) {
   finally { globalThis.fetch = originalFetch; }
 }
 
+test("Access-authenticated browser navigation serves the workspace through the owner gateway", async () => {
+  const requests = [];
+  const workspace = { async fetch(request) {
+    requests.push(request);
+    return new Response("<!doctype html><title>Mahoraga</title>", { headers: { "content-type": "text/html" } });
+  } };
+  const response = await gateway.fetch(new Request(`${base}/#workspace`, { headers: { accept: "text/html,application/xhtml+xml" } }), { ...env, MAHORAGA_WORKSPACE: workspace }, access);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+  assert.equal(requests.length, 1);
+  assert.equal(new URL(requests[0].url).pathname, "/");
+});
+
+test("Access-authenticated generated health asset is served through the workspace binding", async () => {
+  const requests = [];
+  const workspace = { async fetch(request) {
+    requests.push(request);
+    return Response.json({ status: "ok", sha: "a".repeat(40) });
+  } };
+  const response = await gateway.fetch(new Request(`${base}/api/health.json`), { ...env, MAHORAGA_WORKSPACE: workspace }, access);
+  assert.equal(response.status, 200);
+  assert.equal(requests.length, 1);
+  assert.equal(new URL(requests[0].url).pathname, "/api/health.json");
+  assert.equal((await response.json()).sha, "a".repeat(40));
+});
+
+test("root and nested owner-gateway configs expose the same workspace binding", async () => {
+  const [rootConfig, nestedConfig] = await Promise.all([
+    readFile(new URL("../wrangler.toml", import.meta.url), "utf8"),
+    readFile(new URL("../deploy/cloudflare-owner-gateway/wrangler.toml", import.meta.url), "utf8"),
+  ]);
+  for (const config of [rootConfig, nestedConfig]) {
+    assert.match(config, /MAHORAGA_WORKSPACE_ORIGIN\s*=\s*"https:\/\/mahoraga-workspace-candidate\.mahoraga-mjw0123\.workers\.dev"/);
+    assert.match(config, /binding\s*=\s*"MAHORAGA_WORKSPACE"[\s\S]*service\s*=\s*"mahoraga-workspace-candidate"/);
+  }
+});
+
 test("Access-authenticated root reports the Cloudflare edge without proxying Railway", async () => {
   await withoutUpstream(async () => {
     const response = await gateway.fetch(new Request(`${base}/`), env, access);
@@ -76,8 +114,9 @@ test("Pages bridge frame is served natively and never touches Railway", async ()
     const response = await gateway.fetch(new Request(`${base}/api/runtime/pages-bridge/frame`), env, access);
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type") ?? "", /text\/html/);
-    assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors https:\/\/michaeljwilliams0123\.github\.io/);
+    assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors https:\/\/michaeljwilliams0123\.github\.io https:\/\/mahoraga-owner-gateway\.example/);
     const html = await response.text();
+    assert.match(html, /https:\/\/mahoraga-owner-gateway\.example/);
     assert.match(html, /bridge\.status/);
     assert.match(html, /authenticated: true/);
     assert.match(html, /api\/runtime\/pages-bridge\/action/);

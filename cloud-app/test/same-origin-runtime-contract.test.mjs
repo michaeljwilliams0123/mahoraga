@@ -34,3 +34,11 @@ test("production readiness fails closed when deployment provenance is missing or
   assert.match(ready, /gitSha/);
   assert.match(ready, /503/);
 });
+
+
+test("derived workspaces hand off once to the authenticated same-origin gateway", async () => {
+  const workspace = await read("components/workspace.tsx");
+  assert.match(workspace, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
+  assert.match(workspace, /target\.origin === window\.location\.origin/);
+  assert.match(workspace, /window\.location\.replace\(target\.toString\(\)\)/);
+});
