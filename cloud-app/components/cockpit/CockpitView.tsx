@@ -16,6 +16,7 @@ import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
+import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -254,6 +255,7 @@ export function CockpitView({
         <div className="eclipse-status-grid">
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
+          <DataverseCliBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
