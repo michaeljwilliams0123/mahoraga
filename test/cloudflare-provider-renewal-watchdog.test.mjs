@@ -12,7 +12,7 @@ import {
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = path.join(root, "scripts/cloudflare-provider-renewal-watchdog.mjs");
-const workflowPath = path.join(root, ".github/workflows/cloudflare-execution-runtime.yml");
+const workflowPath = path.join(root, ".github/workflows/cloudflare-provider-renewal.yml");
 
 const SHA = "0537edc5ef0866ddd576b1531868ebf84341327a";
 const NOW = 1_800_000_000_000;
