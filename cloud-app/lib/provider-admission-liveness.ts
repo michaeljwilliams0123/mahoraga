@@ -33,20 +33,26 @@ export function projectProviderAdmissionLiveness(
   runtimeCapabilities: readonly RuntimeCapability[],
   now = Date.now(),
 ): ProviderAdmissionLiveness {
+  const renewalPolicy = [
+    `dedicated owner-dispatchable quarter-hour workflow (${PROVIDER_ADMISSION_RENEWAL_CADENCE})`,
+    "one-shot exact-main hard-zero renewal · Access-protected · 30-minute margin · never redeploys Workers",
+    "deployment does not own scheduled renewal",
+  ].join(" · ");
   const assistant = runtimeCapabilities.find((capability) => capability.capability === "assistant.respond") as AdmissionBearingCapability | undefined;
   if (!assistant) {
     const statusLabel = "Unobserved / fail-closed";
     const detail = [
       "Separate from /cycle health and deployment reachability",
-      `renewal cadence every fifteen minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
-      "scheduled renewal isolated from deploy workflow concurrency",
+      renewalPolicy,
       "authoritative assistant admission capability unobserved",
-      "never invent live proof · not traffic authority",
+      "observational only · not runtime readiness · not production traffic authority · not traffic authority",
+      "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
+      "never invent live proof",
     ].join(" · ");
     return {
       statusLabel,
       detail,
-      telemetry: `${statusLabel} · cadence ${PROVIDER_ADMISSION_RENEWAL_CADENCE} · assistant.respond unobserved`,
+      telemetry: `${statusLabel} · ${renewalPolicy} · assistant.respond unobserved · observational only · not runtime readiness or production traffic authority`,
       tone: "neutral",
       canaryExpiresAt: null,
       zeroCreditEligible: null,
@@ -64,19 +70,22 @@ export function projectProviderAdmissionLiveness(
   const expiryLabel = expiry.label === null ? "explicit canary freshness proof unavailable" : `canaryExpiresAt ${expiry.label}`;
   const detail = [
     "Separate from /cycle health and deployment reachability",
-    `renewal cadence every fifteen minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
-    "scheduled renewal isolated from deploy workflow concurrency",
+    renewalPolicy,
     `${expiryLabel} · ${eligibility}`,
     `assistant.respond ${routeAdmitted ? "routable" : "unroutable"} · ${reason}`,
-    "never invent live proof · not traffic authority",
+    "observational only · not runtime readiness · not production traffic authority · not traffic authority",
+    "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
+    "never invent live proof",
   ].join(" · ");
   const telemetry = [
     statusLabel,
-    `cadence ${PROVIDER_ADMISSION_RENEWAL_CADENCE}`,
+    renewalPolicy,
     routeAdmitted ? "assistant.respond routable" : "assistant.respond unroutable",
     expiryLabel,
     eligibility,
     reason,
+    "observational only · not runtime readiness or production traffic authority",
+    "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
   ].join(" · ");
 
   return {
