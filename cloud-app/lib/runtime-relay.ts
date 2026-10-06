@@ -264,7 +264,7 @@ export class RuntimeRelay {
     this.cloudSessionDiagnostic = null;
     const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : null;
-    if (bridgeOrigin && currentOrigin && bridgeOrigin !== currentOrigin) {
+    if (bridgeOrigin && currentOrigin) {
       try {
         const client = this.bridgeClient ?? new PagesOwnerBridgeClient(bridgeOrigin);
         this.bridgeClient = client;
