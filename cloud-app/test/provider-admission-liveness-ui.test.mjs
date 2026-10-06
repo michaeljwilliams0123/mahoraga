@@ -12,9 +12,10 @@ const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "
 
 describe("provider admission renewal UI", () => {
   it("binds liveness to authoritative runtime capability evidence and fails closed", () => {
-    assert.match(surface, /11,26,41,56/);
-    assert.match(surface, /dedicated owner-dispatchable quarter-hour workflow/);
-    assert.match(surface, /one-shot exact-main hard-zero renewal/);
+    assert.match(surface, /\* \* \* \* \*/);
+    assert.match(surface, /gateway-owned one-minute cron/);
+    assert.match(surface, /hard-zero renewal/);
+    assert.match(surface, /owner workflow is break-glass only/);
     assert.match(surface, /Access-protected/);
     assert.match(surface, /deployment does not own scheduled renewal/);
     assert.match(surface, /never redeploys Workers/);
