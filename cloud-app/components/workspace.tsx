@@ -211,7 +211,7 @@ export function Workspace() {
   }, [connectionAttempt]);
 
   useEffect(() => {
-    if (health?.deployment?.provider !== "github-pages" || !coreReady || !pairedRelay) {
+    if (!coreReady || !pairedRelay) {
       setCapabilityObservation(null);
       return;
     }
@@ -229,7 +229,7 @@ export function Workspace() {
       window.removeEventListener("focus", observer.refresh);
       document.removeEventListener("visibilitychange", refreshOnReturn);
     };
-  }, [health?.deployment?.provider, coreReady, pairedRelay]);
+  }, [coreReady, pairedRelay]);
 
   useEffect(() => {
     if (health?.deployment?.provider !== "github-pages" || runtimeBusy || ownerLoginBusy
