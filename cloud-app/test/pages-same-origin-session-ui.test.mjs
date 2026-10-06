@@ -9,7 +9,8 @@ test("7.0.0-alpha.2 cockpit surfaces same-origin Pages session handoff", () => {
   const card = readFileSync(join(root, "components/cockpit/PagesSameOriginSessionCard.tsx"), "utf8");
   const view = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
   assert.match(card, /Same-origin gateway handoff/);
-  assert.match(card, /Merged #998/);
+  assert.match(card, /one automatic handoff per tab/);
+  assert.match(card, /return to Pages stops automatic navigation/);
   assert.match(card, /Product remains Mahoraga/);
   assert.match(card, /gateway serves the workspace through a service binding after Access verifies the owner/);
   assert.match(card, /runtime bridge also works when its configured origin equals the page origin/);

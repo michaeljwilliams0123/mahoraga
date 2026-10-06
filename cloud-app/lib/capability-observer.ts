@@ -13,7 +13,7 @@ export function observeCapabilities(transport: Transport, onState: (state: Capab
     scheduler.cancel(timer);
     inFlight = true;
     onState({ phase: 'loading', capabilities: [], observedAt: null });
-    void transport.capabilities().then(capabilities => {
+    void Promise.resolve().then(() => transport.capabilities()).then(capabilities => {
       if (active) onState({ phase: 'ready', capabilities, observedAt: new Date().toISOString() });
     }).catch(() => {
       if (active) onState({ phase: 'error', capabilities: [], observedAt: null });

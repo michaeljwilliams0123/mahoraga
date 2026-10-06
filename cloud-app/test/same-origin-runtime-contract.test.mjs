@@ -36,9 +36,9 @@ test("production readiness fails closed when deployment provenance is missing or
 });
 
 
-test("derived workspaces hand off once to the authenticated same-origin gateway", async () => {
+test("derived workspaces use the bounded authenticated gateway handoff", async () => {
   const workspace = await read("components/workspace.tsx");
   assert.match(workspace, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
-  assert.match(workspace, /target\.origin === window\.location\.origin/);
-  assert.match(workspace, /window\.location\.replace\(target\.toString\(\)\)/);
+  assert.match(workspace, /handoffToRuntimeGateway\(process\.env\.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN, window\)/);
+  assert.doesNotMatch(workspace, /window\.location\.replace\(/);
 });

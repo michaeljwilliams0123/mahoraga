@@ -187,3 +187,18 @@ test('an old same-origin action expiry cannot clear a newer authenticated sessio
  assert.equal(relay.connected, true); assert.equal(relay.sessionDiagnostic, null);
  relay.disconnect();
 });
+
+test('malformed capability replies cannot crash the UI or advertise a route', async t => {
+ setup(t);
+ let payload: unknown;
+ globalThis.fetch = async input => String(input) === '/api/runtime/session'
+  ? Response.json({ authenticated: true, csrf: 'test-csrf' }) : Response.json({ capabilities: payload });
+ const { RuntimeRelay } = await relayModule(); const relay = new RuntimeRelay();
+ await relay.attach();
+ for (payload of [[null], [{capability:'assistant.respond', routable:'true', workerIds:[]}], [{capability:'cognitive.cycle', routable:true, workerIds:[null]}], [{capability:'cognitive.predict', routable:true, workerIds:[], enabled:'true'}]]) {
+  await assert.rejects(relay.capabilities(), /runtime-capabilities-invalid/);
+ }
+ payload = [{capability:'cognitive.cycle', routable:true, workerIds:[], costClass:'deterministic'}];
+ assert.deepEqual(await relay.capabilities(), payload);
+ relay.disconnect();
+});

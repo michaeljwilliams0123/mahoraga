@@ -442,7 +442,18 @@ export class RuntimeRelay {
   }
   async capabilities() {
     const value = await this.call<{ capabilities?: RuntimeCapability[] }>("capabilities", {});
-    return Array.isArray(value.capabilities) ? value.capabilities : [];
+    const capabilities = value?.capabilities;
+    if (capabilities === undefined) return [];
+    if (!Array.isArray(capabilities) || capabilities.some((entry) => {
+      if (!entry || typeof entry !== "object" || typeof entry.capability !== "string" || !entry.capability.trim()
+        || typeof entry.routable !== "boolean" || (entry.enabled !== undefined && typeof entry.enabled !== "boolean")
+        || !Array.isArray(entry.workerIds) || entry.workerIds.some((id) => typeof id !== "string")) return true;
+      const textFields = [entry.provider, entry.canary, entry.costClass, entry.billingClass, entry.evidenceLevel];
+      const nullableTextFields = [entry.workerId, entry.routingReason, entry.providerReasonCode, entry.lastObservedAt, entry.lastVerifiedAt];
+      return textFields.some((field) => field !== undefined && typeof field !== "string")
+        || nullableTextFields.some((field) => field != null && typeof field !== "string");
+    })) throw relayError("runtime-capabilities-invalid");
+    return capabilities;
   }
   async nativeGithubWorkspace() {
     return this.call<GithubWorkspaceSnapshot>("native-github-workspace", {});

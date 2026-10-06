@@ -13,9 +13,18 @@ test('readiness refresh observes provider recovery without reconnecting', async 
 test('refresh failure revokes stale readiness and retries stay single flight', async () => {
   let settle; const states = []; let calls = 0;
   const observer = observeCapabilities({ capabilities: () => { calls++; return new Promise((resolve, reject) => { settle = { resolve, reject }; }); } }, state => states.push(state), { schedule: () => 1, cancel: () => {} });
-  observer.refresh(); assert.equal(calls, 1);
+  observer.refresh(); await tick(); assert.equal(calls, 1);
   settle.reject(new Error('private details')); await tick();
   assert.deepEqual(states.at(-1), { phase: 'error', capabilities: [], observedAt: null });
-  observer.refresh(); observer.stop(); settle.resolve(route(true)); await tick();
+  observer.refresh(); await tick(); observer.stop(); settle.resolve(route(true)); await tick();
   assert.equal(states.at(-1).phase, 'loading');
+});
+
+test('a synchronous capability transport failure becomes an unavailable observation', async () => {
+ const states = []; let scheduled;
+ const observer = observeCapabilities({ capabilities: () => { throw new Error('private transport detail'); } }, state => states.push(state), { schedule: fn => { scheduled = fn; return 1; }, cancel: () => {} });
+ await tick();
+ assert.deepEqual(states.at(-1), { phase: 'error', capabilities: [], observedAt: null });
+ assert.equal(typeof scheduled, 'function');
+ observer.stop();
 });
