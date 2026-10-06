@@ -8,10 +8,10 @@ export function PagesWorkspaceStatusCard({
   return (
     <article className="eclipse-status-card neutral" data-testid="pages-workspace-status">
       <span>GitHub Pages workspace</span>
-      <strong>Online · presentation only</strong>
+      <strong>Mirror · not the mobile launch</strong>
       <p>
-        The github.io workspace stays online independently of execution connectivity. This static Pages export makes no authenticated API calls.
-        Mahoraga remains the product; 7.0.0-alpha.2 is build provenance only.
+        The github.io export stays online as a derived presentation/provenance mirror, not the normal owner or mobile launch URL (#1000). This static Pages export makes no authenticated API calls.
+        Mahoraga remains the product; 7.0.0-alpha.2 is build provenance only. Normal owner entry is the Access-protected Cloudflare owner gateway.
       </p>
       <p>
         Execution connection: {coreReady ? "Paired · readiness remains separate" : "Disconnected / offline"}.
