@@ -7,7 +7,7 @@ const cloudVercel = new URL("../cloud-app/vercel.json", import.meta.url);
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 const readme = read("README.md");
 
-test("retired Vercel stays silent while GitHub Pages owns the browser UI", () => {
+test("retired Vercel stays silent while the owner gateway is the normal browser entry", () => {
   assert.equal(existsSync(rootVercel), false);
   assert.equal(existsSync(cloudVercel), true);
 
@@ -21,7 +21,7 @@ test("retired Vercel stays silent while GitHub Pages owns the browser UI", () =>
   assert.match(readme, /Vercel:\*\* historical\/retired from the active production-completion path/);
 });
 
-test("GitHub Pages is canonical browser presentation while Cloudflare is the accepted execution runtime", () => {
+test("owner gateway is the normal browser entry while GitHub Pages remains the derived mirror", () => {
   const references = {
     versions: read("operator-deck/src/lib/fleet/versions.ts"),
     execute: read("operator-deck/src/lib/fleet/execute.server.ts"),
@@ -30,13 +30,14 @@ test("GitHub Pages is canonical browser presentation while Cloudflare is the acc
     manifest: read("mahoraga.manifest.json"),
   };
 
-  assert.match(references.versions, /APP_HOST = "GitHub Pages"/);
-  assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/"/);
-  assert.match(references.versions, /GitHub Pages is the canonical browser presentation/);
-  assert.match(references.versions, /Cloudflare is the accepted server-capable runtime/);
-  assert.match(references.execute, /Conversation UI", value: "GitHub Pages workspace"/);
-  assert.match(readme, /\[Open Mahoraga\]\(https:\/\/michaeljwilliams0123\.github\.io\/mahoraga\/\)/);
-  assert.match(readme, /Cloudflare execution runtime/);
+  assert.match(references.versions, /APP_HOST = "Cloudflare owner gateway"/);
+  assert.match(references.versions, /CLOUD_APP_URL = "https:\/\/mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev\/"/);
+  assert.match(references.versions, /GitHub Pages remains a derived presentation\/provenance mirror/);
+  assert.match(references.versions, /GitHub main remains source\/build\/release authority/);
+  assert.match(references.execute, /Conversation UI", value: "Owner gateway workspace"/);
+  assert.match(readme, /\[Open Mahoraga\]\(https:\/\/mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev\/\)/);
+  assert.match(readme, /GitHub Pages mirror/);
+  assert.match(readme, /Cloudflare owner gateway/);
 
   assert.doesNotMatch(references.allowlist, /mahoraga-runtime-main-production\.up\.railway\.app/);
   assert.doesNotMatch(references.browserWorker, /canonical Railway workspace/);
