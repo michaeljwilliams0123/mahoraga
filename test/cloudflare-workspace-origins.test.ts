@@ -21,7 +21,7 @@ test('gateway serves the dual-origin frame only behind existing Access and exact
  assert.equal((await gateway.fetch(request, env, { access: { getIdentity: async () => ({ email: 'other@example.com' }) } })).status, 401);
  const good = await gateway.fetch(request, env, ctx);
  assert.equal(good.status, 200);
- assert.ok(good.headers.get('content-security-policy')?.includes(`frame-ancestors ${pages} ${cloud}`));
+ assert.ok(good.headers.get('content-security-policy')?.includes(`frame-ancestors ${pages} ${cloud} https://gateway.example`));
  assert.equal((await gateway.fetch(request, { ...env, MAHORAGA_WORKSPACE_ORIGIN: '*' }, ctx)).status, 503);
  const direct = new Request('https://gateway.example/api/runtime/pages-bridge/action', { method: 'POST', headers: { origin: cloud }, body: '{}' });
  assert.equal((await gateway.fetch(direct, env, ctx)).status, 403);
