@@ -45,14 +45,14 @@ export function projectProviderAdmissionLiveness(
       "Separate from /cycle health and deployment reachability",
       renewalPolicy,
       "authoritative assistant admission capability unobserved",
-      "observational only · not runtime readiness · not production traffic authority · not traffic authority",
+      "observational only · not runtime readiness · not production traffic authority · grants no traffic authority",
       "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
       "never invent live proof",
     ].join(" · ");
     return {
       statusLabel,
       detail,
-      telemetry: `${statusLabel} · ${renewalPolicy} · assistant.respond unobserved · observational only · not runtime readiness or production traffic authority`,
+      telemetry: `${statusLabel} · ${renewalPolicy} · assistant.respond unobserved · observational only · not runtime readiness or production traffic authority · grants no traffic authority`,
       tone: "neutral",
       canaryExpiresAt: null,
       zeroCreditEligible: null,
@@ -73,7 +73,7 @@ export function projectProviderAdmissionLiveness(
     renewalPolicy,
     `${expiryLabel} · ${eligibility}`,
     `assistant.respond ${routeAdmitted ? "routable" : "unroutable"} · ${reason}`,
-    "observational only · not runtime readiness · not production traffic authority · not traffic authority",
+    "observational only · not runtime readiness · not production traffic authority · grants no traffic authority",
     "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
     "never invent live proof",
   ].join(" · ");
@@ -84,7 +84,7 @@ export function projectProviderAdmissionLiveness(
     expiryLabel,
     eligibility,
     reason,
-    "observational only · not runtime readiness or production traffic authority",
+    "observational only · not runtime readiness or production traffic authority · grants no traffic authority",
     "Railway remains zero-route, zero-influence, zero-fallback, and zero-authority",
   ].join(" · ");
 
