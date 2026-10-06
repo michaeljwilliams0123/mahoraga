@@ -18,6 +18,7 @@ import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
 import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
+import { SharpBoundsBumpCard } from "./SharpBoundsBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -261,6 +262,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
           <SourceMapJsBumpCard />
+          <SharpBoundsBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
