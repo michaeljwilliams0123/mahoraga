@@ -124,9 +124,11 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
   assert.match(renewalBlock, /billingAttestation/);
   assert.doesNotMatch(renewalBlock, /wrangler@[^\n]* deploy|cloudflare-execution-runtime\.ts deploy|cloudflare:owner-gateway:deploy/);
   assert.match(runtimeWorker, /provider-refresh-attestation-invalid/);
-  assert.match(runtimeWrangler, /"crons"\s*:\s*\["\*\/5 \* \* \* \*"\]/);
+  assert.match(runtimeWrangler, /"crons"\s*:\s*\["\*\/5 \* \* \* \*",\s*"0 0 \* \* \*"\]/);
   const schedule = runtimeWorker.slice(runtimeWorker.indexOf('  async scheduled('), runtimeWorker.indexOf('  async fetch(request: Request, env: Env)'));
-  assert.match(schedule, /await env\.EXECUTION_DO\.getByName\("execution-v1"\)\.ensureInternalActivity\(\)/);
+  assert.match(schedule, /const runtime = env\.EXECUTION_DO\.getByName\("execution-v1"\)/);
+  assert.match(schedule, /await runtime\.ensureInternalActivity\(\)/);
+  assert.match(schedule, /controller\.cron === "0 0 \* \* \*"/);
   assert.doesNotMatch(schedule, /fetch\(|probeZeroCreditProvider|invokeZeroCreditProvider|providerStateFromProbe|billingAttestation/);
   assert.doesNotMatch(runtimeWorker, /ZERO_CREDIT_BILLING_ATTESTATION/);
 });
