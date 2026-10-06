@@ -376,7 +376,18 @@ export function CockpitView({
             : "No verified hard-zero quota receipt · creditCost and paidFallback unverified · does not grant traffic authority"}
           tone={hardZeroAction === "dispatch-hard-zero" || hardZeroAction === "resume-queued" ? "good" : quotaHolding || hardZeroAction === "refuse-paid-route" ? "warn" : "neutral"}
         />
-        <StatusCard label="Capability routes" value={`${routable.length} reported routable route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"} · execution requires separate authority and receipt`} tone={routable.length > 0 ? "good" : "neutral"} />
+        <StatusCard
+          label="Capability routes"
+          value={!coreReady
+            ? "Awaiting authenticated runtime"
+            : runtimeCapabilities.length === 0
+              ? "Not capability-ready · no abilities loaded"
+              : routable.length > 0
+                ? `${routable.length} reported routable route${routable.length === 1 ? "" : "s"}`
+                : "Abilities loaded · no routable routes"}
+          detail={`${runtimeCapabilities.length} loaded ability record${runtimeCapabilities.length === 1 ? "" : "s"} · ${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}. Capability refresh follows the authenticated runtime connection regardless of publication host; malformed replies are rejected. Observed routes are not proof of AGI or SGI. Execution readiness, cognition readiness, and traffic authority remain separate.`}
+          tone="neutral"
+        />
         <StatusCard
           label="Institutional learning"
           value={learning.status === "promoted" ? "verified-outcome" : learning.status === "refused" ? "refused" : "no receipt"}
