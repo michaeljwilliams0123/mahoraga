@@ -12,7 +12,7 @@ import {
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = path.join(root, "scripts/cloudflare-provider-renewal-watchdog.mjs");
-const workflowPath = path.join(root, ".github/workflows/cloudflare-execution-runtime.yml");
+const workflowPath = path.join(root, ".github/workflows/cloudflare-provider-renewal.yml");
 
 const SHA = "0537edc5ef0866ddd576b1531868ebf84341327a";
 const NOW = 1_800_000_000_000;
@@ -121,15 +121,15 @@ test("provider watchdog does not retry semantic authority failures", async () =>
   assert.equal(isTransientTransportError(new Error("semantic-failure")), false);
 });
 
-test("bounded renewal watchdog preserves zero-cost and no-authority-expansion constraints", async () => {
+test("legacy watchdog utility preserves zero-cost and no-authority-expansion constraints without owning the scheduled lane", async () => {
   const [script, workflow] = await Promise.all([
     readFile(scriptPath, "utf8"),
     readFile(workflowPath, "utf8"),
   ]);
-  assert.match(workflow, /timeout-minutes:\s*330/);
-  assert.match(workflow, /WATCHDOG_INTERVAL_MS:\s*300000/);
-  assert.match(workflow, /WATCHDOG_DURATION_MS:\s*19200000/);
-  assert.match(workflow, /node scripts\/cloudflare-provider-renewal-watchdog\.mjs/);
+  assert.match(workflow, /timeout-minutes:\s*10/);
+  assert.doesNotMatch(workflow, /WATCHDOG_INTERVAL_MS:\s*300000/);
+  assert.doesNotMatch(workflow, /WATCHDOG_DURATION_MS:\s*19200000/);
+  assert.doesNotMatch(workflow, /node scripts\/cloudflare-provider-renewal-watchdog\.mjs/);
   assert.doesNotMatch(workflow, /actions:\s*write/);
   assert.match(script, /provider-watchdog-public-zero-cost-required/);
   assert.match(script, /\/branches\/main/);
