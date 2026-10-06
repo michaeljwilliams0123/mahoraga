@@ -174,15 +174,16 @@ async function nativeRuntimeAction(type, payload, env, owner) {
 }
 
 async function nativeBridgeResponse(request, requestUrl, env, owner) {
-  if (requestUrl.pathname === "/" && request.method === "GET") {
+  if (requestUrl.pathname === "/" && request.method === "GET" && !request.headers.get("accept")?.includes("text/html")) {
     return json({ gateway: "mahoraga-owner-gateway", ownerAuthenticated: true, runtime: "cloudflare-native-migration", state: "degraded" });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/frame" && request.method === "GET") {
     const workspaceOrigins = configuredWorkspaceOrigins(env);
     if (!workspaceOrigins) return new Response("gateway-pages-origin-invalid", { status: 503 });
-    return new Response(bridgeFrame(workspaceOrigins), { status: 200, headers: {
+    const bridgeParentOrigins = Object.freeze([...new Set([...workspaceOrigins, requestUrl.origin])]);
+    return new Response(bridgeFrame(bridgeParentOrigins), { status: 200, headers: {
       "cache-control": "no-store", "content-type": "text/html; charset=utf-8",
-      "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${workspaceOrigins.join(" ")}; base-uri 'none'; form-action 'none'`,
+      "content-security-policy": `default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors ${bridgeParentOrigins.join(" ")}; base-uri 'none'; form-action 'none'`,
       "referrer-policy": "no-referrer", "x-content-type-options": "nosniff",
     } });
   }
@@ -198,6 +199,12 @@ async function nativeBridgeResponse(request, requestUrl, env, owner) {
     return json({ error: "cloud-native-capability-unavailable" }, 503);
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/artifacts") return json({ error: "cloud-native-artifact-unavailable" }, 503);
+  if ((request.method === "GET" || request.method === "HEAD") && (!requestUrl.pathname.startsWith("/api/") || requestUrl.pathname === "/api/health.json")) {
+    const workspace = env?.MAHORAGA_WORKSPACE;
+    if (!workspace || typeof workspace.fetch !== "function") return json({ error: "cloud-workspace-unavailable" }, 503);
+    const assetUrl = new URL(requestUrl.pathname + requestUrl.search, "https://mahoraga-workspace-candidate.internal");
+    return workspace.fetch(new Request(assetUrl, request));
+  }
   return null;
 }
 export default {

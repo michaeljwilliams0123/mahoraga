@@ -133,6 +133,18 @@ export function Workspace() {
   const brainLabel = brainState;
 
   useEffect(() => {
+    const configured = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim();
+    if (!configured) return;
+    try {
+      const target = new URL(configured);
+      if (target.origin === window.location.origin) return;
+      target.search = window.location.search;
+      target.hash = window.location.hash;
+      window.location.replace(target.toString());
+    } catch { /* Invalid public configuration remains fail-closed in RuntimeRelay. */ }
+  }, []);
+
+  useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error("health-failed");
