@@ -11,6 +11,9 @@ test("7.0.0-alpha.2 cockpit surfaces same-origin Pages session handoff", () => {
   assert.match(card, /Same-origin gateway handoff/);
   assert.match(card, /Merged #998/);
   assert.match(card, /Product remains Mahoraga/);
+  assert.match(card, /gateway serves the workspace through a service binding after Access verifies the owner/);
+  assert.match(card, /runtime bridge also works when its configured origin equals the page origin/);
+  assert.match(card, /API mutations stay same-origin, owner-authenticated, and fail-closed/);
   assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
   assert.match(card, /does not grant traffic authority/);
   assert.match(view, /PagesSameOriginSessionCard/);
