@@ -1,8 +1,9 @@
 export const LANGUAGE_LOCK = "TypeScript";
-export const APP_HOST = "GitHub Pages";
+export const APP_HOST = "Cloudflare owner gateway";
 export const WORKSPACE_NOTE =
-  "GitHub Pages is the canonical browser presentation. GitHub remains source/build/release authority. Cloudflare is the accepted server-capable runtime for the verified exact source; Railway is legacy evidence only with zero-route / zero-influence / zero-fallback / zero-authority. Browser and domain authority need separate evidence.";
-export const CLOUD_APP_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
+  "GitHub main remains source/build/release authority. The Access-protected Cloudflare owner gateway is the normal owner-facing browser entry for the exact-main cloud-app and same-origin execution routes. GitHub Pages remains a derived presentation/provenance mirror. Railway is legacy evidence only with zero-route / zero-influence / zero-fallback / zero-authority. Browser and domain authority remain separate evidence.";
+export const CLOUD_APP_URL = "https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/";
+export const PAGES_MIRROR_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
 export const REPO_URL = "https://github.com/michaeljwilliams0123/mahoraga";
 export const ROLLBACK_SHA = "397acebf16766f44e3b4317f9d8b68b10de5f821";
 export const CANDIDATE_VERSION = "7.0.0-alpha.2";
@@ -43,8 +44,8 @@ export const VERSION_SURFACES: VersionSurface[] = [
     id: "conversation",
     label: "Conversation workspace",
     version: CANDIDATE_VERSION,
-    role: "GitHub candidate plus ChatGPT-style workspace with self.evolve control plane.",
-    host: `${APP_HOST} canonical browser presentation · cloud-app/ static export`,
+    role: "Owner-facing exact-main workspace with self.evolve control plane.",
+    host: `${APP_HOST} · exact-main cloud-app; GitHub Pages remains the derived mirror`,
     language: "TypeScript (Next.js cloud-app)",
     status: "Not the Windows PID. Ordinary turns stay zero-codex unless Cloud Pro is selected. Owner directives may target self.evolve.",
     href: CLOUD_APP_URL,

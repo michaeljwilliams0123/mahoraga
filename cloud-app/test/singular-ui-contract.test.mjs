@@ -126,8 +126,9 @@ test("repository declares one canonical workspace source without reviving legacy
 
   const rootReadme = sources[0];
   assert.match(rootReadme, /Deployment availability is observed[\s\S]*separately from source verification/);
-  assert.match(rootReadme, /exact-main GitHub Pages artifact is the canonical browser presentation once published/i);
-  assert.match(rootReadme, /runtime execution authority remains separate[\s\S]*authenticated encrypted relay/i);
+  assert.match(rootReadme, /Access-protected Cloudflare owner gateway is the normal owner-facing browser presentation/i);
+  assert.match(rootReadme, /GitHub Pages remains a derived mirror/i);
+  assert.match(rootReadme, /Runtime execution authority remains separately gated by fresh runtime\/provider\/owner evidence/i);
   assert.match(rootReadme, /GitHub `main` is the private code authority/i);
 });
 
