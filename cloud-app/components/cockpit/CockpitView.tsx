@@ -17,6 +17,7 @@ import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
+import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -259,6 +260,7 @@ export function CockpitView({
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
+          <SourceMapJsBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
