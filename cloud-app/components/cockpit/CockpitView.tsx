@@ -17,6 +17,7 @@ import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
+import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -259,6 +260,7 @@ export function CockpitView({
           <StatusCard label="Product" value={productName} detail={`Build provenance ${buildVersion}`} tone="good" />
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
+          <SourceMapJsBumpCard />
           <LocalAiDevOnlyCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
@@ -376,7 +378,18 @@ export function CockpitView({
             : "No verified hard-zero quota receipt · creditCost and paidFallback unverified · does not grant traffic authority"}
           tone={hardZeroAction === "dispatch-hard-zero" || hardZeroAction === "resume-queued" ? "good" : quotaHolding || hardZeroAction === "refuse-paid-route" ? "warn" : "neutral"}
         />
-        <StatusCard label="Capability routes" value={`${routable.length} reported routable route${routable.length === 1 ? "" : "s"}`} detail={`${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"} · execution requires separate authority and receipt`} tone={routable.length > 0 ? "good" : "neutral"} />
+        <StatusCard
+          label="Capability routes"
+          value={!coreReady
+            ? "Awaiting authenticated runtime"
+            : runtimeCapabilities.length === 0
+              ? "Not capability-ready · no abilities loaded"
+              : routable.length > 0
+                ? `${routable.length} reported routable route${routable.length === 1 ? "" : "s"}`
+                : "Abilities loaded · no routable routes"}
+          detail={`${runtimeCapabilities.length} loaded ability record${runtimeCapabilities.length === 1 ? "" : "s"} · ${routeCoverage}% routable · ${workers.size} worker lane${workers.size === 1 ? "" : "s"}. Capability refresh follows the authenticated runtime connection regardless of publication host; malformed replies are rejected. Observed routes are not proof of AGI or SGI. Execution readiness, cognition readiness, and traffic authority remain separate.`}
+          tone="neutral"
+        />
         <StatusCard
           label="Institutional learning"
           value={learning.status === "promoted" ? "verified-outcome" : learning.status === "refused" ? "refused" : "no receipt"}
@@ -418,7 +431,7 @@ export function CockpitView({
             <div><dt>Deployment convergence</dt><dd>{deploymentConvergence}</dd></div>
             <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · exact-main Cloudflare deployment and acceptance after Ubuntu + Windows Verify · mismatch fails closed</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
-            <div><dt>Provider admission renewal</dt><dd>one-shot fifteen-minute freshness checks · re-prove billing only inside the 30-minute margin · deployment publication stays serialized and non-cancelling · not traffic authority · Railway remains zero-route / zero-influence / zero-fallback / zero-authority</dd></div>
+            <div><dt>Provider admission renewal</dt><dd>gateway-owned one-minute cron · hard-zero renewal · owner workflow is break-glass only · Access-protected · re-prove billing only inside the 30-minute margin · deployment does not own scheduled renewal · never redeploys Workers · observational only, not runtime readiness or production traffic authority, and grants no traffic authority · Railway remains zero-route / zero-influence / zero-fallback / zero-authority</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway zero-route / zero-influence / zero-fallback / zero-authority · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>

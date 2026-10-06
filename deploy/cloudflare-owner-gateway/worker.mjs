@@ -1,6 +1,8 @@
 import { renderCloudflareBridgeFrame as bridgeFrame } from "./bridge-frame.ts";
 
 import { configuredWorkspaceOrigins } from "./workspace-origins.ts";
+import { admissionRenewer, performInlineAdmissionRenewal } from "./admission-renewal.ts";
+import { SSE_HEADERS, capabilityEventStream } from "./capability-events.ts";
 const JSON_HEADERS = { "cache-control": "no-store", "content-type": "application/json; charset=utf-8" };
 
 function json(body, status = 200) {
@@ -142,6 +144,12 @@ function sanitizeInteractionTruthResult(value) {
 
 import { runtimeReadiness } from "./runtime-readiness.ts";
 
+const LAZY_RENEWAL_ACTIONS = new Set(["chat", "execute"]);
+/** In-request lazy renewal: dedupes per isolate, never throws, and never blocks beyond its own bounded timeout. */
+async function lazyAdmissionRenewal(env) {
+  try { return await admissionRenewer.renewIfDue(env, "lazy"); } catch { return null; }
+}
+
 const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth", "internal-activity", "internal-activity-control", "native-github-workspace", "native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
@@ -194,9 +202,18 @@ async function nativeBridgeResponse(request, requestUrl, env, owner) {
       if (Object.keys(value).sort().join(",") !== "payload,type" || !value.payload || typeof value.payload !== "object" || Array.isArray(value.payload) || Object.keys(value.payload).length) return json({ error:"cloud-readiness-request-invalid" },400);
       return runtimeReadiness(env?.MAHORAGA_EXECUTION_RUNTIME);
     }
+    if (LAZY_RENEWAL_ACTIONS.has(value.type)) await lazyAdmissionRenewal(env);
     if (value.type === "capabilities") return json(await runtimeCapabilities(env));
     if (NATIVE_ACTIONS.has(value.type)) return nativeRuntimeAction(value.type, value.payload, env, owner);
     return json({ error: "cloud-native-capability-unavailable" }, 503);
+  }
+  if (requestUrl.pathname === "/api/runtime/pages-bridge/events") {
+    if (request.method !== "GET") return json({ error: "method-not-allowed" }, 405);
+    return new Response(capabilityEventStream({
+      load: () => runtimeCapabilities(env),
+      beforeTick: () => lazyAdmissionRenewal(env),
+      signal: request.signal,
+    }), { status: 200, headers: SSE_HEADERS });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/artifacts") return json({ error: "cloud-native-artifact-unavailable" }, 503);
   if ((request.method === "GET" || request.method === "HEAD") && (!requestUrl.pathname.startsWith("/api/") || requestUrl.pathname === "/api/health.json")) {
@@ -227,5 +244,9 @@ export default {
     const native = await nativeBridgeResponse(request, requestUrl, env, owner);
     if (native) return native;
     return json({ error: "cloud-native-route-required" }, 404);
+  },
+  /** Cloudflare cron trigger (every minute): background admission renewal independent of GitHub Actions. */
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(performInlineAdmissionRenewal(env, "scheduled"));
   },
 };

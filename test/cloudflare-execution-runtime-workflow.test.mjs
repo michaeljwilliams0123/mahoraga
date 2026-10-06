@@ -7,7 +7,7 @@ import test from "node:test";
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workflowPath = path.join(root, ".github/workflows/cloudflare-execution-runtime.yml");
 const renewalWorkflowPath = path.join(root, ".github/workflows/cloudflare-provider-renewal.yml");
-const billingAttestationPath = path.join(root, "scripts/cloudflare-zero-credit-attestation.mjs");
+const billingAttestationPath = path.join(root, "src/cloudflare-zero-credit-billing.ts");
 const runtimeWorkerPath = path.join(root, "deploy/cloudflare-execution-runtime/worker.ts");
 const runtimeWranglerPath = path.join(root, "deploy/cloudflare-execution-runtime/wrangler.jsonc");
 
@@ -87,7 +87,7 @@ test("scheduled provider renewal is isolated from deployment publication", async
   assert.match(workflow, /cancel-in-progress:\s*false/);
   assert.doesNotMatch(workflow, /schedule:/);
   assert.doesNotMatch(workflow, /renew-provider-admission:/);
-  assert.match(renewalWorkflow, /schedule:\s*\n\s*- cron:\s*"11,26,41,56 \* \* \* \*"/);
+  assert.doesNotMatch(renewalWorkflow, /schedule:|cron:/, "routine renewal is edge-native; the Actions workflow is break-glass only");
   assert.match(renewalWorkflow, /workflow_dispatch:/);
   assert.match(renewalWorkflow, /group:\s*mahoraga-cloudflare-provider-renewal/);
   assert.match(renewalWorkflow, /cancel-in-progress:\s*true/);
@@ -101,7 +101,7 @@ test("Cloudflare billing proof renews externally before expiry without redeployi
     readFile(runtimeWorkerPath, "utf8"),
     readFile(runtimeWranglerPath, "utf8"),
   ]);
-  assert.match(workflow, /schedule:\s*\n\s*- cron:\s*"11,26,41,56 \* \* \* \*"/);
+  assert.doesNotMatch(workflow, /schedule:|cron:/);
   const renewalJob = workflow.indexOf("renew-provider-admission:");
   const renewalBlock = workflow.slice(renewalJob);
   const billingProof = workflow.indexOf("cloudflare-zero-credit-attestation.mjs", renewalJob);

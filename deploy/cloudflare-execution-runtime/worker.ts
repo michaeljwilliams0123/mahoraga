@@ -159,6 +159,8 @@ async function verifyGatewayAssertion(request: Request, body: string, secret: st
   return difference === 0 ? { owner, nonce } : null;
 }
 
+const PROVIDER_REFRESH_REPLAY_WINDOW_MS = 30_000;
+
 export class ExecutionDurableObject extends DurableObject<Env> {
   readonly storage: CloudflareDOSQLiteAdapter;
   private initialized = false;
@@ -216,12 +218,35 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     this.storage.saveProviderState(providerStateForGap(reasonCode));
     return json({ error: "zero-credit-provider-unavailable", reasonCode }, 503);
   }
-  private async refreshProviderState(billingAttestation: string): Promise<Response> {
+  private refreshQueue: Promise<unknown> = Promise.resolve();
+  /** Refreshes are serialized so cron, lazy, and manual callers cannot interleave probe and write. */
+  private refreshProviderState(billingAttestation: string): Promise<Response> {
+    const run = this.refreshQueue.then(() => this.refreshProviderStateSerialized(billingAttestation));
+    this.refreshQueue = run.catch(() => undefined);
+    return run;
+  }
+  private providerRefreshResponse(state: { providerId: string; available: boolean; zeroCreditEligible: boolean; reasonCode: string | null; verifiedAt: number | null; canaryExpiresAt: number | null }, extra: Record<string, string> = {}): Response {
     this.initialize();
+    const record = this.storage.getProviderState(state.providerId);
+    return json({ providerId: state.providerId, available: state.available, zeroCreditEligible: state.zeroCreditEligible, reasonCode: state.reasonCode, diagnostics: providerAdmissionDiagnostics(state.reasonCode), verifiedAt: state.verifiedAt, canaryExpiresAt: state.canaryExpiresAt, capability: projectPersistedAssistantCapability(record) }, state.zeroCreditEligible ? 200 : 503, extra);
+  }
+  private async refreshProviderStateSerialized(billingAttestation: string): Promise<Response> {
+    this.initialize();
+    const existing = this.storage.getProviderState(ASSISTANT_PROVIDER_ID);
+    const startedAt = Date.now();
+    if (existing?.zeroCreditEligible === true && existing.canaryExpiresAt !== null && existing.canaryExpiresAt > startedAt && startedAt - existing.observedAt < PROVIDER_REFRESH_REPLAY_WINDOW_MS) {
+      console.log(JSON.stringify({ component: "mahoraga-execution-runtime", event: "provider-refresh-replayed" }));
+      return this.providerRefreshResponse(existing, { "x-idempotent-replay": "true" });
+    }
     const probe = await probeZeroCreditProvider(this.providerConfig(), billingAttestation);
     const state = providerStateFromProbe(probe);
+    const current = this.storage.getProviderState(state.providerId);
+    if (current?.zeroCreditEligible === true && current.verifiedAt !== null && state.verifiedAt !== null && current.verifiedAt > state.verifiedAt) {
+      return this.providerRefreshResponse(current, { "x-idempotent-replay": "true" });
+    }
     this.storage.saveProviderState(state);
-    return json({ providerId: state.providerId, available: state.available, zeroCreditEligible: state.zeroCreditEligible, reasonCode: state.reasonCode, diagnostics: providerAdmissionDiagnostics(state.reasonCode), verifiedAt: state.verifiedAt, canaryExpiresAt: state.canaryExpiresAt, capability: projectPersistedAssistantCapability(state) }, state.zeroCreditEligible ? 200 : 503);
+    console.log(JSON.stringify({ component: "mahoraga-execution-runtime", event: state.zeroCreditEligible ? "provider-refresh-admitted" : "provider-refresh-held", reasonCode: state.reasonCode }));
+    return this.providerRefreshResponse(state);
   }
   private async replay(receipt: StorageReceipt): Promise<Response> {
     const metadata = receipt.resultPayload as Partial<ReceiptPayload>;

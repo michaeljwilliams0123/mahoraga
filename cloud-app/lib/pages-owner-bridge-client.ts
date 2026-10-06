@@ -16,32 +16,9 @@ export function validatePublicBridgeOrigin(value: string | undefined) {
   } catch { return null; }
 }
 
-type GatewayNavigationSurface = {
-  location: Pick<Location, "origin" | "search" | "hash" | "replace">;
-  sessionStorage: Pick<Storage, "getItem" | "setItem">;
-};
-
-/** One automatic handoff per tab. Returning from a gateway must never bounce again. */
-export function handoffToRuntimeGateway(configured: string | undefined, surface: GatewayNavigationSurface) {
-  if (!configured?.trim()) return "not-configured";
-  const origin = validatePublicBridgeOrigin(configured);
-  if (!origin) return "invalid";
-  if (origin === surface.location.origin) return "same-origin";
-  try {
-    const key = "mahoraga:gateway-handoff";
-    if (surface.sessionStorage.getItem(key) !== null) return "held";
-    // Only an origin marker is persisted: no session, PIN, credential, or task.
-    surface.sessionStorage.setItem(key, origin);
-    const target = new URL(origin);
-    target.search = surface.location.search;
-    target.hash = surface.location.hash;
-    surface.location.replace(target.toString());
-    return "redirecting";
-  } catch {
-    // Without persistent loop protection, require explicit sign-in navigation.
-    return "unavailable";
-  }
-}
+export type BridgeCapabilityEvent =
+  | { event: "open" | "heartbeat" | "closed" | "error" }
+  | { event: "capabilities"; capabilities: unknown[] };
 
 export class PagesOwnerBridgeClient {
   private frame: HTMLIFrameElement | null = null;
@@ -49,6 +26,7 @@ export class PagesOwnerBridgeClient {
   private frameReady: Promise<void> | null = null;
   private pending = new Map<string, Pending>();
   private listening = false;
+  private eventHandler: ((event: BridgeCapabilityEvent) => void) | null = null;
   private readonly bridgeOrigin: string;
 
   constructor(bridgeOrigin: string) { this.bridgeOrigin = bridgeOrigin; }
@@ -82,6 +60,19 @@ export class PagesOwnerBridgeClient {
     const value = await this.request<{ artifactId?: string }>({ type: "bridge.artifact", file });
     if (typeof value.artifactId !== "string" || !/^art-[a-f0-9-]+$/.test(value.artifactId)) throw bridgeError("cloud-artifact-receipt-invalid");
     return { id: value.artifactId };
+  }
+
+  /** Server-sent capability state relayed through the authenticated gateway frame. One subscriber at a time. */
+  async subscribeCapabilities(handler: (event: BridgeCapabilityEvent) => void) {
+    await this.ensureFrame();
+    this.eventHandler = handler;
+    try { await this.request({ type: "bridge.subscribe" }); }
+    catch (error) { if (this.eventHandler === handler) this.eventHandler = null; throw error; }
+    return () => {
+      if (this.eventHandler !== handler) return;
+      this.eventHandler = null;
+      if (this.frame?.contentWindow) void this.request({ type: "bridge.unsubscribe" }).catch(() => undefined);
+    };
   }
 
   async disconnect() {
@@ -150,6 +141,15 @@ export class PagesOwnerBridgeClient {
 
   private onMessage = (event: MessageEvent) => {
     if (event.origin !== this.bridgeOrigin || event.source !== this.frame?.contentWindow) return;
+    const relayed = event.data as { protocolVersion?: unknown; type?: unknown; event?: unknown; data?: { capabilities?: unknown } };
+    if (relayed && relayed.protocolVersion === 1 && relayed.type === "bridge.event") {
+      const handler = this.eventHandler;
+      if (!handler) return;
+      if (relayed.event === "capabilities") {
+        if (Array.isArray(relayed.data?.capabilities)) handler({ event: "capabilities", capabilities: relayed.data.capabilities });
+      } else if (relayed.event === "open" || relayed.event === "heartbeat" || relayed.event === "closed" || relayed.event === "error") handler({ event: relayed.event });
+      return;
+    }
     const reply = event.data as Partial<BridgeReply>;
     if (!reply || reply.protocolVersion !== 1 || typeof reply.requestId !== "string" || typeof reply.ok !== "boolean") return;
     const pending = this.pending.get(reply.requestId);
@@ -161,6 +161,9 @@ export class PagesOwnerBridgeClient {
   };
 
   private destroy() {
+    const handler = this.eventHandler;
+    this.eventHandler = null;
+    handler?.({ event: "error" });
     this.cancelFrame?.();
     this.cancelFrame = null;
     for (const pending of this.pending.values()) { clearTimeout(pending.timer); pending.reject(bridgeError("cloud-session-unreachable")); }
