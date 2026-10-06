@@ -141,6 +141,7 @@ export function CockpitView({
   const routable = runtimeCapabilities.filter((capability) => capability.routable && capability.enabled !== false);
   const workers = new Set(runtimeCapabilities.flatMap((capability) => capability.workerIds));
   const deploymentProvider = health?.deployment?.provider ?? "unknown";
+  const pagesRecoveryEligible = deploymentProvider === "github-pages";
   const deploymentCommit = health?.deployment?.commitSha;
   const expectedDeploymentCommit = health?.deployment?.expectedCommitSha;
   const deploymentConvergence = deploymentCommit && expectedDeploymentCommit
@@ -263,6 +264,14 @@ export function CockpitView({
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StatusCard
+          label="Pages owner-connection recovery"
+          value={pagesRecoveryEligible ? "Eligible / fail-closed" : "Unavailable / inactive"}
+          detail={pagesRecoveryEligible
+            ? "Deployment provider is github-pages, so recovery is eligible only while the Pages relay is unpaired or in error. Handshake timeout tears down stale bridge frames after preserving the diagnostic code; recovery requests one fresh connection on visible return, focus, or online, never replays tasks, and never submits authentication material. Eligibility is not proof that recovery fired, execution is ready, or traffic authority exists. workflow_run verification notifications use a run-ID concurrency group; push/manual stay per-ref."
+            : `Pages recovery subscription is inactive because deployment provider is ${deploymentProvider}. Policy remains fail-closed: no task replay, no authentication-material submission, and no recovery/execution/traffic-authority claim is inferred outside github-pages.`}
+          tone={pagesRecoveryEligible ? "neutral" : "warn"}
+        />
         <StatusCard
           label="Telemetry"
           value="telemetry unavailable"
