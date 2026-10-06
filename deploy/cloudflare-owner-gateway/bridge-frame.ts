@@ -3,7 +3,7 @@ import { normalizeWorkspaceOrigin } from "./workspace-origins.ts";
 /** Access authenticates the frame at the gateway; no credential is sent to its parent. */
 export function renderCloudflareBridgeFrame(pagesOrigin: string | readonly string[]): string {
  const origins = typeof pagesOrigin === 'string' ? [pagesOrigin] : [...pagesOrigin];
- if (origins.length < 1 || origins.length > 2 || origins.some(value => normalizeWorkspaceOrigin(value) !== value)) throw new Error('gateway-workspace-origin-invalid');
+ if (origins.length < 1 || origins.length > 3 || origins.some(value => normalizeWorkspaceOrigin(value) !== value)) throw new Error('gateway-workspace-origin-invalid');
  const origin = JSON.stringify(origins).replaceAll('<', '\\u003c');
  return `<!doctype html><html><head><meta charset="utf-8"><title>Mahoraga bridge</title></head><body><script>
 (() => {

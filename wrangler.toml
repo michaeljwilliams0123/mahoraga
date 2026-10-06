@@ -4,10 +4,15 @@ compatibility_date = "2026-09-01"
 
 [vars]
 MAHORAGA_PAGES_ORIGIN = "https://michaeljwilliams0123.github.io/"
+MAHORAGA_WORKSPACE_ORIGIN = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev"
 
 [[services]]
 binding = "MAHORAGA_EXECUTION_RUNTIME"
 service = "mahoraga-execution-runtime"
+
+[[services]]
+binding = "MAHORAGA_WORKSPACE"
+service = "mahoraga-workspace-candidate"
 
 [secrets]
 required = ["MAHORAGA_CLOUD_OWNER_ID", "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET"]
