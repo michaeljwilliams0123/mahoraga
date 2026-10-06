@@ -8,9 +8,9 @@ export function PagesWorkspaceStatusCard({
   return (
     <article className="eclipse-status-card neutral" data-testid="pages-workspace-status">
       <span>GitHub Pages workspace</span>
-      <strong>Online · presentation only</strong>
+      <strong>Online · dynamic runtime client</strong>
       <p>
-        The github.io workspace stays online independently of execution connectivity. This static Pages export makes no authenticated API calls.
+        The github.io workspace stays online independently of execution connectivity. The runtime connection supplies live capability and task observations through the owner-authenticated gateway. Pages publishes the canonical UI assets; execution runs in the connected runtime.
         Mahoraga remains the product; 7.0.0-alpha.2 is build provenance only.
       </p>
       <p>

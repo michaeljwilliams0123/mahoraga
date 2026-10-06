@@ -14,9 +14,9 @@ describe("GitHub Pages workspace status UI", () => {
   it("keeps Pages online as presentation while execution and authority stay separate", () => {
     assert.match(cockpit, /<PagesWorkspaceStatusCard coreReady=\{coreReady\} bridgeOrigin=\{pagesBridgeOrigin\} \/>/);
     assert.match(pagesStatus, /GitHub Pages workspace/);
-    assert.match(pagesStatus, /Online · presentation only/);
+    assert.match(pagesStatus, /Online · dynamic runtime client/);
     assert.match(pagesStatus, /github\.io workspace stays online independently of execution connectivity/);
-    assert.match(pagesStatus, /static Pages export makes no authenticated API calls/);
+    assert.match(pagesStatus, /runtime connection supplies live capability and task observations/);
     assert.match(pagesStatus, /Mahoraga remains the product; 7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(pagesStatus, /Disconnected \/ offline/);
     assert.match(pagesStatus, /Execution readiness, cognition readiness, and traffic authority remain separate/);

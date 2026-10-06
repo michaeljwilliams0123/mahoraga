@@ -131,7 +131,7 @@ test("Pages bridge client uses one hidden exact-origin frame with bounded reques
   assert.match(source, /postMessage\(request, this\.bridgeOrigin\)/);
   assert.match(source, /FRAME_TIMEOUT_MS\s*=\s*10_000/);
   assert.match(source, /ACTION_TIMEOUT_MS\s*=\s*60_000/);
-  assert.doesNotMatch(source, /localStorage|sessionStorage|document\.cookie|MAHORAGA_CLOUD_SESSION_SECRET|MAHORAGA_PRIMARY_CODEX_TOKEN/);
+  assert.doesNotMatch(source.slice(source.indexOf("export class PagesOwnerBridgeClient")), /localStorage|sessionStorage|document\.cookie|MAHORAGA_CLOUD_SESSION_SECRET|MAHORAGA_PRIMARY_CODEX_TOKEN/);
 });
 
 test("bridge action keeps the same request pending past ten seconds and accepts one late reply", async (t) => {
@@ -217,4 +217,37 @@ test("failed Pages handshake removes the stale frame before retrying sign-in", a
   assert.equal(await retry, "authenticated");
   const disconnecting = bridge.disconnect(); await harness.flush();
   harness.reply({ authenticated: false }); await disconnecting;
+});
+
+test('automatic gateway handoff stops a return-to-Pages loop and preserves the view', async () => {
+ const { handoffToRuntimeGateway } = await clientModule();
+ const stored = new Map(); const redirects = [];
+ const surface = { location: { origin: 'https://michaeljwilliams0123.github.io', search: '?view=work', hash: '#work', replace: url => redirects.push(url) }, sessionStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) } };
+ assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'redirecting');
+ assert.deepEqual(redirects, ['https://gateway.example/?view=work#work']);
+ assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'held');
+ assert.equal(handoffToRuntimeGateway('https://other.example', surface), 'held');
+ assert.equal(redirects.length, 1);
+ surface.location.origin = 'https://gateway.example';
+ assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'same-origin');
+});
+
+test('invalid gateway configuration and unavailable loop protection never navigate', async () => {
+ const { handoffToRuntimeGateway } = await clientModule();
+ let redirects = 0;
+ const surface = { location: { origin: 'https://pages.example', search: '', hash: '', replace: () => redirects++ }, sessionStorage: { getItem: () => { throw new Error('storage denied'); }, setItem: () => {} } };
+ for (const origin of ['http://gateway.example', 'https://gateway.example/path', 'javascript:alert(1)', ['https://user:pass', '@gateway.example'].join('')]) assert.equal(handoffToRuntimeGateway(origin, surface), 'invalid');
+ assert.equal(handoffToRuntimeGateway(undefined, surface), 'not-configured');
+ assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'unavailable');
+ assert.equal(redirects, 0);
+});
+
+test('a synchronous postMessage failure rejects safely and releases its request timer', async t => {
+ const harness = installBridgeHarness(t, 'https://gateway.example');
+ const create = document.createElement;
+ document.createElement = tag => { const frame = create(tag); frame.contentWindow.postMessage = () => { throw new Error('private transport detail'); }; return frame; };
+ const { PagesOwnerBridgeClient } = await clientModule();
+ const bridge = new PagesOwnerBridgeClient('https://gateway.example');
+ await assert.rejects(bridge.attach(), /^Error: cloud-session-unreachable$/);
+ await harness.advance(60_001);
 });

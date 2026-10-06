@@ -157,6 +157,7 @@ export function ChatView(props: ChatViewProps) {
                 </div>
               ))}
             </div>
+            <p>Capabilities reflect observed runtime routes, not proof of AGI or SGI. Execution and learning require their own verified receipts.</p>
             {localPredictionReady ? (
               <button type="button" className="scenario-starter" onClick={() => setInput('/predict {"observedState":{"queueDepth":4},"stateUncertainty":0.2,"action":{"actionId":"add-capacity","effects":{"queueDepth":-2},"uncertainty":0.1}}')}>
                 Try a scenario simulation · edit the numbers and effects before sending

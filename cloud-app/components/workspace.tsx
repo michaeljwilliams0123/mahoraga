@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_FILE_BYTES, MAX_FILES, MAX_TOTAL_FILE_BYTES } from "@/lib/runtime-config";
 import { brainReadiness, deriveBrainRouteState } from "@/lib/brain-route-state";
 import { subscribePagesReconnect } from "@/lib/pages-reconnect";
+import { handoffToRuntimeGateway } from "@/lib/pages-owner-bridge-client";
 import { observeCapabilities, type CapabilityObservationState } from "@/lib/capability-observer";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
@@ -69,6 +70,7 @@ function runtimeErrorMessage(code: string) {
     "cloud-owner-login-secret-invalid": "The direct owner sign-in configuration is invalid.",
     "routing-changed": "Mahoraga paused because the available execution route changed. The task is no longer running; retry to re-evaluate the current routes.",
     "runtime-task-state-unknown": "Mahoraga reported an unsupported task state. Work stopped fail-closed instead of spinning indefinitely.",
+    "runtime-capabilities-invalid": "The runtime returned invalid capability evidence. Routes remain unavailable until a valid observation arrives.",
   };
   return messages[code] ?? code.replaceAll("-", " ");
 }
@@ -133,15 +135,7 @@ export function Workspace() {
   const brainLabel = brainState;
 
   useEffect(() => {
-    const configured = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim();
-    if (!configured) return;
-    try {
-      const target = new URL(configured);
-      if (target.origin === window.location.origin) return;
-      target.search = window.location.search;
-      target.hash = window.location.hash;
-      window.location.replace(target.toString());
-    } catch { /* Invalid public configuration remains fail-closed in RuntimeRelay. */ }
+    handoffToRuntimeGateway(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN, window);
   }, []);
 
   useEffect(() => {
@@ -217,7 +211,7 @@ export function Workspace() {
   }, [connectionAttempt]);
 
   useEffect(() => {
-    if (health?.deployment?.provider !== "github-pages" || !coreReady || !pairedRelay) {
+    if (!coreReady || !pairedRelay) {
       setCapabilityObservation(null);
       return;
     }
@@ -235,7 +229,7 @@ export function Workspace() {
       window.removeEventListener("focus", observer.refresh);
       document.removeEventListener("visibilitychange", refreshOnReturn);
     };
-  }, [health?.deployment?.provider, coreReady, pairedRelay]);
+  }, [coreReady, pairedRelay]);
 
   useEffect(() => {
     if (health?.deployment?.provider !== "github-pages" || runtimeBusy || ownerLoginBusy

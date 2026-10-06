@@ -16,6 +16,33 @@ export function validatePublicBridgeOrigin(value: string | undefined) {
   } catch { return null; }
 }
 
+type GatewayNavigationSurface = {
+  location: Pick<Location, "origin" | "search" | "hash" | "replace">;
+  sessionStorage: Pick<Storage, "getItem" | "setItem">;
+};
+
+/** One automatic handoff per tab. Returning from a gateway must never bounce again. */
+export function handoffToRuntimeGateway(configured: string | undefined, surface: GatewayNavigationSurface) {
+  if (!configured?.trim()) return "not-configured";
+  const origin = validatePublicBridgeOrigin(configured);
+  if (!origin) return "invalid";
+  if (origin === surface.location.origin) return "same-origin";
+  try {
+    const key = "mahoraga:gateway-handoff";
+    if (surface.sessionStorage.getItem(key) !== null) return "held";
+    // Only an origin marker is persisted: no session, PIN, credential, or task.
+    surface.sessionStorage.setItem(key, origin);
+    const target = new URL(origin);
+    target.search = surface.location.search;
+    target.hash = surface.location.hash;
+    surface.location.replace(target.toString());
+    return "redirecting";
+  } catch {
+    // Without persistent loop protection, require explicit sign-in navigation.
+    return "unavailable";
+  }
+}
+
 export class PagesOwnerBridgeClient {
   private frame: HTMLIFrameElement | null = null;
   private cancelFrame: (() => void) | null = null;
@@ -109,7 +136,15 @@ export class PagesOwnerBridgeClient {
       const timer = setTimeout(() => { this.pending.delete(requestId); reject(bridgeError("cloud-session-unreachable")); }, timeoutMs);
       this.pending.set(requestId, { resolve: resolve as (value: unknown) => void, reject, timer });
     });
-    target.postMessage(request, this.bridgeOrigin);
+    try { target.postMessage(request, this.bridgeOrigin); }
+    catch {
+      const pending = this.pending.get(requestId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.pending.delete(requestId);
+        pending.reject(bridgeError("cloud-session-unreachable"));
+      }
+    }
     return result;
   }
 
