@@ -38,7 +38,7 @@ export function projectProviderAdmissionLiveness(
     const statusLabel = "Unobserved / fail-closed";
     const detail = [
       "Separate from /cycle health and deployment reachability",
-      `renewal cadence quarter-hour ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (not top-of-hour)`,
+      `renewal cadence every fifteen minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
       "scheduled renewal isolated from deploy workflow concurrency",
       "authoritative assistant admission capability unobserved",
       "never invent live proof · not traffic authority",
@@ -64,7 +64,7 @@ export function projectProviderAdmissionLiveness(
   const expiryLabel = expiry.label === null ? "explicit canary freshness proof unavailable" : `canaryExpiresAt ${expiry.label}`;
   const detail = [
     "Separate from /cycle health and deployment reachability",
-    `renewal cadence quarter-hour ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (not top-of-hour)`,
+    `renewal cadence every fifteen minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
     "scheduled renewal isolated from deploy workflow concurrency",
     `${expiryLabel} · ${eligibility}`,
     `assistant.respond ${routeAdmitted ? "routable" : "unroutable"} · ${reason}`,

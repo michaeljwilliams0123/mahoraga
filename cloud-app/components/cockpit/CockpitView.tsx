@@ -429,7 +429,7 @@ export function CockpitView({
             <div><dt>Deployment convergence</dt><dd>{deploymentConvergence}</dd></div>
             <div><dt>Pin policy</dt><dd>MAHORAGA_EXPECTED_GIT_SHA · exact-main Cloudflare deployment and acceptance after Ubuntu + Windows Verify · mismatch fails closed</dd></div>
             <div><dt>CI publish/steward</dt><dd>self-hosted Linux/X64 lane (informational)</dd></div>
-            <div><dt>Provider renewal watchdog</dt><dd>scheduled renewal replaces stale in-progress/rerun runs · five-minute lane · deployment publication stays serialized and non-cancelling · #970 is not traffic authority · Railway remains zero-route / zero-influence / zero-fallback / zero-authority</dd></div>
+            <div><dt>Provider admission renewal</dt><dd>one-shot fifteen-minute freshness checks · re-prove billing only inside the 30-minute margin · deployment publication stays serialized and non-cancelling · not traffic authority · Railway remains zero-route / zero-influence / zero-fallback / zero-authority</dd></div>
             <div><dt>Cloudflare cognition</dt><dd>{cognitionObserved ? "Observed" : "Unverified"} · receipt-gated providerCognitionVerified · never from /api/ready</dd></div>
             <div><dt>No Railway fallback</dt><dd>{noRailwayVerified ? "Verified" : "Unproven"} · Railway zero-route / zero-influence / zero-fallback / zero-authority · x-bypass-applied fail-closed</dd></div>
             <div><dt>Provider restoration retry</dt><dd>Observational only · transient 503 only · same verified hard-zero billing attestation · bounded attempts and validated delay · persistent failure fails closed · accept-provider-restore-503 is not traffic authority</dd></div>
