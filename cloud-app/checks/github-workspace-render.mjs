@@ -25,6 +25,7 @@ test("Pages denial leaves readable Actions and failed-step details visible", () 
 });
 test("disconnect hides cached run and failure details", () => {
   const html = render(false);
-  assert.match(html, /Connect to Mahoraga/);
+  assert.match(html, /GitHub Pages presentation is online/);
+  assert.match(html, /Connect execution to inspect Pages and Actions/);
   assert.doesNotMatch(html, /Ubuntu|Typecheck|Pages access denied|actions\/runs\/42/);
 });

@@ -51,7 +51,11 @@ test("one host-neutral workspace prefers owner session and retains encrypted rel
     read("app/api/health/route.ts"),
   ]);
   assert.match(chat, /Brain-routed/);
-  assert.match(chat, /Cloud connection unavailable/);
+  assert.match(chat, /Workspace online/);
+  assert.match(chat, /Execution \{brainLabel\}/);
+  assert.match(workspace, /routeReadiness === "offline"\s*\? "Offline"/);
+  assert.match(chat, /Execution connection unavailable/);
+  assert.doesNotMatch(chat, /Mahoraga: \{brainLabel\}/);
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /no paid fallback/i);
   assert.match(workspace, /No verified zero-credit language provider is connected yet/);
@@ -120,7 +124,7 @@ test("canonical workspace navigation contains only complete in-app surfaces", as
   assert.match(nav, /setView\(item\.id\)/);
   assert.doesNotMatch(nav, /href=["']https?:/);
   assert.match(shell, /WorkspaceNav/);
-  assert.match(shell, /Brain connected|Brain offline/);
+  assert.match(shell, /Execution connected|Execution disconnected/);
   assert.match(shell, /browser never stores GitHub credentials/i);
 });
 
@@ -133,6 +137,6 @@ test("chat contracts remain owned by RuntimeRelay with zero-codex and no paid fa
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);
   assert.match(workspace, /taskAction\(task\.id, task\.conversationId, "cancel"\)/);
   assert.match(chat, /Brain-routed/);
-  assert.match(chat, /Cloud connection unavailable/);
+  assert.match(chat, /Execution connection unavailable/);
   assert.doesNotMatch(workspace, /useChat\(|DefaultChatTransport|Cloud Pro/);
 });
