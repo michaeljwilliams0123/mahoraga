@@ -2,18 +2,20 @@
 
 `cloud-app/` is the **single browser UI source** for Mahoraga.
 
-GitHub `main` is the private code authority. `cloud-app/` is host-neutral, and the
-canonical production origin is the runtime-configured verified workspace host rather
-than a repository-visibility or hosting-provider default. GitHub Pages may publish a
-derived static export when enabled; Vercel is retired and non-routable, and Cloudflare
-Workers remains a server-capable replacement-host candidate where server routes are required.
-Every host deploys this same Next.js workspace and none gains execution authority
-over the paired core. See
+GitHub `main` is the private code authority. `cloud-app/` is host-neutral. The
+normal owner-facing production entry is the Access-protected Cloudflare owner gateway,
+which serves the exact-main workspace assets and same-origin runtime routes through
+bounded service bindings. GitHub Pages publishes a derived static mirror when enabled;
+it remains an independent presentation/provenance surface rather than the normal mobile
+launch URL or execution authority. Vercel is retired and non-routable. Every host deploys
+this same Next.js workspace and none gains source authority over GitHub `main` or wider
+execution authority than its admitted runtime capabilities. See
 [`../docs/CLOUDFLARE-WORKERS-CUTOVER.md`](../docs/CLOUDFLARE-WORKERS-CUTOVER.md).
 
 GitHub Pages receives a derived static export of this same workspace. That export
-keeps the UI, encrypted relay client, and public deployment-health metadata, but
-does not publish server-only session, action, readiness, or liveness routes.
+keeps the UI and public deployment-health metadata, but it is a mirror rather than
+the normal owner launch path and does not publish server-only session, action,
+readiness, or liveness routes.
 Those routes remain available only when this workspace is run on a server-capable
 host.
 

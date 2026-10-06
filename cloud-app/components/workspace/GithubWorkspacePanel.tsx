@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { loadGithubWorkspace, type GithubWorkspaceLoad, type GithubWorkspaceTransport } from "@/lib/github-workspace";
 
+const OWNER_WORKSPACE_URL = "https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/";
+const PAGES_MIRROR_URL = "https://michaeljwilliams0123.github.io/mahoraga/";
+
 export function GithubWorkspacePanel({ coreReady, relay, publishedCommit }: {
   coreReady: boolean;
   relay: GithubWorkspaceTransport | null;
@@ -35,7 +38,8 @@ export function GithubWorkspaceView({ coreReady, state, publishedCommit, canRefr
       <div className="github-workspace-grid">
         <section aria-label="GitHub Pages status">
           <h3>GitHub Pages</h3>
-          <a href="https://michaeljwilliams0123.github.io/mahoraga/" target="_blank" rel="noopener noreferrer">Open published workspace</a>
+          <a href={OWNER_WORKSPACE_URL} target="_blank" rel="noopener noreferrer">Open owner workspace</a>
+          <p><a href={PAGES_MIRROR_URL} target="_blank" rel="noopener noreferrer">Open Pages mirror</a> · presentation/provenance only.</p>
           {publishedCommit && /^[a-f0-9]{40}$/.test(publishedCommit) && <p>Published UI commit: <code>{publishedCommit.slice(0, 12)}</code></p>}
           {snapshot && <>
             <p>{snapshot.pages.state === "available" ? `Site status: ${snapshot.pages.status ?? "not reported"} · ${snapshot.pages.buildType ?? "build type not reported"}` : snapshot.pages.state === "denied" ? "Pages access denied · GitHub App Pages read permission is required." : "Pages status unavailable. A 404 can mean the site is unavailable or access is missing."}</p>
