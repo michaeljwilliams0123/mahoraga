@@ -59,6 +59,19 @@ async function withoutUpstream(callback) {
   finally { globalThis.fetch = originalFetch; }
 }
 
+test("Access-authenticated browser navigation serves the workspace through the owner gateway", async () => {
+  const requests = [];
+  const workspace = { async fetch(request) {
+    requests.push(request);
+    return new Response("<!doctype html><title>Mahoraga</title>", { headers: { "content-type": "text/html" } });
+  } };
+  const response = await gateway.fetch(new Request(`${base}/#workspace`, { headers: { accept: "text/html,application/xhtml+xml" } }), { ...env, MAHORAGA_WORKSPACE: workspace }, access);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /text\/html/);
+  assert.equal(requests.length, 1);
+  assert.equal(new URL(requests[0].url).pathname, "/");
+});
+
 test("Access-authenticated root reports the Cloudflare edge without proxying Railway", async () => {
   await withoutUpstream(async () => {
     const response = await gateway.fetch(new Request(`${base}/`), env, access);

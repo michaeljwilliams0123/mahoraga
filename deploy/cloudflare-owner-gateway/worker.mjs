@@ -174,7 +174,7 @@ async function nativeRuntimeAction(type, payload, env, owner) {
 }
 
 async function nativeBridgeResponse(request, requestUrl, env, owner) {
-  if (requestUrl.pathname === "/" && request.method === "GET") {
+  if (requestUrl.pathname === "/" && request.method === "GET" && !request.headers.get("accept")?.includes("text/html")) {
     return json({ gateway: "mahoraga-owner-gateway", ownerAuthenticated: true, runtime: "cloudflare-native-migration", state: "degraded" });
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/frame" && request.method === "GET") {
@@ -198,6 +198,12 @@ async function nativeBridgeResponse(request, requestUrl, env, owner) {
     return json({ error: "cloud-native-capability-unavailable" }, 503);
   }
   if (requestUrl.pathname === "/api/runtime/pages-bridge/artifacts") return json({ error: "cloud-native-artifact-unavailable" }, 503);
+  if ((request.method === "GET" || request.method === "HEAD") && !requestUrl.pathname.startsWith("/api/")) {
+    const workspace = env?.MAHORAGA_WORKSPACE;
+    if (!workspace || typeof workspace.fetch !== "function") return json({ error: "cloud-workspace-unavailable" }, 503);
+    const assetUrl = new URL(requestUrl.pathname + requestUrl.search, "https://mahoraga-workspace-candidate.internal");
+    return workspace.fetch(new Request(assetUrl, request));
+  }
   return null;
 }
 export default {

@@ -10,5 +10,9 @@ MAHORAGA_WORKSPACE_ORIGIN = "https://mahoraga-workspace-candidate.mahoraga-mjw01
 binding = "MAHORAGA_EXECUTION_RUNTIME"
 service = "mahoraga-execution-runtime"
 
+[[services]]
+binding = "MAHORAGA_WORKSPACE"
+service = "mahoraga-workspace-candidate"
+
 [secrets]
 required = ["MAHORAGA_CLOUD_OWNER_ID", "MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET"]
