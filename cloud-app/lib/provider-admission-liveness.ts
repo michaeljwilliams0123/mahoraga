@@ -1,6 +1,6 @@
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 
-export const PROVIDER_ADMISSION_RENEWAL_CADENCE = "11,26,41,56";
+export const PROVIDER_ADMISSION_RENEWAL_CADENCE = "* * * * *";
 export const PROVIDER_ADMISSION_SAFETY_MARGIN_MS = 60_000;
 
 type AdmissionBearingCapability = RuntimeCapability & {
@@ -34,8 +34,8 @@ export function projectProviderAdmissionLiveness(
   now = Date.now(),
 ): ProviderAdmissionLiveness {
   const renewalPolicy = [
-    `dedicated owner-dispatchable quarter-hour workflow (${PROVIDER_ADMISSION_RENEWAL_CADENCE})`,
-    "one-shot exact-main hard-zero renewal · Access-protected · 30-minute margin · never redeploys Workers",
+    `gateway-owned one-minute cron (${PROVIDER_ADMISSION_RENEWAL_CADENCE})`,
+    "hard-zero renewal · owner workflow is break-glass only · Access-protected · 30-minute margin · never redeploys Workers",
     "deployment does not own scheduled renewal",
   ].join(" · ");
   const assistant = runtimeCapabilities.find((capability) => capability.capability === "assistant.respond") as AdmissionBearingCapability | undefined;

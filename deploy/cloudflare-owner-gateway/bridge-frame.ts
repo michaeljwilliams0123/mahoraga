@@ -15,7 +15,7 @@ export function renderCloudflareBridgeFrame(pagesOrigin: string | readonly strin
  function valid(value) {
   if (!value || typeof value !== "object" || Array.isArray(value) || value.protocolVersion !== 1 || typeof value.requestId !== "string" || !/^[A-Za-z0-9_-]{8,96}$/.test(value.requestId)) return false;
   const base = ["protocolVersion", "requestId", "type"];
-  if (value.type === "bridge.status" || value.type === "bridge.disconnect") return exact(value, base);
+  if (value.type === "bridge.status" || value.type === "bridge.disconnect" || value.type === "bridge.subscribe" || value.type === "bridge.unsubscribe") return exact(value, base);
   if (value.type === "bridge.login") return exact(value, [...base,"pin"]) && typeof value.pin === "string" && /^\\d{4}$/.test(value.pin);
   if (value.type === "bridge.action") return exact(value, [...base,"action","payload"]) && typeof value.action === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(value.action) && value.payload && typeof value.payload === "object" && !Array.isArray(value.payload);
   if (value.type === "bridge.artifact") return exact(value, [...base,"file"]) && value.file instanceof Blob && typeof value.file.name === "string";
@@ -26,6 +26,18 @@ export function renderCloudflareBridgeFrame(pagesOrigin: string | readonly strin
   if (ok) value.result = result;
   else value.error = error;
   window.parent.postMessage(value, targetOrigin);
+ }
+ let source = null; let subscriberOrigin = null;
+ function closeSource() { if (source) { source.close(); source = null; } }
+ function emit(event, data) { if (subscriberOrigin) window.parent.postMessage({ protocolVersion: PROTOCOL_VERSION, type: "bridge.event", event, data }, subscriberOrigin); }
+ function subscribe(origin) {
+  closeSource(); subscriberOrigin = origin;
+  const stream = new EventSource("/api/runtime/pages-bridge/events", { withCredentials: true }); source = stream;
+  stream.onopen = () => emit("open", {});
+  stream.addEventListener("capabilities", message => { try { const value = JSON.parse(message.data); emit("capabilities", { capabilities: Array.isArray(value.capabilities) ? value.capabilities : [] }); } catch { /* malformed frames are dropped */ } });
+  stream.addEventListener("heartbeat", () => emit("heartbeat", {}));
+  stream.addEventListener("reconnect", () => { if (source === stream) { closeSource(); emit("closed", {}); } });
+  stream.onerror = () => { if (source === stream) { closeSource(); emit("error", {}); } };
  }
  async function action(request) {
   const body = JSON.stringify({ type: request.action, payload: request.payload });
@@ -48,8 +60,10 @@ export function renderCloudflareBridgeFrame(pagesOrigin: string | readonly strin
   const request = event.data;
   try {
    if (request.type === "bridge.status") { reply(event.origin, request.requestId, true, { authenticated }); return; }
-   if (request.type === "bridge.disconnect") { authenticated = false; reply(event.origin, request.requestId, true, { authenticated:false }); return; }
+   if (request.type === "bridge.unsubscribe") { closeSource(); subscriberOrigin = null; reply(event.origin, request.requestId, true, { subscribed: false }); return; }
+   if (request.type === "bridge.disconnect") { authenticated = false; closeSource(); subscriberOrigin = null; reply(event.origin, request.requestId, true, { authenticated:false }); return; }
    if (!authenticated) throw new Error("cloud-owner-auth-required");
+   if (request.type === "bridge.subscribe") { subscribe(event.origin); reply(event.origin, request.requestId, true, { subscribed: true }); return; }
    if (request.type === "bridge.login") { reply(event.origin, request.requestId, true, { authenticated: true }); return; }
    if (request.type === "bridge.action") { reply(event.origin, request.requestId, true, await action(request)); return; }
    throw new Error("cloud-native-artifact-unavailable");

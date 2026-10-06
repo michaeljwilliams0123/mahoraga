@@ -32,7 +32,7 @@ test('a synchronous capability transport failure becomes an unavailable observat
 test('workspace observes capabilities on the same-origin gateway as well as Pages', async () => {
  const { readFile } = await import('node:fs/promises');
  const source = await readFile(new URL('../components/workspace.tsx', import.meta.url), 'utf8');
- const start = source.indexOf('const observer = observeCapabilities');
+ const start = source.indexOf('const observer = observeCapabilityStream');
  const effect = source.slice(source.lastIndexOf('useEffect(() => {', start), source.indexOf('function reconnectRuntime', start));
  const observerEffect = effect.slice(0, effect.indexOf('useEffect(() => {', 10));
  assert.doesNotMatch(observerEffect, /health\?\.deployment\?\.provider/);

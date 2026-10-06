@@ -109,7 +109,12 @@ function installBridgeHarness(t, bridgeOrigin, autoLoad = true) {
     });
   }
 
-  return { posts, advance, reply, flush, load: () => iframeListeners.get("load")?.() };
+  function relay(event, data = {}) {
+    assert.ok(messageHandler);
+    messageHandler({ origin: bridgeOrigin, source: contentWindow, data: { protocolVersion: 1, type: "bridge.event", event, data } });
+  }
+
+  return { posts, advance, reply, relay, flush, load: () => iframeListeners.get("load")?.() };
 }
 
 test("public bridge configuration accepts only an HTTPS origin with no path or credentials", async () => {
@@ -172,6 +177,7 @@ test("RuntimeRelay prefers the Pages bridge, keeps PIN login on the transport, a
   ]);
 
   assert.match(relay, /PagesOwnerBridgeClient/);
+  assert.match(relay, /NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN/);
   assert.match(relay, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
   assert.match(relay, /loginOwnerPin/);
   assert.match(relay, /bridgeClient/);
@@ -219,27 +225,31 @@ test("failed Pages handshake removes the stale frame before retrying sign-in", a
   harness.reply({ authenticated: false }); await disconnecting;
 });
 
-test('automatic gateway handoff stops a return-to-Pages loop and preserves the view', async () => {
- const { handoffToRuntimeGateway } = await clientModule();
- const stored = new Map(); const redirects = [];
- const surface = { location: { origin: 'https://michaeljwilliams0123.github.io', search: '?view=work', hash: '#work', replace: url => redirects.push(url) }, sessionStorage: { getItem: key => stored.get(key) ?? null, setItem: (key, value) => stored.set(key, value) } };
- assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'redirecting');
- assert.deepEqual(redirects, ['https://gateway.example/?view=work#work']);
- assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'held');
- assert.equal(handoffToRuntimeGateway('https://other.example', surface), 'held');
- assert.equal(redirects.length, 1);
- surface.location.origin = 'https://gateway.example';
- assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'same-origin');
+test('the bridge client has no top-level gateway redirect handoff', async () => {
+ const source = await read('lib/pages-owner-bridge-client.ts');
+ const client = await clientModule();
+ assert.equal(client.handoffToRuntimeGateway, undefined);
+ assert.doesNotMatch(source, /location\.replace|sessionStorage|mahoraga:gateway-handoff/);
 });
 
-test('invalid gateway configuration and unavailable loop protection never navigate', async () => {
- const { handoffToRuntimeGateway } = await clientModule();
- let redirects = 0;
- const surface = { location: { origin: 'https://pages.example', search: '', hash: '', replace: () => redirects++ }, sessionStorage: { getItem: () => { throw new Error('storage denied'); }, setItem: () => {} } };
- for (const origin of ['http://gateway.example', 'https://gateway.example/path', 'javascript:alert(1)', ['https://user:pass', '@gateway.example'].join('')]) assert.equal(handoffToRuntimeGateway(origin, surface), 'invalid');
- assert.equal(handoffToRuntimeGateway(undefined, surface), 'not-configured');
- assert.equal(handoffToRuntimeGateway('https://gateway.example', surface), 'unavailable');
- assert.equal(redirects, 0);
+test('capability subscription relays only validated gateway events and unsubscribes cleanly', async t => {
+ const harness = installBridgeHarness(t, 'https://gateway.example');
+ const { PagesOwnerBridgeClient } = await clientModule();
+ const bridge = new PagesOwnerBridgeClient('https://gateway.example');
+ const events = [];
+ const subscribing = bridge.subscribeCapabilities(event => events.push(event)); await harness.flush();
+ assert.equal(harness.posts.at(-1).message.type, 'bridge.subscribe');
+ harness.reply({ subscribed: true });
+ const unsubscribe = await subscribing;
+ harness.relay('open'); harness.relay('heartbeat');
+ harness.relay('capabilities', { capabilities: [{ capability: 'assistant.respond', routable: true }] });
+ harness.relay('capabilities', { capabilities: 'invalid' });
+ harness.relay('unknown');
+ assert.deepEqual(events.map(event => event.event), ['open', 'heartbeat', 'capabilities']);
+ unsubscribe(); await harness.flush();
+ assert.equal(harness.posts.at(-1).message.type, 'bridge.unsubscribe');
+ harness.relay('heartbeat');
+ assert.equal(events.length, 3);
 });
 
 test('a synchronous postMessage failure rejects safely and releases its request timer', async t => {

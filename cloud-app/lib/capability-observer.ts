@@ -1,5 +1,7 @@
 import type { RuntimeCapability } from './runtime-relay';
-export type CapabilityObservationState = { phase: 'loading' | 'ready' | 'error'; capabilities: RuntimeCapability[]; observedAt: string | null };
+export type CapabilityLink = 'connecting' | 'live' | 'reconnecting' | 'offline' | 'polling';
+/** `link` and `reconnects` are set only by the SSE-first observer; the polling observer leaves them unset. */
+export type CapabilityObservationState = { phase: 'loading' | 'ready' | 'error'; capabilities: RuntimeCapability[]; observedAt: string | null; link?: CapabilityLink; reconnects?: number };
 type Transport = { capabilities: () => Promise<RuntimeCapability[]> };
 type Scheduler = { schedule: (callback: () => void) => unknown; cancel: (timer: unknown) => void };
 export function observeCapabilities(transport: Transport, onState: (state: CapabilityObservationState) => void, scheduler: Scheduler = {

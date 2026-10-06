@@ -36,9 +36,8 @@ test("production readiness fails closed when deployment provenance is missing or
 });
 
 
-test("derived workspaces use the bounded authenticated gateway handoff", async () => {
+test("derived workspaces reach the primary edge origin through the bridge frame, never a top-level redirect", async () => {
   const workspace = await read("components/workspace.tsx");
-  assert.match(workspace, /NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN/);
-  assert.match(workspace, /handoffToRuntimeGateway\(process\.env\.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN, window\)/);
-  assert.doesNotMatch(workspace, /window\.location\.replace\(/);
+  assert.doesNotMatch(workspace, /handoffToRuntimeGateway/);
+  assert.doesNotMatch(workspace, /window\.location\.(replace|assign)\(/);
 });
