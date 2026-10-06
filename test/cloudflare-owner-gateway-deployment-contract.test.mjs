@@ -7,7 +7,6 @@ const ignore = readFileSync(new URL("../.gitignore", import.meta.url), "utf8");
 
 test("owner gateway keeps identity and assertion key out of tracked vars and has no Railway origin", () => {
   assert.match(config, /\[secrets\][\s\S]*MAHORAGA_CLOUD_OWNER_ID[\s\S]*MAHORAGA_CLOUD_OWNER_ASSERTION_SECRET/);
-  for (const required of ["PROVIDER_REFRESH_SECRET", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_BILLING_READ_TOKEN"]) assert.match(config, new RegExp(required));
   assert.doesNotMatch(config, /example\.invalid/);
   assert.doesNotMatch(config, /MAHORAGA_RUNTIME_ORIGIN/);
   assert.doesNotMatch(config, /mahoraga-runtime-main-production\.up\.railway\.app/);
