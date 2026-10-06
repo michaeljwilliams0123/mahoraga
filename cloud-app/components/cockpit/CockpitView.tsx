@@ -22,6 +22,7 @@ import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
+import { PagesWorkspaceStatusCard } from "./PagesWorkspaceStatusCard";
 import { DissentReceiptPanel } from "./DissentReceiptPanel";
 import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
 import { PredictionBacktestCards } from "./PredictionBacktestCards";
@@ -182,6 +183,7 @@ export function CockpitView({
   const studioFullyReady = managementPlaneReady && delegationRuntimeReady;
   const productName = health?.product ?? "Mahoraga";
   const buildVersion = health?.build?.version ?? health?.version ?? "unavailable";
+  const pagesBridgeOrigin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ?? "";
   const interaction = projectInteractionReadiness(runtimeCapabilities);
   const zeroCredit = projectZeroCreditAdmission(runtimeCapabilities);
   const predictiveRoute = runtimeCapabilities.find((capability) => capability.capability === "cognitive.predict");
@@ -261,6 +263,7 @@ export function CockpitView({
           <SovereignSchedulerQueueCard />
           <ProviderRenewalWatchdogCard />
           <PairedWorkspacePublicationCard />
+          <PagesWorkspaceStatusCard coreReady={coreReady} bridgeOrigin={pagesBridgeOrigin} />
           <StatusCard label="Next dependency provenance" value="16.3.6 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
@@ -399,6 +402,7 @@ export function CockpitView({
             <div><dt>Product identity</dt><dd>{productName}</dd></div>
             <div><dt>Build provenance</dt><dd>{buildVersion}</dd></div>
             <div><dt>Sovereign scheduler queue</dt><dd>queue: max · cancel-in-progress false · observational · merge #977 is not traffic authority</dd></div>
+            <div><dt>GitHub Pages workspace</dt><dd>Online · presentation only · execution {coreReady ? "paired (readiness separate)" : "disconnected/offline"} · bridge origin {pagesBridgeOrigin || "not configured; no live Cloudflare connection claimed"} · no authenticated API calls from static export</dd></div>
             <div><dt>Browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>Host provider</dt><dd>{railwayRetired ? "railway (legacy evidence only; zero-route / zero-influence / zero-fallback / zero-authority)" : deploymentProvider}</dd></div>
             <div><dt>Vercel status</dt><dd>retired · observation-only · no executable origin, gateway, traffic, or runtime authority</dd></div>
