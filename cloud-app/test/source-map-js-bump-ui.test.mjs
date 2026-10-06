@@ -18,6 +18,8 @@ describe("source-map-js bump on 7.0.0-alpha.2 cockpit", () => {
     assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(card, /Product remains Mahoraga/);
     assert.match(card, /not execution readiness, cognition proof, or production traffic authority/);
+    assert.match(card, /data-testid="source-map-js-bump"/);
+    assert.match(card, /<dl>/);
     assert.doesNotMatch(card, /unsafe-eval/i);
     assert.match(view, /SourceMapJsBumpCard/);
     assert.match(view, /productName = health\?\.product \?\? "Mahoraga"/);
