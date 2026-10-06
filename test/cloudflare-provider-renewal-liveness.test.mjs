@@ -13,7 +13,7 @@ test("provider admission renewal keeps liveness margin under scheduler jitter", 
   assert.match(
     workflow,
     /schedule:\s*\n\s*- cron:\s*"2,7,12,17,22,27,32,37,42,47,52,57 \* \* \* \*"/,
-    "external renewal watchdog must receive five-minute opportunities away from top-of-hour contention",
+    "external renewal check must receive five-minute opportunities away from top-of-hour contention",
   );
   assert.match(
     workflow,
@@ -32,6 +32,8 @@ test("provider admission renewal keeps liveness margin under scheduler jitter", 
     2,
     "billing proof and provider refresh must run only when the freshness margin requires renewal",
   );
+  assert.match(renewalBlock, /timeout-minutes:\s*10/, "scheduled renewal must finish as a short one-shot check");
+  assert.doesNotMatch(renewalBlock, /WATCHDOG_INTERVAL_MS|WATCHDOG_DURATION_MS|cloudflare-provider-renewal-watchdog\.mjs/);
   assert.match(renewalBlock, /fetch-depth:\s*1/, "renewal needs only the authoritative commit, not full history");
   assert.doesNotMatch(renewalBlock, /fetch-depth:\s*0/, "renewal must not fetch all branches and tags");
 });

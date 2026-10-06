@@ -1,6 +1,6 @@
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 
-export const PROVIDER_ADMISSION_RENEWAL_CADENCE = "11,26,41,56";
+export const PROVIDER_ADMISSION_RENEWAL_CADENCE = "2,7,12,17,22,27,32,37,42,47,52,57";
 export const PROVIDER_ADMISSION_SAFETY_MARGIN_MS = 60_000;
 
 type AdmissionBearingCapability = RuntimeCapability & {
@@ -38,7 +38,7 @@ export function projectProviderAdmissionLiveness(
     const statusLabel = "Unobserved / fail-closed";
     const detail = [
       "Separate from /cycle health and deployment reachability",
-      `renewal cadence quarter-hour ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (not top-of-hour)`,
+      `renewal cadence every five minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
       "scheduled renewal isolated from deploy workflow concurrency",
       "authoritative assistant admission capability unobserved",
       "never invent live proof · not traffic authority",
@@ -64,7 +64,7 @@ export function projectProviderAdmissionLiveness(
   const expiryLabel = expiry.label === null ? "explicit canary freshness proof unavailable" : `canaryExpiresAt ${expiry.label}`;
   const detail = [
     "Separate from /cycle health and deployment reachability",
-    `renewal cadence quarter-hour ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (not top-of-hour)`,
+    `renewal cadence every five minutes at ${PROVIDER_ADMISSION_RENEWAL_CADENCE} (offset from top-of-hour)`,
     "scheduled renewal isolated from deploy workflow concurrency",
     `${expiryLabel} · ${eligibility}`,
     `assistant.respond ${routeAdmitted ? "routable" : "unroutable"} · ${reason}`,
