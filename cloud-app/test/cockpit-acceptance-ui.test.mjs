@@ -123,3 +123,26 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(card, /\bfetch\s*\(/);
   });
 });
+
+describe("unified Cloudflare static UI provenance is not runtime authority", () => {
+  const staticCard = readFileSync(join(root, "components/cockpit/StaticWorkspaceParityCard.tsx"), "utf8");
+  it("shows sole Owner Gateway with Pages as a non-authoritative mirror", () => {
+    assert.match(cockpit, /StaticWorkspaceParityCard health=\{health\}/);
+    assert.match(staticCard, /mahoraga-owner-gateway\.mahoraga-mjw0123\.workers\.dev/);
+    assert.match(staticCard, /GitHub Pages is a source mirror/);
+    assert.match(staticCard, /single owner-facing workspace/);
+    assert.doesNotMatch(staticCard, /Railway.*execution origin|Vercel.*execution origin/);
+  });
+  it("fails closed on source manifest and independent runtime claims", () => {
+    assert.match(staticCard, /deployment\.provider === "cloudflare-workers"/);
+    assert.match(staticCard, /deployment\.environment === "candidate"/);
+    assert.match(staticCard, /deployment\.gitRef === "main"/);
+    assert.match(staticCard, /validSourceSha\(sourceSha\)/);
+    assert.match(staticCard, /pairedRuntimeSourceVerified: false/);
+    assert.match(staticCard, /executionAuthorityGranted: false/);
+    assert.match(staticCard, /independent successful publication receipt/);
+    assert.match(staticCard, /signed\s+creditsUsed evidence/);
+    assert.match(staticCard, /traffic authority each require separate live proof/);
+    assert.doesNotMatch(staticCard, /executionAuthorityGranted: true|pairedRuntimeSourceVerified: true/);
+  });
+});
