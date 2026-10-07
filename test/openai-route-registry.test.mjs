@@ -121,15 +121,54 @@ test("verified paired routes project into routing without replacing deterministi
   const publicKeySpki = publicKey.export({ type: "spki", format: "pem" });
   const manifest = await loadManifest();
   const registry = configuredRegistry(fingerprintPublicKeySpki(publicKeySpki));
-  const pairedContext = { openAiRouteRegistry: registry, openAiRouteStatuses: [routeStatus()] };
+  const pairedContext = { openAiRouteRegistry: registry, openAiRouteStatuses: [routeStatus()], now: NOW };
   const paired = routeTask(manifest, { capability: "codex.execute", dataClass: "synthetic", requestedMode: "hybrid", allowedWorkerIds: ["openai-destiny", "primary-codex-builder"] }, pairedContext);
   assert.equal(paired.status, "routable");
   assert.equal(paired.worker.id, "openai-destiny");
   const deterministic = routeTask(manifest, { capability: "system.health", dataClass: "synthetic", requestedMode: "local" }, { ...pairedContext, workerStates: [verifiedWorkerState(manifest, "local-core")], now: NOW });
   assert.equal(deterministic.worker.id, "local-core");
-  const blocked = routeTask(manifest, { capability: "codex.execute", dataClass: "synthetic", requestedMode: "hybrid", allowedWorkerIds: ["openai-destiny"] }, { openAiRouteRegistry: registry, openAiRouteStatuses: [routeStatus({ zeroCreditEligible: false })] });
+  const blocked = routeTask(manifest, { capability: "codex.execute", dataClass: "synthetic", requestedMode: "hybrid", allowedWorkerIds: ["openai-destiny"] }, { openAiRouteRegistry: registry, openAiRouteStatuses: [routeStatus({ zeroCreditEligible: false })], now: NOW });
   assert.equal(blocked.status, "waiting");
   assert.equal(blocked.reason, "zero-credit-not-eligible");
+});
+
+test("paired readiness expires without laundering the source observation time", () => {
+  const registry = configuredRegistry("a".repeat(64));
+  const observedAt = new Date(NOW).toISOString();
+  const project = (overrides) => projectOpenAiCapabilityRoutes({ registry, routeStatuses: [routeStatus(overrides)], observedAt })
+    .find((route) => route.workerId === "openai-destiny");
+  const fresh = project({});
+  assert.equal(fresh.routable, true);
+  assert.equal(fresh.lastObservedAt, routeStatus().observedAt);
+  assert.equal(fresh.lastVerifiedAt, routeStatus().observedAt);
+  for (const time of [NOW - 15 * 60_000 - 1, NOW + 1]) {
+    const route = project({ observedAt: new Date(time).toISOString() });
+    assert.equal(route.routable, false);
+    assert.equal(route.routingReason, "readiness-stale");
+    assert.equal(route.lastObservedAt, new Date(time).toISOString());
+    assert.equal(route.lastVerifiedAt, null);
+  }
+  assert.equal(project({ observedAt: new Date(NOW - 15 * 60_000).toISOString() }).routable, true);
+});
+
+test("paired readiness cannot override provider health or workload capacity", () => {
+  const registry = configuredRegistry("a".repeat(64));
+  for (const availability of ["offline", "unhealthy", "unavailable", "disabled", "stale", "starting", "configured"]) {
+    const [route] = projectOpenAiCapabilityRoutes({ registry, routeStatuses: [routeStatus({ availability })], observedAt: new Date(NOW).toISOString() });
+    assert.equal(route.routable, false, availability);
+    assert.equal(route.routingReason, "provider-unavailable");
+  }
+  for (const availability of ["healthy", "busy"]) {
+    const [route] = projectOpenAiCapabilityRoutes({ registry, routeStatuses: [routeStatus({ availability, workload: 1 })], observedAt: new Date(NOW).toISOString() });
+    assert.equal(route.routable, false);
+    assert.equal(route.routingReason, "workers-at-capacity");
+  }
+});
+
+test("registry rejects distinct route identities sharing a worker identity", () => {
+  const registry = structuredClone(configuredRegistry("a".repeat(64)));
+  registry.routes[1].workerId = registry.routes[0].workerId;
+  assert.throws(() => validateOpenAiRouteRegistry(registry), /openai-route-registry-worker-duplicate/);
 });
 
 test("signed paired-route results reject cross-lane substitution even under shared GitHub transport", () => {
