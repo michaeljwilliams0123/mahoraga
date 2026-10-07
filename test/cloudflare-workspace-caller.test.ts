@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifiedWorkspaceCaller } from '../scripts/cloudflare-workspace-proof.ts';
+import { verifiedWorkspaceCaller, verifiedWorkspaceStaticCaller } from '../scripts/cloudflare-workspace-proof.ts';
 
 const sha = 'a'.repeat(40);
 const context = () => ({ repository: 'michaeljwilliams0123/mahoraga',
@@ -31,6 +31,21 @@ test('paired publisher rejects foreign callers, renewal, PRs, stale source and m
  assert.throws(() => verifiedWorkspaceCaller(context(), 'bad'));
 });
 
+test('standalone verified-main UI publisher cannot self-grant execution authority', () => {
+ const allowed = { ...context(), workflowRef: 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main' };
+ assert.deepEqual(verifiedWorkspaceStaticCaller(allowed, sha), {
+  sourceSha: sha, sourceEvent: 'push', trustSource: 'verified-main-static-only', executionAuthorityGranted: false,
+ });
+ for (const override of [{ workflowRef: context().workflowRef }, { eventName: 'workflow_dispatch' }, { actor: 'other' },
+  { sourceSha: 'b'.repeat(40) }, { repository: 'attacker/repo' }]) {
+  assert.throws(() => verifiedWorkspaceStaticCaller({ ...allowed, ...override }, sha));
+ }
+ for (const override of [{ conclusion: 'failure' }, { status: 'queued' }, { head_branch: 'feature' },
+  { head_sha: 'b'.repeat(40) }, { event: 'pull_request' }, { path: '.github/workflows/other.yml' },
+  { actor: { login: 'unknown' } }]) {
+  assert.throws(() => verifiedWorkspaceStaticCaller({ ...allowed, event: { workflow_run: { ...allowed.event.workflow_run, ...override } } }, sha));
+ }
+});
 test('caller CLI keeps private event fields out of receipts and bounds its input', async () => {
  const { mkdtemp, writeFile, rm } = await import('node:fs/promises');
  const { tmpdir } = await import('node:os'); const { join } = await import('node:path');

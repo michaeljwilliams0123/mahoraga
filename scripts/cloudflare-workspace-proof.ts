@@ -25,6 +25,15 @@ export function verifiedWorkspaceCaller(value: unknown, expectedSha: string) {
   || (run.event !== 'push' && run.event !== 'workflow_dispatch')) throw new Error('workspace-caller-denied');
  return { sourceSha: expectedSha, sourceEvent: run.event, trustSource: 'accepted-runtime-job' };
 }
+/** Standalone verified-main source can publish UI assets, never authorize execution. */
+export function verifiedWorkspaceStaticCaller(value: unknown, expectedSha: string) {
+ const caller = record(value);
+ if (caller.workflowRef !== 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main'
+  || caller.eventName !== 'workflow_run') throw new Error('workspace-static-caller-denied');
+ return { ...verifiedWorkspaceCaller({ ...caller,
+  workflowRef: 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main',
+ }, expectedSha), trustSource: 'verified-main-static-only', executionAuthorityGranted: false };
+}
 export function verifiedWorkspacePublication(value: unknown, expectedSha: string) {
  const run = record(value), actor = record(run.actor).login;
  const permitted = (actor === 'michaeljwilliams0123' && (run.event === 'workflow_run' || run.event === 'workflow_dispatch'))
@@ -69,27 +78,32 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
    } catch { if (attempt === 9) throw new Error('workspace-candidate-unverified'); await new Promise(done => setTimeout(done, 3000)); }
   }
   if (!receipt) throw new Error('workspace-candidate-unverified');
-  await waitForExactRuntimeConvergence({ targetSha: sha,
-   fetchImpl: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(10000) }),
-   ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
-   ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
-   ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
-   readyAttempts: 10, readyDelayMs: 3000 });
-  const result = { ...receipt, pairedRuntimeSourceVerified: true, observedAt: new Date().toISOString() };
+  const staticOnly = process.env.MAHORAGA_STATIC_ONLY === 'true';
+  if (!staticOnly) {
+   await waitForExactRuntimeConvergence({ targetSha: sha,
+    fetchImpl: (input, init) => fetch(input, { ...init, signal: AbortSignal.timeout(10000) }),
+    ...(process.env.CLOUDFLARE_ACCESS_TOKEN ? { accessToken: process.env.CLOUDFLARE_ACCESS_TOKEN } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_ID ? { accessClientId: process.env.CLOUDFLARE_ACCESS_CLIENT_ID } : {}),
+    ...(process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ? { accessClientSecret: process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET } : {}),
+    readyAttempts: 10, readyDelayMs: 3000 });
+  }
+  const result = { ...receipt, pairedRuntimeSourceVerified: !staticOnly, executionAuthorityGranted: false, observedAt: new Date().toISOString() };
   const output = process.argv[3];
   if (output) { await mkdir(dirname(output), { recursive: true }); await writeFile(output, `${JSON.stringify(result, null, 2)}\n`); }
   console.log(JSON.stringify(result));
- } else if (process.argv[2] === 'caller') {
+ } else if (process.argv[2] === 'caller' || process.argv[2] === 'caller-static') {
   if (!process.env.GITHUB_EVENT_PATH) throw new Error('workspace-caller-denied');
   const metadata = await stat(process.env.GITHUB_EVENT_PATH);
   if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error('workspace-caller-denied');
   let event: unknown;
   try { event = JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) as unknown; }
   catch { throw new Error('workspace-caller-denied'); }
-  console.log(JSON.stringify(verifiedWorkspaceCaller({ repository: process.env.GITHUB_REPOSITORY,
+  const caller = { repository: process.env.GITHUB_REPOSITORY,
    workflowRef: process.env.GITHUB_WORKFLOW_REF, eventName: process.env.GITHUB_EVENT_NAME,
    actor: process.env.GITHUB_ACTOR, sourceSha: process.env.GITHUB_SHA,
-   event }, sha)));
+   event };
+  console.log(JSON.stringify(process.argv[2] === 'caller-static'
+   ? verifiedWorkspaceStaticCaller(caller, sha) : verifiedWorkspaceCaller(caller, sha)));
  } else {
   if (process.env.GITHUB_EVENT_NAME !== 'workflow_run' || process.env.GITHUB_REPOSITORY !== 'michaeljwilliams0123/mahoraga' || !process.env.GITHUB_EVENT_PATH) throw new Error('workspace-publication-denied');
   const metadata = await stat(process.env.GITHUB_EVENT_PATH);
