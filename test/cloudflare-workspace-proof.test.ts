@@ -44,14 +44,19 @@ test('Cloudflare export writes native asset security headers; Pages retains its 
  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test('workspace workflow waits for accepted runtime, rejects renewal paths, and preserves exact-main source checks', async () => {
+test('workspace workflow separates verified static publication from accepted runtime authority', async () => {
  const { readFile } = await import('node:fs/promises');
  const workflow = await readFile(new URL('../.github/workflows/cloudflare-workspace-candidate.yml', import.meta.url), 'utf8');
  assert.match(workflow, /workflow_call:\s*\n\s*inputs:\s*\n\s*verified_sha:\s*\n\s*required: true\s*\n\s*type: string/);
- assert.doesNotMatch(workflow, /workflow_run:/);
+ assert.match(workflow, /workflow_run:\s*\n\s*workflows: \["Verify Mahoraga"\]/);
+ assert.match(workflow, /github\.event\.workflow_run\.conclusion == 'success'/);
+ assert.match(workflow, /github\.event\.workflow_run\.head_branch == 'main'/);
+ assert.match(workflow, /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/);
  assert.ok(workflow.includes("github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main'"));
  assert.ok(workflow.includes('run: node scripts/cloudflare-workspace-proof.ts caller'));
- assert.ok(workflow.includes('VERIFIED_SHA: ${{ inputs.verified_sha || github.sha }}'));
+ assert.ok(workflow.includes("VERIFIED_SHA: ${{ inputs.verified_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}"));
+ assert.ok(workflow.includes("MAHORAGA_STATIC_ONLY: ${{ github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main' }}"));
+ assert.ok(workflow.includes('run: node scripts/cloudflare-workspace-proof.ts caller-static'));
  const caller = await readFile(new URL('../.github/workflows/cloudflare-execution-runtime.yml', import.meta.url), 'utf8');
  const lane = caller.slice(caller.indexOf('  workspace-candidate:'), caller.indexOf('  deploy-accept:'));
  assert.match(lane, /needs: deploy-accept/); assert.match(lane, /if: needs.deploy-accept.result == 'success'/);
