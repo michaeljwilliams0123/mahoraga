@@ -23,8 +23,12 @@ const PRIVATE_BINDING_KEYS = new Set([
 const RESULT_KEYS = new Set([
   "schemaVersion", "kind", "routeId", "repository", "sourceTaskId", "taskDigest", "baseSha", "candidateHeadSha",
   "codexAccountFingerprint", "codexInstallationFingerprint", "codexEnvironmentFingerprint", "receiptKeyFingerprint", "status",
-  "observedAt", "actorLogin", "publicKeyFingerprint", "publicKeySpki", "signature",
+  "observedAt", "actorLogin", "publicKeyFingerprint", "publicKeySpki", "signature", "creditsUsed", "creditsEvidence",
 ]);
+const CREDITS_EVIDENCE_KEYS = new Set(["source", "observedAt"]);
+// Tri-state: evidence of licensed-cloud (subscription-included) usage can only ever be proven true/false by the
+// executing provider itself. Absence of evidence must stay "unknown" -- it must never be fabricated as true/false.
+const CREDITS_USED_STATES = new Set(["true", "false", "unknown"]);
 const BINDING_STATES = new Set(["unconfigured", "paired"]);
 const RECEIPT_TRUST_MODES = new Set(["signed-receipt"]);
 const DATA_CLASSES = new Set(["synthetic", "personal", "enterprise", "local-only"]);
@@ -105,6 +109,17 @@ export function validateOpenAiRouteResult(value) {
     publicKeyFingerprint: sha64(value.publicKeyFingerprint, "openai-route-result-invalid"),
     publicKeySpki: spki(value.publicKeySpki),
     signature: signature(value.signature),
+    creditsUsed: allowed(value.creditsUsed, CREDITS_USED_STATES, "openai-route-result-invalid"),
+    creditsEvidence: validateCreditsEvidence(value.creditsUsed, value.creditsEvidence),
+  });
+}
+
+function validateCreditsEvidence(creditsUsed, value) {
+  if (creditsUsed === "unknown") return ensureNull(value, "openai-route-result-credits-evidence-invalid");
+  exact(value, CREDITS_EVIDENCE_KEYS, "openai-route-result-credits-evidence-invalid");
+  return deepFreeze({
+    source: token(value.source, 64, "openai-route-result-credits-evidence-invalid"),
+    observedAt: timestamp(value.observedAt, "openai-route-result-credits-evidence-invalid"),
   });
 }
 
@@ -178,6 +193,8 @@ export function acceptOpenAiRouteResult({ registry, privateBindings = [], receip
     baseSha: result.baseSha,
     candidateHeadSha: result.candidateHeadSha,
     observedAt: result.observedAt,
+    creditsUsed: result.creditsUsed,
+    creditsEvidence: result.creditsEvidence,
   });
 }
 

@@ -24,6 +24,7 @@ import { WorkView } from "./workspace/work-view";
 import { WorkspaceShell } from "./workspace/workspace-shell";
 import type { BrainState, ChatCreditPolicy, Health, QuickAction, QuickActionId, RelayState, Starter, TaskMode, WorkspaceMessage, WorkspaceView } from "./workspace/workspace-types";
 
+const ASSISTANT_ROUTE_UNROUTABLE_ERROR = "Mahoraga's assistant route is not currently routable.";
 const VIEW_HASH: Record<WorkspaceView, string> = { chat: "workspace", work: "work", files: "files", advanced: "advanced" };
 const HASH_VIEW = new Map(Object.entries(VIEW_HASH).map(([view, hash]) => [hash, view as WorkspaceView]));
 
@@ -215,7 +216,14 @@ export function Workspace() {
     }
     const observer = observeCapabilityStream(pairedRelay, state => {
       setCapabilityObservation(state);
-      if (state.phase !== "loading") setRuntimeCapabilities(state.capabilities);
+      if (state.phase !== "loading") {
+        setRuntimeCapabilities(state.capabilities);
+        if (state.phase === "ready" && state.capabilities.some((item) =>
+          item.capability === "assistant.respond" && item.routable && item.enabled !== false
+        )) {
+          setRuntimeError((current) => current === ASSISTANT_ROUTE_UNROUTABLE_ERROR ? null : current);
+        }
+      }
     }, { mode: capabilityTransportMode(process.env.NEXT_PUBLIC_MAHORAGA_CAPABILITY_POLL_FALLBACK) });
     refreshCapabilities.current = observer.refresh;
     const refreshOnReturn = () => { if (document.visibilityState === "visible") observer.refresh(); };
@@ -230,7 +238,7 @@ export function Workspace() {
   }, [coreReady, pairedRelay]);
 
   useEffect(() => {
-    if (runtimeBusy || ownerLoginBusy
+    if (runtimeBusy || ownerLoginBusy || ownerLoginRequired
       || !["unpaired", "error"].includes(relayState)) return;
     return subscribePagesReconnect(reconnectRuntime);
   }, [relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
@@ -318,7 +326,7 @@ export function Workspace() {
       return;
     }
     if (!assistantReady && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)) {
-      setRuntimeError("Mahoraga's assistant route is not currently routable.");
+      setRuntimeError(ASSISTANT_ROUTE_UNROUTABLE_ERROR);
       return;
     }
     await submitCore(text, taskMode, null, "zero-codex", files);

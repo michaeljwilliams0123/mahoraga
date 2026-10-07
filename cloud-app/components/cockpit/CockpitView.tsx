@@ -31,6 +31,7 @@ import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 import { PagesFrameContractCard } from "./PagesFrameContractCard";
 import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
+import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -272,6 +273,7 @@ export function CockpitView({
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
+        <StaleDisconnectSelfHealCard />
         <StatusCard
           label="Pages owner-connection recovery"
           value={pagesRecoveryEligible ? "Eligible / fail-closed" : "Unavailable / inactive"}

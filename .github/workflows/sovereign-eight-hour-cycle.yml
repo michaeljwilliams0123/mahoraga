@@ -34,6 +34,9 @@ env:
   SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-
   SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-
   SOVEREIGN_PRODUCER_SMOKE_TAG: sovereign-producer-smoke-v1
+  # The self-hosted SD00 runner may expose a development-only loopback model.
+  # Sovereign production cycles remain deterministic and must not inherit it.
+  MAHORAGA_ZERO_CREDIT_MODEL_URL: ""
 
 jobs:
   candidate-cycle:
