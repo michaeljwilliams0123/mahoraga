@@ -7,13 +7,13 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 describe("source-map-js bump on 7.0.0-alpha.2 cockpit", () => {
-  it("surfaces merged #1005 as observational provenance only", () => {
+  it("surfaces merged #1019 as observational provenance only", () => {
     const card = readFileSync(join(root, "components/cockpit/SourceMapJsBumpCard.tsx"), "utf8");
     const view = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
     assert.match(card, /source-map-js 1\.2\.2/);
     assert.match(card, /1\.2\.1 to 1\.2\.2/);
-    assert.match(card, /cloud-app/);
-    assert.match(card, /Merged #1005/);
+    assert.match(card, /Merged #1019/);
+    assert.match(card, /723dd6a/);
     assert.match(card, /CVE-2026-93749/);
     assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(card, /Product remains Mahoraga/);
