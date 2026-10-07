@@ -21,6 +21,28 @@ export function StaticWorkspaceParityCard({ health }: { health: Health | null })
     <article className="eclipse-status-card neutral" data-testid="static-workspace-parity">
       <span>Unified workspace publication</span>
       <strong>{candidateDeclared ? "Static source declared" : "Static provenance unobserved"}</strong>
+      <dl data-testid="static-workspace-parity-gates">
+        <div>
+          <dt>Owner Gateway</dt>
+          <dd>{OWNER_GATEWAY}</dd>
+        </div>
+        <div>
+          <dt>Pages role</dt>
+          <dd>Source mirror only</dd>
+        </div>
+        <div>
+          <dt>Manifest source SHA</dt>
+          <dd>{candidateDeclared ? sourceSha : "unverified"}</dd>
+        </div>
+        <div>
+          <dt>pairedRuntimeSourceVerified</dt>
+          <dd>false</dd>
+        </div>
+        <div>
+          <dt>executionAuthorityGranted</dt>
+          <dd>false</dd>
+        </div>
+      </dl>
       <p>
         Owner Gateway: {OWNER_GATEWAY}. GitHub Pages is a source mirror, not the
         execution origin. Both export from cloud-app; the Cloudflare Owner Gateway
