@@ -21,6 +21,8 @@ describe("openai route credits on 7.0.0-alpha.2 cockpit", () => {
     assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(card, /Product remains Mahoraga/);
     assert.match(card, /not execution readiness, cognition proof, spending authority, or production traffic authority/);
+    assert.match(card, /data-credits-used/);
+    assert.match(card, /<ul>/);
     assert.match(view, /OpenAiRouteCreditsCard/);
     assert.match(view, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(view, /7\.0\.0-alpha\.2 is build provenance only/);
