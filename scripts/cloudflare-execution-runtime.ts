@@ -9,6 +9,10 @@ export const DEFAULT_RUNTIME_URL = "https://mahoraga-execution-runtime.mahoraga-
 const WRANGLER_VERSION = "4.132.0";
 const DEFAULT_READY_ATTEMPTS = 37;
 const DEFAULT_READY_DELAY_MS = 5_000;
+// A stale Durable Object may need ~10 seconds without requests to hibernate after a
+// Worker version update. The 5-second provenance probe itself can prevent that idle
+// window, so reserve a bounded quiet period only for observed source-version skew.
+const DO_SOURCE_VERSION_QUIET_MS = 15_000;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 
 export type DeployableSource = {
@@ -193,7 +197,11 @@ export async function waitForExactRuntimeConvergence(input: CloudflareAccessCred
       // Avoid reflecting transport exceptions or JSON response bodies, including any credentials.
       lastObservation = "transport-or-payload-invalid";
     }
-    if (attempt < readyAttempts) await sleep(readyDelayMs);
+    if (attempt < readyAttempts) {
+      const staleObjectVersion = lastObservation === "live-sha-mismatch"
+        || lastObservation === "ready-sha-mismatch";
+      await sleep(staleObjectVersion ? Math.max(readyDelayMs, DO_SOURCE_VERSION_QUIET_MS) : readyDelayMs);
+    }
   }
   throw new Error(`deploy-runtime-convergence-timeout:${lastObservation}`);
 }
