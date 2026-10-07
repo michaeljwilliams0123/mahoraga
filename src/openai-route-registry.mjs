@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { fingerprintPublicKeySpki, verifySignedPayloadEnvelope } from "./destiny-trigger-trust.mjs";
+import { WRITE_CANARY_TTL_MS } from "./capability-readiness.mjs";
 
 export const OPENAI_ROUTE_REGISTRY_PATH = new URL("../config/openai-route-registry.json", import.meta.url);
 export const OPENAI_ROUTE_REGISTRY_SCHEMA_VERSION = 1;
@@ -47,6 +48,7 @@ export function validateOpenAiRouteRegistry(value) {
   if (!Array.isArray(value.routes) || value.routes.length < 1 || value.routes.length > 16) fail("openai-route-registry-invalid");
   const routes = value.routes.map((route) => validateRoute(route, repository)).sort((left, right) => left.routeId.localeCompare(right.routeId));
   if (new Set(routes.map((route) => route.routeId)).size !== routes.length) fail("openai-route-registry-route-duplicate");
+  if (new Set(routes.map((route) => route.workerId)).size !== routes.length) fail("openai-route-registry-worker-duplicate");
   return deepFreeze({ schemaVersion: 1, kind: "openai-route-registry", repository, transport, routes });
 }
 
@@ -135,7 +137,7 @@ export function projectOpenAiCapabilityRoutes({ registry, routeStatuses = [], ob
   timestamp(observedAt, "openai-route-observed-at-invalid");
   return deepFreeze(validatedRegistry.routes.flatMap((route) => {
     const status = byRoute.get(route.routeId) ?? null;
-    const reason = projectionReason(route, status);
+    const reason = projectionReason(route, status, Date.parse(observedAt));
     const availability = status?.availability ?? (reason === null ? "healthy" : "configured");
     return route.capabilities.map((capability) => deepFreeze({
       capability,
@@ -160,6 +162,8 @@ export function projectOpenAiCapabilityRoutes({ registry, routeStatuses = [], ob
       executionPlane: route.executionPlane,
       economicTier: route.economicTier,
       observedAt,
+      lastObservedAt: status?.observedAt ?? null,
+      lastVerifiedAt: reason === null ? status.observedAt : null,
     }));
   }));
 }
@@ -254,13 +258,17 @@ function validatePublicTrust(value) {
   });
 }
 
-function projectionReason(route, status) {
+function projectionReason(route, status, now) {
   if (route.bindingState !== "paired" || route.publicTrust === null) return "route-unconfigured";
   if (!status) return "readiness-missing";
   if (status.bindingState !== route.bindingState) return "route-mismatch";
   if (!status.ready) return status.reason;
+  const ageMs = now - Date.parse(status.observedAt);
+  if (ageMs < 0 || ageMs > WRITE_CANARY_TTL_MS) return "readiness-stale";
   if (status.zeroCreditEligible !== true) return "zero-credit-not-eligible";
   if (status.exactHeadMatch !== true) return "base-head-mismatch";
+  if (status.availability !== "healthy" && status.availability !== "busy") return "provider-unavailable";
+  if (status.workload >= route.maximumWorkload) return "workers-at-capacity";
   return null;
 }
 

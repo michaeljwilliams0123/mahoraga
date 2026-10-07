@@ -142,6 +142,14 @@ export type RuntimeTask = {
   status: string;
   capability?: string | null;
   errorCode?: string | null;
+  executionReceipt?: RuntimeExecutionReceipt;
+};
+export type RuntimeExecutionReceipt = {
+  workerId: string;
+  providerId: string;
+  costClass: string;
+  creditPolicy: string;
+  memoryState?: "indexed" | "pending";
 };
 export type RuntimeMessage = {
   id: string;
@@ -156,6 +164,7 @@ export type RuntimeChatResult = {
   task: RuntimeTask | null;
   objective: { id?: string } | null;
   decision: { mode?: string; execution?: string };
+  executionReceipt?: RuntimeExecutionReceipt;
 };
 export type CloudSessionDiagnostic = {
   code: "cloud-session-unavailable" | "cloud-session-unreachable" | "cloud-runtime-degraded" | "cloud-runtime-contract-incompatible" | "cloud-owner-auth-required";
@@ -488,6 +497,9 @@ export class RuntimeRelay {
   }
   async internalActivity() { return this.call<unknown>("internal-activity", {}); }
   async setInternalActivity(enabled: boolean) { return this.call<unknown>("internal-activity-control", { enabled }); }
+  async searchMemory(query: string, topK = 5) {
+    return this.call<{ memories?: Array<{ id: string; fingerprint: string; content: string; kind: string; utilityScore: number; createdAt: number; score: number | null }> }>("memory-search", { query, topK });
+  }
   async operationsSnapshot() {
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
   }
