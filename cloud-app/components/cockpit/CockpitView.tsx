@@ -33,6 +33,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 import { PagesFrameContractCard } from "./PagesFrameContractCard";
 import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
 import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
+import { TelemetryStreamBoundCard } from "./TelemetryStreamBoundCard";
 import { OpenAiRouteCreditsCard } from "./OpenAiRouteCreditsCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
@@ -278,6 +279,7 @@ export function CockpitView({
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
         <StaleDisconnectSelfHealCard />
+        <TelemetryStreamBoundCard />
         <StatusCard
           label="Pages owner-connection recovery"
           value={pagesRecoveryEligible ? "Eligible / fail-closed" : "Unavailable / inactive"}
