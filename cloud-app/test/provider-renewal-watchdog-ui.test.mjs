@@ -27,14 +27,14 @@ describe("7.0.0-alpha.2 provider admission renewal cockpit", () => {
     assert.match(card, /Access-protected owner workflow/);
     assert.match(card, /never redeploys Workers/);
     assert.match(card, /renewal continuity/);
-    assert.match(card, /wrangler secrets-file/);
-    assert.match(card, /values are never shown/);
+    assert.match(card, /[Vv]erified main deployment/);
+    assert.match(card, /[Ss]ensitive values are never displayed/);
     assert.match(cockpit, /renewal continuity/);
-    assert.match(cockpit, /wrangler secrets-file/);
-    assert.match(cockpit, /values never shown/);
+    assert.match(cockpit, /[Vv]erified main deployment/);
+    assert.match(cockpit, /[Ss]ensitive values are never displayed/);
     assert.match(commandCockpit, /renewal continuity/);
-    assert.match(commandCockpit, /wrangler secrets-file/);
-    assert.match(commandCockpit, /values never shown/);
+    assert.match(commandCockpit, /[Vv]erified main deployment/);
+    assert.match(commandCockpit, /[Ss]ensitive values are never displayed/);
     assert.match(deploymentWorkflow, /OWNER_GATEWAY_SECRETS_FILE=.*mahoraga-owner-gateway-renewal-secrets\.json/);
     assert.match(deploymentWorkflow, /--secrets-file "\$OWNER_GATEWAY_SECRETS_FILE"/);
 

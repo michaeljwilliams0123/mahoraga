@@ -4,7 +4,7 @@ export function ProviderRenewalWatchdogCard() {
       <span>Provider admission renewal</span>
       <strong>Gateway-owned one-minute checks</strong>
       <p>
-        Hard-zero provider admission renewal runs through the gateway-owned one-minute cron. Exact-main owner-gateway deploy keeps renewal continuity by provisioning the gateway with a wrangler secrets-file (PROVIDER_REFRESH_SECRET plus account, API, and billing-read credentials; values are never shown). The Access-protected owner workflow is break-glass only. Deployment does not own scheduled renewal. Renewal re-proves billing only when the 30-minute margin requires it and never redeploys Workers. This is observational only—not runtime readiness or production traffic authority, and grants no traffic authority. Railway remains zero-route, zero-influence, zero-fallback, and zero-authority.
+        Hard-zero provider admission renewal runs through the gateway-owned one-minute cron. Verified main deployment preserves renewal continuity. Sensitive values are never displayed. The Access-protected owner workflow is break-glass only. Deployment does not own scheduled renewal. Renewal re-proves billing only when the 30-minute margin requires it and never redeploys Workers. This is observational only—not runtime readiness or production traffic authority, and grants no traffic authority. Railway remains zero-route, zero-influence, zero-fallback, and zero-authority.
       </p>
     </article>
   );
