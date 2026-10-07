@@ -25,7 +25,7 @@ type VectorIndexLike = {
 };
 export type MemoryEnvironment = Readonly<{ MEMORY_DB: D1Like; MEMORY_INDEX: VectorIndexLike }>;
 
-const validId = (value: string): boolean => /^[A-Za-z0-9:_-]{1,128}$/.test(value);
+const validId = (value: string): boolean => /^[A-Za-z0-9:_-]{1,64}$/.test(value);
 const validFingerprint = (value: string): boolean => /^[a-f0-9]{64}$/.test(value);
 const validKind = (value: string): value is MemoryKind => value === "counterfactual-transition" || value === "cognitive-cycle" || value === "lesson";
 
@@ -97,12 +97,23 @@ export async function pruneStaleMemories(env: MemoryEnvironment, options: { now?
   await ensureMemorySchema(env.MEMORY_DB); const now = options.now ?? Date.now();
   const rows = (await env.MEMORY_DB.prepare("SELECT id,utility_score AS utilityScore,created_at AS createdAt,prune_candidate_at AS pruneCandidateAt FROM execution_memories WHERE is_stale = 0 ORDER BY created_at LIMIT 500").all<MemoryPruneCandidate>()).results ?? [];
   const plan = planMemoryPruning(rows, { ...options, now });
-  for (const id of plan.markCandidateIds) await env.MEMORY_DB.prepare("UPDATE execution_memories SET prune_candidate_at = ? WHERE id = ? AND prune_candidate_at IS NULL AND is_stale = 0").bind(now, id).run();
-  for (const id of plan.clearCandidateIds) await env.MEMORY_DB.prepare("UPDATE execution_memories SET prune_candidate_at = NULL WHERE id = ? AND is_stale = 0").bind(id).run();
-  if (plan.deleteIds.length > 0) {
-    await env.MEMORY_INDEX.deleteByIds(plan.deleteIds);
-    const placeholders = plan.deleteIds.map(() => "?").join(",");
-    await env.MEMORY_DB.prepare(`UPDATE execution_memories SET is_stale = 1, pruned_at = ? WHERE id IN (${placeholders}) AND is_stale = 0`).bind(now, ...plan.deleteIds).run();
+  // D1 accepts 100 bound parameters per query and 50 queries per free-plan
+  // invocation. Batch all three phases, reserving one parameter for time.
+  for (let offset = 0; offset < plan.markCandidateIds.length; offset += 99) {
+    const ids = plan.markCandidateIds.slice(offset, offset + 99);
+    const placeholders = ids.map(() => "?").join(",");
+    await env.MEMORY_DB.prepare(`UPDATE execution_memories SET prune_candidate_at = ? WHERE id IN (${placeholders}) AND prune_candidate_at IS NULL AND is_stale = 0`).bind(now, ...ids).run();
+  }
+  for (let offset = 0; offset < plan.clearCandidateIds.length; offset += 99) {
+    const ids = plan.clearCandidateIds.slice(offset, offset + 99);
+    const placeholders = ids.map(() => "?").join(",");
+    await env.MEMORY_DB.prepare(`UPDATE execution_memories SET prune_candidate_at = NULL WHERE id IN (${placeholders}) AND is_stale = 0`).bind(...ids).run();
+  }
+  for (let offset = 0; offset < plan.deleteIds.length; offset += 99) {
+    const ids = plan.deleteIds.slice(offset, offset + 99);
+    await env.MEMORY_INDEX.deleteByIds(ids);
+    const placeholders = ids.map(() => "?").join(",");
+    await env.MEMORY_DB.prepare(`UPDATE execution_memories SET is_stale = 1, pruned_at = ? WHERE id IN (${placeholders}) AND is_stale = 0`).bind(now, ...ids).run();
   }
   return { markedCount: plan.markCandidateIds.length, prunedCount: plan.deleteIds.length, deletedIds: plan.deleteIds };
 }

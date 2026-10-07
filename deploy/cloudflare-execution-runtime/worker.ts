@@ -484,7 +484,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const storedLesson = objectValue(receipt.storedLesson);
       if (!isPrediction && storedLesson) {
         const lessonContent = JSON.stringify(storedLesson);
-        memories.push({ id: `${turnId}:lesson`, fingerprint: await digestText(lessonContent), content: lessonContent, kind: "lesson", utilityScore: storedLesson.promotable === true ? 1 : 0.25, createdAt: now });
+        memories.push({ id: await digestText(`${turnId}:lesson`), fingerprint: await digestText(lessonContent), content: lessonContent, kind: "lesson", utilityScore: storedLesson.promotable === true ? 1 : 0.25, createdAt: now });
       }
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
