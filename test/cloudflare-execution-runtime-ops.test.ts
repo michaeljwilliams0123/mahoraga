@@ -7,6 +7,7 @@ import {
   assertDeployableSource,
   buildWranglerDeployArgs,
   runAcceptanceProbe,
+  waitForExactRuntimeConvergence,
 } from "../scripts/cloudflare-execution-runtime.ts";
 
 const SHA = "6a1d51e25654eb7a5c22bab7a1c2dcaca522c2af";
@@ -88,6 +89,54 @@ test("Windows Wrangler deployment launches npx through cmd.exe", () => {
     args: ["/d", "/s", "/c", "npx.cmd", "--version"],
   });
   assert.deepEqual(buildNpxProcess(["--version"], "linux"), { command: "npx", args: ["--version"] });
+});
+
+test("deploy readiness diagnostic separates HTTP/auth and readiness failures without leaking bodies", async () => {
+  const statusFetch = async (input: RequestInfo | URL): Promise<Response> =>
+    new Response(new URL(input.toString()).pathname === "/api/live" ? "private-live" : "private-ready", {
+      status: new URL(input.toString()).pathname === "/api/live" ? 302 : 503,
+    });
+  await assert.rejects(
+    waitForExactRuntimeConvergence({
+      accessClientId: "private-id", accessClientSecret: "private-secret",
+      targetSha: SHA, baseUrl: BASE_URL, fetchImpl: statusFetch,
+      readyAttempts: 1, readyDelayMs: 0,
+    }),
+    error => {
+      const message = (error as Error).message;
+      assert.match(message, /^deploy-runtime-convergence-timeout:live-http-302-ready-http-503$/);
+      assert.doesNotMatch(message, /private-id|private-secret|private-live|private-ready/);
+      return true;
+    },
+  );
+});
+
+test("deploy readiness diagnostic records exact source mismatch but never treats it as ready", async () => {
+  const mismatchedFetch = async (input: RequestInfo | URL): Promise<Response> =>
+    Response.json(new URL(input.toString()).pathname === "/api/live"
+      ? { status: "live", sha: SHA }
+      : readyBody(OTHER_SHA));
+  await assert.rejects(waitForExactRuntimeConvergence({
+    accessToken: "private-token", targetSha: SHA, baseUrl: BASE_URL,
+    fetchImpl: mismatchedFetch, readyAttempts: 1, readyDelayMs: 0,
+  }), /^Error: deploy-runtime-convergence-timeout:ready-sha-mismatch$/);
+});
+
+test("deploy readiness diagnostic retains bounded retries and succeeds only on exact live/ready evidence", async () => {
+  let polls = 0;
+  const sleeps: number[] = [];
+  const fetchImpl = async (input: RequestInfo | URL): Promise<Response> => {
+    if (new URL(input.toString()).pathname === "/api/live") return Response.json({ status: "live", sha: SHA });
+    polls += 1;
+    return Response.json(readyBody(polls > 1 ? SHA : OTHER_SHA));
+  };
+  await waitForExactRuntimeConvergence({
+    accessToken: "private-token", targetSha: SHA, baseUrl: BASE_URL,
+    fetchImpl, readyAttempts: 3, readyDelayMs: 5,
+    sleep: async ms => { sleeps.push(ms); },
+  });
+  assert.equal(polls, 2);
+  assert.deepEqual(sleeps, [5]);
 });
 
 test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution, and replay", async () => {
