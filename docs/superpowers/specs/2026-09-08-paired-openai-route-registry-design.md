@@ -480,3 +480,12 @@ The design is successful when:
 - The wake path is intentionally PR-first because that is the existing repository and provider-supported event surface.
 - Custom GitHub Apps are deferred until they provide value beyond cryptographic account-side identity.
 - The design contains no placeholder implementation decisions required for v1; unknown real-world Destiny binding values remain runtime enrollment data, not specification placeholders.
+
+## Addendum: credits-used attribution evidence (zero-additional-dollar policy)
+
+Both `openai-primary` (Mike) and `openai-destiny` (Destiny) use `costClass: "licensed-cloud"` — included subscription capacity, never metered/pay-per-use. `openai-route-result` receipts (`src/openai-route-registry.mjs`) carry a tri-state `creditsUsed` field (`"true" | "false" | "unknown"`) plus an optional `creditsEvidence` object (`{ source, observedAt }`):
+
+- `creditsUsed` may be `"true"` or `"false"` only when the signed receipt also carries `creditsEvidence` naming the provider-reported source of that attribution.
+- `creditsUsed` must be `"unknown"`, with `creditsEvidence` forced to `null`, whenever the executing route cannot produce attributable usage evidence. Mahoraga must never fabricate `true` or a misleading `false` to fill an evidence gap.
+- `creditsEvidence` becomes part of the signed payload (`verifySignedPayloadEnvelope`), so a receipt cannot claim credit usage after the fact without re-signing under the paired route's bound key.
+- This evidence field does not grant spending authority. No route in this registry is `metered-cloud`; introducing one requires an explicit owner-authorized dollar ceiling under separate policy, which this registry does not provide.

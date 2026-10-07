@@ -144,6 +144,25 @@ test("paired chat executes a bounded predictive simulation and preserves its rec
   assert.match(summary, /queueDepth: 2/);
   assert.match(summary, /predicted uncertainty: 0.3/);
 });
+test("paired OpenAI Codex routes are observable but never zero-credit routable before binding", async (t) => {
+  const { runtime } = await runtimeFixture(t);
+  const base = `http://127.0.0.1:${runtime.address.port}`;
+  await waitFor(async () => {
+    const status = await (await fetch(`${base}/api/status`)).json();
+    return status.capabilities.some((item) => item.capability === "codex.execute");
+  });
+  const status = await (await fetch(`${base}/api/status`)).json();
+  const codexRoutes = status.capabilities.filter((item) => item.capability === "codex.execute");
+  // Both Mike's and Destiny's paired lanes project, each isolated by workerId, alongside the
+  // existing manifest-declared codex worker -- never merged into a single undifferentiated route.
+  assert.deepEqual(codexRoutes.map((item) => item.workerId).sort(), ["openai-destiny", "openai-primary", "primary-codex-builder"]);
+  const pairedRoutes = codexRoutes.filter((item) => item.workerId === "openai-primary" || item.workerId === "openai-destiny");
+  for (const route of pairedRoutes) {
+    assert.equal(route.costClass, "licensed-cloud");
+    assert.equal(route.routable, false, "unconfigured route must never appear zero-credit routable");
+    assert.equal(route.routingReason, "route-unconfigured");
+  }
+});
 test("runtime serves the cockpit API and completes a health task", async (t) => {
   const { runtime } = await runtimeFixture(t);
   const base = `http://127.0.0.1:${runtime.address.port}`;
