@@ -150,7 +150,7 @@ async function lazyAdmissionRenewal(env) {
   try { return await admissionRenewer.renewIfDue(env, "lazy"); } catch { return null; }
 }
 
-const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth", "internal-activity", "internal-activity-control", "native-github-workspace", "native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]);
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth", "internal-activity", "internal-activity-control", "memory-search", "native-github-workspace", "native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
   if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);

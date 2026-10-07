@@ -6,7 +6,20 @@
   "compatibility_flags": [
     "nodejs_compat"
   ],
-  "triggers": { "crons": ["*/5 * * * *"] },
+  "triggers": { "crons": ["*/5 * * * *", "0 0 * * *"] },
+  "d1_databases": [
+    {
+      "binding": "MEMORY_DB",
+      "database_name": "mahoraga-memory-db",
+      "database_id": "8faed08c-8bc9-4b0e-94f6-ab956c5ec12a"
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "MEMORY_INDEX",
+      "index_name": "mahoraga-memory-index"
+    }
+  ],
   "durable_objects": {
     "bindings": [
       {
