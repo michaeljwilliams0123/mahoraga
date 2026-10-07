@@ -18,6 +18,7 @@ test("four-hour cycle stays deterministic with empty providers and no generation
 
   const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");
   assert.match(workflow, /MAHORAGA_CANDIDATE_PRODUCER:\s*github-native/);
+  assert.match(workflow, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
   assert.doesNotMatch(workflow, /openai\.com/);
 
   const manifest = await loadManifest();
