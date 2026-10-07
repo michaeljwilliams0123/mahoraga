@@ -1,6 +1,6 @@
 # Route and memory verification follow-up
 
-Source baseline: `9f6a08d0481baa4699367f3e57762ffc3f9fb180`.
+Source baseline: `c07f7143d7b309f4665f6b3e86e1e72f47840f87` (post-#1011 squash merge).
 Accountable maintainer: `@michaeljwilliams0123`.
 Tracking: [MIC-18](https://linear.app/michael-williams-mahoraga/issue/MIC-18).
 
@@ -24,7 +24,7 @@ Tracking: [MIC-18](https://linear.app/michael-williams-mahoraga/issue/MIC-18).
 - PR #1013 passed 289 UI tests, type checking, and a production build.
 - PR #1020 passed 290 UI tests, type checking, and a production build.
 - The prior PR #1011 Windows check reported `worker-shutdown-timeout:codespaces-open-weight`. Local runtime tests passed; this does not establish the Windows cause or replace the required Windows check.
-- Exact-head Ubuntu and Windows Verify remain mandatory. Draft PR state holds autonomous integration until the owner requests merge.
+- Exact-head Ubuntu and Windows Verify remain mandatory. Owner requested ordered squash integration on 2026-10-07; exact-head verification remains mandatory after each source-head refresh.
 
 ## Evidence boundaries
 
