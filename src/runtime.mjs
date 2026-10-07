@@ -1,4 +1,5 @@
 import { loadManifest, ROOT } from "./config.mjs";
+import { loadOpenAiRouteRegistry } from "./openai-route-registry.mjs";
 import { RuntimeDatabase } from "./database.mjs";
 import { Supervisor } from "./supervisor.mjs";
 import { createControlServer } from "./server.mjs";
@@ -52,12 +53,15 @@ export async function startRuntime({ port, databaseFile, artifactRoot, contentVa
   const mcpHost = createMcpHostManager({ declarations: manifest.mcpProviders ?? [], transports: mcpTransports });
   await mcpHost.refresh();
   const pgaTelemetryRegistry = paths.candidate ? createPgaTelemetryRegistry() : null;
+  // Best-effort: an absent or malformed registry must never block runtime startup. It only makes
+  // the already-declared, licensed-cloud Codex routes observable in the capability projection.
+  const openAiRouteRegistry = await loadOpenAiRouteRegistry().catch(() => null);
 
   supervisor.start();
   const server = createControlServer({
     manifest, database, supervisor, primaryCodexToken, artifactStore, contentVault, controlSessions, mcpHost,
     controlOrigin: resolvedPort === 0 ? null : `http://${manifest.runtime.host}:${resolvedPort}`, webRoot,
-    repositoryHeadReader,
+    repositoryHeadReader, openAiRouteRegistry,
   });
   if (pgaTelemetryRegistry) installPgaTelemetryRoute(server, { primaryToken: primaryCodexToken, sessions: controlSessions, registry: pgaTelemetryRegistry });
   await new Promise((resolve, reject) => {
