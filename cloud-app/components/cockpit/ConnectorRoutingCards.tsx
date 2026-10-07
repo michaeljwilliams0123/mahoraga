@@ -3,6 +3,7 @@
 import type { RuntimeCapability } from "@/lib/runtime-relay";
 import { projectConnectorCapabilityRouting } from "@/lib/connector-capability-routing";
 import { ProviderAdmissionRenewalCard } from "./ProviderAdmissionRenewalCard";
+import { DoShaQuiescenceCard } from "./DoShaQuiescenceCard";
 
 function StatusCard({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail: string; tone?: "good" | "warn" | "neutral" }) {
   return (
@@ -18,10 +19,12 @@ export function ConnectorRoutingCards({
   coreReady,
   runtimeCapabilities,
   health,
+  doShaReasonCode,
 }: {
   coreReady: boolean;
   runtimeCapabilities: readonly RuntimeCapability[];
   health: unknown;
+  doShaReasonCode?: string | null;
 }) {
   const routing = projectConnectorCapabilityRouting(coreReady, runtimeCapabilities, health);
   const agentic = routing.families.find((family) => family.id === "agentic");
@@ -29,6 +32,7 @@ export function ConnectorRoutingCards({
 
   return (
     <>
+      <DoShaQuiescenceCard reasonCode={doShaReasonCode} />
       <ProviderAdmissionRenewalCard runtimeCapabilities={runtimeCapabilities} />
       <StatusCard
         label="Permissioned connector routing"
