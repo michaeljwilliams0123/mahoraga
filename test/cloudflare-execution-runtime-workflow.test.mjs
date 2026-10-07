@@ -145,9 +145,17 @@ test("Cloudflare exact-main workflow deploys before strengthened live acceptance
   assert.doesNotMatch(workflow, /(?:POST|PUT|PATCH|DELETE)[^\n]*\/subscriptions|topup|spending-limit/i);
 });
 
+
+test("exact-main deploy provisions edge-native owner-gateway renewal credentials", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  assert.match(workflow, /OWNER_GATEWAY_SECRETS_FILE=.*mahoraga-owner-gateway-renewal-secrets\.json/);
+  assert.match(workflow, /JSON\.stringify\(\{[\s\S]*PROVIDER_REFRESH_SECRET: refreshSecret,[\s\S]*CLOUDFLARE_ACCOUNT_ID:[\s\S]*CLOUDFLARE_API_TOKEN:[\s\S]*CLOUDFLARE_BILLING_READ_TOKEN:/);
+  assert.match(workflow, /wrangler@4\.132\.0 deploy[\s\S]*cloudflare-owner-gateway\/wrangler\.toml[\s\S]*--secrets-file "\$OWNER_GATEWAY_SECRETS_FILE"/);
+});
+
 test("Cloudflare exact-main workflow promotes dependencies inside-out before the owner gateway", async () => {
   const workflow = await readFile(workflowPath, "utf8");
-  const gatewayDeploy = workflow.indexOf("cloudflare:owner-gateway:deploy");
+  const gatewayDeploy = workflow.indexOf("Deploy exact verified owner gateway");
   const providerDeploy = workflow.indexOf("Deploy isolated budgeted Workers AI provider");
   const runtimeDeploy = workflow.indexOf("cloudflare-execution-runtime.ts deploy");
   const refresh = workflow.indexOf("Refresh hard-zero provider admission");
@@ -166,11 +174,12 @@ test("Cloudflare exact-main workflow resolves runner temp paths at runtime inste
   assert.match(workflow, /RUNNER_TEMP/);
   assert.match(workflow, /PROVIDER_SECRETS_FILE=.*mahoraga-zero-credit-provider-secrets\.json/);
   assert.match(workflow, /RUNTIME_SECRETS_FILE=.*mahoraga-execution-runtime-secrets\.json/);
+  assert.match(workflow, /OWNER_GATEWAY_SECRETS_FILE=.*mahoraga-owner-gateway-renewal-secrets\.json/);
   assert.match(workflow, /BILLING_ATTESTATION_FILE=.*mahoraga-zero-credit-billing-attestation\.json/);
   assert.match(workflow, /GITHUB_ENV/);
   assert.match(workflow, /name:\s*Remove temporary Cloudflare secret files/);
   assert.match(workflow, /if:\s*always\(\)/);
-  assert.match(workflow, /rm -f "\$PROVIDER_SECRETS_FILE" "\$RUNTIME_SECRETS_FILE" "\$BILLING_ATTESTATION_FILE"/);
+  assert.match(workflow, /rm -f "\$PROVIDER_SECRETS_FILE" "\$RUNTIME_SECRETS_FILE" "\$OWNER_GATEWAY_SECRETS_FILE" "\$BILLING_ATTESTATION_FILE"/);
 });
 
 

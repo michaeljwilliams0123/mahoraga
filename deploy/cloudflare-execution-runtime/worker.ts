@@ -31,6 +31,7 @@ const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 const DURABLE_STATE = "cloudflare-do-sqlite";
 const MAX_CONTEXT_TURNS = 6;
 const TELEMETRY_HEARTBEAT_MS = 15_000;
+const TELEMETRY_STREAM_MAX_AGE_MS = 45_000;
 const INTERNAL_TELEMETRY_HEADER = "x-mahoraga-telemetry-authorized";
 
 type ChatPayload = { conversationId: string; turnId: string; message: string };
@@ -503,6 +504,11 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const capability = projectPersistedAssistantCapability(providerState);
     const encoder = new TextEncoder();
     let timer: ReturnType<typeof setInterval> | null = null;
+    let expiry: ReturnType<typeof setTimeout> | null = null;
+    const cleanup = () => {
+      if (timer !== null) { clearInterval(timer); timer = null; }
+      if (expiry !== null) { clearTimeout(expiry); expiry = null; }
+    };
     const stream = new ReadableStream<Uint8Array>({
       start: (controller) => {
         const write = (event: string, data: Record<string, unknown>) => {
@@ -523,14 +529,19 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         });
         timer = setInterval(() => {
           try {
+            controller.enqueue(encoder.encode(`: keep-alive ${Date.now()}\n\n`));
             const latest = this.storage.sql.exec<{ id: string; provider_id: string; cost_class: string; completed_at: number | null }>("SELECT id,provider_id,cost_class,completed_at FROM turns WHERE status = 'SUCCESS' ORDER BY completed_at DESC,id DESC LIMIT 1").toArray()[0] ?? null;
             write("heartbeat", { status: "idle", activeTasks: 0, timestamp: Date.now(), workerId: "execution-runtime-do" });
             if (latest) write("execution_receipt", { turnId: latest.id, providerId: latest.provider_id, costClass: latest.cost_class, completedAt: latest.completed_at, workerId: "execution-runtime-do" });
           }
-          catch { if (timer !== null) clearInterval(timer); }
+          catch { cleanup(); }
         }, TELEMETRY_HEARTBEAT_MS);
+        expiry = setTimeout(() => {
+          cleanup();
+          try { controller.close(); } catch { /* client already disconnected */ }
+        }, TELEMETRY_STREAM_MAX_AGE_MS);
       },
-      cancel: () => { if (timer !== null) clearInterval(timer); },
+      cancel: cleanup,
     });
     return new Response(stream, {
       headers: {
