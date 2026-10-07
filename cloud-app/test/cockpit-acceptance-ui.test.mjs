@@ -134,7 +134,7 @@ describe("unified Cloudflare static UI provenance is not runtime authority", () 
     assert.doesNotMatch(staticCard, /Railway.*execution origin|Vercel.*execution origin/);
   });
   it("fails closed on source manifest and independent runtime claims", () => {
-    assert.match(staticCard, /deployment\.provider === "cloudflare-workers"/);
+    assert.match(staticCard, /deployment\?\.provider === "cloudflare-workers"/);
     assert.match(staticCard, /deployment\.environment === "candidate"/);
     assert.match(staticCard, /deployment\.gitRef === "main"/);
     assert.match(staticCard, /validSourceSha\(sourceSha\)/);
