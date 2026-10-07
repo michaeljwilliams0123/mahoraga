@@ -74,7 +74,7 @@ export function createControlServer({
   controlSessions = createControlSessionManager(),
   controlOrigin = `http://${manifest.runtime.host}:${manifest.runtime.port}`,
   workspaceUrl = canonicalWorkspaceUrl(), conversationGateway = null, mcpHost = null,
-  repositoryHeadReader = readRepositoryHead,
+  repositoryHeadReader = readRepositoryHead, openAiRouteRegistry = null,
 }) {
   if (!(artifactStore instanceof LocalArtifactStore)) throw new TypeError("artifact-store-required");
   if (!contentVault || typeof contentVault.get !== "function" || typeof contentVault.metadata !== "function") throw new TypeError("content-vault-required");
@@ -83,8 +83,11 @@ export function createControlServer({
   const relayHandlers = createRelayHandlers({ database, manifest, supervisor, artifactStore, contentVault, autonomyPolicy, repositoryHeadReader });
   const gateway = conversationGateway ?? createConversationGateway({
     database, manifest, supervisor, relayHandlers,
+    // Paired OpenAI (Mike/Destiny Codex) routes are licensed-cloud, not zero-credit, and never
+    // routable until a route is explicitly bound. Projecting the registry here only makes the
+    // already-existing routes observable (self vs. other) -- it grants no execution authority.
     capabilityResolver: () => {
-      const base = capabilityIndex(manifest, supervisor.status());
+      const base = capabilityIndex(manifest, supervisor.status(), Date.now(), openAiRouteRegistry ? { openAiRouteRegistry } : {});
       const discovered = mcpHost?.listTools?.() ?? [];
       return [...base, ...discovered.map((item) => ({ capability: item.capabilityId, routable: false, workerIds: [item.providerId] }))];
     },
@@ -100,7 +103,7 @@ export function createControlServer({
         if (!canonicalWorkspace) return json(response, 503, { error: "workspace-origin-not-configured" });
         return redirect(response, canonicalWorkspace);
       }
-      if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, publicStatusPayload(manifest, database, supervisor));
+      if (request.method === "GET" && url.pathname === "/api/status") return json(response, 200, publicStatusPayload(manifest, database, supervisor, openAiRouteRegistry));
       if (request.method === "GET" && url.pathname === "/api/identity") return json(response, 200, identityPayload(manifest));
       if (request.method === "POST" && url.pathname === "/api/session/bootstrap-nonce") {
         if (!bearerMatches(request, primaryCodexToken)) return json(response, 401, { error: "primary-codex-token-required" });
@@ -123,7 +126,7 @@ export function createControlServer({
         const body = await bodyJson(request);
         const input = body?.payload && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : {};
         const context = { mechanism: "owner-server-gateway", attendedSession: { active: true, sessionId: "cloud-owner-gateway" } };
-        if (body?.type === "status") return json(response, 200, statusPayload(manifest, database, supervisor));
+        if (body?.type === "status") return json(response, 200, statusPayload(manifest, database, supervisor, openAiRouteRegistry));
         if (body?.type === "capabilities") return json(response, 200, { capabilities: gateway.capabilities() });
         if (body?.type === "world-state") { const worldState = await observeWorldState({ manifest, database, supervisor }); return json(response, 200, { ...worldState, planner: planWorldStateActions(worldState) }); }
         if (body?.type === "chat") return json(response, 200, await relayHandlers.chat(input, context));
@@ -391,8 +394,8 @@ export function createControlServer({
   return server;
 }
 
-export function publicStatusPayload(manifest, database, supervisor) {
-  const status = statusPayload(manifest, database, supervisor);
+export function publicStatusPayload(manifest, database, supervisor, openAiRouteRegistry = null) {
+  const status = statusPayload(manifest, database, supervisor, openAiRouteRegistry);
   const queue = status.queue ?? {};
   return {
     ...status,
@@ -422,12 +425,12 @@ export function interactionReadinessProjection(capabilities) {
     lastVerifiedAt: route?.lastVerifiedAt ?? null,
   };
 }
-export function statusPayload(manifest, database, supervisor) {
+export function statusPayload(manifest, database, supervisor, openAiRouteRegistry = null) {
   const tasks = database.listTasks();
   const workers = supervisor.status();
   const generatedAt = new Date().toISOString();
   const runtimeHealth = supervisor.health(Date.parse(generatedAt));
-  const capabilities = capabilityIndex(manifest, workers, Date.parse(generatedAt));
+  const capabilities = capabilityIndex(manifest, workers, Date.parse(generatedAt), openAiRouteRegistry ? { openAiRouteRegistry } : {});
   const versions = compatibilityVersions(manifest);
   return {
     generatedAt,
