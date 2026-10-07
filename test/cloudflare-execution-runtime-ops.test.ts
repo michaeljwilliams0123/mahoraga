@@ -136,7 +136,26 @@ test("deploy readiness diagnostic retains bounded retries and succeeds only on e
     sleep: async ms => { sleeps.push(ms); },
   });
   assert.equal(polls, 2);
+  // A stale Durable Object needs a quiet opportunity to hibernate and be replaced.
+  assert.deepEqual(sleeps, [15_000]);
+});
+
+test("deploy convergence preserves short retries for transient HTTP failures", async () => {
+  const sleeps: number[] = [];
+  let polls = 0;
+  const fetchImpl = async (input: RequestInfo | URL): Promise<Response> => {
+    if (new URL(input.toString()).pathname === "/api/live") return Response.json({ status: "live", sha: SHA });
+    polls += 1;
+    if (polls === 1) return new Response(null, { status: 503 });
+    return Response.json(readyBody(SHA));
+  };
+  await waitForExactRuntimeConvergence({
+    accessToken: "private-token", targetSha: SHA, baseUrl: BASE_URL,
+    fetchImpl, readyAttempts: 3, readyDelayMs: 5,
+    sleep: async ms => { sleeps.push(ms); },
+  });
   assert.deepEqual(sleeps, [5]);
+  assert.equal(polls, 2);
 });
 
 test("acceptance probe proves Access denial/auth, stale-SHA rejection, execution, and replay", async () => {
