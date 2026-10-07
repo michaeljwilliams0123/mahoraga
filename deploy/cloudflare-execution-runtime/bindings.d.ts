@@ -13,6 +13,8 @@ interface Env {
   MAHORAGA_WORKSPACE_ORIGIN: string;
   MAHORAGA_EXECUTION_BROKER?: Fetcher;
   CONNECTOR_CAPABILITY_BROKER?: Fetcher;
+  MEMORY_DB: D1Database;
+  MEMORY_INDEX: VectorizeIndex;
 }
 
 declare namespace Cloudflare {
@@ -31,5 +33,7 @@ declare namespace Cloudflare {
     MAHORAGA_WORKSPACE_ORIGIN: string;
     MAHORAGA_EXECUTION_BROKER?: Fetcher;
     CONNECTOR_CAPABILITY_BROKER?: Fetcher;
+    MEMORY_DB: D1Database;
+    MEMORY_INDEX: VectorizeIndex;
   }
 }

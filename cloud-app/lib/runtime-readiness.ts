@@ -13,23 +13,24 @@ export function watchRuntimeReadiness<T>(options:{read:()=>Promise<unknown>;expe
  return watchRuntimeObservation<RuntimeReadiness,T>({...options,parse:(value,now)=>parseRuntimeReadiness(value,options.expectedSha,now),emit:state=>options.emit({phase:state.phase,readiness:state.observation})});
 }
 export function watchRuntimeObservation<Value extends {observedAt:string},T>(options:{read:()=>Promise<unknown>;parse:(value:unknown,now:number)=>Value|null;emit:(state:ObservationState<Value>)=>void;visible:()=>boolean;now:()=>number;schedule:(fn:()=>void,ms:number)=>T;cancel:(timer:T)=>void}) {
+ const {read,parse,emit:emitState,visible,now,schedule,cancel}=options;
  let active=true,inFlight=false;let poll:T|undefined,expiry:T|undefined;
- const clear=()=>{if(poll!==undefined)options.cancel(poll);poll=undefined;};
- const emit=(phase:ReadinessState['phase'],observation:Value|null=null)=>{if(active)options.emit({phase,observation});};
+ const clear=()=>{if(poll!==undefined)cancel(poll);poll=undefined;};
+ const emit=(phase:ReadinessState['phase'],observation:Value|null=null)=>{if(active)emitState({phase,observation});};
  async function refresh() {
   clear();if(!active)return;
-  if(!options.visible()){if(expiry!==undefined)options.cancel(expiry);expiry=undefined;emit('paused');return;}
+  if(!visible()){if(expiry!==undefined)cancel(expiry);expiry=undefined;emit('paused');return;}
   if(inFlight)return;inFlight=true;
   try {
-   const value=await options.read();if(!active)return;
-   if(!options.visible()){emit('paused');return;}
-   const ready=options.parse(value,options.now());
-   if(expiry!==undefined)options.cancel(expiry);expiry=undefined;
-   if(ready){emit('fresh',ready);expiry=options.schedule(()=>emit('stale'),Math.max(0,60000-(options.now()-Date.parse(ready.observedAt))));}
+   const value=await read();if(!active)return;
+   if(!visible()){emit('paused');return;}
+   const ready=parse(value,now());
+   if(expiry!==undefined)cancel(expiry);expiry=undefined;
+   if(ready){emit('fresh',ready);expiry=schedule(()=>emit('stale'),Math.max(0,60000-(now()-Date.parse(ready.observedAt))));}
    else emit('unavailable');
-  }catch{emit(options.visible()?'unavailable':'paused');}
-  finally{inFlight=false;if(active&&options.visible())poll=options.schedule(()=>{void refresh();},30000);}
+  }catch{emit(visible()?'unavailable':'paused');}
+  finally{inFlight=false;if(active&&visible())poll=schedule(()=>{void refresh();},30000);}
  }
  emit('connecting');void refresh();
- return {refresh:()=>{void refresh();},stop:()=>{active=false;clear();if(expiry!==undefined)options.cancel(expiry);}};
+ return {refresh:()=>{void refresh();},stop:()=>{active=false;clear();if(expiry!==undefined)cancel(expiry);}};
 }

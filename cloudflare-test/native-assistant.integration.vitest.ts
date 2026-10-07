@@ -97,6 +97,11 @@ describe("native assistant bridge", () => {
     expect(response.status).toBe(200);
     expect((await response.json() as { task: { capability: string } }).task.capability).toBe("cognitive.cycle");
     expect(run).not.toHaveBeenCalled();
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
+      const memories = state.storage.sql.exec<{ id: string; payload: string }>("SELECT id,payload FROM memory_index_outbox").toArray();
+      expect(memories.some((memory) => JSON.parse(memory.payload).kind === "lesson")).toBe(true);
+      for (const memory of memories) expect(new TextEncoder().encode(memory.id).byteLength).toBeLessThanOrEqual(64);
+    });
   });
 
   it("persists encrypted turns, replays once, and enforces conversation ownership", async () => {
