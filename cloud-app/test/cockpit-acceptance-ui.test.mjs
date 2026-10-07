@@ -106,4 +106,20 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Vercel status/);
     assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
   });
+
+  it("surfaces the sovereign workflow zero-credit model URL boundary as observational only", () => {
+    const card = readFileSync(join(root, "components/cockpit/ZeroCreditModelUrlBoundaryCard.tsx"), "utf8");
+    assert.match(cockpit, /ZeroCreditModelUrlBoundaryCard/);
+    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(card, /MAHORAGA_ZERO_CREDIT_MODEL_URL/);
+    assert.match(card, /clears the self-hosted runner/);
+    assert.match(card, /cannot inherit the loopback zero-credit model endpoint/);
+    assert.match(card, /fail-closed local-AI guard is unchanged/);
+    assert.match(card, /Product remains Mahoraga/);
+    assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(card, /not execution readiness, not cognition proof, and not production traffic authority/);
+    assert.match(card, /not a provider selection or traffic-authority claim/);
+    assert.doesNotMatch(card, /https?:\/\/|127\.0\.0\.1|localhost/i);
+    assert.doesNotMatch(card, /\bfetch\s*\(/);
+  });
 });

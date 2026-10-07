@@ -19,6 +19,7 @@ import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
 import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
+import { ZeroCreditModelUrlBoundaryCard } from "./ZeroCreditModelUrlBoundaryCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
@@ -33,6 +34,7 @@ import { PagesFrameContractCard } from "./PagesFrameContractCard";
 import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
 import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
 import { TelemetryStreamBoundCard } from "./TelemetryStreamBoundCard";
+import { OpenAiRouteCreditsCard } from "./OpenAiRouteCreditsCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -263,7 +265,9 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
           <SourceMapJsBumpCard />
+          <OpenAiRouteCreditsCard capabilities={runtimeCapabilities} />
           <LocalAiDevOnlyCard />
+          <ZeroCreditModelUrlBoundaryCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
           <ProviderRenewalWatchdogCard />
