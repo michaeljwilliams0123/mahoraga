@@ -33,6 +33,7 @@ import { TelemetrySparkline } from "./TelemetrySparkline";
 import { PagesFrameContractCard } from "./PagesFrameContractCard";
 import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
 import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
+import { OpenAiRouteCreditsCard } from "./OpenAiRouteCreditsCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -263,6 +264,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
           <SourceMapJsBumpCard />
+          <OpenAiRouteCreditsCard capabilities={runtimeCapabilities} />
           <LocalAiDevOnlyCard />
           <ZeroCreditModelUrlBoundaryCard />
           <BotPushPublicationCard />
