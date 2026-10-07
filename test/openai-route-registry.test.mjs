@@ -9,6 +9,7 @@ import {
   projectOpenAiCapabilityRoutes,
   validateOpenAiPrivateRouteBinding,
   validateOpenAiRouteRegistry,
+  validateOpenAiRouteResult,
 } from "../src/openai-route-registry.mjs";
 import { fingerprintPublicKeySpki } from "../src/destiny-trigger-trust.mjs";
 
@@ -167,9 +168,14 @@ test("signed paired-route results reject cross-lane substitution even under shar
     actorLogin: "destiny-route",
     publicKeyFingerprint: destinyFingerprint,
     publicKeySpki: destinySpki,
+    creditsUsed: "true",
+    creditsEvidence: { observedAt: "2026-09-08T20:29:00.000Z", source: "codex-usage-receipt" },
   };
   const good = { ...base, signature: signReceipt(destiny.privateKey, base) };
-  assert.equal(acceptOpenAiRouteResult({ registry, privateBindings: [privateBinding], receipt: good, expectedRouteId: "openai-destiny", expectedTaskDigest: base.taskDigest, expectedBaseSha: base.baseSha }).accepted, true);
+  const accepted = acceptOpenAiRouteResult({ registry, privateBindings: [privateBinding], receipt: good, expectedRouteId: "openai-destiny", expectedTaskDigest: base.taskDigest, expectedBaseSha: base.baseSha });
+  assert.equal(accepted.accepted, true);
+  assert.equal(accepted.creditsUsed, "true");
+  assert.deepEqual(accepted.creditsEvidence, base.creditsEvidence);
 
   const wrongKeyBody = { ...base, publicKeyFingerprint: fingerprintPublicKeySpki(primarySpki), publicKeySpki: primarySpki, receiptKeyFingerprint: fingerprintPublicKeySpki(primarySpki) };
   const wrongKey = { ...wrongKeyBody, signature: signReceipt(primary.privateKey, wrongKeyBody) };
@@ -178,4 +184,55 @@ test("signed paired-route results reject cross-lane substitution even under shar
   const wrongAccountBody = { ...base, codexAccountFingerprint: "9".repeat(64) };
   const wrongAccount = { ...wrongAccountBody, signature: signReceipt(destiny.privateKey, wrongAccountBody) };
   assert.throws(() => acceptOpenAiRouteResult({ registry, privateBindings: [privateBinding], receipt: wrongAccount, expectedRouteId: "openai-destiny", expectedTaskDigest: base.taskDigest, expectedBaseSha: base.baseSha }), /account-binding-mismatch/);
+});
+
+test("credits-used attribution never fabricates true/false without attributable usage evidence", () => {
+  const base = {
+    schemaVersion: 1,
+    kind: "openai-route-result",
+    routeId: "openai-destiny",
+    repository: "michaeljwilliams0123/mahoraga",
+    sourceTaskId: "dct-0123456789abcdef01234567",
+    taskDigest: "d".repeat(64),
+    baseSha: "e".repeat(40),
+    candidateHeadSha: null,
+    codexAccountFingerprint: "a".repeat(64),
+    codexInstallationFingerprint: "b".repeat(64),
+    codexEnvironmentFingerprint: "c".repeat(64),
+    receiptKeyFingerprint: "d".repeat(64),
+    status: "completed",
+    observedAt: "2026-09-08T20:30:00.000Z",
+    actorLogin: "destiny-route",
+    publicKeyFingerprint: "d".repeat(64),
+    publicKeySpki: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n-----END PUBLIC KEY-----\n",
+    signature: "a".repeat(86),
+  };
+
+  // Absence of evidence must stay "unknown" with no evidence payload attached.
+  const unknown = validateOpenAiRouteResult({ ...base, creditsUsed: "unknown", creditsEvidence: null });
+  assert.equal(unknown.creditsUsed, "unknown");
+  assert.equal(unknown.creditsEvidence, null);
+
+  // "unknown" paired with a fabricated evidence object is rejected.
+  assert.throws(
+    () => validateOpenAiRouteResult({ ...base, creditsUsed: "unknown", creditsEvidence: { source: "codex-usage-receipt", observedAt: base.observedAt } }),
+    /openai-route-result-credits-evidence-invalid/,
+  );
+
+  // A "true"/"false" attribution requires an evidence object naming its source.
+  assert.throws(
+    () => validateOpenAiRouteResult({ ...base, creditsUsed: "true", creditsEvidence: null }),
+    /openai-route-result-credits-evidence-invalid/,
+  );
+  assert.throws(
+    () => validateOpenAiRouteResult({ ...base, creditsUsed: "false", creditsEvidence: null }),
+    /openai-route-result-credits-evidence-invalid/,
+  );
+
+  const notUsed = validateOpenAiRouteResult({ ...base, creditsUsed: "false", creditsEvidence: { source: "codex-usage-receipt", observedAt: base.observedAt } });
+  assert.equal(notUsed.creditsUsed, "false");
+  assert.deepEqual(notUsed.creditsEvidence, { source: "codex-usage-receipt", observedAt: base.observedAt });
+
+  // Any value outside the tri-state (e.g. a fabricated boolean) is rejected outright.
+  assert.throws(() => validateOpenAiRouteResult({ ...base, creditsUsed: true, creditsEvidence: null }), /openai-route-result-invalid/);
 });
