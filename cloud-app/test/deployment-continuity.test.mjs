@@ -15,7 +15,7 @@ test("Netlify fallback builds the existing Next workspace without changing autho
   assert.match(config, /base\s*=\s*"cloud-app"/);
   assert.match(config, /command\s*=\s*"npm run build"/);
   assert.match(config, /publish\s*=\s*"\.next"/);
-  assert.match(pkg, /"next"\s*:\s*"16\.3\.6"/);
+  assert.match(pkg, /"next"\s*:\s*"16\.3\.8"/);
 });
 
 test("health route reports deployment identity from active supported hosts only", async () => {

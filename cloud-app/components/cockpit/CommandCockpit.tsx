@@ -292,7 +292,7 @@ export function CommandCockpit({
           </p>
           <dl>
             <div><dt>build provenance</dt><dd>7.0.0-alpha.2</dd></div>
-            <div><dt>Next dependency provenance</dt><dd>16.3.3 → 16.3.6 · security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority</dd></div>
+            <div><dt>Next dependency provenance</dt><dd>16.3.3 → 16.3.8 · security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority</dd></div>
             <div><dt>browser presentation</dt><dd>Cloudflare candidate · {CLOUDFLARE_WORKSPACE_CANDIDATE} · unverified-cloudflare-static; GitHub Pages export retained</dd></div>
             <div><dt>execution path</dt><dd>encrypted relay</dd></div>
             <div><dt>authoritative runtime</dt><dd>Mahoraga core (4782)</dd></div>
