@@ -154,12 +154,12 @@ export function loadNativeWorldCheckpoint(serialized: string): NativeWorldCheckp
       manifest.architecture !== "action-conditioned-linear-residual-v1" || manifest.qualification !== "offline-heldout-only" ||
       manifest.productionActivated !== false || manifest.executionAuthorityGranted !== false || manifest.creditCost !== 0 ||
       !isId(manifest.modelId) || typeof manifest.trainingCodeSha !== "string" || !/^[a-f0-9]{40}$/.test(manifest.trainingCodeSha) ||
-      !Number.isSafeInteger(manifest.seed) || manifest.seed < 1 || manifest.seed > 0xffffffff ||
-      !Number.isSafeInteger(manifest.epochs) || manifest.epochs < 1 || manifest.epochs > 250 ||
+      typeof manifest.seed !== "number" || !Number.isSafeInteger(manifest.seed) || manifest.seed < 1 || manifest.seed > 0xffffffff ||
+      typeof manifest.epochs !== "number" || !Number.isSafeInteger(manifest.epochs) || manifest.epochs < 1 || manifest.epochs > 250 ||
       typeof manifest.learningRate !== "number" || !Number.isFinite(manifest.learningRate) || manifest.learningRate <= 0 || manifest.learningRate > .1 ||
       ![manifest.trainingDataDigest, manifest.evaluationDataDigest, manifest.rightsManifestDigest, manifest.configurationDigest].every(isDigest) ||
-      !Number.isSafeInteger(manifest.trainingExamples) || manifest.trainingExamples < 1 || manifest.trainingExamples > 128 ||
-      !Number.isSafeInteger(manifest.evaluationExamples) || manifest.evaluationExamples < 1 || manifest.evaluationExamples > 128 ||
+      typeof manifest.trainingExamples !== "number" || !Number.isSafeInteger(manifest.trainingExamples) || manifest.trainingExamples < 1 || manifest.trainingExamples > 128 ||
+      typeof manifest.evaluationExamples !== "number" || !Number.isSafeInteger(manifest.evaluationExamples) || manifest.evaluationExamples < 1 || manifest.evaluationExamples > 128 ||
       !Array.isArray(manifest.knownLimitations) || manifest.knownLimitations.length < 1 ||
       manifest.knownLimitations.some((x: unknown) => typeof x !== "string" || x.length > 200) ||
       !Array.isArray(object.weights) || object.weights.length !== actions.length * features.length * (features.length + 1) ||
