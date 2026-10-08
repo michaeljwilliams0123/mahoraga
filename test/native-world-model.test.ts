@@ -42,8 +42,8 @@ test("offline trainable dynamics actually updates weights and generalizes to uns
   assert.equal(result.metrics.improved, true);
   assert.ok(result.metrics.trainingAfter < result.metrics.trainingBefore * .1);
   assert.ok(result.metrics.heldoutAfter < result.metrics.heldoutBefore * .1);
-  assert.ok(Math.abs(predictNativeWorldState(result.checkpoint, "increase", { load: .1 }).predictedState.load - .3) < .04);
-  assert.ok(Math.abs(predictNativeWorldState(result.checkpoint, "decrease", { load: .1 }).predictedState.load + .15) < .04);
+  assert.ok(Math.abs(predictNativeWorldState(result.checkpoint, "increase", { load: .1 }).predictedState.load! - .3) < .04);
+  assert.ok(Math.abs(predictNativeWorldState(result.checkpoint, "decrease", { load: .1 }).predictedState.load! + .15) < .04);
 });
 test("fixed-seed checkpoint and predictions reproduce bit-for-bit after save/load", () => {
   const a = trainNativeWorldModel(input()), b = trainNativeWorldModel(input());
@@ -90,6 +90,6 @@ test("run is a candidate model only: no production effect or native-world capabi
   const proposed = predictNativeWorldState(candidate.checkpoint, "increase", {load: .25});
   assert.equal(proposed.kind, "native-world-offline-prediction");
   assert.equal(proposed.executionAuthorityGranted, false);
-  assert.ok(Math.abs(proposed.predictedState.load - .45) < .04);
+  assert.ok(Math.abs(proposed.predictedState.load! - .45) < .04);
   assert.notEqual(candidate.checkpoint.fingerprint, digest);
 });
