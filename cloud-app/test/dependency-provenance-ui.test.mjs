@@ -20,11 +20,11 @@ describe("Next dependency provenance UI", () => {
   });
 
   it("surfaces the pinned Next security fix as observational dependency provenance", () => {
-    assert.equal(packageJson.dependencies.next, "16.3.6");
+    assert.equal(packageJson.dependencies.next, "16.3.8");
     assert.match(command, /Next dependency provenance/);
-    assert.match(command, /16\.3\.3 → 16\.3\.6/);
+    assert.match(command, /16\.3\.3 → 16\.3\.8/);
     assert.match(cockpit, /Next dependency provenance/);
-    assert.match(cockpit, /16\.3\.6 \(from 16\.3\.3\)/);
+    assert.match(cockpit, /16\.3\.8 \(from 16\.3\.3\)/);
     for (const surface of [command, cockpit]) {
       assert.match(surface, /GHSA-vcvr-r3jv-pc5j/);
       assert.match(surface, /next\/og ImageResponse RCE/);

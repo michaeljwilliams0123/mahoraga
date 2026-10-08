@@ -25,7 +25,7 @@ test("Pages denial leaves readable Actions and failed-step details visible", () 
 });
 test("disconnect hides cached run and failure details", () => {
   const html = render(false);
-  assert.match(html, /GitHub Pages presentation is online/);
-  assert.match(html, /Connect execution to inspect Pages and Actions/);
+  assert.match(html, /The UI is available/);
+  assert.match(html, /Pair the authenticated owner runtime to inspect Pages and Actions/);
   assert.doesNotMatch(html, /Ubuntu|Typecheck|Pages access denied|actions\/runs\/42/);
 });

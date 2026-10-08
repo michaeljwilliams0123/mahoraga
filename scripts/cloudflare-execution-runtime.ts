@@ -9,6 +9,10 @@ export const DEFAULT_RUNTIME_URL = "https://mahoraga-execution-runtime.mahoraga-
 const WRANGLER_VERSION = "4.132.0";
 const DEFAULT_READY_ATTEMPTS = 37;
 const DEFAULT_READY_DELAY_MS = 5_000;
+// A stale Durable Object may need ~10 seconds without requests to hibernate after a
+// Worker version update. The 5-second provenance probe itself can prevent that idle
+// window, so reserve a bounded quiet period only for observed source-version skew.
+const DO_SOURCE_VERSION_QUIET_MS = 15_000;
 const SHA_PATTERN = /^[a-f0-9]{40}$/i;
 
 export type DeployableSource = {
@@ -160,13 +164,18 @@ export async function waitForExactRuntimeConvergence(input: CloudflareAccessCred
   if (!Number.isInteger(readyAttempts) || readyAttempts < 1 || readyAttempts > 61) throw new Error("deploy-convergence-attempts-invalid");
   if (!Number.isInteger(readyDelayMs) || readyDelayMs < 0 || readyDelayMs > 10_000) throw new Error("deploy-convergence-delay-invalid");
 
+  // Diagnostic categories contain no response bodies, external error strings, credentials, or secrets.
+  // A deployed Worker is never treated as execution-ready merely because the observation changed.
+  let lastObservation = "not-observed";
   for (let attempt = 1; attempt <= readyAttempts; attempt += 1) {
     try {
       const [liveResponse, readyResponse] = await Promise.all([
         fetchImpl(new URL("/api/live", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
         fetchImpl(new URL("/api/ready", baseUrl), { method: "GET", headers: accessHeaders, redirect: "manual" }),
       ]);
-      if (liveResponse.status === 200 && readyResponse.status === 200) {
+      if (liveResponse.status !== 200 || readyResponse.status !== 200) {
+        lastObservation = `live-http-${liveResponse.status}-ready-http-${readyResponse.status}`;
+      } else {
         const [liveBody, readyBody] = await Promise.all([
           readJson(liveResponse, "deploy-live-json-invalid"),
           readJson(readyResponse, "deploy-ready-json-invalid"),
@@ -178,13 +187,23 @@ export async function waitForExactRuntimeConvergence(input: CloudflareAccessCred
           && readyBody.sha === targetSha
           && readyBody.durableState === "cloudflare-do-sqlite"
         ) return;
+        lastObservation = liveBody.status !== "live" ? "live-state-mismatch"
+          : liveBody.sha !== targetSha ? "live-sha-mismatch"
+          : readyBody.status !== "ready" ? "ready-state-mismatch"
+          : readyBody.sha !== targetSha ? "ready-sha-mismatch"
+          : "ready-durable-state-mismatch";
       }
     } catch {
-      // Deployment propagation can briefly make the Worker or Durable Object unreachable.
+      // Avoid reflecting transport exceptions or JSON response bodies, including any credentials.
+      lastObservation = "transport-or-payload-invalid";
     }
-    if (attempt < readyAttempts) await sleep(readyDelayMs);
+    if (attempt < readyAttempts) {
+      const staleObjectVersion = lastObservation === "live-sha-mismatch"
+        || lastObservation === "ready-sha-mismatch";
+      await sleep(staleObjectVersion ? Math.max(readyDelayMs, DO_SOURCE_VERSION_QUIET_MS) : readyDelayMs);
+    }
   }
-  throw new Error("deploy-runtime-convergence-timeout");
+  throw new Error(`deploy-runtime-convergence-timeout:${lastObservation}`);
 }
 
 export async function runAcceptanceProbe(input: {
