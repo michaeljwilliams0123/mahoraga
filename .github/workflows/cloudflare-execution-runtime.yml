@@ -202,6 +202,14 @@ jobs:
             --var "ZERO_CREDIT_ACCOUNT_ID_HASH:${ZERO_CREDIT_ACCOUNT_ID_HASH}" \
             --secrets-file "$PROVIDER_SECRETS_FILE"
 
+      - name: Deploy read-only Cloudflare runtime inspection provider
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx --yes wrangler@4.136.1 deploy \
+            --config deploy/cloudflare-inspection-provider/wrangler.jsonc \
+            --var "TARGET_SHA:${VERIFIED_SHA}"
+
       - name: Deploy private universal execution broker
         run: npm run cloudflare:execution-broker:deploy
 
