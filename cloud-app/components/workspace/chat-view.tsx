@@ -146,6 +146,7 @@ export function ChatView(props: ChatViewProps) {
 
       <details className="route-diagnostics">
         <summary>Route details <span>Capabilities, provider evidence and tools</span></summary>
+        <p className="route-governance-note">Mahoraga handles the lanes only when an authenticated provider is admitted. Predictive closed-loop calibration is canonical; live learning evidence is receipt-gated.</p>
         <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />
         <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />
       </details>
