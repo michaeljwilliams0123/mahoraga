@@ -132,7 +132,7 @@ export function ChatView(props: ChatViewProps) {
           <span className="brain-dot" /> Workspace online
         </div>
         <div className={coreReady ? "brain-status ready" : new Set(["pairing", "resuming"]).has(relayState) ? "brain-status pairing" : "brain-status"}>
-          <span className="brain-dot" /> Execution {brainLabel}
+          <span className="brain-dot" /> Brain {brainLabel}
         </div>
         <div className="topbar-actions">
           <button className={voiceListening ? "icon-button active" : "icon-button"} type="button" onClick={toggleVoice} disabled={!voiceSupported} aria-label={voiceListening ? "Stop voice dictation" : "Start voice chat"} title={voiceSupported ? "Voice chat" : "Voice is not supported in this browser"}>
