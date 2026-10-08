@@ -422,3 +422,51 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .github-workspace-grid h3 { margin-top: 0; font-size: 14px; }
 .github-workspace-grid ul { padding-left: 18px; }
 .github-workspace-grid li { margin-bottom: 8px; }
+
+/* Unified mobile command center: observed statuses, never an execution grant. */
+.route-diagnostics { max-width: 1000px; margin: 10px auto 0; padding: 0 24px; }
+.route-diagnostics > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; color: #59616f; font-size: 12px; font-weight: 650; padding: 10px 14px; border: 1px solid var(--border); border-radius: 14px; background: rgba(255,255,255,.75); list-style: none; }
+.route-diagnostics > summary::-webkit-details-marker { display: none; }
+.route-diagnostics > summary span { color: #808892; font-weight: 450; font-size: 11px; }
+.route-diagnostics[open] > summary { border-radius: 14px 14px 8px 8px; }
+.route-diagnostics > *:not(summary) { margin: 12px auto 0; }
+.capability-family-summary { max-width: 850px; grid-template-columns: repeat(4,minmax(0,1fr)); margin: 12px auto 18px; }
+.capability-family { flex-direction: column; align-items: flex-start; justify-content: center; min-width: 0; min-height: 75px; gap: 8px; padding: 12px 14px; background: rgba(255,255,255,.87); box-shadow: 0 4px 16px rgba(18,40,72,.035); }
+.capability-family strong { font-size: 12px; letter-spacing: -.01em; }
+.capability-family .family-state { font-size: 11px; line-height: 1.3; white-space: normal; font-weight: 600; }
+.capability-family.unavailable .family-state, .capability-family.core-only .family-state { color: #a26627; }
+.capability-family.unobserved .family-state { color: #6d7482; }
+.execution-route-notice { display: flex; gap: 16px; justify-content: space-between; align-items: center; max-width: 850px; margin: 0 auto 18px; padding: 14px 16px; border-radius: 16px; text-align: left; background: #f0f3fa; border: 1px solid #ccd7eb; }
+.execution-route-notice strong { display: block; font-size: 13px; color: #172a48; }
+.execution-route-notice p { margin: 5px 0 0; font-size: 11px; line-height: 1.5; color: #546478; }
+.execution-route-notice button { flex-shrink: 0; border: 1px solid #a9bcd5; border-radius: 10px; padding: 10px 12px; background: white; font-size: 11px; cursor: pointer; }
+.one-hero { margin-top: clamp(6px,3vh,30px); }
+.one-hero h1 { font-size: clamp(30px,4.3vw,54px); line-height: 1.05; }
+.one-hero > p { margin-bottom: 16px; }
+@media (max-width: 650px) {
+  .route-diagnostics { margin: 8px auto 0; padding: 0 12px; }
+  .route-diagnostics > summary { padding: 9px 12px; font-size: 12px; }
+  .route-diagnostics > summary span { font-size: 10px; }
+  .conversation-panel { padding: 12px 12px 180px; }
+  .one-hero { margin: 0 auto; }
+  .one-hero .aura-mark { display: none; }
+  .one-hero .one-kicker { text-align: left; font-size: 10px; }
+  .one-hero h1 { text-align: left; margin: 8px 0; font-size: clamp(27px,7vw,36px); line-height: 1.07; }
+  .one-hero > p { text-align: left; max-width: 480px; margin: 0 0 14px; font-size: 12px; line-height: 1.45; }
+  .capability-family-summary { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 10px 0 14px; }
+  .capability-family { min-height: 67px; padding: 10px 12px; gap: 5px; border-radius: 14px; }
+  .capability-family strong { font-size: 12px; }
+  .capability-family .family-state { font-size: 11px; }
+  .execution-route-notice { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
+  .execution-route-notice p { font-size: 11px; }
+  .execution-route-notice button { min-height: 38px; }
+  .scenario-starter { display: block; width: 100%; max-width: 100%; padding: 9px 11px; margin: 6px 0; font-size: 12px; line-height: 1.3; }
+  .quick-action-grid { gap: 8px; }
+  .composer-shell { padding: 8px 10px max(10px,env(safe-area-inset-bottom)); }
+  .one-composer { border-radius: 18px; }
+  .one-composer textarea { min-height: 46px; padding: 12px 12px 6px; font-size: 16px; }
+  .topbar { padding: 0 10px; gap: 6px; min-height: 54px; }
+  .brain-status { font-size: 10px; padding: 6px 8px; gap: 5px; white-space: nowrap; }
+  .topbar-actions { gap: 3px; }
+  .icon-button { width: 34px; height: 34px; }
+}
