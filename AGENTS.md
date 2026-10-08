@@ -28,3 +28,7 @@ Optimize for autonomous execution and short feedback loops.
 - Keep capabilities isolated; do not add an unrestricted supervisor shell or caller-selected executable path. Apply connector data-class and spending limits at the execution boundary.
 - Preserve task idempotency, crash recovery, immutable update artifacts, canary health checks, rollback, and the user stop/override control.
 - During development, run focused tests for changed behavior. Run one full `npm run verify` before a protected bootstrap or release; reuse exact-head green CI evidence instead of repeating equivalent gates.
+
+## GrokBot lane
+
+A GrokBot is an executor, not a new trust root and not a review lane. Independent operation and team decomposition are introduced in [`docs/GROKBOT-ARCHITECTURE.md`](docs/GROKBOT-ARCHITECTURE.md). That introduction does not register a capability. Usage limits stay non-blocking infrastructure signals. Child bots still pass through `resolveBotOperationalAuthority` and fail closed on stale evidence.

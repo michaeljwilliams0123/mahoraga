@@ -16,6 +16,11 @@ edit, execution, and—in the coordinator's case—specialist delegation tools.
 They read `AGENTS.md` and may return pull requests, but never merge them or
 approve their own production activation.
 
+The same four duties are how a GrokBot team splits work when the worker is not a
+Copilot session. See [`GROKBOT-ARCHITECTURE.md`](GROKBOT-ARCHITECTURE.md). That
+document introduces the executor; it does not add a fifth profile or a new
+authority.
+
 ## Cloud-agent availability
 
 The profiles become generally selectable after they reach the repository's
