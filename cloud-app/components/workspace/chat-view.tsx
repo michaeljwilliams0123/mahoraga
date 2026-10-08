@@ -102,6 +102,11 @@ export function ChatView(props: ChatViewProps) {
   const cloudBridgeOrigin = process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ?? "";
   const localPredictionReady = predictiveChatAvailable(coreReady, runtimeCapabilities);
   const cognitiveCycleReady = cognitiveCycleAvailable(coreReady, runtimeCapabilities);
+  const capabilityFamilies = projectCapabilityFamilies(coreReady, capabilityObservation?.phase === "ready" ? runtimeCapabilities : []);
+  const executionFamily = capabilityFamilies.find(family => family.id === "execution");
+  const inspectOnly = runtimeCapabilities.some(route => route.capability === "cloud.inspect" && route.routable === true && route.enabled !== false)
+    && !runtimeCapabilities.some(route => route.routable === true && route.enabled !== false
+      && (/\\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
   const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
 
   useLayoutEffect(() => {
@@ -139,27 +144,43 @@ export function ChatView(props: ChatViewProps) {
 
       {health?.deployment?.provider === "github-pages" && <GithubWorkspacePanel coreReady={coreReady} relay={relay} publishedCommit={health.deployment.commitSha} />}
 
-      <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />
-
-      <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />
+      <details className="route-diagnostics">
+        <summary>Route details <span>Capabilities, provider evidence and tools</span></summary>
+        <CapabilityReadinessPanel connected={coreReady} capabilities={runtimeCapabilities} observation={capabilityObservation} onRefresh={onRefreshCapabilities} onChooseStarter={setInput} />
+        <CapabilityExplorer coreReady={coreReady} capabilities={runtimeCapabilities} onChooseStarter={setInput} />
+      </details>
 
       <section className="conversation-panel">
         {messages.length === 0 ? (
           <div className="one-hero">
             <div className="aura-mark" aria-hidden="true"><span /><span /><span /><Sparkles size={24} /></div>
             <span className="one-kicker">Mahoraga</span>
-            <h1>Say what you want.<br /><em>Mahoraga handles the lanes.</em></h1>
-            <p>Talk, build, hand off, create, report, or ship from one conversation. The brain chooses the route and keeps the machinery out of your way.</p>
+            <h1>One workspace.<br /><em>Every verified route.</em></h1>
+            <p>Ask, plan, inspect, or act. Mahoraga shows what its runtime can actually do, without inventing unavailable providers.</p>
 
             <div className="capability-family-summary" aria-label="Observed capability readiness">
-              {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
+              {capabilityFamilies.map((family) => (
                 <div key={family.id} className={`capability-family ${family.state}`}>
                   <strong>{family.label}</strong>
-                  <span>{family.state === "routable" ? "Routable" : family.state === "core-only" ? "Core route · outside zero-credit chat" : family.state === "unobserved" ? "Not observed" : "Unavailable"}{family.id === "agentic" && family.route === "cognitive.cycle" ? " · deliberates, assesses, plans, and decides with no automatic mutation" : family.id === "predictive" ? " · closed-loop calibration is canonical; live learning evidence is receipt-gated" : ""}</span>
+                  <span className="family-state">{family.id === "execution" && family.state === "routable" && inspectOnly ? "Inspect only"
+                    : family.state === "routable" ? "Ready" : family.state === "core-only" ? "Approval needed"
+                    : family.state === "unobserved" ? "Checking" : family.id === "execution" ? "No worker" : "Unavailable"}</span>
                 </div>
               ))}
             </div>
-            <p>Capabilities reflect observed runtime routes, not proof of AGI or SGI. Execution and learning require their own verified receipts.</p>
+            {coreReady && capabilityObservation?.phase === "ready" && executionFamily?.state === "unavailable" ? (
+              <div className="execution-route-notice" role="status" data-testid="execution-provider-gap">
+                <div><strong>Action workers not connected</strong>
+                  <p>Your brain can answer and plan, but the execution broker has not reported a verified tool worker. Cloud and GitHub actions require separately connected, authenticated providers.</p></div>
+                <button type="button" onClick={onRefreshCapabilities}>Recheck routes</button>
+              </div>
+            ) : inspectOnly && coreReady && capabilityObservation?.phase === "ready" ? (
+              <div className="execution-route-notice" role="status" data-testid="execution-inspection-only">
+                <div><strong>Read-only inspection available</strong>
+                  <p>Cloud inspection is connected. Writing, deploying, browser control and desktop execution still require their own admitted workers.</p></div>
+                <button type="button" onClick={onRefreshCapabilities}>Recheck routes</button>
+              </div>
+            ) : null}
             {localPredictionReady ? (
               <button type="button" className="scenario-starter" onClick={() => setInput('/predict {"observedState":{"queueDepth":4},"stateUncertainty":0.2,"action":{"actionId":"add-capacity","effects":{"queueDepth":-2},"uncertainty":0.1}}')}>
                 Try a scenario simulation · edit the numbers and effects before sending
