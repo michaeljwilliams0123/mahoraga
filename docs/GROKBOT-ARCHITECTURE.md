@@ -116,6 +116,20 @@ These match the profiles already in `.github/agents/`. A GrokBot team uses the s
 
 Copilot cloud sessions still require an explicit owner launch. A profile on `main` does not prove the account can start one. A `403` is an unavailable provider, not a bypass. See [`COPILOT-AGENTS.md`](COPILOT-AGENTS.md).
 
+### TypeScript / JavaScript seam (Experience and control plane)
+
+Two TypeScript programs, not one. Root `tsconfig.json` is `nodenext`, `allowJs: false`, `noEmit`, `erasableSyntaxOnly`, `verbatimModuleSyntax`, and includes only `src`, `scripts`, `evaluation`, `relay`, `test`, and `contracts` `*.ts`. It excludes `cloud-app/` and `operator-deck/`. `cloud-app/tsconfig.json` is a separate program: `moduleResolution: bundler`, `jsx: react-jsx`, `allowJs: false`.
+
+Root `npm run typecheck` and `npm run verify` never run cloud-app’s typecheck. An Experience child that reports root `tsc` green has not checked the UI. The UI gate is `npm run typecheck --prefix cloud-app` (its own verify is typecheck, `node --test`, and `next build`).
+
+The only typed join is the cockpit alias. `cloud-app` maps `@mahoraga/cockpit` to `operator-deck/src/lib/cockpit/index.ts`. That is the integration seam. Do not copy the cockpit into `cloud-app/`, do not import `src/**/*.mjs` into the Next bundle, and do not add another alias into the control plane. “UI only under `cloud-app/`” is too narrow for cockpit work: a cockpit change is one change across both trees. `operator-deck/` stays a non-deployable library, not a second app.
+
+`language:verify` does not reject new JavaScript. `scripts/language-policy.ts` records `.js` / `.mjs` / `.cjs` under `src`, `scripts`, `relay`, and `test` as `migrationDebt`, then exits 0. Healthy is only “no bad extension under a specialized root.” Do not treat that command as proof no JavaScript was added. The lock is the policy in `config/language-policy.json`, not that exit code.
+
+A `.ts` twin does not become the running module. Production still starts at `node src/cli.mjs`. Root `tsc` cannot see `.mjs` because `allowJs` is false. Adding `src/foo.ts` beside `src/foo.mjs` typechecks a port the process never loads. A migration tranche must switch the existing `.mjs` entry in the same change. Same-basename pairs are overlapping edits even though the path strings differ. Node 24 already runs erasable TypeScript directly (`node scripts/language-policy.ts`). Do not add an emit step or `ts-node`.
+
+Do not copy compiler rules across the seam. Control-plane TypeScript needs `import type` for type-only imports, a `.ts` suffix on relative imports, and no enums, namespaces, or parameter properties. `cloud-app` does not use those rules. `cloud-app/postcss.config.mjs` and `cloud-app/test/*.test.mjs` are existing JavaScript next to `allowJs: false`; leave them on `node --test`. Do not move them into root `test/` so one `tsc` covers them.
+
 ### Return surfaces
 
 | Worker | Returns | Does not return |
