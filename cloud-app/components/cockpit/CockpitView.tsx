@@ -19,6 +19,7 @@ import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
 import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
+import { NativeWorldTransitionCard } from "./NativeWorldTransitionCard";
 import { ZeroCreditModelUrlBoundaryCard } from "./ZeroCreditModelUrlBoundaryCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
@@ -268,6 +269,7 @@ export function CockpitView({
           <SourceMapJsBumpCard />
           <OpenAiRouteCreditsCard capabilities={runtimeCapabilities} />
           <LocalAiDevOnlyCard />
+          <NativeWorldTransitionCard />
           <ZeroCreditModelUrlBoundaryCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
