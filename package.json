@@ -54,7 +54,7 @@
     "cloudflare:lifecycle:audit-expired": "node scripts/cloudflare-lifecycle-evaluation.ts audit-expired",
     "typecheck:cloudflare": "tsc --noEmit -p deploy/cloudflare-execution-runtime/tsconfig.json",
     "test:alpha": "node --test --test-isolation=none",
-    "verify": "npm run typecheck && npm run typecheck:cloudflare && npm run typecheck:execution-broker && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && npm run test:cloudflare && node --test --test-isolation=none",
+    "verify": "npm run typecheck && npm run typecheck:cloudflare && npm run typecheck:execution-broker && npm run typecheck:cloudflare-inspection-provider && npm run language:verify && node src/cli.mjs validate && node scripts/product-identity.mjs validate && node scripts/coordination.mjs validate && node scripts/codex-github-handshake.mjs validate && node scripts/self-upgrade-instruction.mjs validate && node scripts/github-audit.mjs && node scripts/github-live-protection.mjs && node scripts/pdf-authority-verify.mjs && node scripts/create-release-baseline.mjs --verify && npm run test:cloudflare && node --test --test-isolation=none",
     "relay:package": "node scripts/package-destiny-relay.mjs",
     "gitlab:assure": "node src/gitlab-assurance.mjs",
     "cloud-cycle:candidate": "node src/cloud-cycle-worker.mjs",
@@ -75,7 +75,9 @@
     "cloudflare:execution-broker:deploy": "npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-execution-broker/wrangler.jsonc",
     "cloudflare:execution-broker:deployments": "npx --yes wrangler@4.136.1 deployments list --config deploy/cloudflare-execution-broker/wrangler.jsonc",
     "foundry:context": "node scripts/native-context-experiment.ts",
-    "foundry:continual": "node scripts/native-continual-experiment.ts"
+    "foundry:continual": "node scripts/native-continual-experiment.ts",
+    "typecheck:cloudflare-inspection-provider": "tsc --noEmit -p deploy/cloudflare-inspection-provider/tsconfig.json",
+    "cloudflare:inspect-provider:deploy": "npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-inspection-provider/wrangler.jsonc"
   },
   "dependencies": {
     "@azure/msal-node": "5.5.0",
