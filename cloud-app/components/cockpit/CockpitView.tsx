@@ -18,6 +18,7 @@ import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
 import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
 import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
+import { GrokBotArchitectureCard } from "./GrokBotArchitectureCard";
 import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { ZeroCreditModelUrlBoundaryCard } from "./ZeroCreditModelUrlBoundaryCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
@@ -266,6 +267,7 @@ export function CockpitView({
           <UndiciSecurityBumpCard />
           <DataverseCliBumpCard />
           <SourceMapJsBumpCard />
+          <GrokBotArchitectureCard />
           <OpenAiRouteCreditsCard capabilities={runtimeCapabilities} />
           <LocalAiDevOnlyCard />
           <ZeroCreditModelUrlBoundaryCard />
