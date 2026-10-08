@@ -28,7 +28,13 @@ export function projectCapabilityFamilies(coreReady: boolean, capabilities: read
     if (!coreReady) return { id, label, state: "unobserved", route: null, reason: "runtime-not-paired", evidence: null };
     const records = capabilities.filter((entry) => routes.some((route) => route === entry.capability));
     const available = records.find((entry) => entry.routable === true && entry.enabled !== false);
-    const observed = available ?? records[0];
+    // Inspection alone must not be represented as permission to perform external actions.
+    // The broker may expose cloud.inspect while write/execute providers remain disconnected.
+    const preferred = id === "execution" ? records.find((entry) =>
+      entry.routable === true && entry.enabled !== false
+      && (/\.(execute|write)$/.test(entry.capability) || entry.capability === "image.generate" || entry.capability === "self.evolve")
+    ) : undefined;
+    const observed = preferred ?? available ?? records[0];
     const coreOnly = available && (available.costClass === "licensed-cloud" || available.costClass === "metered-cloud");
     return {
       id,
