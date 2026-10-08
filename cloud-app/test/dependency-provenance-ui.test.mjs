@@ -22,12 +22,14 @@ describe("Next dependency provenance UI", () => {
   it("surfaces the pinned Next security fix as observational dependency provenance", () => {
     assert.equal(packageJson.dependencies.next, "16.3.8");
     assert.match(command, /Next dependency provenance/);
-    assert.match(command, /16\.3\.3 → 16\.3\.8/);
+    assert.match(command, /16\.3\.6 → 16\.3\.8/);
     assert.match(cockpit, /Next dependency provenance/);
-    assert.match(cockpit, /16\.3\.8 \(from 16\.3\.3\)/);
+    assert.match(cockpit, /16\.3\.8 \(from 16\.3\.6\)/);
     for (const surface of [command, cockpit]) {
+      assert.match(surface, /GHSA-cjq9-62q9-8jv4/);
+      assert.match(surface, /Image Optimization SSRF/);
       assert.match(surface, /GHSA-vcvr-r3jv-pc5j/);
-      assert.match(surface, /next\/og ImageResponse RCE/);
+      assert.match(surface, /#1026/);
       assert.match(surface, /cloud-app\/package\.json pin only/);
       assert.match(surface, /does not prove deployed runtime remediation or production traffic authority/);
     }
