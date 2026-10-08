@@ -142,7 +142,9 @@ export function ChatView(props: ChatViewProps) {
         </div>
       </header>
 
-      {health?.deployment?.provider === "github-pages" && <GithubWorkspacePanel coreReady={coreReady} relay={relay} publishedCommit={health.deployment.commitSha} />}
+      {(health?.deployment?.provider === "github-pages"
+        || (health?.deployment?.provider === "cloudflare-workers" && health.deployment.promotion === "unverified-cloudflare-static"))
+        && <GithubWorkspacePanel coreReady={coreReady} relay={relay} publishedCommit={health.deployment.commitSha} />}
 
       <details className="route-diagnostics">
         <summary>Route details <span>Capabilities, provider evidence and tools</span></summary>

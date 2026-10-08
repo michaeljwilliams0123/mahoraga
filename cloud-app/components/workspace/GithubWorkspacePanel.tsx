@@ -26,13 +26,13 @@ export function GithubWorkspaceView({ coreReady, state, publishedCommit, canRefr
   const snapshot = coreReady && state?.phase === "ready" ? state.snapshot : null;
   const error = coreReady && state?.phase === "error" ? state.reason : null;
   return (
-    <details className="github-workspace-panel" open>
-      <summary>GitHub workspace · Pages + Actions</summary>
+    <details className="github-workspace-panel">
+      <summary>GitHub status · Pages + Actions (read-only)</summary>
       <div className="github-workspace-heading">
-        <p>Mahoraga checks Pages and Actions automatically through its native GitHub App when connected. Read-only inspection.</p>
+        <p>Once the owner runtime is paired, Mahoraga reads Pages and Actions through its native GitHub App. This inspection does not authorize repository writes, merges or cloud execution.</p>
         <button type="button" onClick={onRefresh} disabled={!coreReady || !canRefresh || state?.phase === "loading"}>Refresh GitHub status</button>
       </div>
-      {!coreReady && <p role="status">GitHub Pages presentation is online. Connect execution to inspect Pages and Actions through the native GitHub App.</p>}
+      {!coreReady && <p role="status">The UI is available. Pair the authenticated owner runtime to inspect Pages and Actions through the native GitHub App.</p>}
       {coreReady && state?.phase === "loading" && <p role="status">Checking GitHub Pages and Actions…</p>}
       {error && <p role="alert">GitHub workspace unavailable · {error}. The connected runtime must support native GitHub workspace inspection.</p>}
       <div className="github-workspace-grid">
