@@ -281,6 +281,45 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Prove scoped read-only cloud inspection on exact-main runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          const headers = new Headers({ accept: 'application/json', 'cache-control': 'no-store' });
+          const token = (process.env.CLOUDFLARE_ACCESS_TOKEN ?? '').trim();
+          if (token) headers.set('cf-access-token', token);
+          else {
+            headers.set('cf-access-client-id', (process.env.CLOUDFLARE_ACCESS_CLIENT_ID ?? '').trim());
+            headers.set('cf-access-client-secret', (process.env.CLOUDFLARE_ACCESS_CLIENT_SECRET ?? '').trim());
+          }
+          let admitted = false;
+          for (let attempt = 0; attempt < 5; attempt += 1) {
+            try {
+              const response = await fetch('https://mahoraga-execution-runtime.mahoraga-mjw0123.workers.dev/api/capabilities', {
+                headers, redirect: 'manual', signal: AbortSignal.timeout(5000),
+              });
+              const body = response.status === 200 ? await response.json() : {};
+              admitted = Array.isArray(body.capabilities) && body.capabilities.some(row =>
+                row.capability === 'cloud.inspect' && row.routable === true && row.enabled === true
+                && row.provider === 'cloudflare' && row.workerIds?.includes('cloudflare-runtime-readonly')
+                && row.costClass === 'deterministic' && row.evidenceLevel === 'runtime-execution');
+              const unauthorizedMutation = Array.isArray(body.capabilities) && body.capabilities.some(row =>
+                row.provider === 'cloudflare' && row.routable === true && row.capability === 'cloud.execute');
+              if (unauthorizedMutation) throw new Error('cloud-inspection-broadened-to-execute');
+              if (admitted) break;
+            } catch (error) {
+              if (error instanceof Error && error.message === 'cloud-inspection-broadened-to-execute') throw error;
+            }
+            if (attempt < 4) await new Promise(resolve => setTimeout(resolve, 1500));
+          }
+          if (!admitted) throw new Error('cloud-inspection-exact-main-route-unavailable');
+          process.stdout.write(JSON.stringify({
+            targetSha: process.env.VERIFIED_SHA, capability: 'cloud.inspect', authority: 'read',
+            route: 'verified-runtime-execution', paidFallback: false, status: 'observed',
+          }) + '\n');
+          NODE
+
       - name: Retain sanitized Cloudflare acceptance receipt
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
