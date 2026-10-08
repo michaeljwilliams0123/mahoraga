@@ -106,7 +106,7 @@ export function ChatView(props: ChatViewProps) {
   const executionFamily = capabilityFamilies.find(family => family.id === "execution");
   const inspectOnly = runtimeCapabilities.some(route => route.capability === "cloud.inspect" && route.routable === true && route.enabled !== false)
     && !runtimeCapabilities.some(route => route.routable === true && route.enabled !== false
-      && (/\\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
+      && (/\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
   const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
 
   useLayoutEffect(() => {
