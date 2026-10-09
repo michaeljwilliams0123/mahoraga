@@ -50,6 +50,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_BILLING_READ_TOKEN: ${{ secrets.CLOUDFLARE_BILLING_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      MAHORAGA_READONLY_PROVIDER_ENABLED: ${{ vars.MAHORAGA_READONLY_PROVIDER_ENABLED }}
+      CLOUDFLARE_READONLY_AUDIT_TOKEN: ${{ secrets.CLOUDFLARE_READONLY_AUDIT_TOKEN }}
       CLOUDFLARE_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_TOKEN }}
       CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
@@ -202,8 +204,43 @@ jobs:
             --var "ZERO_CREDIT_ACCOUNT_ID_HASH:${ZERO_CREDIT_ACCOUNT_ID_HASH}" \
             --secrets-file "$PROVIDER_SECRETS_FILE"
 
+      - name: Independently admit and deploy opt-in read-only Cloudflare action worker
+        if: env.MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import { writeFile } from 'node:fs/promises';
+          import { join } from 'node:path';
+          const account = (process.env.CLOUDFLARE_ACCOUNT_ID ?? '').trim();
+          const auditToken = (process.env.CLOUDFLARE_READONLY_AUDIT_TOKEN ?? '').trim();
+          if (!/^[a-f0-9]{32}$/.test(account) || auditToken.length < 32) throw new Error('readonly-inspection-credentials-unavailable');
+          const url = `https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/mahoraga-owner-gateway/deployments`;
+          const response = await fetch(url, { method: 'GET', headers: { authorization: `Bearer ${auditToken}`, accept: 'application/json' }, signal: AbortSignal.timeout(8000) });
+          if (!response.ok) throw new Error('readonly-inspection-upstream-unavailable');
+          const body = await response.json();
+          const deployments = body?.result?.deployments;
+          if (body?.success !== true || !Array.isArray(deployments) || !Array.isArray(deployments[0]?.versions)
+              || deployments[0].versions.length !== 1 || deployments[0].versions[0].percentage !== 100) {
+            throw new Error('readonly-inspection-evidence-invalid');
+          }
+          const path = join(process.env.RUNNER_TEMP, 'readonly-provider-secrets.json');
+          await writeFile(path, JSON.stringify({ CLOUDFLARE_ACCOUNT_ID: account, CLOUDFLARE_AUDIT_TOKEN: auditToken }), { mode: 0o600 });
+          NODE
+          npx --yes wrangler@4.136.1 deploy \
+            --config deploy/cloudflare-readonly-provider/wrangler.jsonc \
+            --secrets-file "$RUNNER_TEMP/readonly-provider-secrets.json"
+          rm -f "$RUNNER_TEMP/readonly-provider-secrets.json"
+
       - name: Deploy private universal execution broker
-        run: npm run cloudflare:execution-broker:deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${MAHORAGA_READONLY_PROVIDER_ENABLED:-false}" = "true" ]; then
+            npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-execution-broker/wrangler.readonly-provider.jsonc
+          else
+            npm run cloudflare:execution-broker:deploy
+          fi
 
       - name: Deploy exact verified execution runtime
         run: node scripts/cloudflare-execution-runtime.ts deploy --sha "$VERIFIED_SHA" --secrets-file "$RUNTIME_SECRETS_FILE"
