@@ -45,10 +45,13 @@ export function validateCloudInspectionReceipt(
     || !/^lease-[a-f0-9]{16}$/.test(String(provider.routeLeaseId))
     || provider.id !== `cloud-inspect-${provider.routeLeaseId}`
     || provider.script !== "mahoraga-owner-gateway" || provider.trafficPercentage !== 100
-    || !id(provider.deploymentId) || !id(provider.versionId)
-    || !Number.isFinite(timestamp(provider.deployedAt))) throw new Error("cloud-inspection-receipt-invalid");
+    || !id(provider.deploymentId) || !id(provider.versionId)) throw new Error("cloud-inspection-receipt-invalid");
+  const deployedAt = timestamp(provider.deployedAt);
   const observedAt = timestamp(provider.observedAt);
-  if (!Number.isFinite(nowMs) || !Number.isFinite(observedAt)
+  // Cloudflare cannot be observed deploying a version long before it exists.
+  // Permit only the same five-second clock-skew tolerance as observation freshness.
+  if (!Number.isFinite(nowMs) || !Number.isFinite(observedAt) || !Number.isFinite(deployedAt)
+    || deployedAt > observedAt + 5_000
     || observedAt < nowMs - 90_000 || observedAt > nowMs + 5_000) throw new Error("cloud-inspection-receipt-invalid");
   return {
     script: "mahoraga-owner-gateway",

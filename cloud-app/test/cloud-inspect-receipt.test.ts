@@ -62,6 +62,10 @@ test("rejects stale, future, foreign, duplicate and structurally valid but incon
       v.receipts[1]!.providerReceipt!.id = "cloud-inspect-lease-fedcba9876543210";
     } },
     { name: "receipt id contradicts lease", mutate: v => { v.receipts[1]!.providerReceipt!.id = "cloud-inspect-lease-0000000000000000"; } },
+    { name: "deployment created after independent observation", mutate: v => {
+      v.receipts[1]!.providerReceipt!.deployedAt = new Date(now + 10_000).toISOString();
+    } },
+    { name: "invalid deployment timestamp", mutate: v => { v.receipts[1]!.providerReceipt!.deployedAt = "not-a-date"; } },
     { name: "stale replay", mutate: v => { v.receipts[1]!.providerReceipt!.observedAt = new Date(now - 91_000).toISOString(); } },
     { name: "future timestamp", mutate: v => { v.receipts[1]!.providerReceipt!.observedAt = new Date(now + 6_000).toISOString(); } },
     { name: "wrong script", mutate: v => { v.receipts[1]!.providerReceipt!.script = "foreign-script"; } },
