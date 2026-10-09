@@ -114,4 +114,4 @@ export default {
   fetch(request: Request, env: InspectorEnv): Promise<Response> {
     return createReadonlyCloudflareProvider(env).fetch(request);
   },
-} satisfies ExportedHandler<InspectorEnv>;
+} satisfies { fetch(request: Request, env: InspectorEnv): Promise<Response> };
