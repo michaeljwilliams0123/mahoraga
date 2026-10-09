@@ -213,3 +213,48 @@ It does not contain child transcripts, prompts, model responses, page content, t
 - It does not change workflows, UI, providers, or authority code.
 - It does not request reviewers.
 - It does not claim this session deployed, became ready, or executed a Mahoraga model transaction.
+
+## Deterministic cognitive child adapter
+
+The Node runtime library now provides `executeGrokbotCollective` in
+`src/grokbot-cognition.ts`. It executes one to four identified children with
+bounded concurrency and a shared deadline. Each child calls the existing
+cognitive handlers in a separate heap through one fixed TypeScript worker entry.
+Assessment, transfer evaluation, and verified learning use the Assurance duty;
+deliberation, prediction, and cognitive cycles use the Coordinator duty.
+These duty labels do not start Copilot sessions or confer operational authority.
+
+Trusted in-process callers can also use the existing entry point:
+
+```ts
+await executeCognitiveCapability(capability, { capabilityInput }, {
+  grokbot: { agentId, parentAgentId, authorityBinding, currentBinding },
+  options: { signal, timeoutMs: 10_000 },
+});
+```
+
+The host must obtain matching objective, authority, source, epoch, evaluator,
+cost, audience, and boundary evidence independently. Never deserialize the third
+argument from a remote task. The adapter calls `resolveBotOperationalAuthority`
+before dispatch and on result acceptance; observations older than 60 seconds,
+expired bindings, and drift fail closed. These deterministic capabilities have
+no operational authority scopes. Tool execution, model invocation, and owner-root
+actions are not available in this adapter.
+
+Children receive only allowlisted capability input, not the task envelope,
+authority bindings, credentials, or host environment. Nested delegation and
+nested mitosis are excluded so the collective's four-child ceiling remains real.
+Each result records child and parent identities, capability, duty, thread identity,
+input digest, existing cognitive result, and a fingerprint. Collective failure
+cancels siblings and waits for worker termination before rejecting. The parent
+retains assignment order and unmodified input. Results are verification evidence;
+`modelInvocations: 0` is explicit. Application data in cognitive results stays in
+the runtime's existing privacy boundary, not GitHub coordination records.
+
+This is an opt-in host library integration, not production activation. The current
+IPC worker and Cloudflare gateway do not supply trusted GrokBot context, so their
+ordinary routes remain unchanged. Completing live delegation requires a host-side
+binding issuer wired to authenticated authority and exact deployed provenance,
+then an acceptance transaction. Caller-supplied bindings must never replace that
+issuer. Conversational GrokBots additionally require the existing admitted model
+provider path; deterministic child receipts do not prove a model executed.

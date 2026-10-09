@@ -39,6 +39,8 @@ export const ESSENTIAL_FILES = [
   "src/semantic-memory.ts",
   "src/local-ai-inference.ts",
   "src/cognitive-mitosis.ts",
+  "src/grokbot-cognition.ts",
+  "src/grokbot-cognitive-worker.ts",
   "src/cognitive-clone-worker.ts",
   "src/control-session.mjs",
   "src/current-head-assurance.ts",
