@@ -31,7 +31,7 @@ test("history routes enforce existing verified owner and do not trust browser id
   assert.match(gateway, /"conversations", "conversation-history"/);
   assert.match(gateway, /ctx\.access\.getIdentity\(\)/);
   assert.match(runtime, /const ownerHash = await digestText\(owner\)/);
-  assert.match(runtime, /this\.storage\.listConversations\(ownerHash\)/);
+  assert.match(runtime, /this\.storage\.listConversations\(ownerHash\)\.map\(\(\{ id, createdAt, updatedAt \}\)/);
   assert.match(runtime, /conversation\.ownerIdHash !== ownerHash/);
   assert.match(runtime, /Object\.keys\(payload\)\.length !== 1 \|\| !boundedId\(payload\.conversationId\)/);
   assert.match(runtime, /decryptConversationContent\(user, this\.env\.CONTENT_VAULT_KEY\)/);
