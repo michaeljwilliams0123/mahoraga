@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateCloudInspectionReceipt } from "../lib/cloud-inspect-receipt";
+import { validateCloudInspectionReceipt } from "../lib/cloud-inspect-receipt.ts";
 
 const now = Date.parse("2026-10-09T01:00:00.000Z");
 const taskId = "cloud-read-00000000-0000-0000-0000-000000000001";
