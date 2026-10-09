@@ -5,6 +5,7 @@ import { PagesOwnerBridgeClient, validatePublicBridgeOrigin, type BridgeCapabili
 
 import type { GithubWorkspaceSnapshot } from "./github-workspace";
 import { RuntimeHttpScope } from "./runtime-http-scope";
+import { validateCloudInspectionReceipt } from "./cloud-inspect-receipt";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
@@ -151,13 +152,7 @@ export type RuntimeExecutionReceipt = {
   creditPolicy: string;
   memoryState?: "indexed" | "pending";
 };
-export type RuntimeCloudInspectionReceipt = {
-  script: string;
-  deploymentId: string;
-  versionId: string;
-  observedAt: string;
-  trafficPercentage: 100;
-};
+export type { RuntimeCloudInspectionReceipt } from "./cloud-inspect-receipt";
 export type RuntimeMessage = {
   id: string;
   taskId?: string | null;
@@ -485,11 +480,7 @@ export class RuntimeRelay {
     if (!this.bridgeAuthenticated && !this.cloudSession) throw relayError("cloud-inspection-owner-auth-required");
     const taskId = `cloud-read-${crypto.randomUUID()}`;
     const chainId = `cloud-chain-${crypto.randomUUID()}`;
-    const response = await this.call<{
-      status?: unknown; taskId?: unknown; chainId?: unknown;
-      receipts?: Array<{ kind?: unknown; capability?: unknown; workerId?: unknown; provider?: unknown;
-        providerReceipt?: Record<string, unknown> }>;
-    }>("execute", {
+    const response = await this.call<unknown>("execute", {
       request: {
         schemaVersion: 1, taskId, chainId, requiredCapability: "cloud.inspect",
         requestedPermission: "read", dataClass: "enterprise",
@@ -498,28 +489,7 @@ export class RuntimeRelay {
       },
       payload: { script: "mahoraga-owner-gateway" },
     });
-    if (response.status !== "complete" || response.taskId !== taskId || response.chainId !== chainId || !Array.isArray(response.receipts)) {
-      throw relayError("cloud-inspection-receipt-invalid");
-    }
-    const matched = response.receipts.filter((item) => item.kind === "execution-receipt"
-      && item.capability === "cloud.inspect" && item.workerId === "cloudflare-readonly-inspector"
-      && item.provider === "cloudflare");
-    if (matched.length !== 1) throw relayError("cloud-inspection-receipt-invalid");
-    const receipt = matched[0]?.providerReceipt;
-    if (!receipt || receipt.verified !== true || receipt.readOnly !== true
-      || receipt.script !== "mahoraga-owner-gateway" || receipt.trafficPercentage !== 100
-      || typeof receipt.deploymentId !== "string" || !/^[a-zA-Z0-9-]{12,100}$/.test(receipt.deploymentId)
-      || typeof receipt.versionId !== "string" || !/^[a-zA-Z0-9-]{12,100}$/.test(receipt.versionId)
-      || typeof receipt.observedAt !== "string" || !Number.isFinite(Date.parse(receipt.observedAt))) {
-      throw relayError("cloud-inspection-receipt-invalid");
-    }
-    return {
-      script: receipt.script,
-      deploymentId: receipt.deploymentId,
-      versionId: receipt.versionId,
-      observedAt: receipt.observedAt,
-      trafficPercentage: 100,
-    };
+    return validateCloudInspectionReceipt(response, taskId, chainId);
   }
 
   async nativeGithubRepository() {
