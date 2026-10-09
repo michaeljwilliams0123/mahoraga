@@ -17,7 +17,10 @@ test("same universal Connections screen invokes cloud.inspect only through authe
   assert.match(client, /requestedPermission: "read"/);
   assert.match(client, /authorityScopes: \["cloud:read"\]/);
   assert.match(client, /requireZeroCredit: true/);
-  assert.match(client, /receipt\.verified !== true \|\| receipt\.readOnly !== true/);
+  assert.match(client, /validateCloudInspectionReceipt\(response, taskId, chainId\)/);
+  const validation = read("lib/cloud-inspect-receipt.ts");
+  assert.match(validation, /provider\.verified !== true \|\| provider\.readOnly !== true/);
+  assert.match(validation, /observedAt < nowMs - 90_000 \|\| observedAt > nowMs \+ 5_000/);
   assert.match(connections, /cloudInspectReady = coreReady/);
   assert.match(connections, /item\.capability === "cloud\.inspect" && item\.routable/);
   assert.match(connections, /await relay\.inspectCloudflareDeployment\(\)/);
