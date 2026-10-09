@@ -114,6 +114,8 @@ export function Workspace() {
   const runtimePollGeneration = useRef(0);
   const historyEpoch = useRef(0);
   const historyInitialized = useRef(false);
+  const runtimeBusyRef = useRef(runtimeBusy);
+  useEffect(() => { runtimeBusyRef.current = runtimeBusy; }, [runtimeBusy]);
 
   const busy = runtimeBusy;
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
@@ -280,7 +282,8 @@ export function Workspace() {
   }, [coreReady, pairedRelay]);
 
   async function openSavedConversation(conversationId: string, transport: RuntimeRelay | null = pairedRelay): Promise<boolean> {
-    if (!transport?.connected || runtimeBusy) return false;
+    if (!transport?.connected || runtimeBusyRef.current) return false;
+    runtimeBusyRef.current = true;
     const generation = ++runtimePollGeneration.current;
     setRuntimeBusy(true);
     setRuntimeError(null);
@@ -302,7 +305,10 @@ export function Workspace() {
       }
       return false;
     } finally {
-      if (runtimePollGeneration.current === generation) setRuntimeBusy(false);
+      if (runtimePollGeneration.current === generation) {
+        runtimeBusyRef.current = false;
+        setRuntimeBusy(false);
+      }
     }
   }
 

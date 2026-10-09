@@ -70,7 +70,9 @@ test("failed or busy initial history load remains recoverable without background
   const ui = read("cloud-app/components/workspace.tsx");
   assert.doesNotMatch(ui, /historyInitialized\.current = true;\s*if \(conversations\[0\]/);
   assert.match(ui, /setRuntimeConversationId\(conversationId\);\s*historyInitialized\.current = true/);
-  assert.match(ui, /if \(!transport\?\.connected \|\| runtimeBusy\) return false/);
+  assert.match(ui, /if \(!transport\?\.connected \|\| runtimeBusyRef\.current\) return false/);
+  assert.match(ui, /runtimeBusyRef\.current = true;\s*const generation/);
+  assert.match(ui, /runtimeBusyRef\.current = false;\s*setRuntimeBusy\(false\)/);
   assert.match(ui, /if \(!historyInitialized\.current && conversations\[0\] && generation === runtimePollGeneration\.current\)/);
   assert.match(ui, /window\.addEventListener\("focus", retryOnFocus\)/);
   assert.match(ui, /window\.removeEventListener\("focus", retryOnFocus\)/);
