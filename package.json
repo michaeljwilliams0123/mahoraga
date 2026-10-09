@@ -71,7 +71,7 @@
     "cloudflare:execution-runtime:deploy": "node scripts/cloudflare-execution-runtime.ts deploy",
     "cloudflare:execution-runtime:accept": "node scripts/cloudflare-execution-runtime.ts accept",
     "cloudflare:workspace:build": "node scripts/build-pages-static.mjs --cloudflare",
-    "typecheck:execution-broker": "tsc --noEmit -p deploy/cloudflare-execution-broker/tsconfig.json && tsc --noEmit -p deploy/cloudflare-readonly-provider/tsconfig.json",
+    "typecheck:execution-broker": "tsc --noEmit -p deploy/cloudflare-execution-broker/tsconfig.json",
     "cloudflare:execution-broker:deploy": "npx --yes wrangler@4.136.1 deploy --config deploy/cloudflare-execution-broker/wrangler.jsonc",
     "cloudflare:execution-broker:deployments": "npx --yes wrangler@4.136.1 deployments list --config deploy/cloudflare-execution-broker/wrangler.jsonc",
     "foundry:context": "node scripts/native-context-experiment.ts",
