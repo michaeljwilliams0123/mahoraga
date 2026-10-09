@@ -64,6 +64,7 @@ export interface StorageAdapter {
   saveConversation(record: ConversationRecord): void;
   getTurn(id: string): AssistantTurnRecord | null;
   listTurns(conversationId: string): AssistantTurnRecord[];
+  listRecentSuccessfulTurns(conversationId: string, limit?: number): AssistantTurnRecord[];
   saveTurn(record: AssistantTurnRecord): void;
   getProviderState(providerId: string): ProviderStateRecord | null;
   saveProviderState(record: ProviderStateRecord): void;
@@ -334,6 +335,15 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     return this.sql.exec<{ id: string } & Record<string, SqlStorageValue>>(
       "SELECT id FROM turns WHERE conversation_id = ? ORDER BY created_at, id LIMIT 200", conversationId,
     ).toArray().map((row) => this.getTurn(row.id)!).filter(Boolean);
+  }
+
+  listRecentSuccessfulTurns(conversationId: string, limit = 30): AssistantTurnRecord[] {
+    const boundedLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(limit, 30)) : 30;
+    const newestFirst = this.sql.exec<{ id: string } & Record<string, SqlStorageValue>>(
+      "SELECT id FROM turns WHERE conversation_id = ? AND status = 'SUCCESS' AND content_id_assistant IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?",
+      conversationId, boundedLimit,
+    ).toArray().map((row) => this.getTurn(row.id)!).filter(Boolean);
+    return newestFirst.reverse();
   }
 
   saveTurn(record: AssistantTurnRecord): void {
