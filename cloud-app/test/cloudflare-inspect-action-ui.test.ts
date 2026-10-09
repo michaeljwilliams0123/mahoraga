@@ -22,7 +22,9 @@ test("same universal Connections screen invokes cloud.inspect only through authe
   assert.match(validation, /provider\.verified !== true \|\| provider\.readOnly !== true/);
   assert.match(validation, /observedAt < nowMs - 90_000 \|\| observedAt > nowMs \+ 5_000/);
   assert.match(connections, /cloudInspectReady = coreReady/);
-  assert.match(connections, /item\.capability === "cloud\.inspect" && item\.routable/);
+  assert.match(connections, /item => isFreshCloudInspectorCapability\(item\)/);
+  assert.match(connections, /!eligibleCloudInspector\(\)/);
+  assert.match(connections, /import \{ isFreshCloudInspectorCapability \}/);
   assert.match(connections, /await relay\.inspectCloudflareDeployment\(\)/);
   assert.match(connections, /Inspect Cloudflare/);
   assert.match(gateway, /NATIVE_ACTIONS = new Set\(\["chat"/);

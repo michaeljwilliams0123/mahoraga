@@ -58,3 +58,17 @@ export function validateCloudInspectionReceipt(
     trafficPercentage: 100,
   };
 }
+
+/** A UI hint, not an authority grant: the broker must revalidate on execution. */
+export function isFreshCloudInspectorCapability(
+  item: { capability: string; routable: boolean; enabled?: boolean; provider?: string;
+    workerId?: string | null; workerIds: string[]; lastObservedAt?: string | null },
+  nowMs: number = Date.now(),
+): boolean {
+  const observed = typeof item.lastObservedAt === "string" ? Date.parse(item.lastObservedAt) : Number.NaN;
+  return item.capability === "cloud.inspect" && item.routable && item.enabled !== false
+    && item.provider === "cloudflare" && item.workerId === "cloudflare-readonly-inspector"
+    && Array.isArray(item.workerIds) && item.workerIds.includes("cloudflare-readonly-inspector")
+    && Number.isFinite(nowMs) && Number.isFinite(observed)
+    && observed >= nowMs - 30_000 && observed <= nowMs + 5_000;
+}

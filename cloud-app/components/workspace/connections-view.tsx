@@ -5,6 +5,7 @@ import { useState } from "react";
 import type { RuntimeCapability, RuntimeCloudInspectionReceipt, RuntimeGithubAppRepositoryProbe } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
 import { projectCapabilityFamilies } from "@/lib/capability-families";
+import { isFreshCloudInspectorCapability } from "@/lib/cloud-inspect-receipt";
 
 type DisplayCapability = RuntimeCapability & { providerReasonCode?: string | null };
 
@@ -29,8 +30,9 @@ export function ConnectionsView({
   const [cloudReceipt, setCloudReceipt] = useState<RuntimeCloudInspectionReceipt | null>(null);
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudError, setCloudError] = useState<string | null>(null);
+  const eligibleCloudInspector = () => displayCapabilities.some(item => isFreshCloudInspectorCapability(item));
   const cloudInspectReady = coreReady && relay?.connected === true && relay.transportKind !== "encrypted-relay"
-    && displayCapabilities.some(item => item.capability === "cloud.inspect" && item.routable && item.enabled !== false);
+    && eligibleCloudInspector();
 
   async function probeGithubApp() {
     if (!relay || githubBusy) return;
@@ -47,7 +49,8 @@ export function ConnectionsView({
   }
 
   async function inspectCloudflare() {
-    if (!relay || cloudBusy || !cloudInspectReady) return;
+    // An advertised capability can expire between rendering and a click.
+    if (!relay || cloudBusy || !cloudInspectReady || !eligibleCloudInspector()) return;
     setCloudBusy(true);
     setCloudReceipt(null);
     setCloudError(null);

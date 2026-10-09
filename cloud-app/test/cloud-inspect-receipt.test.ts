@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { validateCloudInspectionReceipt } from "../lib/cloud-inspect-receipt.ts";
+import { isFreshCloudInspectorCapability, validateCloudInspectionReceipt } from "../lib/cloud-inspect-receipt.ts";
 
 const now = Date.parse("2026-10-09T01:00:00.000Z");
 const taskId = "cloud-read-00000000-0000-0000-0000-000000000001";
@@ -74,4 +74,29 @@ test("rejects stale, future, foreign, duplicate and structurally valid but incon
     mutate(value);
     assert.throws(() => validateCloudInspectionReceipt(value, taskId, chainId, now), /cloud-inspection-receipt-invalid/, name);
   }
+});
+
+test("Cloudflare inspection eligibility requires exact attested worker and fresh evidence", () => {
+  const good = {
+    capability: "cloud.inspect", routable: true, enabled: true, provider: "cloudflare",
+    workerId: "cloudflare-readonly-inspector", workerIds: ["cloudflare-readonly-inspector"],
+    lastObservedAt: new Date(now - 1000).toISOString(),
+  };
+  assert.equal(isFreshCloudInspectorCapability(good, now), true);
+  const invalid = [
+    { ...good, provider: "github" },
+    { ...good, workerId: "foreign-worker" },
+    { ...good, workerIds: ["foreign-worker"] },
+    { ...good, routable: false },
+    { ...good, enabled: false },
+    { ...good, lastObservedAt: null },
+    { ...good, lastObservedAt: "not-a-date" },
+    { ...good, lastObservedAt: new Date(now - 30_001).toISOString() },
+    { ...good, lastObservedAt: new Date(now + 5_001).toISOString() },
+  ];
+  for (const item of invalid) {
+    assert.equal(isFreshCloudInspectorCapability(item, now), false, JSON.stringify(item));
+  }
+  // Render-time eligibility is not permanent: a later click must recheck freshness.
+  assert.equal(isFreshCloudInspectorCapability(good, now + 30_001), false);
 });
