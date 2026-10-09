@@ -59,6 +59,7 @@ export interface StorageAdapter {
   releaseLease(resourceId: string, holderId: string): void;
   getIdempotentReceipt(key: string): StorageReceipt | null;
   saveReceipt(receipt: StorageReceipt): void;
+  listConversations(ownerIdHash: string, limit?: number): ConversationRecord[];
   getConversation(id: string): ConversationRecord | null;
   saveConversation(record: ConversationRecord): void;
   getTurn(id: string): AssistantTurnRecord | null;
@@ -163,6 +164,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       );
+      CREATE INDEX IF NOT EXISTS idx_conversations_owner_updated ON conversations(owner_id_hash, updated_at DESC, id DESC);
       CREATE TABLE IF NOT EXISTS turns (
         id TEXT PRIMARY KEY,
         conversation_id TEXT NOT NULL,
@@ -262,6 +264,14 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       JSON.stringify(receipt.resultPayload),
       receipt.createdAt,
     );
+  }
+
+  listConversations(ownerIdHash: string, limit = 50): ConversationRecord[] {
+    const boundedLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(limit, 50)) : 50;
+    return this.sql.exec<ConversationRow>(
+      "SELECT id, owner_id_hash, created_at, updated_at FROM conversations WHERE owner_id_hash = ? ORDER BY updated_at DESC, id DESC LIMIT ?",
+      ownerIdHash, boundedLimit,
+    ).toArray().map((row) => ({ id: row.id, ownerIdHash: row.owner_id_hash, createdAt: row.created_at, updatedAt: row.updated_at }));
   }
 
   getConversation(id: string): ConversationRecord | null {
