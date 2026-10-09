@@ -97,7 +97,7 @@ test("deployment chronology is enforced before provider attestation and executio
         { ...evidence.result.deployments[0], created_on: createdOn },
       ] } }),
     });
-    const advertised = await (await provider.fetch(new Request("https://private-provider/api/capabilities"))).json()
+    const advertised = (await (await provider.fetch(new Request("https://private-provider/api/capabilities"))).json())
       as { attestations: Array<Record<string, unknown>> };
     assert.equal(advertised.attestations.length, allowed ? 1 : 0, label + " attestation");
     const execution = await run(provider, payload);
