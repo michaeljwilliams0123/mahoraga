@@ -83,6 +83,33 @@ test("read-only inspection emits bounded real deployment receipt and never leaks
   assert.doesNotMatch(JSON.stringify(body), /secure-test|Bearer|PRIVATE_KEY|CLOUDFLARE_AUDIT_TOKEN/);
 });
 
+test("deployment chronology is enforced before provider attestation and execution", async () => {
+  const cases = [
+    { label: "within five-second clock skew", createdOn: new Date(NOW + 5_000).toISOString(), allowed: true },
+    { label: "beyond five-second clock skew", createdOn: new Date(NOW + 5_001).toISOString(), allowed: false },
+    { label: "ten seconds in the future", createdOn: new Date(NOW + 10_000).toISOString(), allowed: false },
+    { label: "malformed deployment time", createdOn: "not-a-date", allowed: false },
+  ];
+  for (const { label, createdOn, allowed } of cases) {
+    const provider = createReadonlyCloudflareProvider(env, {
+      now: () => NOW,
+      fetchImpl: async () => Response.json({ success: true, result: { deployments: [
+        { ...evidence.result.deployments[0], created_on: createdOn },
+      ] } }),
+    });
+    const advertised = await (await provider.fetch(new Request("https://private-provider/api/capabilities"))).json()
+      as { attestations: Array<Record<string, unknown>> };
+    assert.equal(advertised.attestations.length, allowed ? 1 : 0, label + " attestation");
+    const execution = await run(provider, payload);
+    assert.equal(execution.status, allowed ? 200 : 503, label + " execution");
+    if (allowed) {
+      const result = await execution.json() as { receipt: Record<string, unknown> };
+      assert.equal(result.receipt.observedAt, new Date(NOW).toISOString());
+      assert.equal(result.receipt.deployedAt, createdOn);
+    }
+  }
+});
+
 test("write, expired, future, wrong worker, widened scope, invalid target and extra fields fail closed", async () => {
   let calls = 0;
   const provider = createReadonlyCloudflareProvider(env, { now: () => NOW, fetchImpl: async () => {

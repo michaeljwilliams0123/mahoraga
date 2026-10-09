@@ -7,7 +7,7 @@ export type InspectorEnv = {
 };
 type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type InspectorOptions = { fetchImpl?: Fetcher; now?: () => number };
-type CloudflareDeployment = { id: string; createdOn: string; versionId: string; percentage: number };
+type CloudflareDeployment = { id: string; createdOn: string; versionId: string; percentage: number; observedAtMs: number };
 const SCRIPTS = new Set(["mahoraga-owner-gateway", "mahoraga-execution-runtime", "mahoraga-execution-broker"]);
 const CAPABILITY = "cloud.inspect";
 const PROVIDER = "cloudflare";
@@ -27,7 +27,7 @@ const configured = (env: InspectorEnv) =>
   && typeof env.CLOUDFLARE_AUDIT_TOKEN === "string" && env.CLOUDFLARE_AUDIT_TOKEN.trim().length >= 32;
 
 /** A real, successful account API read is required to advertise a provider capability. */
-async function readDeployment(env: InspectorEnv, script: string, fetchImpl: Fetcher): Promise<CloudflareDeployment | null> {
+async function readDeployment(env: InspectorEnv, script: string, fetchImpl: Fetcher, now: () => number): Promise<CloudflareDeployment | null> {
   if (!configured(env) || !SCRIPTS.has(script)) return null;
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/workers/scripts/${script}/deployments`;
   try {
@@ -43,12 +43,18 @@ async function readDeployment(env: InspectorEnv, script: string, fetchImpl: Fetc
     const deployments = result?.deployments;
     if (body?.success !== true || !Array.isArray(deployments) || !deployments.length) return null;
     const first = record(deployments[0]);
-    if (!first || !safeCloudId(first.id) || typeof first.created_on !== "string" || !Number.isFinite(Date.parse(first.created_on))) return null;
+    if (!first || !safeCloudId(first.id) || typeof first.created_on !== "string") return null;
+    const deployedAtMs = Date.parse(first.created_on);
+    const observedAtMs = now();
+    // Match the browser receipt validator: fail closed on deployments dated >5s after observation.
+    if (!Number.isFinite(deployedAtMs) || !Number.isFinite(observedAtMs)
+      || deployedAtMs > observedAtMs + 5_000) return null;
     const versions = first.versions;
     if (!Array.isArray(versions) || versions.length !== 1) return null; // no split-traffic ambiguity in first milestone
     const version = record(versions[0]);
     if (!version || !safeCloudId(version.version_id) || version.percentage !== 100) return null;
-    return { id: first.id as string, createdOn: first.created_on, versionId: version.version_id as string, percentage: 100 };
+    return { id: first.id as string, createdOn: first.created_on, versionId: version.version_id as string,
+      percentage: 100, observedAtMs };
   } catch { return null; }
 }
 function validLease(raw: unknown, now: number): boolean {
@@ -70,9 +76,9 @@ export function createReadonlyCloudflareProvider(env: InspectorEnv, { fetchImpl 
       const path = new URL(request.url).pathname;
       if (path === "/api/capabilities") {
         if (request.method !== "GET") return json({ error: "method-not-allowed" }, 405);
-        const proof = await readDeployment(env, "mahoraga-owner-gateway", fetchImpl);
+        const proof = await readDeployment(env, "mahoraga-owner-gateway", fetchImpl, now);
         if (!proof) return json({ attestations: [] }, 200);
-        const observed = now();
+        const observed = proof.observedAtMs;
         return json({ attestations: [{
           schemaVersion: 1, kind: "universal-worker-attestation",
           workerId: WORKER, provider: PROVIDER, locality: "cloudflare",
@@ -96,7 +102,7 @@ export function createReadonlyCloudflareProvider(env: InspectorEnv, { fetchImpl 
         || !Array.isArray(body.evidenceRefs) || body.evidenceRefs.length > 8 || !body.evidenceRefs.every(safeId)) {
         return json({ error: "inspection-target-invalid" }, 403);
       }
-      const proof = await readDeployment(env, payload.script, fetchImpl);
+      const proof = await readDeployment(env, payload.script, fetchImpl, now);
       if (!proof) return json({ error: "provider-observation-unavailable" }, 503);
       const lease = body.lease as Record<string, unknown>;
       return json({ status: "complete", receipt: {
@@ -106,7 +112,7 @@ export function createReadonlyCloudflareProvider(env: InspectorEnv, { fetchImpl 
         selectionReceiptId: lease.selectionReceiptId,
         script: payload.script, deploymentId: proof.id, versionId: proof.versionId,
         deployedAt: proof.createdOn, trafficPercentage: proof.percentage,
-        observedAt: new Date(now()).toISOString(), readOnly: true,
+        observedAt: new Date(proof.observedAtMs).toISOString(), readOnly: true,
       } });
     },
   };
