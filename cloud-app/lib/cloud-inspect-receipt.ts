@@ -29,16 +29,20 @@ export function validateCloudInspectionReceipt(
     || selection.chainId !== chainId || execution.chainId !== chainId
     || selection.capability !== "cloud.inspect" || execution.capability !== "cloud.inspect"
     || !/^sel-[a-f0-9]{16}$/.test(String(selection.id))
+    || !/^lease-[a-f0-9]{16}$/.test(String(selection.routeLeaseId))
     || !Array.isArray(selection.eligibleWorkers)
     || !selection.eligibleWorkers.includes("cloudflare-readonly-inspector")) throw new Error("cloud-inspection-receipt-invalid");
   const selected = record(selection.selected);
   if (!selected || selected.workerId !== "cloudflare-readonly-inspector" || selected.provider !== "cloudflare"
-    || execution.workerId !== selected.workerId || execution.provider !== selected.provider) throw new Error("cloud-inspection-receipt-invalid");
+    || execution.workerId !== selected.workerId || execution.provider !== selected.provider
+    || execution.selectionReceiptId !== selection.id || execution.routeLeaseId !== selection.routeLeaseId) throw new Error("cloud-inspection-receipt-invalid");
   const provider = record(execution.providerReceipt);
   if (!provider || provider.verified !== true || provider.readOnly !== true
     || provider.capability !== "cloud.inspect" || provider.provider !== "cloudflare"
     || provider.workerId !== "cloudflare-readonly-inspector" || provider.taskId !== taskId
-    || provider.chainId !== chainId || !/^lease-[a-f0-9]{16}$/.test(String(provider.routeLeaseId))
+    || provider.chainId !== chainId || provider.selectionReceiptId !== selection.id
+    || provider.routeLeaseId !== selection.routeLeaseId
+    || !/^lease-[a-f0-9]{16}$/.test(String(provider.routeLeaseId))
     || provider.id !== `cloud-inspect-${provider.routeLeaseId}`
     || provider.script !== "mahoraga-owner-gateway" || provider.trafficPercentage !== 100
     || !id(provider.deploymentId) || !id(provider.versionId)

@@ -103,6 +103,7 @@ export function createReadonlyCloudflareProvider(env: InspectorEnv, { fetchImpl 
         id: `cloud-inspect-${lease.routeLeaseId}`, verified: true,
         capability: CAPABILITY, provider: PROVIDER, workerId: WORKER,
         taskId: lease.taskId, chainId: lease.chainId, routeLeaseId: lease.routeLeaseId,
+        selectionReceiptId: lease.selectionReceiptId,
         script: payload.script, deploymentId: proof.id, versionId: proof.versionId,
         deployedAt: proof.createdOn, trafficPercentage: proof.percentage,
         observedAt: new Date(now()).toISOString(), readOnly: true,

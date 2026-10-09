@@ -12,12 +12,13 @@ function receipt() {
   return {
     status: "complete", taskId, chainId, handoffCount: 0,
     receipts: [
-      { schemaVersion: 1, kind: "route-selection-receipt", id: "sel-0123456789abcdef",
+      { schemaVersion: 1, kind: "route-selection-receipt", id: "sel-0123456789abcdef", routeLeaseId: leaseId,
         taskId, chainId, capability: "cloud.inspect",
         selected: { workerId, provider }, eligibleWorkers: [workerId] },
       { schemaVersion: 1, kind: "execution-receipt", taskId, chainId,
         capability: "cloud.inspect", workerId, provider,
-        providerReceipt: { id: `cloud-inspect-${leaseId}`, routeLeaseId: leaseId,
+        routeLeaseId: leaseId, selectionReceiptId: "sel-0123456789abcdef",
+        providerReceipt: { id: `cloud-inspect-${leaseId}`, routeLeaseId: leaseId, selectionReceiptId: "sel-0123456789abcdef",
           taskId, chainId, capability: "cloud.inspect", workerId, provider, readOnly: true, verified: true,
           script: "mahoraga-owner-gateway",
           deploymentId: "12345678-1234-1234-1234-123456789abc",
@@ -51,6 +52,15 @@ test("rejects stale, future, foreign, duplicate and structurally valid but incon
     { name: "mismatched inner task", mutate: v => { v.receipts[1]!.providerReceipt!.taskId = "foreign-task"; } },
     { name: "mismatched inner chain", mutate: v => { v.receipts[1]!.providerReceipt!.chainId = "foreign-chain"; } },
     { name: "spoofed lease id", mutate: v => { v.receipts[1]!.providerReceipt!.routeLeaseId = "lease-bad"; } },
+    { name: "foreign well-formed selection id", mutate: v => { v.receipts[0]!.id = "sel-fedcba9876543210"; } },
+    { name: "foreign well-formed selected lease", mutate: v => { v.receipts[0]!.routeLeaseId = "lease-fedcba9876543210"; } },
+    { name: "foreign well-formed execution selection id", mutate: v => { v.receipts[1]!.selectionReceiptId = "sel-fedcba9876543210"; } },
+    { name: "foreign well-formed execution lease", mutate: v => { v.receipts[1]!.routeLeaseId = "lease-fedcba9876543210"; } },
+    { name: "foreign well-formed provider selection id", mutate: v => { v.receipts[1]!.providerReceipt!.selectionReceiptId = "sel-fedcba9876543210"; } },
+    { name: "foreign well-formed provider lease and internally consistent provider receipt id", mutate: v => {
+      v.receipts[1]!.providerReceipt!.routeLeaseId = "lease-fedcba9876543210";
+      v.receipts[1]!.providerReceipt!.id = "cloud-inspect-lease-fedcba9876543210";
+    } },
     { name: "receipt id contradicts lease", mutate: v => { v.receipts[1]!.providerReceipt!.id = "cloud-inspect-lease-0000000000000000"; } },
     { name: "stale replay", mutate: v => { v.receipts[1]!.providerReceipt!.observedAt = new Date(now - 91_000).toISOString(); } },
     { name: "future timestamp", mutate: v => { v.receipts[1]!.providerReceipt!.observedAt = new Date(now + 6_000).toISOString(); } },
