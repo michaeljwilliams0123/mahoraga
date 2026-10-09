@@ -9,7 +9,6 @@ export type RuntimeCloudInspectionReceipt = {
 type Data = Record<string, unknown>;
 const record = (value: unknown): Data | null =>
   value !== null && typeof value === "object" && !Array.isArray(value) ? value as Data : null;
-const fail = (): never => { throw new Error("cloud-inspection-receipt-invalid"); };
 const id = (value: unknown): value is string => typeof value === "string" && /^[a-zA-Z0-9-]{12,100}$/.test(value);
 const timestamp = (value: unknown): number =>
   typeof value === "string" ? Date.parse(value) : Number.NaN;
@@ -21,7 +20,7 @@ export function validateCloudInspectionReceipt(
   const response = record(input);
   if (!response || response.status !== "complete" || response.taskId !== taskId
     || response.chainId !== chainId || response.handoffCount !== 0
-    || !Array.isArray(response.receipts) || response.receipts.length !== 2) fail();
+    || !Array.isArray(response.receipts) || response.receipts.length !== 2) throw new Error("cloud-inspection-receipt-invalid");
   const receipts = response.receipts as unknown[];
   const selection = record(receipts.find(item => record(item)?.kind === "route-selection-receipt"));
   const execution = record(receipts.find(item => record(item)?.kind === "execution-receipt"));
@@ -31,10 +30,10 @@ export function validateCloudInspectionReceipt(
     || selection.capability !== "cloud.inspect" || execution.capability !== "cloud.inspect"
     || !/^sel-[a-f0-9]{16}$/.test(String(selection.id))
     || !Array.isArray(selection.eligibleWorkers)
-    || !selection.eligibleWorkers.includes("cloudflare-readonly-inspector")) fail();
+    || !selection.eligibleWorkers.includes("cloudflare-readonly-inspector")) throw new Error("cloud-inspection-receipt-invalid");
   const selected = record(selection.selected);
   if (!selected || selected.workerId !== "cloudflare-readonly-inspector" || selected.provider !== "cloudflare"
-    || execution.workerId !== selected.workerId || execution.provider !== selected.provider) fail();
+    || execution.workerId !== selected.workerId || execution.provider !== selected.provider) throw new Error("cloud-inspection-receipt-invalid");
   const provider = record(execution.providerReceipt);
   if (!provider || provider.verified !== true || provider.readOnly !== true
     || provider.capability !== "cloud.inspect" || provider.provider !== "cloudflare"
@@ -43,10 +42,10 @@ export function validateCloudInspectionReceipt(
     || provider.id !== `cloud-inspect-${provider.routeLeaseId}`
     || provider.script !== "mahoraga-owner-gateway" || provider.trafficPercentage !== 100
     || !id(provider.deploymentId) || !id(provider.versionId)
-    || !Number.isFinite(timestamp(provider.deployedAt))) fail();
+    || !Number.isFinite(timestamp(provider.deployedAt))) throw new Error("cloud-inspection-receipt-invalid");
   const observedAt = timestamp(provider.observedAt);
   if (!Number.isFinite(nowMs) || !Number.isFinite(observedAt)
-    || observedAt < nowMs - 90_000 || observedAt > nowMs + 5_000) fail();
+    || observedAt < nowMs - 90_000 || observedAt > nowMs + 5_000) throw new Error("cloud-inspection-receipt-invalid");
   return {
     script: "mahoraga-owner-gateway",
     deploymentId: provider.deploymentId as string,
