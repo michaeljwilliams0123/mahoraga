@@ -151,6 +151,8 @@ export type RuntimeExecutionReceipt = {
   creditPolicy: string;
   memoryState?: "indexed" | "pending";
 };
+export type RuntimeConversation = { id: string; createdAt: number; updatedAt: number };
+export type RuntimeHistoryMessage = { id: string; role: "user" | "assistant"; text: string };
 export type RuntimeMessage = {
   id: string;
   taskId?: string | null;
@@ -430,6 +432,23 @@ export class RuntimeRelay {
     const cloudAuthenticated = this.bridgeAuthenticated || this.cloudSession !== null;
     if (!cloudAuthenticated && Array.isArray(input.attachmentIds) && input.attachmentIds.length > 0) throw relayError("relay-attachments-local-only");
     return this.call<RuntimeChatResult>("chat", cloudAuthenticated ? input : { ...input, attachmentIds: [] });
+  }
+  async conversations(): Promise<RuntimeConversation[]> {
+    if (!this.bridgeAuthenticated && !this.cloudSession) return [];
+    const value = await this.call<{ conversations?: RuntimeConversation[] }>("conversations", {});
+    return Array.isArray(value.conversations)
+      ? value.conversations.filter((item) => typeof item?.id === "string" && Number.isSafeInteger(item.createdAt) && Number.isSafeInteger(item.updatedAt)).slice(0, 50)
+      : [];
+  }
+  async conversationHistory(conversationId: string): Promise<RuntimeHistoryMessage[]> {
+    if (!this.bridgeAuthenticated && !this.cloudSession) throw relayError("cloud-history-unavailable");
+    const value = await this.call<{ conversationId?: string; messages?: RuntimeHistoryMessage[] }>("conversation-history", { conversationId });
+    if (value.conversationId !== conversationId || !Array.isArray(value.messages) || value.messages.length > 60
+        || !value.messages.every((item) => typeof item?.id === "string"
+          && (item.role === "user" || item.role === "assistant") && typeof item.text === "string")) {
+      throw relayError("conversation-history-invalid");
+    }
+    return value.messages;
   }
   async tasks(conversationId: string) {
     const value = await this.call<{ tasks?: RuntimeTask[] }>("tasks", { conversationId });
