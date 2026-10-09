@@ -258,36 +258,49 @@ export function Workspace() {
       if (!active || historyEpoch.current !== epoch) return;
       setSavedConversations(conversations);
       if (!historyInitialized.current) {
-        historyInitialized.current = true;
-        if (conversations[0] && pollGeneration === runtimePollGeneration.current) {
+        if (!conversations.length) historyInitialized.current = true;
+        else if (pollGeneration === runtimePollGeneration.current) {
+          // Completion is recorded only after history really loads.
           void openSavedConversation(conversations[0].id, pairedRelay);
         }
       }
     }).catch(() => {
       if (active && historyEpoch.current === epoch) setSavedConversations([]);
     });
-    return () => { active = false; historyEpoch.current += 1; };
+    const retryOnFocus = () => {
+      // A failed history read gets one new opportunity on a user-driven focus event.
+      if (active && !historyInitialized.current) refreshSavedConversations();
+    };
+    window.addEventListener("focus", retryOnFocus);
+    return () => {
+      active = false;
+      historyEpoch.current += 1;
+      window.removeEventListener("focus", retryOnFocus);
+    };
   }, [coreReady, pairedRelay]);
 
-  async function openSavedConversation(conversationId: string, transport: RuntimeRelay | null = pairedRelay) {
-    if (!transport?.connected || runtimeBusy) return;
+  async function openSavedConversation(conversationId: string, transport: RuntimeRelay | null = pairedRelay): Promise<boolean> {
+    if (!transport?.connected || runtimeBusy) return false;
     const generation = ++runtimePollGeneration.current;
     setRuntimeBusy(true);
     setRuntimeError(null);
     try {
       const history = await transport.conversationHistory(conversationId);
-      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return;
+      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
       renderedRuntimeMessages.current = new Set(history.map((message) => message.id));
       setMessages(history.map((message) => ({ id: `runtime-${message.id}`, role: message.role, text: message.text })));
       setRuntimeConversationId(conversationId);
+      historyInitialized.current = true;
       activeRuntimeTask.current = null;
       setInput("");
       setFiles([]);
       setLicensedRetry(null);
+      return true;
     } catch (error) {
       if (runtimePollGeneration.current === generation) {
         setRuntimeError(runtimeErrorMessage(error instanceof Error ? error.message : "conversation-history-unavailable"));
       }
+      return false;
     } finally {
       if (runtimePollGeneration.current === generation) setRuntimeBusy(false);
     }
@@ -296,8 +309,13 @@ export function Workspace() {
   function refreshSavedConversations() {
     const transport = pairedRelay;
     if (!transport?.connected) return;
+    const generation = runtimePollGeneration.current;
     void transport.conversations().then((conversations) => {
-      if (relay.current === transport) setSavedConversations(conversations);
+      if (relay.current !== transport) return;
+      setSavedConversations(conversations);
+      if (!historyInitialized.current && conversations[0] && generation === runtimePollGeneration.current) {
+        void openSavedConversation(conversations[0].id, transport);
+      }
     }).catch(() => {});
   }
 

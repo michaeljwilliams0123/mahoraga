@@ -65,3 +65,14 @@ test("fresh pairing restores history without reopening it after New Conversation
   assert.ok(ui.includes("historyInitialized.current = !options.allowInitialHistoryRestore"));
   assert.ok(ui.includes("function resetConversation(options: { allowInitialHistoryRestore?: boolean } = {})"));
 });
+
+test("failed or busy initial history load remains recoverable without background polling", () => {
+  const ui = read("cloud-app/components/workspace.tsx");
+  assert.doesNotMatch(ui, /historyInitialized\.current = true;\s*if \(conversations\[0\]/);
+  assert.match(ui, /setRuntimeConversationId\(conversationId\);\s*historyInitialized\.current = true/);
+  assert.match(ui, /if \(!transport\?\.connected \|\| runtimeBusy\) return false/);
+  assert.match(ui, /if \(!historyInitialized\.current && conversations\[0\] && generation === runtimePollGeneration\.current\)/);
+  assert.match(ui, /window\.addEventListener\("focus", retryOnFocus\)/);
+  assert.match(ui, /window\.removeEventListener\("focus", retryOnFocus\)/);
+  assert.doesNotMatch(ui, /setInterval\(.*history/);
+});
