@@ -622,8 +622,10 @@ export function Workspace() {
   return (
     <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}
       conversations={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind) ? savedConversations : undefined}
-      activeConversationId={runtimeConversationId} onOpenConversation={(id) => { void openSavedConversation(id); }}
-      onRefreshConversations={refreshSavedConversations}>
+      activeConversationId={runtimeConversationId}
+      onOpenConversation={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind)
+        ? (id) => { void openSavedConversation(id); } : undefined}
+      onRefreshConversations={coreReady ? refreshSavedConversations : undefined}>
       {view === "chat" && (
         <ChatView
           capabilityObservation={capabilityObservation} onRefreshCapabilities={() => refreshCapabilities.current?.()} relay={pairedRelay}
