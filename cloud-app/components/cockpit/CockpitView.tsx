@@ -4,6 +4,7 @@ import { useState } from "react";
 import { projectAcceptanceEvidence } from "@/lib/acceptance-evidence";
 import { AcceptanceEvidenceCards } from "./AcceptanceEvidenceCards";
 import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
+import { CloudInspectActionCard } from "./CloudInspectActionCard";
 import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
 import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
 import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
@@ -316,6 +317,7 @@ export function CockpitView({
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <InteractionTruthCards truth={interactionTruth} />
         <ExecutionBrokerCard />
+        <CloudInspectActionCard capabilities={runtimeCapabilities} />
         <AcceptanceEvidenceCards receipt={health?.cloudflareAcceptance ?? health?.productionAcceptance ?? health?.acceptance ?? health?.receipt} expectedSha={expectedDeploymentCommit} deploymentSha={deploymentCommit} />
         <TransformationProvenanceCards />
         <BrokerLeaseCards />

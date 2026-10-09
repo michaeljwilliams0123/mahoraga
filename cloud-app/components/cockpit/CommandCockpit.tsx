@@ -22,6 +22,7 @@ import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
 import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
+import { CloudInspectActionCard } from "./CloudInspectActionCard";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
 
@@ -243,6 +244,7 @@ export function CommandCockpit({
           <TransformationProvenanceCards />
           <BrokerLeaseCards />
           <ExecutionBrokerCard />
+          <CloudInspectActionCard />
         </section>
 
         <aside className="cockpit-panel tone-ok" aria-label="Convergence status">
