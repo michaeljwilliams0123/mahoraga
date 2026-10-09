@@ -317,7 +317,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
     if (input?.type === "conversations") {
       if (Object.keys(payload).length !== 0) return json({ error: "conversation-list-request-invalid" }, 400);
-      return json({ conversations: this.storage.listConversations(ownerHash) });
+      return json({ conversations: this.storage.listConversations(ownerHash).map(({ id, createdAt, updatedAt }) => ({ id, createdAt, updatedAt })) });
     }
     if (input?.type === "conversation-history") {
       if (Object.keys(payload).length !== 1 || !boundedId(payload.conversationId)) return json({ error: "conversation-history-request-invalid" }, 400);
