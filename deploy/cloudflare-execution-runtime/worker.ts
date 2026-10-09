@@ -324,7 +324,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const conversationId = payload.conversationId;
       const conversation = this.storage.getConversation(conversationId);
       if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
-      const turns = this.storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant !== null).slice(-30);
+      const turns = this.storage.listRecentSuccessfulTurns(conversationId);
       const messages: Array<{ id: string; role: "user" | "assistant"; text: string }> = [];
       try {
         for (const turn of turns) {
