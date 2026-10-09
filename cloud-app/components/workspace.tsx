@@ -331,10 +331,11 @@ export function Workspace() {
     }
   }
 
-  function resetConversation() {
+  function resetConversation(options: { allowInitialHistoryRestore?: boolean } = {}) {
     runtimePollGeneration.current += 1;
     historyEpoch.current += 1;
-    historyInitialized.current = true;
+    // Keep deliberately new conversations blank; let newly paired devices restore their history.
+    historyInitialized.current = !options.allowInitialHistoryRestore;
     voice.current?.stop();
     voice.current = null;
     setVoiceListening(false);
@@ -589,7 +590,7 @@ export function Workspace() {
       setRuntimeCapabilities(capabilities);
       setPairingOffer("");
       setRelayState("connected");
-      resetConversation();
+      resetConversation({ allowInitialHistoryRestore: true });
     } catch (caught) {
       await transport.revoke();
       setRelayState("error");
