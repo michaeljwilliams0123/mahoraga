@@ -7,7 +7,7 @@ async function relayModule(bridgeSource?: string): Promise<typeof import('../lib
  const url = (s: string) => `data:text/javascript,${encodeURIComponent(s)}`;
  let source = stripTypeScriptTypes(await readFile(new URL('../lib/runtime-relay.ts', import.meta.url), 'utf8'));
  const store = 'export async function clearRelaySession(){}; export async function loadRelaySession(){return null}; export async function saveRelaySession(){}';
- for (const [name, body] of [['relay-session-store', store], ['pages-owner-bridge-client', bridgeSource ?? stripTypeScriptTypes(await readFile(new URL('../lib/pages-owner-bridge-client.ts', import.meta.url), 'utf8'))], ['runtime-http-scope', stripTypeScriptTypes(await readFile(new URL('../lib/runtime-http-scope.ts', import.meta.url), 'utf8'))]]) {
+ for (const [name, body] of [['relay-session-store', store], ['pages-owner-bridge-client', bridgeSource ?? stripTypeScriptTypes(await readFile(new URL('../lib/pages-owner-bridge-client.ts', import.meta.url), 'utf8'))], ['runtime-http-scope', stripTypeScriptTypes(await readFile(new URL('../lib/runtime-http-scope.ts', import.meta.url), 'utf8'))], ['cloud-inspect-receipt', stripTypeScriptTypes(await readFile(new URL('../lib/cloud-inspect-receipt.ts', import.meta.url), 'utf8'))]]) {
   source = source.replace(`"./${name}"`, JSON.stringify(url(body)));
  }
  return import(url(source));
