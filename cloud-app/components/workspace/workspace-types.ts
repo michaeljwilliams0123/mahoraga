@@ -1,6 +1,6 @@
 import type { CapabilityObservationState } from "@/lib/capability-observer";
 import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
-import type { RuntimeCapability, RuntimeDeliveryTruth, RuntimeInteractionTruth, RuntimeRelay } from "@/lib/runtime-relay";
+import type { RuntimeCapability, RuntimeConversation, RuntimeDeliveryTruth, RuntimeInteractionTruth, RuntimeRelay } from "@/lib/runtime-relay";
 import type { CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
 
 export type TaskMode = "auto" | "ask" | "act";
@@ -155,6 +155,10 @@ export type WorkspaceShellProps = {
   busy: boolean;
   coreReady: boolean;
   onNewConversation: () => void;
+  conversations?: RuntimeConversation[];
+  activeConversationId?: string | null;
+  onOpenConversation?: (conversationId: string) => void;
+  onRefreshConversations?: () => void;
   children: ReactNode;
 };
 
