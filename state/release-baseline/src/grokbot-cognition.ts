@@ -8,7 +8,7 @@ type Binding = { objectiveDigest: string; authorityDigest: string; sourceSha: st
 export type GrokbotContext = { parentAgentId: string; authorityBinding: Binding & { validUntil: string }; currentBinding: Binding & { observedAt: string } };
 export type GrokbotAssignment = { agentId: string; capability: string; input: Record<string, unknown> };
 type Options = { signal?: AbortSignal; timeoutMs?: number; maximumParallel?: number };
-export type ChildReceipt = { agentId: string; parentAgentId: string; capability: string; duty: string; threadId: number; inputDigest: string; result: Record<string, unknown>; fingerprint: string };
+export type ChildReceipt = { agentId: string; parentAgentId: string; capability: string; duty: string; threadId: number; sourceSha: string; authorityBindingFingerprint: string; inputDigest: string; result: Record<string, unknown>; fingerprint: string };
 const routes: Record<string, { duty: string; fields: string[] }> = {
   'cognitive.assess': { duty: 'assurance', fields: ['metacognition'] },
   'cognitive.deliberate': { duty: 'coordinator', fields: ['positions'] },
@@ -93,7 +93,7 @@ async function runChild(assignment: GrokbotAssignment, context: GrokbotContext, 
         try {
           if (!raw || raw.jobId !== jobId || raw.threadId !== worker.threadId || raw.result?.verified !== true) fail('grokbot-result-invalid');
           authorize(assignment, context); // Expiry during execution invalidates the result too.
-          const core = { agentId: assignment.agentId, parentAgentId: context.parentAgentId, capability: assignment.capability, duty: routes[assignment.capability]!.duty, threadId: raw.threadId as number, inputDigest, result: raw.result as Record<string, unknown> };
+          const core = { agentId: assignment.agentId, parentAgentId: context.parentAgentId, capability: assignment.capability, duty: routes[assignment.capability]!.duty, threadId: raw.threadId as number, sourceSha: context.authorityBinding.sourceSha, authorityBindingFingerprint: digest(context.authorityBinding), inputDigest, result: raw.result as Record<string, unknown> };
           resolve({ ...core, fingerprint: digest(core) });
         } catch (error) { reject(error); }
       });

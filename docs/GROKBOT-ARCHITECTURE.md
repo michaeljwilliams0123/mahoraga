@@ -251,10 +251,23 @@ retains assignment order and unmodified input. Results are verification evidence
 `modelInvocations: 0` is explicit. Application data in cognitive results stays in
 the runtime's existing privacy boundary, not GitHub coordination records.
 
-This is an opt-in host library integration, not production activation. The current
-IPC worker and Cloudflare gateway do not supply trusted GrokBot context, so their
-ordinary routes remain unchanged. Completing live delegation requires a host-side
-binding issuer wired to authenticated authority and exact deployed provenance,
-then an acceptance transaction. Caller-supplied bindings must never replace that
-issuer. Conversational GrokBots additionally require the existing admitted model
-provider path; deterministic child receipts do not prove a model executed.
+The Node supervisor now issues this context automatically for admitted cognitive
+tasks through `src/grokbot-host.ts`. It binds the exact task identity and input to
+the router's allowed deterministic `cognitive-core` decision and current runtime
+source provenance. A fixed evaluator generation plus source SHA supplies the
+binding's epoch and evaluator fingerprint; this is not a sovereign core-promotion
+epoch or an operational grant. Bindings expire after 15 seconds. Missing or drifting
+runtime provenance holds the task before dispatch.
+
+The binding travels in a separate parent IPC field. The receiving worker validates
+the task/input/source match before executing the child. Public task payloads cannot
+supply it. Health probes remain direct and cognitive receipts preserve the source,
+parent/child identity, binding fingerprint, and existing empirical metadata. The
+runtime integration test traverses router, supervisor, IPC, child thread, and
+persisted receipt.
+
+Cloudflare's separate cognition implementation remains unchanged. Conversational
+GrokBots still require an admitted model provider and a cloud execution adapter.
+Node child receipts explicitly report zero model invocations and do not establish
+cloud deployment or model execution. The source implementation requires deployment
+to become active on a real host.

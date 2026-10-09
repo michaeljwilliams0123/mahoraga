@@ -14,6 +14,7 @@ import { executePowerPlatformCapability } from "./power-platform-worker.mjs";
 import { executeCopilotStudioCapability } from "./copilot-studio-worker.mjs";
 import { executeGoogleWorkspaceCapability } from "./google-workspace-worker.mjs";
 import { executeSignedChromeCapability } from "./signed-chrome-worker.mjs";
+import { executeAdmittedGrokbotCapability } from "./grokbot-host.ts";
 import { executeCognitiveCapability } from "./cognitive-worker.mjs";
 import { inspectTaskArtifacts, LocalArtifactStore } from "./local-artifact-store.mjs";
 import { createCapabilityReceipt } from "./receipt-registry.mjs";
@@ -59,7 +60,9 @@ process.on("message", async (message) => {
   if (message?.type !== "task") return;
   try {
     const startedAt = Date.now();
-    const result = await execute(message.capability, message.task, message.admission);
+    const result = message.capability?.startsWith("cognitive.") && message.capability !== "cognitive.health"
+      ? await executeAdmittedGrokbotCapability(message.capability, message.task, message.grokbotAdmission)
+      : await execute(message.capability, message.task, message.admission);
     const assistantCompletion = message.capability === "assistant.respond" && result?.verified === true
       ? normalizeAssistantCompletion(result)
       : null;

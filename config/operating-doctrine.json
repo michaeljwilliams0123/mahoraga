@@ -68,5 +68,11 @@
     "ownerAuthenticatedTunnelsAllowed": true,
     "requireBoundedLease": true,
     "rawLoopbackPublicExposureAllowed": false
+  },
+  "standingAutonomy": {
+    "authorizationPersists": true,
+    "repeatApprovalForAuthorizedRoutineWork": false,
+    "ownerInstructionSupersedesAdvisoryWorkflow": true,
+    "independentWorkContinuesDuringGates": true
   }
 }
