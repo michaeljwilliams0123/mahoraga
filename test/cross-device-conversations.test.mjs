@@ -41,3 +41,27 @@ test("history routes enforce existing verified owner and do not trust browser id
   assert.match(ui, /historyEpoch\.current/);
   assert.doesNotMatch(ui, /localStorage\.|sessionStorage\./);
 });
+
+test("history reads the newest thirty successful turns in chronological order", () => {
+  const calls = [];
+  const adapter = new CloudflareDOSQLiteAdapter({ storage: { sql: {
+    exec(sql, ...values) {
+      calls.push({ sql, values });
+      return { toArray: () => [{ id: "newest" }, { id: "middle" }, { id: "oldest" }] };
+    },
+  } } });
+  adapter.getTurn = (id) => ({ id });
+  assert.deepEqual(adapter.listRecentSuccessfulTurns("owner-conversation", 500).map(({ id }) => id), ["oldest", "middle", "newest"]);
+  assert.ok(calls[0].sql.includes("status = 'SUCCESS' AND content_id_assistant IS NOT NULL"));
+  assert.ok(calls[0].sql.includes("ORDER BY created_at DESC, id DESC LIMIT ?"));
+  assert.deepEqual(calls[0].values, ["owner-conversation", 30]);
+  assert.ok(read("deploy/cloudflare-execution-runtime/worker.ts").includes("this.storage.listRecentSuccessfulTurns(conversationId)"));
+});
+
+test("fresh pairing restores history without reopening it after New Conversation", () => {
+  const ui = read("cloud-app/components/workspace.tsx");
+  const pairing = ui.slice(ui.indexOf("async function pairRuntime()"), ui.indexOf("async function revokeRuntime()"));
+  assert.ok(pairing.includes("resetConversation({ allowInitialHistoryRestore: true })"));
+  assert.ok(ui.includes("historyInitialized.current = !options.allowInitialHistoryRestore"));
+  assert.ok(ui.includes("function resetConversation(options: { allowInitialHistoryRestore?: boolean } = {})"));
+});
