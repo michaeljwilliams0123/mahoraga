@@ -12,7 +12,7 @@ export function createExecutionChain(taskId:string, chainId:string): ExecutionCh
 }
 
 export function selectionReceipt(lease: Record<string,unknown>, eligibleWorkerIds:string[]) {
-  return { schemaVersion:1, kind:"route-selection-receipt", id:lease.selectionReceiptId,
+  return { schemaVersion:1, kind:"route-selection-receipt", id:lease.selectionReceiptId, routeLeaseId:lease.routeLeaseId,
     taskId:lease.taskId, chainId:lease.chainId, capability:lease.capability,
     selected:{workerId:lease.workerId,provider:lease.provider}, eligibleWorkers:eligibleWorkerIds };
 }
@@ -25,5 +25,6 @@ export function handoffReceipt(handoff: Record<string,unknown>) {
 
 export function executionReceipt(lease:Record<string,unknown>, providerReceipt:Record<string,unknown>) {
   return { schemaVersion:1, kind:"execution-receipt", taskId:lease.taskId, chainId:lease.chainId,
-    capability:lease.capability, workerId:lease.workerId, provider:lease.provider, providerReceipt };
+    capability:lease.capability, workerId:lease.workerId, provider:lease.provider,
+    routeLeaseId:lease.routeLeaseId, selectionReceiptId:lease.selectionReceiptId, providerReceipt };
 }

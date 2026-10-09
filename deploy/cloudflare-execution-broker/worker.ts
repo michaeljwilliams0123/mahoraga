@@ -165,4 +165,4 @@ export default {
   fetch(request: Request, env: BrokerEnv): Promise<Response> {
     return createExecutionBroker(env).fetch(request);
   },
-} satisfies ExportedHandler<BrokerEnv>;
+} satisfies { fetch(request: Request, env: BrokerEnv): Promise<Response> };

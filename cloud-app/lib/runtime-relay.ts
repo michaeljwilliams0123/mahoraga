@@ -5,6 +5,7 @@ import { PagesOwnerBridgeClient, validatePublicBridgeOrigin, type BridgeCapabili
 
 import type { GithubWorkspaceSnapshot } from "./github-workspace";
 import { RuntimeHttpScope } from "./runtime-http-scope";
+import { validateCloudInspectionReceipt, type RuntimeCloudInspectionReceipt } from "./cloud-inspect-receipt";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
@@ -151,6 +152,7 @@ export type RuntimeExecutionReceipt = {
   creditPolicy: string;
   memoryState?: "indexed" | "pending";
 };
+export type { RuntimeCloudInspectionReceipt } from "./cloud-inspect-receipt";
 export type RuntimeMessage = {
   id: string;
   taskId?: string | null;
@@ -474,6 +476,22 @@ export class RuntimeRelay {
   async nativeGithubWorkspace() {
     return this.call<GithubWorkspaceSnapshot>("native-github-workspace", {});
   }
+  async inspectCloudflareDeployment(): Promise<RuntimeCloudInspectionReceipt> {
+    if (!this.bridgeAuthenticated && !this.cloudSession) throw relayError("cloud-inspection-owner-auth-required");
+    const taskId = `cloud-read-${crypto.randomUUID()}`;
+    const chainId = `cloud-chain-${crypto.randomUUID()}`;
+    const response = await this.call<unknown>("execute", {
+      request: {
+        schemaVersion: 1, taskId, chainId, requiredCapability: "cloud.inspect",
+        requestedPermission: "read", dataClass: "enterprise",
+        authorityScopes: ["cloud:read"], costPreference: "zero-credit-first",
+        maxHops: 1, constraints: { requireZeroCredit: true }, evidenceRefs: [],
+      },
+      payload: { script: "mahoraga-owner-gateway" },
+    });
+    return validateCloudInspectionReceipt(response, taskId, chainId);
+  }
+
   async nativeGithubRepository() {
     return this.call<RuntimeGithubAppRepositoryProbe>("native-github-repository", {});
   }
