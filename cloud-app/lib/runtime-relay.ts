@@ -5,7 +5,7 @@ import { PagesOwnerBridgeClient, validatePublicBridgeOrigin, type BridgeCapabili
 
 import type { GithubWorkspaceSnapshot } from "./github-workspace";
 import { RuntimeHttpScope } from "./runtime-http-scope";
-import { validateCloudInspectionReceipt } from "./cloud-inspect-receipt";
+import { validateCloudInspectionReceipt, type RuntimeCloudInspectionReceipt } from "./cloud-inspect-receipt";
 
 const RELAY_ORIGIN = "wss://mahoraga-relay.mahoraga-mjw0123.workers.dev/pair";
 const PROTOCOL_VERSION = "1.0.0";
