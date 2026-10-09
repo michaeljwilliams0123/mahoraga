@@ -10,7 +10,7 @@ import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capabili
 import { deriveExecutionStatus } from "@/lib/execution-status";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
-import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
+import { RuntimeRelay, type RuntimeCapability, type RuntimeConversation, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
 import { CockpitView } from "./cockpit/CockpitView";
@@ -96,6 +96,7 @@ export function Workspace() {
   const refreshCapabilities = useRef<(() => void) | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
+  const [savedConversations, setSavedConversations] = useState<RuntimeConversation[]>([]);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode } | null>(null);
@@ -111,6 +112,8 @@ export function Workspace() {
   const renderedRuntimeMessages = useRef(new Set<string>());
   const activeRuntimeTask = useRef<RuntimeTask | null>(null);
   const runtimePollGeneration = useRef(0);
+  const historyEpoch = useRef(0);
+  const historyInitialized = useRef(false);
 
   const busy = runtimeBusy;
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
@@ -243,6 +246,61 @@ export function Workspace() {
     return subscribePagesReconnect(reconnectRuntime);
   }, [relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
 
+  useEffect(() => {
+    if (!coreReady || !pairedRelay || !["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind)) {
+      setSavedConversations([]);
+      return;
+    }
+    let active = true;
+    const epoch = ++historyEpoch.current;
+    const pollGeneration = runtimePollGeneration.current;
+    void pairedRelay.conversations().then((conversations) => {
+      if (!active || historyEpoch.current !== epoch) return;
+      setSavedConversations(conversations);
+      if (!historyInitialized.current) {
+        historyInitialized.current = true;
+        if (conversations[0] && pollGeneration === runtimePollGeneration.current) {
+          void openSavedConversation(conversations[0].id, pairedRelay);
+        }
+      }
+    }).catch(() => {
+      if (active && historyEpoch.current === epoch) setSavedConversations([]);
+    });
+    return () => { active = false; historyEpoch.current += 1; };
+  }, [coreReady, pairedRelay]);
+
+  async function openSavedConversation(conversationId: string, transport: RuntimeRelay | null = pairedRelay) {
+    if (!transport?.connected || runtimeBusy) return;
+    const generation = ++runtimePollGeneration.current;
+    setRuntimeBusy(true);
+    setRuntimeError(null);
+    try {
+      const history = await transport.conversationHistory(conversationId);
+      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return;
+      renderedRuntimeMessages.current = new Set(history.map((message) => message.id));
+      setMessages(history.map((message) => ({ id: `runtime-${message.id}`, role: message.role, text: message.text })));
+      setRuntimeConversationId(conversationId);
+      activeRuntimeTask.current = null;
+      setInput("");
+      setFiles([]);
+      setLicensedRetry(null);
+    } catch (error) {
+      if (runtimePollGeneration.current === generation) {
+        setRuntimeError(runtimeErrorMessage(error instanceof Error ? error.message : "conversation-history-unavailable"));
+      }
+    } finally {
+      if (runtimePollGeneration.current === generation) setRuntimeBusy(false);
+    }
+  }
+
+  function refreshSavedConversations() {
+    const transport = pairedRelay;
+    if (!transport?.connected) return;
+    void transport.conversations().then((conversations) => {
+      if (relay.current === transport) setSavedConversations(conversations);
+    }).catch(() => {});
+  }
+
   function reconnectRuntime() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;
     relay.current?.disconnect();
@@ -275,6 +333,8 @@ export function Workspace() {
 
   function resetConversation() {
     runtimePollGeneration.current += 1;
+    historyEpoch.current += 1;
+    historyInitialized.current = true;
     voice.current?.stop();
     voice.current = null;
     setVoiceListening(false);
@@ -419,6 +479,7 @@ export function Workspace() {
       setRuntimeConversationId(conversationId);
       activeRuntimeTask.current = result.task;
       await pollRuntime(transport, conversationId, Boolean(result.task || result.objective), pollGeneration);
+      if (runtimePollGeneration.current === pollGeneration) refreshSavedConversations();
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
@@ -559,7 +620,10 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
+    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}
+      conversations={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind) ? savedConversations : undefined}
+      activeConversationId={runtimeConversationId} onOpenConversation={(id) => { void openSavedConversation(id); }}
+      onRefreshConversations={refreshSavedConversations}>
       {view === "chat" && (
         <ChatView
           capabilityObservation={capabilityObservation} onRefreshCapabilities={() => refreshCapabilities.current?.()} relay={pairedRelay}
