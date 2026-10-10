@@ -71,6 +71,9 @@ test("canonical CI remains read-only", async () => {
   const source = await workflow();
   const block = source.match(/\npermissions:\n([\s\S]*?)\nconcurrency:/)?.[1];
   assert.ok(block, "permissions block missing");
-  assert.deepEqual(block.trim().split(/\n/).map((line) => line.trim()).filter(Boolean), ["actions: read", "contents: read"]);
+  assert.deepEqual(block.trim().split(/\n/).map((line) => line.trim()).filter(Boolean), ["actions: read", "contents: read", "pull-requests: read"]);
+  assert.doesNotMatch(source, /pull-requests: write|contents: write|actions: write/);
+  assert.match(source, /Enforce PR objective and draft intake \(read-only\)/);
+  assert.match(source, /scripts\/pr-intake\.ts/);
   assert.doesNotMatch(source, /\$\{\{\s*secrets\./);
 });

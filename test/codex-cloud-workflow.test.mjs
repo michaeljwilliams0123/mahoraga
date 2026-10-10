@@ -10,10 +10,18 @@ async function workflow() {
   return (await readFile(file, "utf8")).replaceAll("\r\n", "\n");
 }
 
-test("Codex cloud dispatch remains main-only and stages one bounded draft PR", async () => {
+test("Codex cloud dispatch is owner-manual only and stages one bounded draft PR", async () => {
   const source = await workflow();
-  assert.match(source, /push:\s*\n\s+branches:\s*\[main\]/);
-  assert.match(source, /coordination\/cloud-tasks\/\*\.json/);
+  assert.doesNotMatch(source, /^\s+push:/m);
+  assert.doesNotMatch(source, /^\s+schedule:/m);
+  assert.match(source, /workflow_dispatch:/);
+  assert.match(source, /owner_authorization:/);
+  assert.match(source, /AUTHORIZE_ONE_STAGING_RUN/);
+  assert.match(source, /github\.actor == 'michaeljwilliams0123'/);
+  assert.match(source, /const selected = bundle\.tasks\.filter/);
+  assert.match(source, /selected\.length !== 1/);
+  assert.match(source, /draft-cap-reached-reuse-existing-pr/);
+  assert.match(source, /objective-already-open-reuse-existing-pr/);
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/github-script@[a-f0-9]{40} # v9/);
 

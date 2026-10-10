@@ -73,6 +73,18 @@ jobs:
               per_page: 100,
             });
             for (const task of selected) {
+              // Block all work before creating issues, branches, or activation files.
+              const existingObjective = openPrs.find(pr =>
+                pr.body?.includes(`Objective-ID: codex-${task.taskId}`)
+                || pr.body?.includes(`idempotency-key=${task.idempotencyKey}`)
+                || pr.title === task.issue.title
+              );
+              if (existingObjective) {
+                core.notice(`Reuse existing PR #${existingObjective.number}; no new staging writes.`);
+                continue;
+              }
+              if (openPrs.filter(pr => pr.draft).length >= 3)
+                throw new Error("draft-cap-reached-reuse-existing-pr");
               const taskMarker = `task-id=${task.taskId}`;
               const idempotencyMarker = `idempotency-key=${task.idempotencyKey}`;
               let issue = existingIssues.find((issue) =>
