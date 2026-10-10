@@ -10,7 +10,7 @@ import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capabili
 import { deriveExecutionStatus } from "@/lib/execution-status";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
-import { RuntimeRelay, type RuntimeCapability, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
+import { RuntimeRelay, type RuntimeCapability, type RuntimeConversation, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
 import { CockpitView } from "./cockpit/CockpitView";
@@ -96,6 +96,7 @@ export function Workspace() {
   const refreshCapabilities = useRef<(() => void) | null>(null);
   const [runtimeCapabilities, setRuntimeCapabilities] = useState<RuntimeCapability[]>([]);
   const [runtimeConversationId, setRuntimeConversationId] = useState<string | null>(null);
+  const [savedConversations, setSavedConversations] = useState<RuntimeConversation[]>([]);
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode } | null>(null);
@@ -111,6 +112,10 @@ export function Workspace() {
   const renderedRuntimeMessages = useRef(new Set<string>());
   const activeRuntimeTask = useRef<RuntimeTask | null>(null);
   const runtimePollGeneration = useRef(0);
+  const historyEpoch = useRef(0);
+  const historyInitialized = useRef(false);
+  const runtimeBusyRef = useRef(runtimeBusy);
+  useEffect(() => { runtimeBusyRef.current = runtimeBusy; }, [runtimeBusy]);
 
   const busy = runtimeBusy;
   const coreReady = relayState === "connected" && (pairedRelay?.connected === true || relay.current?.connected === true);
@@ -160,12 +165,19 @@ export function Workspace() {
     let active = true;
     const unsubscribe = transport.onDisconnected(() => {
       if (!active) return;
+      // Drop all owner-scoped browser state immediately when the session is lost.
+      resetConversation();
+      setSavedConversations([]);
+      setPairedRelay(null);
       setRelayState("unpaired");
       setRuntimeCapabilities([]);
       const ownerRequired = transport.sessionDiagnostic?.code === "cloud-owner-auth-required";
       setOwnerLoginRequired(ownerRequired);
       setRuntimeError(runtimeErrorMessage(ownerRequired ? "cloud-owner-auth-required" : "relay-disconnected"));
     });
+    // A resumed transport may belong to a different owner: never reuse prior UI history.
+    resetConversation({ allowInitialHistoryRestore: true });
+    setSavedConversations([]);
     setRelayState("resuming");
     setRuntimeCapabilities([]);
     setRuntimeError(null);
@@ -243,10 +255,91 @@ export function Workspace() {
     return subscribePagesReconnect(reconnectRuntime);
   }, [relayState, ownerLoginRequired, runtimeBusy, ownerLoginBusy]);
 
+  useEffect(() => {
+    if (!coreReady || !pairedRelay || !["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind)) {
+      setSavedConversations([]);
+      return;
+    }
+    let active = true;
+    const epoch = ++historyEpoch.current;
+    const pollGeneration = runtimePollGeneration.current;
+    void pairedRelay.conversations().then((conversations) => {
+      if (!active || historyEpoch.current !== epoch || relay.current !== pairedRelay || !pairedRelay.connected) return;
+      setSavedConversations(conversations);
+      if (!historyInitialized.current) {
+        if (!conversations.length) historyInitialized.current = true;
+        else if (pollGeneration === runtimePollGeneration.current) {
+          // Completion is recorded only after history really loads.
+          void openSavedConversation(conversations[0].id, pairedRelay);
+        }
+      }
+    }).catch(() => {
+      if (active && historyEpoch.current === epoch) setSavedConversations([]);
+    });
+    const retryOnFocus = () => {
+      // A failed history read gets one new opportunity on a user-driven focus event.
+      if (active && !historyInitialized.current) refreshSavedConversations();
+    };
+    window.addEventListener("focus", retryOnFocus);
+    return () => {
+      active = false;
+      historyEpoch.current += 1;
+      window.removeEventListener("focus", retryOnFocus);
+    };
+  }, [coreReady, pairedRelay]);
+
+  async function openSavedConversation(conversationId: string, transport: RuntimeRelay | null = pairedRelay): Promise<boolean> {
+    if (!transport?.connected || runtimeBusyRef.current) return false;
+    runtimeBusyRef.current = true;
+    const generation = ++runtimePollGeneration.current;
+    setRuntimeBusy(true);
+    setRuntimeError(null);
+    try {
+      const history = await transport.conversationHistory(conversationId);
+      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
+      renderedRuntimeMessages.current = new Set(history.map((message) => message.id));
+      setMessages(history.map((message) => ({ id: `runtime-${message.id}`, role: message.role, text: message.text })));
+      setRuntimeConversationId(conversationId);
+      historyInitialized.current = true;
+      activeRuntimeTask.current = null;
+      setInput("");
+      setFiles([]);
+      setLicensedRetry(null);
+      return true;
+    } catch (error) {
+      if (runtimePollGeneration.current === generation) {
+        setRuntimeError(runtimeErrorMessage(error instanceof Error ? error.message : "conversation-history-unavailable"));
+      }
+      return false;
+    } finally {
+      if (runtimePollGeneration.current === generation) {
+        runtimeBusyRef.current = false;
+        setRuntimeBusy(false);
+      }
+    }
+  }
+
+  function refreshSavedConversations() {
+    const transport = pairedRelay;
+    if (!transport?.connected) return;
+    const generation = runtimePollGeneration.current;
+    const epoch = historyEpoch.current;
+    void transport.conversations().then((conversations) => {
+      // Pairing/auth changes can reuse a transport; reject responses from the old owner epoch.
+      if (historyEpoch.current !== epoch || runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return;
+      setSavedConversations(conversations);
+      if (!historyInitialized.current && conversations[0] && generation === runtimePollGeneration.current) {
+        void openSavedConversation(conversations[0].id, transport);
+      }
+    }).catch(() => {});
+  }
+
   function reconnectRuntime() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;
     relay.current?.disconnect();
     relay.current = null;
+    resetConversation({ allowInitialHistoryRestore: true });
+    setSavedConversations([]);
     setPairedRelay(null);
     setOwnerLoginRequired(false);
     setConnectionAttempt(attempt => attempt + 1);
@@ -261,6 +354,8 @@ export function Workspace() {
       if (!transport) throw new Error("cloud-session-unavailable");
       await transport.loginOwnerPin(ownerLoginPin);
       const capabilities = transport.transportKind === "pages-owner-bridge" ? [] : await transport.capabilities();
+      resetConversation({ allowInitialHistoryRestore: true });
+      setSavedConversations([]);
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);
       setRelayState("connected");
@@ -273,8 +368,13 @@ export function Workspace() {
     }
   }
 
-  function resetConversation() {
+  function resetConversation(options: { allowInitialHistoryRestore?: boolean } = {}) {
     runtimePollGeneration.current += 1;
+    historyEpoch.current += 1;
+    runtimeBusyRef.current = false;
+    setRuntimeBusy(false);
+    // Keep deliberately new conversations blank; let newly paired devices restore their history.
+    historyInitialized.current = !options.allowInitialHistoryRestore;
     voice.current?.stop();
     voice.current = null;
     setVoiceListening(false);
@@ -419,6 +519,7 @@ export function Workspace() {
       setRuntimeConversationId(conversationId);
       activeRuntimeTask.current = result.task;
       await pollRuntime(transport, conversationId, Boolean(result.task || result.objective), pollGeneration);
+      if (runtimePollGeneration.current === pollGeneration) refreshSavedConversations();
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
@@ -494,6 +595,7 @@ export function Workspace() {
   }
 
   async function syncRuntimeMessages(transport: RuntimeRelay, conversationId: string, runtimeMessages: RuntimeMessage[], tasks: RuntimeTask[]) {
+    const generation = runtimePollGeneration.current;
     const additions: WorkspaceMessage[] = [];
     const taskById = new Map(tasks.map((task) => [task.id, task]));
     for (const message of runtimeMessages) {
@@ -502,12 +604,14 @@ export function Workspace() {
         continue;
       }
       const content = message.contentReference ? await transport.messageContent(message, conversationId) : message.content ?? "";
+      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
       if (!content) continue;
       renderedRuntimeMessages.current.add(message.id);
       const sourceTask = message.taskId ? taskById.get(message.taskId) : undefined;
       const instantLocal = sourceTask?.capability === "assistant.calculate";
       additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content, ...(instantLocal ? { instantLocal: true } : {}) });
     }
+    if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
     if (additions.length > 0) setMessages((current) => [...current, ...additions]);
     return additions.length > 0;
   }
@@ -516,6 +620,8 @@ export function Workspace() {
     if (!pairingOffer.trim() || relayState === "pairing") return;
     const transport = new RuntimeRelay();
     setRelayState("pairing");
+    resetConversation();
+    setSavedConversations([]);
     setRuntimeError(null);
     try {
       await relay.current?.revoke();
@@ -528,7 +634,7 @@ export function Workspace() {
       setRuntimeCapabilities(capabilities);
       setPairingOffer("");
       setRelayState("connected");
-      resetConversation();
+      resetConversation({ allowInitialHistoryRestore: true });
     } catch (caught) {
       await transport.revoke();
       setRelayState("error");
@@ -543,6 +649,7 @@ export function Workspace() {
     setRelayState("unpaired");
     setRuntimeCapabilities([]);
     resetConversation();
+    setSavedConversations([]);
     await transport?.revoke();
   }
 
@@ -559,7 +666,12 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}>
+    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}
+      conversations={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind) ? savedConversations : undefined}
+      activeConversationId={runtimeConversationId}
+      onOpenConversation={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind)
+        ? (id) => { void openSavedConversation(id); } : undefined}
+      onRefreshConversations={coreReady ? refreshSavedConversations : undefined}>
       {view === "chat" && (
         <ChatView
           capabilityObservation={capabilityObservation} onRefreshCapabilities={() => refreshCapabilities.current?.()} relay={pairedRelay}

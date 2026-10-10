@@ -315,6 +315,31 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       return json(status, status.error ? 503 : 200);
     }
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
+    if (input?.type === "conversations") {
+      if (Object.keys(payload).length !== 0) return json({ error: "conversation-list-request-invalid" }, 400);
+      return json({ conversations: this.storage.listConversations(ownerHash).map(({ id, createdAt, updatedAt }) => ({ id, createdAt, updatedAt })) });
+    }
+    if (input?.type === "conversation-history") {
+      if (Object.keys(payload).length !== 1 || !boundedId(payload.conversationId)) return json({ error: "conversation-history-request-invalid" }, 400);
+      const conversationId = payload.conversationId;
+      const conversation = this.storage.getConversation(conversationId);
+      if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
+      const turns = this.storage.listRecentSuccessfulTurns(conversationId);
+      const messages: Array<{ id: string; role: "user" | "assistant"; text: string }> = [];
+      try {
+        for (const turn of turns) {
+          const user = this.storage.getContentRecord(turn.contentIdUser);
+          const assistant = this.storage.getContentRecord(turn.contentIdAssistant!);
+          if (!user || !assistant || user.conversationId !== conversationId || assistant.conversationId !== conversationId || user.role !== "user" || assistant.role !== "assistant") return json({ error: "conversation-history-unavailable" }, 503);
+          const [userText, assistantText] = await Promise.all([
+            decryptConversationContent(user, this.env.CONTENT_VAULT_KEY),
+            decryptConversationContent(assistant, this.env.CONTENT_VAULT_KEY),
+          ]);
+          messages.push({ id: user.contentId, role: "user", text: userText }, { id: assistant.contentId, role: "assistant", text: assistantText });
+        }
+      } catch { return json({ error: "conversation-history-unavailable" }, 503); }
+      return json({ conversationId, messages });
+    }
     if (input?.type === "interaction-truth") {
       if (Object.keys(payload).length !== 1 || typeof payload.interactionId !== "string" || !/^interaction-[a-f0-9]{32}$/.test(payload.interactionId)) return json({ error: "interaction-truth-request-invalid" }, 400);
       const truth = this.storage.getInteractionRuntimeTruth(payload.interactionId);

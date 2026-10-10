@@ -6,8 +6,17 @@ import { evaluateTransferGeneralization } from './transfer-generalization.mjs';
 import { runCognitiveLoop } from './cognitive-loop.mjs';
 import { promoteVerifiedCognitiveLearning } from './cognitive-learning-bridge.mjs';
 
-export async function executeCognitiveCapability(capability, task = {}) {
+export async function executeCognitiveCapability(capability, task = {}, executionContext = {}) {
   const input = task.capabilityInput ?? task;
+  if (Object.hasOwn(input, 'grokbot') || Object.hasOwn(task, 'grokbot')) throw new TypeError('grokbot-host-context-required');
+  if (executionContext.grokbot !== undefined) {
+    const { executeGrokbotCollective } = await import('./grokbot-cognition.ts');
+    const { agentId, ...context } = executionContext.grokbot;
+    const collective = await executeGrokbotCollective([{ agentId, capability, input }], context, executionContext.options);
+    const child = collective.children[0];
+    const { result, ...grokbot } = child;
+    return empirical(task, input, { ...result, grokbot: { ...grokbot, collectiveFingerprint: collective.fingerprint, modelInvocations: 0 } });
+  }
   switch (capability) {
     case 'cognitive.health':
       return { verified: true, summary: 'Mahoraga cognitive core contracts are available.', cognitiveState: 'ready' };

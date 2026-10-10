@@ -56,6 +56,13 @@ GitLab is an independent assurance plane. It may verify runners, credentials, he
 
 Routine inspection, implementation, focused/full verification, PR creation, exact-head merge after required gates, branch cleanup, and exact-SHA cloud convergence may proceed under the owner's standing autonomy directive.
 
+Apply standing authorization to the whole routine development loop. Source uploads
+to the authorized repository, PR updates, deterministic child dispatch, verification,
+and reversible recovery do not require repeated owner confirmation. Resolve advisory
+workflow conflicts in favor of the more specific owner instruction. Missing evidence
+is a requirement to obtain evidence, not a reason to invent a new approval step.
+Keep working on independent authorized tasks when a real gate remains.
+
 Stop rather than infer authority for: credential/authentication-boundary changes, destructive operations, security-boundary weakening, unapproved spend, protected-check bypass, or irreversible owner-sovereignty changes. Existing platform safety rules remain local to the action and are not permission to rewrite the architecture.
 
 ## Completion language

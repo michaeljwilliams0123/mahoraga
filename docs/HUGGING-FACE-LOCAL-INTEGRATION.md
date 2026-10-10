@@ -17,6 +17,16 @@ The model search uses public `GET https://huggingface.co/api/models` with a boun
 
 ## Verified admission boundary
 
+`inspectHuggingFaceRevision(repoId, revision)` is a read-only preflight for a
+specific public Hub repository and full 40-character revision SHA. It uses the
+Hub revision metadata endpoint with no credentials, redirects, artifact
+downloads, or hosted inference, and rejects a response unless its repository
+and returned revision match the request exactly. Its result deliberately says
+`artifactVerified:false` and `requires-independent-inspection`: this only
+establishes that the Hub currently reports the named immutable revision; it
+does not verify weights, a license, a model card, an admission record, or live
+execution.
+
 `evaluateHuggingFaceAdmission` requires all of the following **simultaneously**:
 
 - Public, non-gated model candidate with a full 40-character immutable Hub SHA;
