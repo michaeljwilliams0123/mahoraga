@@ -25,6 +25,9 @@ test('held-out deliberation traverses supervisor/router and persists empirical r
  assert.equal(receipt.receipt.details.providerEvidence.sourceCommit,SHA);
  assert.equal(receipt.receipt.details.providerEvidence.challengeId,'issue-536-minority-rescue');
  assert.equal(receipt.receipt.details.providerEvidence.routeWorker,'cognitive-core');
+ assert.ok(receipt.receipt.details.outputEvidence.grokbot.threadId > 0);
+ assert.equal(receipt.receipt.details.outputEvidence.grokbot.parentAgentId,'cognitive-core');
+ assert.equal(receipt.receipt.details.outputEvidence.grokbot.modelInvocations,0);
  assert.match(receipt.receipt.details.providerEvidence.inputsSha256,/^[a-f0-9]{64}$/);
  assert.equal(receipt.receipt.details.outputEvidence.deliberation.decision,'hold');
  assert.equal(receipt.receipt.details.outputEvidence.deliberation.materialDissent.length>0,true);
