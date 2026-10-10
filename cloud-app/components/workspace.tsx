@@ -165,12 +165,19 @@ export function Workspace() {
     let active = true;
     const unsubscribe = transport.onDisconnected(() => {
       if (!active) return;
+      // Drop all owner-scoped browser state immediately when the session is lost.
+      resetConversation();
+      setSavedConversations([]);
+      setPairedRelay(null);
       setRelayState("unpaired");
       setRuntimeCapabilities([]);
       const ownerRequired = transport.sessionDiagnostic?.code === "cloud-owner-auth-required";
       setOwnerLoginRequired(ownerRequired);
       setRuntimeError(runtimeErrorMessage(ownerRequired ? "cloud-owner-auth-required" : "relay-disconnected"));
     });
+    // A resumed transport may belong to a different owner: never reuse prior UI history.
+    resetConversation({ allowInitialHistoryRestore: true });
+    setSavedConversations([]);
     setRelayState("resuming");
     setRuntimeCapabilities([]);
     setRuntimeError(null);
@@ -257,7 +264,7 @@ export function Workspace() {
     const epoch = ++historyEpoch.current;
     const pollGeneration = runtimePollGeneration.current;
     void pairedRelay.conversations().then((conversations) => {
-      if (!active || historyEpoch.current !== epoch) return;
+      if (!active || historyEpoch.current !== epoch || relay.current !== pairedRelay || !pairedRelay.connected) return;
       setSavedConversations(conversations);
       if (!historyInitialized.current) {
         if (!conversations.length) historyInitialized.current = true;
@@ -317,7 +324,7 @@ export function Workspace() {
     if (!transport?.connected) return;
     const generation = runtimePollGeneration.current;
     void transport.conversations().then((conversations) => {
-      if (relay.current !== transport) return;
+      if (relay.current !== transport || !transport.connected) return;
       setSavedConversations(conversations);
       if (!historyInitialized.current && conversations[0] && generation === runtimePollGeneration.current) {
         void openSavedConversation(conversations[0].id, transport);
@@ -329,6 +336,8 @@ export function Workspace() {
     if (runtimeBusy || ownerLoginBusy || relayState === "resuming" || relayState === "pairing") return;
     relay.current?.disconnect();
     relay.current = null;
+    resetConversation({ allowInitialHistoryRestore: true });
+    setSavedConversations([]);
     setPairedRelay(null);
     setOwnerLoginRequired(false);
     setConnectionAttempt(attempt => attempt + 1);
@@ -343,6 +352,8 @@ export function Workspace() {
       if (!transport) throw new Error("cloud-session-unavailable");
       await transport.loginOwnerPin(ownerLoginPin);
       const capabilities = transport.transportKind === "pages-owner-bridge" ? [] : await transport.capabilities();
+      resetConversation({ allowInitialHistoryRestore: true });
+      setSavedConversations([]);
       setPairedRelay(transport);
       setRuntimeCapabilities(capabilities);
       setRelayState("connected");
@@ -358,6 +369,8 @@ export function Workspace() {
   function resetConversation(options: { allowInitialHistoryRestore?: boolean } = {}) {
     runtimePollGeneration.current += 1;
     historyEpoch.current += 1;
+    runtimeBusyRef.current = false;
+    setRuntimeBusy(false);
     // Keep deliberately new conversations blank; let newly paired devices restore their history.
     historyInitialized.current = !options.allowInitialHistoryRestore;
     voice.current?.stop();
@@ -580,6 +593,7 @@ export function Workspace() {
   }
 
   async function syncRuntimeMessages(transport: RuntimeRelay, conversationId: string, runtimeMessages: RuntimeMessage[], tasks: RuntimeTask[]) {
+    const generation = runtimePollGeneration.current;
     const additions: WorkspaceMessage[] = [];
     const taskById = new Map(tasks.map((task) => [task.id, task]));
     for (const message of runtimeMessages) {
@@ -588,12 +602,14 @@ export function Workspace() {
         continue;
       }
       const content = message.contentReference ? await transport.messageContent(message, conversationId) : message.content ?? "";
+      if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
       if (!content) continue;
       renderedRuntimeMessages.current.add(message.id);
       const sourceTask = message.taskId ? taskById.get(message.taskId) : undefined;
       const instantLocal = sourceTask?.capability === "assistant.calculate";
       additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content, ...(instantLocal ? { instantLocal: true } : {}) });
     }
+    if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
     if (additions.length > 0) setMessages((current) => [...current, ...additions]);
     return additions.length > 0;
   }
@@ -602,6 +618,8 @@ export function Workspace() {
     if (!pairingOffer.trim() || relayState === "pairing") return;
     const transport = new RuntimeRelay();
     setRelayState("pairing");
+    resetConversation();
+    setSavedConversations([]);
     setRuntimeError(null);
     try {
       await relay.current?.revoke();
@@ -629,6 +647,7 @@ export function Workspace() {
     setRelayState("unpaired");
     setRuntimeCapabilities([]);
     resetConversation();
+    setSavedConversations([]);
     await transport?.revoke();
   }
 

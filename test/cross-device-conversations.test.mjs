@@ -78,3 +78,25 @@ test("failed or busy initial history load remains recoverable without background
   assert.match(ui, /window\.removeEventListener\("focus", retryOnFocus\)/);
   assert.doesNotMatch(ui, /setInterval\(.*history/);
 });
+
+
+test("authentication loss and owner changes clear cached history before restoration", () => {
+  const ui = read("cloud-app/components/workspace.tsx");
+  const disconnected = ui.slice(ui.indexOf("const unsubscribe = transport.onDisconnected("), ui.indexOf('setRelayState("resuming");'));
+  assert.match(disconnected, /resetConversation\(\);\s*setSavedConversations\(\[\]\);\s*setPairedRelay\(null\)/);
+  assert.match(disconnected, /resetConversation\(\{ allowInitialHistoryRestore: true \}\);\s*setSavedConversations\(\[\]\)/);
+  const ownerLogin = ui.slice(ui.indexOf("async function loginDirectOwner()"), ui.indexOf("function resetConversation("));
+  assert.match(ownerLogin, /resetConversation\(\{ allowInitialHistoryRestore: true \}\);\s*setSavedConversations\(\[\]\)/);
+  assert.match(ui, /relay\.current !== pairedRelay \|\| !pairedRelay\.connected/);
+  assert.match(ui, /relay\.current !== transport \|\| !transport\.connected/);
+});
+
+test("late history or message content cannot repaint the UI after session invalidation", () => {
+  const ui = read("cloud-app/components/workspace.tsx");
+  const sync = ui.slice(ui.indexOf("async function syncRuntimeMessages("), ui.indexOf("async function pairRuntime()"));
+  assert.match(sync, /const generation = runtimePollGeneration\.current/);
+  assert.match(sync, /runtimePollGeneration\.current !== generation \|\| relay\.current !== transport \|\| !transport\.connected/);
+  const reset = ui.slice(ui.indexOf("function resetConversation("), ui.indexOf("function appendMessage("));
+  assert.match(reset, /runtimePollGeneration\.current \+= 1/);
+  assert.match(reset, /runtimeBusyRef\.current = false;\s*setRuntimeBusy\(false\)/);
+});
