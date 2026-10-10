@@ -122,6 +122,16 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(card, /https?:\/\/|127\.0\.0\.1|localhost/i);
     assert.doesNotMatch(card, /\bfetch\s*\(/);
   });
+
+  it("surfaces cognitive admission provenance observational status for fixtures only", () => {
+    assert.match(cockpit, /Cognitive admission provenance/);
+    assert.match(cockpit, /Observational \/ fixtures only/);
+    assert.match(cockpit, /expectedSourceCommit provenance \(40-hex SHA, state 'current'\)/);
+    assert.match(cockpit, /Production remains fail-closed/);
+    assert.match(cockpit, /does not grant traffic authority or change production admission logic/);
+    assert.match(cockpit, /Product remains Mahoraga; 7\.0\.0-alpha\.2 is build provenance only/);
+    assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
 });
 
 describe("unified Cloudflare static UI provenance is not runtime authority", () => {
