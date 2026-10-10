@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createExecutionBroker } from "../deploy/cloudflare-execution-broker/worker.ts";
+import { createExecutionBroker, type BrokerEnv } from "../deploy/cloudflare-execution-broker/worker.ts";
 
 const NOW = Date.parse("2026-10-10T18:00:00Z");
 const capability = () => ({
@@ -13,12 +13,12 @@ const capability = () => ({
     authorityScopes: ["cloud:read"],
   }],
 });
-const inspect = async (env) => {
+const inspect = async (env: BrokerEnv) => {
   const response = await createExecutionBroker(env, () => NOW).fetch(new Request("https://private-broker/api/capabilities"));
   assert.equal(response.status, 200);
   return response.json();
 };
-const bound = (reply) => ({ fetch: async () => Response.json(reply) });
+const bound = (reply: unknown) => ({ fetch: async () => Response.json(reply) });
 
 test("unbound broker reports no providers without implying any routable capability", async () => {
   const reply = await inspect({});
@@ -46,6 +46,47 @@ test("accepted but unhealthy provider cannot be shown as admitted", async () => 
   assert.deepEqual(reply.providerReadiness, {
     state: "unavailable", reasonCode: "provider-capability-unhealthy",
     boundProviders: ["CLOUD_PROVIDER"], acceptedAttestations: 1, routableCapabilities: 0,
+  });
+});
+
+test("legacy compatibility broker alone is not an executable provider binding", async () => {
+  const reply = await inspect({ CONNECTOR_CAPABILITY_BROKER: bound({
+    schemaVersion: 1, kind: "connector-capability-attestation",
+    observedAt: new Date(NOW - 1_000).toISOString(), expiresAt: new Date(NOW + 30_000).toISOString(),
+    grants: [{ capability: "cloud.inspect", provider: "cloudflare", permissionClass: "read",
+      zeroCreditEligible: true, healthy: true }],
+  }) });
+  assert.deepEqual(reply.routes, []);
+  assert.deepEqual(reply.providerReadiness, {
+    state: "unbound", reasonCode: "no-provider-service-bindings",
+    boundProviders: [], acceptedAttestations: 0, routableCapabilities: 0,
+  });
+});
+
+test("duplicate worker attestations cannot imply an eligible executable route", async () => {
+  const reply = await inspect({ CLOUD_PROVIDER: bound({ attestations: [capability(), capability()] }) });
+  assert.deepEqual(reply.routes, []);
+  assert.deepEqual(reply.providerReadiness, {
+    state: "unavailable", reasonCode: "provider-identity-ambiguous",
+    boundProviders: ["CLOUD_PROVIDER"], acceptedAttestations: 2, routableCapabilities: 0,
+  });
+});
+
+test("adapted legacy attestations exceeding universal freshness limit are not counted", async () => {
+  const reply = await inspect({
+    CLOUD_PROVIDER: bound({ attestations: [] }),
+    CONNECTOR_CAPABILITY_BROKER: bound({
+      schemaVersion: 1, kind: "connector-capability-attestation",
+      observedAt: new Date(NOW - 1_000).toISOString(),
+      expiresAt: new Date(NOW + 10 * 60_000).toISOString(),
+      grants: [{ capability: "cloud.inspect", provider: "cloudflare", permissionClass: "read",
+        zeroCreditEligible: true, healthy: true }],
+    }),
+  });
+  assert.deepEqual(reply.routes, []);
+  assert.deepEqual(reply.providerReadiness, {
+    state: "unverified", reasonCode: "provider-proof-unavailable",
+    boundProviders: ["CLOUD_PROVIDER"], acceptedAttestations: 0, routableCapabilities: 0,
   });
 });
 

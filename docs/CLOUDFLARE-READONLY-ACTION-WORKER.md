@@ -27,7 +27,7 @@ The private broker's `GET /api/capabilities` includes a bounded `providerReadine
 
 - `unbound` / `no-provider-service-bindings`: no provider service bindings are configured on the deployed broker. First inspect the live Worker settings, not only the checked-in opt-in Wrangler configuration.
 - `unverified` / `provider-proof-unavailable`: at least one provider is bound, but no valid, unexpired attestation was accepted. Check the independent read-only token, permissions, upstream proof, and deployment.
-- `unavailable` / `provider-capability-unhealthy`: valid attestation exists, but no healthy capability is routable.
+- `unavailable` / `provider-capability-unhealthy`: valid attestation exists, but no healthy capability is routable. `provider-identity-ambiguous` instead identifies duplicate worker attestations that fail route-selection uniqueness.
 - `admitted`: one or more routable capabilities passed the existing broker attestation rules. This is not proof of owner execution permission or a successful actual action.
 
 The counts, symbolic binding names, and reason codes are intentionally non-secret. This diagnostic is an internal broker observation, **not** an authentication bypass, runtime health guarantee, canary substitute, model-admission signal, or new authority decision. Missing secret/disabled opt-in must never become a synthetic or paid fallback.
