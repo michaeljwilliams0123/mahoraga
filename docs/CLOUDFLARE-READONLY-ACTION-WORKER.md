@@ -20,3 +20,14 @@ First executable broker provider for the canonical Owner Gateway. It is **not** 
 
 ## Safe-by-default release behavior
 The ordinary broker configuration remains `deploy/cloudflare-execution-broker/wrangler.jsonc` with **no** external providers. The opt-in file `wrangler.readonly-provider.jsonc` binds only the new private Worker. No existing native GitHub App secret is copied or redistributed. This is one initial **read-only** live action, not unrestricted action authority.
+
+## Broker binding diagnostics (read-only, internal)
+
+The private broker's `GET /api/capabilities` includes a bounded `providerReadiness` summary in addition to its unchanged `routes` array. It never advertises a capability unless a valid, healthy attestation is admitted.
+
+- `unbound` / `no-provider-service-bindings`: no provider service bindings are configured on the deployed broker. First inspect the live Worker settings, not only the checked-in opt-in Wrangler configuration.
+- `unverified` / `provider-proof-unavailable`: at least one provider is bound, but no valid, unexpired attestation was accepted. Check the independent read-only token, permissions, upstream proof, and deployment.
+- `unavailable` / `provider-capability-unhealthy`: valid attestation exists, but no healthy capability is routable.
+- `admitted`: one or more routable capabilities passed the existing broker attestation rules. This is not proof of owner execution permission or a successful actual action.
+
+The counts, symbolic binding names, and reason codes are intentionally non-secret. This diagnostic is an internal broker observation, **not** an authentication bypass, runtime health guarantee, canary substitute, model-admission signal, or new authority decision. Missing secret/disabled opt-in must never become a synthetic or paid fallback.

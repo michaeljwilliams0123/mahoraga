@@ -133,7 +133,22 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
       if (url.pathname === "/api/capabilities") {
         if (request.method !== "GET") return json({ error:"method-not-allowed" }, 405);
         const attestations = await collectAttestations(env, now);
-        return json({ schemaVersion:1, kind:"universal-capability-pool", observedAt:new Date(now).toISOString(), routes:projectRoutes(attestations, now) });
+        const routes = projectRoutes(attestations, now);
+        const boundProviders: string[] = BINDINGS.filter((name) => typeof env[name]?.fetch === "function");
+        if (typeof env.CONNECTOR_CAPABILITY_BROKER?.fetch === "function") boundProviders.push("CONNECTOR_CAPABILITY_BROKER");
+        const state = routes.length > 0 ? "admitted" : boundProviders.length === 0 ? "unbound"
+          : attestations.length === 0 ? "unverified" : "unavailable";
+        const providerReadiness = {
+          state,
+          reasonCode: state === "unbound" ? "no-provider-service-bindings"
+            : state === "unverified" ? "provider-proof-unavailable"
+            : state === "unavailable" ? "provider-capability-unhealthy" : null,
+          boundProviders,
+          acceptedAttestations: attestations.length,
+          routableCapabilities: routes.length,
+        };
+        return json({ schemaVersion:1, kind:"universal-capability-pool",
+          observedAt:new Date(now).toISOString(), routes, providerReadiness });
       }
       if (url.pathname === "/api/route") {
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
