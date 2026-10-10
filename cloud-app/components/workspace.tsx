@@ -323,8 +323,10 @@ export function Workspace() {
     const transport = pairedRelay;
     if (!transport?.connected) return;
     const generation = runtimePollGeneration.current;
+    const epoch = historyEpoch.current;
     void transport.conversations().then((conversations) => {
-      if (relay.current !== transport || !transport.connected) return;
+      // Pairing/auth changes can reuse a transport; reject responses from the old owner epoch.
+      if (historyEpoch.current !== epoch || runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return;
       setSavedConversations(conversations);
       if (!historyInitialized.current && conversations[0] && generation === runtimePollGeneration.current) {
         void openSavedConversation(conversations[0].id, transport);
