@@ -21,6 +21,7 @@ import { PredictionLearningPanel } from "./PredictionLearningPanel";
 import { LocalChatSidebar } from "./LocalChatSidebar";
 import { InteractionTruthCards } from "./InteractionTruthCards";
 import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
+import { CognitiveProvenanceAdmissionCard } from "./CognitiveProvenanceAdmissionCard";
 import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
 import { BrokerLeaseCards } from "./BrokerLeaseCards";
 import { TelemetrySparkline } from "./TelemetrySparkline";
@@ -241,6 +242,7 @@ export function CommandCockpit({
         <section className="eclipse-status-grid" aria-label="Observed interaction and delivery truth">
           <InteractionTruthCards truth={interactionTruth} />
           <TransformationProvenanceCards />
+          <CognitiveProvenanceAdmissionCard />
           <BrokerLeaseCards />
           <ExecutionBrokerCard />
         </section>
@@ -421,3 +423,4 @@ export function CommandCockpit({
     </div>
   );
 }
+
