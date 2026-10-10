@@ -27,6 +27,16 @@ establishes that the Hub currently reports the named immutable revision; it
 does not verify weights, a license, a model card, an admission record, or live
 execution.
 
+`inspectHuggingFaceArtifactMetadata(repoId, revision, artifactPath)` adds one
+more read-only preflight for an already pinned public revision. It queries the
+Hub tree metadata and accepts only one safe `.safetensors` or `.gguf` file with
+a matching positive byte count and a 64-character Hub LFS object ID. It does
+not download the file or locally recompute that hash: its result intentionally
+keeps `artifactVerified:false`, `artifactDownloaded:false`, and
+`requires-independent-inspection`. The descriptor is useful input to a later
+independent download, hash, static scan, runtime binding, and admission review;
+it cannot replace any of those steps.
+
 `evaluateHuggingFaceAdmission` requires all of the following **simultaneously**:
 
 - Public, non-gated model candidate with a full 40-character immutable Hub SHA;
