@@ -56,6 +56,13 @@ function boundedCapability(value) {
   if (!value.routable && routingReason === null) return null;
   return {
     capability:value.capability, routable:value.routable, enabled:value.enabled, provider:value.provider, workerIds,
+    // Inspection visibility is a sanitized hint; the broker still authorizes every action.
+    ...(value.capability === "cloud.inspect" ? {
+      workerId: value.workerId === "cloudflare-readonly-inspector" && workerIds.includes(value.workerId) ? value.workerId : null,
+      lastObservedAt: typeof value.lastObservedAt === "string" && Number.isFinite(Date.parse(value.lastObservedAt))
+        && Date.parse(value.lastObservedAt) >= Date.now() - 30_000
+        && Date.parse(value.lastObservedAt) <= Date.now() + 5_000 ? value.lastObservedAt : null,
+    } : {}),
     ...(deterministic ? { costClass:"deterministic" } : execution ? { costClass:value.costClass, permissionClass:value.permissionClass } : {}),
     routingReason, providerReasonCode,
     evidenceLevel: deterministic || execution ? "runtime-execution" : "runtime-probe",
