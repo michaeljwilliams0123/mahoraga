@@ -42,6 +42,13 @@ button, textarea, input { font: inherit; } button, a { -webkit-tap-highlight-col
 .side-nav button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 11px; border: 0; border-radius: 12px; background: transparent; color: #70716e; cursor: pointer; text-align: left; font-size: 12px; transition: background .16s ease, color .16s ease, transform .16s ease; }
 .side-nav button:hover { background: rgba(255,255,255,.68); color: #222; transform: translateX(1px); }
 .side-nav button.active { background: #fff; color: #151515; box-shadow: 0 8px 24px rgba(0,0,0,.05), inset 0 0 0 1px rgba(0,0,0,.05); }
+.saved-conversation-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; min-height: 0; max-height: min(30vh, 240px); overflow-y: auto; }
+.saved-conversation-heading { display: flex; justify-content: space-between; align-items: center; color: #777875; padding: 3px 8px; font-size: 10px; }
+.saved-conversation-heading button { border: 0; background: transparent; text-decoration: underline; font: inherit; color: inherit; cursor: pointer; }
+.saved-conversation-empty { color: #777875; font-size: 11px; padding: 6px 8px; }
+.saved-conversation { border: 0; border-radius: 10px; padding: 10px 9px; background: transparent; text-align: left; font-size: 11px; cursor: pointer; color: #555; }
+.saved-conversation:hover, .saved-conversation.active { background: #fff; color: #151515; }
+.saved-conversation:disabled { opacity: .55; cursor: wait; }
 .sidebar-spacer { flex: 1; }
 .brain-card { display: grid; grid-template-columns: 34px 1fr; gap: 9px; align-items: center; padding: 11px; margin-bottom: 8px; border: 1px solid var(--border); border-radius: 15px; background: rgba(255,255,255,.58); }
 .brain-card strong, .brain-card span { display: block; } .brain-card strong { font-size: 11px; } .brain-card > div > span { color: #878884; font-size: 9px; margin-top: 2px; line-height: 1.35; }

@@ -56,6 +56,13 @@ function boundedCapability(value) {
   if (!value.routable && routingReason === null) return null;
   return {
     capability:value.capability, routable:value.routable, enabled:value.enabled, provider:value.provider, workerIds,
+    // Inspection visibility is a sanitized hint; the broker still authorizes every action.
+    ...(value.capability === "cloud.inspect" ? {
+      workerId: value.workerId === "cloudflare-readonly-inspector" && workerIds.includes(value.workerId) ? value.workerId : null,
+      lastObservedAt: typeof value.lastObservedAt === "string" && Number.isFinite(Date.parse(value.lastObservedAt))
+        && Date.parse(value.lastObservedAt) >= Date.now() - 30_000
+        && Date.parse(value.lastObservedAt) <= Date.now() + 5_000 ? value.lastObservedAt : null,
+    } : {}),
     ...(deterministic ? { costClass:"deterministic" } : execution ? { costClass:value.costClass, permissionClass:value.permissionClass } : {}),
     routingReason, providerReasonCode,
     evidenceLevel: deterministic || execution ? "runtime-execution" : "runtime-probe",
@@ -150,7 +157,7 @@ async function lazyAdmissionRenewal(env) {
   try { return await admissionRenewer.renewIfDue(env, "lazy"); } catch { return null; }
 }
 
-const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "execute", "interaction-truth", "internal-activity", "internal-activity-control", "memory-search", "native-github-workspace", "native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]);
+const NATIVE_ACTIONS = new Set(["chat", "tasks", "messages", "message-content", "conversations", "conversation-history", "execute", "interaction-truth", "internal-activity", "internal-activity-control", "memory-search", "native-github-workspace", "native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]);
 async function nativeRuntimeAction(type, payload, env, owner) {
   const binding = env?.MAHORAGA_EXECUTION_RUNTIME;
   if (!binding || typeof binding.fetch !== "function") return json({ error: "cloud-native-capability-unavailable" }, 503);

@@ -12,6 +12,10 @@ export function WorkspaceShell({
   runtimeConnected = coreReady,
   backgroundLabel = "Background unverified",
   onNewConversation,
+  conversations = [],
+  activeConversationId = null,
+  onOpenConversation,
+  onRefreshConversations,
   children,
 }: WorkspaceShellProps) {
   return (
@@ -37,6 +41,22 @@ export function WorkspaceShell({
         </button>
 
         <WorkspaceNav view={view} setView={setView} onNavigate={() => setSidebarOpen(false)} />
+        {onOpenConversation && (
+          <section className="saved-conversation-list" aria-label="Saved conversations">
+            <div className="saved-conversation-heading">
+              <span>Recent conversations</span>
+              <button type="button" disabled={busy} onClick={onRefreshConversations} aria-label="Refresh saved conversations">Refresh</button>
+            </div>
+            {conversations.length === 0 && <span className="saved-conversation-empty">No saved conversations yet</span>}
+            {conversations.map((conversation) => (
+              <button type="button" key={conversation.id} className={conversation.id === activeConversationId ? "saved-conversation active" : "saved-conversation"}
+                disabled={busy} title={new Date(conversation.updatedAt).toLocaleString()} aria-current={conversation.id === activeConversationId ? "page" : undefined}
+                onClick={() => { onOpenConversation(conversation.id); setView("chat"); setSidebarOpen(false); }}>
+                {new Date(conversation.updatedAt).toLocaleString()}
+              </button>
+            ))}
+          </section>
+        )}
         <div className="sidebar-spacer" />
 
         <div className={coreReady ? "brain-card ready" : "brain-card"}>
