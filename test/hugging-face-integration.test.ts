@@ -55,6 +55,7 @@ test("public catalog requests are GET-only, bounded, unauthenticated, and never 
       assert.equal(target.pathname, "/api/models");
       assert.equal(target.searchParams.get("search"), "qwen");
       assert.equal(target.searchParams.get("sort"), "downloads");
+      assert.equal(target.searchParams.get("full"), "true");
       assert.equal(target.searchParams.get("limit"), "2");
       assert.equal(init?.method, "GET");
       assert.equal(init?.credentials, "omit");

@@ -101,7 +101,11 @@ export async function discoverHuggingFace(
   const url = new URL(kind === "models" ? "/api/models" : "/api/papers/search", HUB);
   url.searchParams.set(kind === "models" ? "search" : "q", term);
   url.searchParams.set("limit", String(limit));
-  if (kind === "models") url.searchParams.set("sort", "downloads");
+  if (kind === "models") {
+    url.searchParams.set("sort", "downloads");
+    // Immutable candidates require the full public model metadata, including sha.
+    url.searchParams.set("full", "true");
+  }
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
