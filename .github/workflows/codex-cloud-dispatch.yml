@@ -1,11 +1,17 @@
 name: Dispatch Codex Cloud tasks
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - coordination/cloud-tasks/*.json
+  # Owner-only manual stage. Never create activation PRs on push/schedule.
   workflow_dispatch:
+    inputs:
+      task_id:
+        description: Exact staged task ID; process only one objective
+        required: true
+        type: string
+      owner_authorization:
+        description: Enter AUTHORIZE_ONE_STAGING_RUN
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -18,6 +24,7 @@ concurrency:
 
 jobs:
   dispatch:
+    if: github.actor == 'michaeljwilliams0123' && inputs.owner_authorization == 'AUTHORIZE_ONE_STAGING_RUN'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -37,6 +44,11 @@ jobs:
             }
             const bundle = JSON.parse(output.stdout);
             const { owner, repo } = context.repo;
+            const taskId = context.payload.inputs?.task_id;
+            if (!/^[a-zA-Z0-9_-]{3,120}$/.test(taskId ?? "")) throw new Error("owner-task-id-invalid");
+            const selected = bundle.tasks.filter(task => task.taskId === taskId);
+            if (selected.length !== 1) throw new Error("owner-task-selection-not-exactly-one");
+            const openPrs = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
             const requiredLabels = [
               { name: "codex:queued", color: "1d76db", description: "Validated task staged for a Primary-authored PR comment" },
               { name: "privacy:repo-only", color: "5319e7", description: "Repository-only context; no chats or credentials" },
@@ -60,7 +72,7 @@ jobs:
               state: "all",
               per_page: 100,
             });
-            for (const task of bundle.tasks) {
+            for (const task of selected) {
               const taskMarker = `task-id=${task.taskId}`;
               const idempotencyMarker = `idempotency-key=${task.idempotencyKey}`;
               let issue = existingIssues.find((issue) =>
@@ -86,6 +98,15 @@ jobs:
                 continue;
               }
 
+              const sameObjective = openPrs.filter(pr =>
+                pr.body?.includes(`idempotency-key=${task.idempotencyKey}`)
+                || pr.body?.includes(`Objective-ID: codex-${task.taskId}`)
+                || (pr.title === task.issue.title && !pr.head.ref.startsWith("codex-dispatch/"))
+              );
+              if (sameObjective.length) {
+                core.notice(`Reuse existing PR #${sameObjective[0].number}; no duplicate activation PR created.`);
+                continue;
+              }
               const branch = `codex-dispatch/${task.taskId}`;
               if (!/^[a-f0-9]{40}$/.test(context.sha)) throw new Error("dispatch-head-invalid");
               try {
@@ -145,6 +166,13 @@ jobs:
                 });
               }
 
+              // Re-read immediately before creation: multiple workflows or humans may update capacity.
+              const latestOpen = await github.paginate(github.rest.pulls.list, { owner, repo, state: "open", per_page: 100 });
+              if (latestOpen.filter(pr => pr.draft).length >= 3)
+                throw new Error("draft-cap-reached-reuse-existing-pr");
+              if (latestOpen.some(pr => pr.body?.includes(`Objective-ID: codex-${task.taskId}`)
+                || pr.body?.includes(`idempotency-key=${task.idempotencyKey}`)))
+                throw new Error("objective-already-open-reuse-existing-pr");
               const pull = (await github.rest.pulls.create({
                 owner,
                 repo,
@@ -154,6 +182,8 @@ jobs:
                 draft: true,
                 body: [
                   `Deterministic activation for #${issue.number}. No model has been invoked.`,
+                  `Objective-ID: codex-${task.taskId}`,
+                  `idempotency-key=${task.idempotencyKey}`,
                   "",
                   `Activation pointer: \`${activationPath}\``,
                   "",

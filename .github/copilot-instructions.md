@@ -61,3 +61,10 @@ browser GitHub authority, direct provider selection, paid fallback, or automatic
 owner confirmation.
 
 Anchor every pasted file with its real path (`// File: cloud-app/app/page.tsx`).
+
+## PR intake governance (mandatory)
+
+- One objective maps to one open implementation PR. Search open PRs before creating a branch or task and reuse the existing PR/branch for repairs. Never create a second PR for a failing check on the original PR.
+- New PRs must include an explicit `Objective-ID: lowercase-slug` line in their description. Do not invent a new objective key to evade duplicate detection. Maximum three open draft PRs.
+- No autonomous Copilot/Codex invocation, review request, extra seat, paid inference, or PR staging is authorized by instructions alone. Explicit live owner action is required. The Codex activation workflow is manual and owner-scoped; no push-triggered staging.
+- The existing Ubuntu/Windows Verify intake step fails closed on duplicate Objective-ID, excess drafts, and Copilot-authored PR lanes. Checks do not physically prevent external GitHub agents from creating a PR. Disable external Copilot cloud agent at the account/repository policy layer for true pre-creation prevention.

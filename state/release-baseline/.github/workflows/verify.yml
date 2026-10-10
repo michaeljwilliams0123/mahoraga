@@ -48,6 +48,14 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Enforce PR objective and draft intake (read-only)
+        if: github.event_name == 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/pr-intake.mjs
+
       - name: Install root dependencies
         run: npm ci --ignore-scripts
 
