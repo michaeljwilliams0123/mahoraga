@@ -7,6 +7,15 @@ test("canonical objective keys are case-safe and anchored", () => {
   assert.equal(objectiveId("no objective"), null);
   assert.equal(objectiveId("Objective-ID: bad value"), null);
 });
+test("multiple or malformed Objective-ID declarations fail closed", () => {
+  assert.equal(objectiveId("Objective-ID: core-routing\nObjective-ID: core-learning"), null);
+  assert.equal(objectiveId("Objective-ID: core-routing\nObjective-ID: core-routing"), null);
+  assert.equal(objectiveId("Objective-ID: core-routing\nObjective-ID: bad value"), null);
+  assert.equal(objectiveId("Objective-ID: Core-Routing"), null);
+  assert.equal(objectiveId("objective-id: core-routing"), "core-routing");
+  const candidate = pr(1046, { body: "Objective-ID: core-routing\nObjective-ID: core-learning" });
+  assert.equal(evaluatePrIntake({ candidate, openPulls: [candidate] }).allowed, false);
+});
 test("existing PR is reused for same objective regardless of title", () => {
   const existing=pr(1037, {title:"feat: cognitive routing", body:"Objective-ID: grokbot-routing"});
   const candidate=pr(1048, {title:"fix: test runtime", body:"Objective-ID: grokbot-routing"});

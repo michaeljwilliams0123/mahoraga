@@ -14,7 +14,11 @@ export const OBJECTIVE_REQUIRED_FROM_PR = 1042;
 
 export function objectiveId(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const match = value.match(/^Objective-ID:\s*([a-z][a-z0-9._-]{3,79})\s*$/im);
+  // A single unambiguous lowercase objective is required. Never accept the
+  // first valid marker if a second conflicting or malformed marker follows.
+  const declarations = value.split(/\r?\n/).filter((line) => /^Objective-ID:/i.test(line));
+  if (declarations.length !== 1) return null;
+  const match = declarations[0].replace(/^Objective-ID:/i, "").match(/^[ \t]*([a-z][a-z0-9._-]{3,79})[ \t]*$/);
   return match?.[1] ?? null;
 }
 
