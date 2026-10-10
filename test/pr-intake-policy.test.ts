@@ -31,8 +31,8 @@ test("legacy PRs remain valid; new PRs require objective", () => {
   assert.equal(evaluatePrIntake({candidate:pr(1046,{body:"legacy"}),openPulls:[]}).reason,"objective-id-required");
 });
 test("malformed list and ambiguous observations fail closed", () => {
-  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:null}).allowed,false);
-  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[{number:1046}]}).allowed,false);
+  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:null as unknown as PullRequest[]}).allowed,false);
+  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[{number:1046} as PullRequest]}).allowed,false);
   assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[pr(1046),pr(1046)]}).allowed,true); // same PR number represents one open PR
 });
 test("different objectives and titles remain independent", () => {
