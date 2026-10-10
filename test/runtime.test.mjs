@@ -299,7 +299,12 @@ test("completed worker receipts return to the chat conversation", async (t) => {
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
   }, 30_000);
   const messages = await (await fetch(`${base}/api/conversations/${conversation.conversation.id}/messages`, { headers: AUTH })).json();
-  assert.equal(messages.messages.some((item) => item.role === "assistant" && /runtime is responsive/.test(item.content)), true);
+  const assistant = messages.messages.find((item) => item.role === "assistant");
+  assert.ok(assistant, "completed task must append an assistant message");
+  assert.ok(assistant.contentReference, "API exposes a content reference, not plaintext");
+  assert.equal(assistant.content, null, "API must not leak vaulted message content");
+  const hydrated = runtime.database.listConversationMessagesForExecution(conversation.conversation.id);
+  assert.match(hydrated.find((item) => item.id === assistant.id)?.content ?? "", /runtime is responsive/);
 });
 
 async function waitFor(predicate, timeoutMs = 10_000) {
