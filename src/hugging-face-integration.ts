@@ -26,6 +26,16 @@ export type HuggingFacePaper = { id: string; title: string; publishedAt: string 
 export type DiscoveryResult =
   | { kind: "models"; candidates: HuggingFaceCandidate[]; count: number; readOnly: true; inferencePerformed: false; creditCost: 0 }
   | { kind: "papers"; papers: HuggingFacePaper[]; count: number; readOnly: true; inferencePerformed: false; creditCost: 0 };
+export type HuggingFaceRevisionInspection = {
+  repoId: string;
+  revision: string;
+  revisionVerified: true;
+  readOnly: true;
+  artifactVerified: false;
+  admissionState: "requires-independent-inspection";
+  inferencePerformed: false;
+  creditCost: 0;
+};
 
 function fail(code: string): never { throw new Error(code); }
 function cleanText(value: unknown, limit: number): string | null {
@@ -137,6 +147,59 @@ export async function discoverHuggingFace(
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("hf-discovery-")) throw error;
     return fail("hf-discovery-upstream-unavailable");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Confirms the public Hub reports the requested immutable revision for one repository.
+ * This does not download an artifact or create an admission record.
+ */
+export async function inspectHuggingFaceRevision(
+  repoId: string,
+  revision: string,
+  options: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+): Promise<HuggingFaceRevisionInspection> {
+  const timeoutMs = options.timeoutMs ?? 4000;
+  if (!REPO.test(repoId) || !SHA40.test(revision)
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10_000) {
+    fail("hf-revision-input-invalid");
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await (options.fetchImpl ?? fetch)(
+      new URL(`/api/models/${repoId}/revision/${revision}`, HUB),
+      {
+        method: "GET",
+        redirect: "error",
+        credentials: "omit",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      },
+    );
+    if (!response.ok || response.redirected || (response.url && new URL(response.url).origin !== HUB)) {
+      fail("hf-revision-unverified");
+    }
+    const raw = await boundedJson(response);
+    if (!isRecord(raw) || (raw.id !== repoId && raw.modelId !== repoId)
+      || raw.sha !== revision || raw.private === true || raw.gated === true) {
+      fail("hf-revision-unverified");
+    }
+    return {
+      repoId,
+      revision,
+      revisionVerified: true,
+      readOnly: true,
+      artifactVerified: false,
+      admissionState: "requires-independent-inspection",
+      inferencePerformed: false,
+      creditCost: 0,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === "hf-revision-input-invalid") throw error;
+    return fail("hf-revision-unverified");
   } finally {
     clearTimeout(timer);
   }
