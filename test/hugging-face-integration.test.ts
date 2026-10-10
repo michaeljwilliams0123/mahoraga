@@ -171,7 +171,11 @@ test("offline benchmark scoring is reproducible, order-independent and explicitl
   assert.deepEqual(one, two);
   assert.equal(one.passRate, 0.5);
   assert.equal(one.passed, 1);
+  assert.equal(one.failed, 1);
+  assert.equal(one.mismatched, 0);
+  assert.equal(one.failureRate, 0.5);
   assert.equal(one.medianDurationMs, 10);
+  assert.equal(one.p95DurationMs, 50);
   assert.equal(one.evidenceClass, "unverified-offline-score-only");
   assert.equal(one.promotionEligible, false);
   assert.equal(one.modelExecutionVerified, false);
@@ -191,4 +195,61 @@ test("benchmark rejects duplicate IDs, missing observations, output content, bad
     { suiteId: "invalid suite" },
     { cases: [] },
   ]) assert.throws(() => scoreHuggingFaceBenchmark({ ...one, ...patch } as never), /hf-benchmark-input-invalid/);
+});
+
+
+test("admission never borrows a runtime digest from a different admitted model", () => {
+  const base = fixturePolicy();
+  const secondArtifact = "b".repeat(64);
+  const secondRuntime = "e".repeat(64);
+  const { receiptSha256: _receipt, ...metadata } = base.admissions[0]!.inspection;
+  const secondMetadata = { ...metadata, artifactSha256: secondArtifact };
+  const second = {
+    ...base.admissions[0]!,
+    id: "other-admitted-model",
+    source: { ...base.admissions[0]!.source, repository: "other/model" },
+    artifact: { ...base.admissions[0]!.artifact, sha256: secondArtifact },
+    inspection: { ...secondMetadata, receiptSha256: modelInspectionReceiptSha256(secondMetadata) },
+    runtimeBindings: [{ provider: "ollama", digest: secondRuntime, sizeBytes: 421 }],
+  };
+  const policy = { ...base, admissions: [base.admissions[0]!, second] };
+  const borrowed = evaluateHuggingFaceAdmission(
+    { ...candidate(), runtimeDigest: secondRuntime, runtimeSizeBytes: 421 },
+    { policy, now: NOW },
+  );
+  assert.equal(borrowed.admitted, false);
+  assert.equal(borrowed.reason, "hf-runtime-binding-mismatch");
+  assert.equal(evaluateHuggingFaceAdmission({
+    ...candidate(), repoId: "other/model", artifactSha256: secondArtifact,
+    runtimeDigest: secondRuntime, runtimeSizeBytes: 421,
+  }, { policy, now: NOW }).admitted, true);
+});
+
+test("offline benchmarks reject undeclared content at every depth", () => {
+  const digest = "f".repeat(64);
+  const sample = {
+    suiteId: "suite-v1",
+    cases: [{ id: "case-1", expectedSha256: digest }],
+    observations: [{ id: "case-1", status: "completed" as const, resultSha256: digest, durationMs: 2 }],
+  };
+  const contaminated = [
+    { ...sample, prompt: "private text" },
+    { ...sample, cases: [{ ...sample.cases[0]!, question: "private question" }] },
+    { ...sample, observations: [{ ...sample.observations[0]!, response: "private answer" }] },
+  ];
+  for (const input of contaminated) {
+    assert.throws(() => scoreHuggingFaceBenchmark(input), /hf-benchmark-input-invalid/);
+  }
+});
+
+test("model search accepts license tags as unverified discovery metadata", async () => {
+  const result = await discoverHuggingFace("models", "model", {
+    fetchImpl: async () => new Response(JSON.stringify([
+      { id: "owner/model", sha: REVISION, tags: ["safetensors", "license:apache-2.0"], gated: false },
+    ]), { status: 200 }),
+  });
+  assert.equal(result.kind, "models");
+  if (result.kind !== "models") throw new Error("unexpected-kind");
+  assert.equal(result.candidates[0]?.license, "apache-2.0");
+  assert.equal(result.candidates[0]?.admissionState, "requires-independent-inspection");
 });

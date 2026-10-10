@@ -22,7 +22,7 @@ The model search uses public `GET https://huggingface.co/api/models` with a boun
 - Public, non-gated model candidate with a full 40-character immutable Hub SHA;
 - exact repository, revision and source artifact SHA-256 present in the existing `admitted` ledger;
 - the existing validator accepting the policy, including a safe static inspection receipt within its freshness window;
-- the exact Ollama/LM Studio provider, runtime model digest, and loaded size matching the ledger.
+- the exact Ollama/LM Studio provider, runtime model digest, and loaded size matching **the same admitted ledger record** as the verified source artifact (never a different admitted model).
 
 No function in this feature issues static-scan receipts, creates runtime bindings, or promotes `quarantined` to `admitted`. A model cannot be admitted using Hub metadata alone. To admit a real model, first independently assess its model card, license, publisher, GGUF/SafeTensors files and external weight provenance; perform a real immutable-revision download and artifact hash/static inspection; validate the resulting receipt and verified runtime digest using the already-governed admission workflow, and follow normal reviewed policy updates and protected gates. Do not invent these receipts.
 
@@ -46,7 +46,7 @@ Supply a compact JSON file with only **expected output digests** and locally obt
 }
 ```
 
-Then run `node scripts/hugging-face-inspect.ts benchmark ./fixtures.json`. The summary contains counts, pass rate, lower median response time, and an order-independent SHA-256 fingerprint of canonical inputs. Inputs have strict small-size, case-count, id, hash, and duration limits. This is **repeatable offline scoring**, not verified model execution. The summary always sets `modelExecutionVerified:false`, `promotionEligible:false` and `productionActivated:false`. Any real accuracy, generalization or latency claims require an independently witnessed local-inference run with current runtime/model evidence, source separation, and authenticated receipts; fixtures can be fabricated. Do not wire offline scores directly to model admission or production promotion.
+Then run `node scripts/hugging-face-inspect.ts benchmark ./fixtures.json`. The summary contains pass/failure/mismatch counts, pass and failure rates, lower median and p95 observed duration, and an order-independent SHA-256 fingerprint of canonical inputs. Only exact declared JSON fields are accepted at the suite, case, and observation levels: injected prompts, responses, notes, or other undeclared content are rejected. Inputs have strict small-size, case-count, id, hash, and duration limits. This is **repeatable offline scoring**, not verified model execution. The summary always sets `modelExecutionVerified:false`, `promotionEligible:false` and `productionActivated:false`. Any real accuracy, generalization or latency claims require an independently witnessed local-inference run with current runtime/model evidence, source separation, and authenticated receipts; fixtures can be fabricated. Do not wire offline scores directly to model admission or production promotion.
 
 ## Cost and operating limits
 

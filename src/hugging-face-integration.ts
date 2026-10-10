@@ -36,6 +36,13 @@ function cleanText(value: unknown, limit: number): string | null {
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
+function exactKeys(value: unknown, keys: readonly string[]): boolean {
+  return isRecord(value) && Object.keys(value).length === keys.length
+    && keys.every(key => Object.prototype.hasOwnProperty.call(value, key));
+}
+function compareIds(a: { id: string }, b: { id: string }): number {
+  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
 function safeInteger(value: unknown): number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
@@ -104,7 +111,11 @@ export async function discoverHuggingFace(
         if (!isRecord(item)) return [];
         const repoId = item.id ?? item.modelId;
         if (typeof repoId !== "string" || !REPO.test(repoId)) return [];
-        const license = isRecord(item.cardData) ? item.cardData.license : item.license;
+        const taggedLicense = Array.isArray(item.tags)
+          ? item.tags.find((tag: unknown) => typeof tag === "string" && tag.startsWith("license:"))
+          : null;
+        const license = (isRecord(item.cardData) ? item.cardData.license : null)
+          ?? item.license ?? (typeof taggedLicense === "string" ? taggedLicense.slice(8) : null);
         return [{
           repoId,
           revision: typeof item.sha === "string" && SHA40.test(item.sha) ? item.sha : null,
@@ -155,10 +166,18 @@ export function evaluateHuggingFaceAdmission(input: {
     state: string;
     source: { repository: string; revision: string };
     artifact: { sha256: string };
+    runtimeBindings: Array<{ provider: string; digest: string; sizeBytes: number }>;
   }> }).admissions;
-  if (!entries.some(entry => entry.state === "admitted" && entry.source.repository === input.repoId
-    && entry.source.revision === input.revision && entry.artifact.sha256 === input.artifactSha256)) {
+  const entry = entries.find(item => item.state === "admitted" && item.source.repository === input.repoId
+    && item.source.revision === input.revision && item.artifact.sha256 === input.artifactSha256);
+  if (!entry) {
     return { admitted: false, reason: "hf-artifact-not-admitted", activationPerformed: false, creditCost: 0 } as const;
+  }
+  // Do not allow model A's artifact proof to borrow model B's admitted runtime digest.
+  const runtimeDigest = input.runtimeDigest.replace(/^sha256:/, "");
+  if (!entry.runtimeBindings.some(binding => binding.provider === input.provider
+    && binding.digest === runtimeDigest && binding.sizeBytes === input.runtimeSizeBytes)) {
+    return { admitted: false, reason: "hf-runtime-binding-mismatch", activationPerformed: false, creditCost: 0 } as const;
   }
   const verdict = evaluateRuntimeModelAdmission({
     provider: input.provider, digest: input.runtimeDigest, sizeBytes: input.runtimeSizeBytes,
@@ -207,29 +226,36 @@ export function scoreHuggingFaceBenchmark(input: {
   observations: BenchmarkObservation[];
   suiteId: string;
 }) {
-  if (!CASE_ID.test(input.suiteId) || !Array.isArray(input.cases) || !Array.isArray(input.observations)
+  if (!exactKeys(input, ["cases", "observations", "suiteId"]) || !CASE_ID.test(input.suiteId)
+    || !Array.isArray(input.cases) || !Array.isArray(input.observations)
     || input.cases.length < 1 || input.cases.length > 64 || input.cases.length !== input.observations.length)
     fail("hf-benchmark-input-invalid");
   const ids = new Set<string>();
   const expected = new Map<string, string>();
   for (const item of input.cases) {
-    if (!item || !CASE_ID.test(item.id) || !SHA64.test(item.expectedSha256) || ids.has(item.id))
+    if (!exactKeys(item, ["id", "expectedSha256"]) || !CASE_ID.test(item.id)
+      || !SHA64.test(item.expectedSha256) || ids.has(item.id))
       fail("hf-benchmark-input-invalid");
     ids.add(item.id);
     expected.set(item.id, item.expectedSha256);
   }
   const seen = new Set<string>();
   let passed = 0;
+  let failed = 0;
+  let mismatched = 0;
   const latencies: number[] = [];
   for (const item of input.observations) {
-    if (!item || !expected.has(item.id) || seen.has(item.id) || !["completed", "failed"].includes(item.status)
+    if (!exactKeys(item, ["durationMs", "id", "resultSha256", "status"])
+      || !expected.has(item.id) || seen.has(item.id) || !["completed", "failed"].includes(item.status)
       || !Number.isSafeInteger(item.durationMs) || item.durationMs < 0 || item.durationMs > 3_600_000
       || (item.resultSha256 !== null && !SHA64.test(item.resultSha256))
       || (item.status === "completed" && item.resultSha256 === null))
       fail("hf-benchmark-input-invalid");
     seen.add(item.id);
     latencies.push(item.durationMs);
-    if (item.status === "completed" && item.resultSha256 === expected.get(item.id)) passed++;
+    if (item.status === "failed") failed++;
+    else if (item.resultSha256 === expected.get(item.id)) passed++;
+    else mismatched++;
   }
   latencies.sort((a, b) => a - b);
   const total = input.cases.length;
@@ -237,15 +263,19 @@ export function scoreHuggingFaceBenchmark(input: {
     suiteId: input.suiteId,
     total,
     passed,
+    failed,
+    mismatched,
     passRate: passed / total,
+    failureRate: failed / total,
     medianDurationMs: latencies[Math.floor((total - 1) / 2)]!,
+    p95DurationMs: latencies[Math.ceil(total * 0.95) - 1]!,
   };
   return Object.freeze({
     ...summary,
     fingerprintSha256: createHash("sha256").update(JSON.stringify({
       suiteId: input.suiteId,
-      cases: [...input.cases].sort((a, b) => a.id.localeCompare(b.id)),
-      observations: [...input.observations].sort((a, b) => a.id.localeCompare(b.id)),
+      cases: [...input.cases].sort(compareIds),
+      observations: [...input.observations].sort(compareIds),
     })).digest("hex"),
     evidenceClass: "unverified-offline-score-only",
     modelExecutionVerified: false,
