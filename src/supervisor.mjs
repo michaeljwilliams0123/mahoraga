@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { EventEmitter } from "node:events";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createGrokbotAdmission } from "./grokbot-host.ts";
 import { capabilityIndex, routeTask } from "./router.mjs";
 import { ANSWER_EVALUATOR_VERSION, evaluateAnswerQuality, unresolvedAnswerSummary } from "./answer-quality.ts";
 import { normalizeAssistantCompletion } from "./assistant-result.ts";
@@ -27,10 +28,11 @@ const zeroCreditEnvironmentFingerprint = (env) => createHash("sha256")
   .digest("hex");
 
 export class Supervisor extends EventEmitter {
-  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
+  constructor({ manifest, database, artifactRoot, contentVaultRoot = null, contentVaultKeyFile = null, expectedSourceCommit = null, cognitiveProvenanceReader = () => null, syncCoordinationMailbox = true, forkWorker = fork, tickIntervalMs = 500 }) {
     super();
     if (expectedSourceCommit !== null && !/^[a-f0-9]{40}$/i.test(expectedSourceCommit)) throw new TypeError("Supervisor expected source commit is invalid.");
     this.manifest = manifest; this.database = database; this.artifactRoot = artifactRoot; this.contentVaultRoot = contentVaultRoot; this.contentVaultKeyFile = contentVaultKeyFile;
+    this.cognitiveProvenanceReader = cognitiveProvenanceReader;
     this.expectedSourceCommit = expectedSourceCommit?.toLowerCase() ?? null;
     this.syncCoordinationMailbox = syncCoordinationMailbox; this.forkWorker = forkWorker; this.tickIntervalMs = tickIntervalMs;
     this.workers = new Map(); this.timer = null; this.stopping = false; this.startedAt = null;
@@ -457,6 +459,18 @@ export class Supervisor extends EventEmitter {
         }
         executionTask = { ...task, integrationLease, executionSessionId: session.executionSessionId };
       }
+      let grokbotAdmission = null;
+      if (task.capability.startsWith("cognitive.") && task.capability !== "cognitive.health") {
+        try {
+          grokbotAdmission = createGrokbotAdmission({
+            task: { ...task, expectedSourceCommit: this.expectedSourceCommit },
+            authorityDecision: route.authorityDecision, provenance: this.cognitiveProvenanceReader(),
+          });
+        } catch {
+          this.database.finishTask(task.id, { status: "waiting", errorCode: "grokbot-host-admission-unavailable" });
+          continue;
+        }
+      }
       state.busy = true; state.status = "busy"; state.currentTaskId = task.id; state.currentTaskStartedAt = new Date().toISOString();
       const envelope = task.conversationId ? { ...executionTask, messages: this.database.listConversationMessagesForExecution(task.conversationId) } : executionTask;
       const workerTask = task.capability.startsWith("cognitive.")
@@ -467,7 +481,7 @@ export class Supervisor extends EventEmitter {
         providerDecision: route.providerDecision ?? null,
         billingDecision: route.billingDecision,
       } : null;
-      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask, ...(admission ? { admission } : {}) });
+      state.process.send({ type: "task", taskId: task.id, capability: task.capability, task: workerTask, ...(admission ? { admission } : {}), ...(grokbotAdmission ? { grokbotAdmission } : {}) });
     }
   }
 

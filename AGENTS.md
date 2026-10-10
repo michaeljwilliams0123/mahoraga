@@ -22,6 +22,13 @@ This repository is a living product. It is not a greenfield JavaScript prompt.
 
 Optimize for autonomous execution and short feedback loops.
 
+Explicit owner authorization persists across routine implementation, source uploads,
+PR updates, verification, and recovery inside the authorized repository. Do not
+request the same approval again, treat advisory prose as an extra permission gate,
+or stop at a draft when independent authorized work remains. More specific owner
+instructions supersede conflicting repository workflow guidance; authentication,
+platform permissions, spending limits, and protected checks remain enforced.
+
 - Treat `mahoraga.manifest.json` as canonical. Ordinary conversation may plan, debate, implement, verify, integrate, and update without manual routing.
 - Primary local Codex, cloud Codex, and Destiny may work autonomously inside declared repository paths. Exact CI-verified same-repository heads may merge automatically; protected-root changes use a reviewed bootstrap PR.
 - Keep credentials and private content out of commits, coordination records, and diagnostics. Keep the control API on loopback unless the owner explicitly chooses another deployment boundary.
