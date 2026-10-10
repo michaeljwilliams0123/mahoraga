@@ -2,16 +2,23 @@
  * Fail-closed pull request intake; does not invoke models or change GitHub state.
  * Objective-ID is a versioned, exact match identifier. Do not guess semantic equivalence.
  */
+export type PullRequest = {
+  number: number; draft: boolean; state?: string; title?: string | null; body?: string | null;
+  user?: { login?: string }; author?: string;
+};
+export type IntakeDecision = {
+  allowed: boolean; reason: string; reusePr?: number; draftCount?: number; maxDrafts?: number; objectiveId?: string | null;
+};
 export const DRAFT_LIMIT = 3;
 export const OBJECTIVE_REQUIRED_FROM_PR = 1042;
 
-export function objectiveId(value) {
+export function objectiveId(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const match = value.match(/^Objective-ID:\s*([a-z][a-z0-9._-]{3,79})\s*$/im);
   return match?.[1] ?? null;
 }
 
-function normalizedTitle(title) {
+function normalizedTitle(title: unknown): string {
   return typeof title === "string"
     ? title.toLowerCase().replace(/^\s*(?:\[wip\]|draft:)\s*/i, "")
       .replace(/^(?:feat|fix|chore|test|docs)(?:\([^)]*\))?:\s*/, "")
@@ -19,11 +26,15 @@ function normalizedTitle(title) {
     : "";
 }
 
-function isCopilot(pr) {
+function isCopilot(pr: PullRequest): boolean {
   return /^copilot(?:\[bot\])?$/i.test(pr?.user?.login ?? pr?.author ?? "");
 }
 
-export function evaluatePrIntake({ candidate, openPulls, maxDrafts = DRAFT_LIMIT } = {}) {
+export function evaluatePrIntake(
+  { candidate, openPulls, maxDrafts = DRAFT_LIMIT }: {
+    candidate?: PullRequest; openPulls?: PullRequest[]; maxDrafts?: number
+  } = {},
+): IntakeDecision {
   if (!candidate || !Array.isArray(openPulls) || !Number.isSafeInteger(candidate.number) || candidate.number < 1)
     return { allowed: false, reason: "pr-intake-evidence-invalid" };
   if (!Number.isSafeInteger(maxDrafts) || maxDrafts < 1)

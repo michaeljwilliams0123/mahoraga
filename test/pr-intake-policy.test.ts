@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { evaluatePrIntake, objectiveId } from "../src/pr-intake-policy.mjs";
-const pr = (number, extra = {}) => ({ number, state:"open", draft:false, title:`Feature ${number}`, body:`Objective-ID: objective-${number}`, user:{login:"michaeljwilliams0123"}, ...extra });
+import { evaluatePrIntake, objectiveId, type PullRequest } from "../src/pr-intake-policy.ts";
+const pr = (number: number, extra: Partial<PullRequest> = {}): PullRequest => ({ number, state:"open", draft:false, title:`Feature ${number}`, body:`Objective-ID: objective-${number}`, user:{login:"michaeljwilliams0123"}, ...extra });
 test("canonical objective keys are case-safe and anchored", () => {
   assert.equal(objectiveId("Objective-ID: core-cognition"), "core-cognition");
   assert.equal(objectiveId("no objective"), null);
@@ -33,7 +33,7 @@ test("legacy PRs remain valid; new PRs require objective", () => {
 test("malformed list and ambiguous observations fail closed", () => {
   assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:null}).allowed,false);
   assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[{number:1046}]}).allowed,false);
-  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[pr(1046),pr(1046)]}).allowed,true); // duplicate snapshots with same number are the same PR
+  assert.equal(evaluatePrIntake({candidate:pr(1046),openPulls:[pr(1046),pr(1046)]}).allowed,true); // same PR number represents one open PR
 });
 test("different objectives and titles remain independent", () => {
   const candidate=pr(1048);

@@ -18,6 +18,7 @@ on:
 permissions:
   actions: read
   contents: read
+  pull-requests: read
 
 concurrency:
   group: mahoraga-verify-${{ github.workflow }}-${{ github.ref }}
@@ -54,7 +55,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: node scripts/pr-intake.mjs
+        run: node scripts/pr-intake.ts
 
       - name: Install root dependencies
         run: npm ci --ignore-scripts
