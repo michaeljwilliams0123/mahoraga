@@ -57,16 +57,28 @@ async function collectAttestations(env: BrokerEnv, now: number): Promise<Univers
   }
   if (env.CONNECTOR_CAPABILITY_BROKER) {
     const legacy = await fetchJson(env.CONNECTOR_CAPABILITY_BROKER as BrokerBinding, "/api/capabilities");
-    attestations.push(...adaptLegacyConnectorAttestation(legacy, bindingProviderNames(env), now));
+    for (const candidate of adaptLegacyConnectorAttestation(legacy, bindingProviderNames(env), now)) {
+      if (validateWorkerAttestation(candidate, new Date(now)).ok) attestations.push(candidate);
+    }
   }
   return attestations;
 }
 
+function workerIdentityCounts(attestations: UniversalAttestation[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const attestation of attestations) {
+    const identity = `${attestation.provider}/${attestation.workerId}`;
+    counts.set(identity, (counts.get(identity) ?? 0) + 1);
+  }
+  return counts;
+}
 function projectRoutes(attestations: UniversalAttestation[], now: number) {
   const routes: Array<Record<string, unknown>> = [];
   const seen = new Set<string>();
+  const counts = workerIdentityCounts(attestations);
   for (const attestation of attestations) {
-    if (!validateWorkerAttestation(attestation, new Date(now)).ok) continue;
+    if (!validateWorkerAttestation(attestation, new Date(now)).ok
+      || counts.get(`${attestation.provider}/${attestation.workerId}`) !== 1) continue;
     for (const raw of attestation.capabilities) {
       const cap = raw as Record<string, unknown>;
       if (cap.healthy !== true || typeof cap.capability !== "string") continue;
@@ -133,7 +145,22 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
       if (url.pathname === "/api/capabilities") {
         if (request.method !== "GET") return json({ error:"method-not-allowed" }, 405);
         const attestations = await collectAttestations(env, now);
-        return json({ schemaVersion:1, kind:"universal-capability-pool", observedAt:new Date(now).toISOString(), routes:projectRoutes(attestations, now) });
+        const routes = projectRoutes(attestations, now);
+        const boundProviders: string[] = BINDINGS.filter((name) => typeof env[name]?.fetch === "function");
+        const duplicateIdentities = [...workerIdentityCounts(attestations).values()].some((count) => count > 1);
+        const state = routes.length > 0 ? "admitted" : boundProviders.length === 0 ? "unbound"
+          : attestations.length === 0 ? "unverified" : "unavailable";
+        const providerReadiness = {
+          state,
+          reasonCode: state === "unbound" ? "no-provider-service-bindings"
+            : state === "unverified" ? "provider-proof-unavailable"
+            : state === "unavailable" ? (duplicateIdentities ? "provider-identity-ambiguous" : "provider-capability-unhealthy") : null,
+          boundProviders,
+          acceptedAttestations: attestations.length,
+          routableCapabilities: routes.length,
+        };
+        return json({ schemaVersion:1, kind:"universal-capability-pool",
+          observedAt:new Date(now).toISOString(), routes, providerReadiness });
       }
       if (url.pathname === "/api/route") {
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
