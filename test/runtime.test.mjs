@@ -296,20 +296,28 @@ test("completed worker receipts return to the chat conversation", async (t) => {
   })).json();
   await waitFor(async () => {
     const tasks = await (await fetch(`${base}/api/tasks`, { headers: AUTH })).json();
-
     return tasks.tasks.find((task) => task.id === created.task.id && task.status === "completed");
   }, 30_000);
-  const messages = runtime.database.listConversationMessagesForExecution(conversation.conversation.id);
-  assert.deepEqual(messages.map((item) => item.role), ["user", "assistant"]);
-  assert.match(messages[1].content, /runtime is responsive/);
+  const messages = await (await fetch(`${base}/api/conversations/${conversation.conversation.id}/messages`, { headers: AUTH })).json();
+  const assistant = messages.messages.find((item) => item.role === "assistant");
+  assert.ok(assistant, "completed task must append an assistant message");
+  assert.ok(assistant.contentReference, "API exposes a content reference, not plaintext");
+  assert.equal(assistant.content, null, "API must not leak vaulted message content");
+  const hydrated = runtime.database.listConversationMessagesForExecution(conversation.conversation.id);
+  assert.match(hydrated.find((item) => item.id === assistant.id)?.content ?? "", /runtime is responsive/);
 });
 
-async function waitFor(check, timeoutMs = 15000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) { const value = await check(); if (value) return value; await new Promise((resolve) => setTimeout(resolve, 100)); }
+async function waitFor(predicate, timeoutMs = 10_000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const result = await predicate();
+    if (result) return result;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   throw new Error("Timed out waiting for runtime state.");
 }
 
+const TEST_SOURCE_COMMIT = "a".repeat(40);
 async function runtimeFixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), "mahoraga-v2-runtime-"));
   const runtime = await startRuntime({
@@ -318,6 +326,9 @@ async function runtimeFixture(t) {
     contentVaultMasterKey: TEST_VAULT_KEY,
     primaryCodexToken: PRIMARY_TOKEN,
     syncCoordinationMailbox: false,
+    expectedSourceCommit: TEST_SOURCE_COMMIT,
+    repositoryHeadReader: async () => TEST_SOURCE_COMMIT,
+    authoritativeHeadReader: async () => TEST_SOURCE_COMMIT,
   });
   t.after(async () => { await runtime.stop(); rmSync(root, { recursive: true, force: true }); });
   // Do not start the transaction clock or tear down still-importing workers.

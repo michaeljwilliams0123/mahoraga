@@ -2,9 +2,10 @@
 
 import { Link2, ShieldCheck, Unplug } from "lucide-react";
 import { useState } from "react";
-import type { RuntimeCapability, RuntimeGithubAppRepositoryProbe } from "@/lib/runtime-relay";
+import type { RuntimeCapability, RuntimeCloudInspectionReceipt, RuntimeGithubAppRepositoryProbe } from "@/lib/runtime-relay";
 import type { ConnectionsViewProps } from "./workspace-types";
 import { projectCapabilityFamilies } from "@/lib/capability-families";
+import { isFreshCloudInspectorCapability } from "@/lib/cloud-inspect-receipt";
 
 type DisplayCapability = RuntimeCapability & { providerReasonCode?: string | null };
 
@@ -26,6 +27,12 @@ export function ConnectionsView({
   const [githubProbe, setGithubProbe] = useState<RuntimeGithubAppRepositoryProbe | null>(null);
   const [githubBusy, setGithubBusy] = useState(false);
   const [githubError, setGithubError] = useState<string | null>(null);
+  const [cloudReceipt, setCloudReceipt] = useState<RuntimeCloudInspectionReceipt | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const eligibleCloudInspector = () => displayCapabilities.some(item => isFreshCloudInspectorCapability(item));
+  const cloudInspectReady = coreReady && relay?.connected === true && relay.transportKind !== "encrypted-relay"
+    && eligibleCloudInspector();
 
   async function probeGithubApp() {
     if (!relay || githubBusy) return;
@@ -39,6 +46,17 @@ export function ConnectionsView({
     } finally {
       setGithubBusy(false);
     }
+  }
+
+  async function inspectCloudflare() {
+    // An advertised capability can expire between rendering and a click.
+    if (!relay || cloudBusy || !cloudInspectReady || !eligibleCloudInspector()) return;
+    setCloudBusy(true);
+    setCloudReceipt(null);
+    setCloudError(null);
+    try { setCloudReceipt(await relay.inspectCloudflareDeployment()); }
+    catch (error) { setCloudError(error instanceof Error ? error.message : "cloud-inspection-unavailable"); }
+    finally { setCloudBusy(false); }
   }
 
   return (
@@ -126,6 +144,20 @@ export function ConnectionsView({
               <span>{githubProbe.repository.permissions.push ? "Repository-scoped write authority observed; probe remains read-only" : "Repository-scoped read authority observed"}</span>
             </div>
           )}
+        </div>
+      )}
+
+      {cloudInspectReady && (
+        <div className="capability-list" style={{ marginTop: 16 }}>
+          <div>
+            <strong>Live Cloudflare action</strong>
+            <span>{cloudReceipt
+              ? `Verified read · ${cloudReceipt.script} · version ${cloudReceipt.versionId} · ${cloudReceipt.trafficPercentage}% traffic · ${new Date(cloudReceipt.observedAt).toLocaleString()}`
+              : cloudError ? `Execution unavailable · ${cloudError}` : "Read-only deployment inspection; execution requires a fresh broker lease and receipt."}</span>
+          </div>
+          <button type="button" disabled={cloudBusy} onClick={() => void inspectCloudflare()}>
+            {cloudBusy ? "Inspecting live Cloudflare…" : "Inspect Cloudflare"}
+          </button>
         </div>
       )}
 
