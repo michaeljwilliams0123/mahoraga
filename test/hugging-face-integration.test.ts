@@ -6,6 +6,7 @@ import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
 import {
   discoverHuggingFace,
   evaluateHuggingFaceAdmission,
+  inspectHuggingFaceArtifactMetadata,
   inspectHuggingFaceRevision,
   probeHuggingFaceLocalReadiness,
   scoreHuggingFaceBenchmark,
@@ -117,6 +118,44 @@ test("revision inspection binds one public repository to its requested immutable
     revisionVerified: true,
     readOnly: true,
     artifactVerified: false,
+    admissionState: "requires-independent-inspection",
+    inferencePerformed: false,
+    creditCost: 0,
+  });
+});
+
+test("artifact metadata preflight returns only a pinned LFS descriptor without download or admission", async () => {
+  const result = await inspectHuggingFaceArtifactMetadata("owner/model", REVISION, "weights/model.safetensors", {
+    fetchImpl: async (url, init) => {
+      const target = new URL(String(url));
+      assert.equal(target.origin, "https://huggingface.co");
+      assert.equal(init?.method, "GET");
+      assert.equal(init?.credentials, "omit");
+      assert.equal(init?.redirect, "error");
+      assert.equal(init?.headers && "Authorization" in init.headers, false);
+      if (target.pathname === `/api/models/owner/model/revision/${REVISION}`) {
+        return new Response(JSON.stringify({ id: "owner/model", sha: REVISION, private: false, gated: false }), { status: 200 });
+      }
+      assert.equal(target.pathname, `/api/models/owner/model/tree/${REVISION}`);
+      assert.equal(target.searchParams.get("recursive"), "false");
+      assert.equal(target.searchParams.get("expand"), "true");
+      return new Response(JSON.stringify([
+        { type: "file", path: "weights/model.safetensors", oid: "c".repeat(40), size: 42, lfs: { oid: ARTIFACT, size: 42 } },
+        { type: "file", path: "README.md", oid: "d".repeat(40), size: 1 },
+      ]), { status: 200 });
+    },
+  });
+  assert.deepEqual(result, {
+    repoId: "owner/model",
+    revision: REVISION,
+    artifactPath: "weights/model.safetensors",
+    format: "safetensors",
+    artifactSha256: ARTIFACT,
+    artifactSizeBytes: 42,
+    artifactMetadataVerified: true,
+    artifactVerified: false,
+    readOnly: true,
+    artifactDownloaded: false,
     admissionState: "requires-independent-inspection",
     inferencePerformed: false,
     creditCost: 0,

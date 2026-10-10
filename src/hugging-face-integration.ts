@@ -36,6 +36,21 @@ export type HuggingFaceRevisionInspection = {
   inferencePerformed: false;
   creditCost: 0;
 };
+export type HuggingFaceArtifactMetadataInspection = {
+  repoId: string;
+  revision: string;
+  artifactPath: string;
+  format: "safetensors" | "gguf";
+  artifactSha256: string;
+  artifactSizeBytes: number;
+  artifactMetadataVerified: true;
+  artifactVerified: false;
+  readOnly: true;
+  artifactDownloaded: false;
+  admissionState: "requires-independent-inspection";
+  inferencePerformed: false;
+  creditCost: 0;
+};
 
 function fail(code: string): never { throw new Error(code); }
 function cleanText(value: unknown, limit: number): string | null {
@@ -60,6 +75,16 @@ function timestamp(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const n = Date.parse(value);
   return Number.isFinite(n) && new Date(n).toISOString() === value ? value : null;
+}
+function artifactFormat(path: string): "safetensors" | "gguf" | null {
+  const match = /\.([A-Za-z0-9]+)$/.exec(path);
+  const format = match?.[1]?.toLowerCase();
+  return format === "safetensors" || format === "gguf" ? format : null;
+}
+function safeArtifactPath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length < 3 || value.length > 240
+    || value.includes("\\") || value.startsWith("/") || value.includes(":") || value.includes("?") || value.includes("#")) return false;
+  return value.split("/").every((part) => part && part !== "." && part !== ".." && /^[A-Za-z0-9._-]+$/.test(part));
 }
 async function boundedJson(response: Response): Promise<unknown> {
   const announced = response.headers.get("content-length");
@@ -204,6 +229,76 @@ export async function inspectHuggingFaceRevision(
   } catch (error) {
     if (error instanceof Error && error.message === "hf-revision-input-invalid") throw error;
     return fail("hf-revision-unverified");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Confirms public, pinned Hub metadata for one permitted artifact without downloading it.
+ * The Hub-provided LFS object ID is not a locally verified artifact hash or an admission.
+ */
+export async function inspectHuggingFaceArtifactMetadata(
+  repoId: string,
+  revision: string,
+  artifactPath: string,
+  options: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
+): Promise<HuggingFaceArtifactMetadataInspection> {
+  const timeoutMs = options.timeoutMs ?? 4000;
+  const format = artifactFormat(artifactPath);
+  if (!REPO.test(repoId) || !SHA40.test(revision) || !safeArtifactPath(artifactPath) || !format
+    || !Number.isSafeInteger(timeoutMs) || timeoutMs < 250 || timeoutMs > 10_000) {
+    fail("hf-artifact-input-invalid");
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    await inspectHuggingFaceRevision(repoId, revision, options);
+    const url = new URL(`/api/models/${repoId}/tree/${revision}`, HUB);
+    url.searchParams.set("recursive", "false");
+    url.searchParams.set("expand", "true");
+    const response = await (options.fetchImpl ?? fetch)(url, {
+      method: "GET",
+      redirect: "error",
+      credentials: "omit",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok || response.redirected || (response.url && new URL(response.url).origin !== HUB)) {
+      fail("hf-artifact-unverified");
+    }
+    const raw = await boundedJson(response);
+    if (!Array.isArray(raw)) fail("hf-artifact-unverified");
+    const matches = raw.filter((item): item is Record<string, unknown> => (
+      isRecord(item) && item.type === "file" && item.path === artifactPath
+    ));
+    if (matches.length !== 1) fail("hf-artifact-unverified");
+    const item = matches[0]!;
+    const lfs = isRecord(item.lfs) ? item.lfs : null;
+    const size = item.size;
+    if (!lfs || typeof lfs.oid !== "string" || !SHA64.test(lfs.oid)
+      || typeof size !== "number" || !Number.isSafeInteger(size) || size < 1
+      || typeof lfs.size !== "number" || lfs.size !== size) {
+      fail("hf-artifact-unverified");
+    }
+    return {
+      repoId,
+      revision,
+      artifactPath,
+      format,
+      artifactSha256: lfs.oid,
+      artifactSizeBytes: size,
+      artifactMetadataVerified: true,
+      artifactVerified: false,
+      readOnly: true,
+      artifactDownloaded: false,
+      admissionState: "requires-independent-inspection",
+      inferencePerformed: false,
+      creditCost: 0,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message === "hf-artifact-input-invalid") throw error;
+    return fail("hf-artifact-unverified");
   } finally {
     clearTimeout(timer);
   }
