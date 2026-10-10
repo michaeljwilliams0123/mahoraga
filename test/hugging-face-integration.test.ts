@@ -136,7 +136,7 @@ test("artifact metadata preflight returns only a pinned LFS descriptor without d
       if (target.pathname === `/api/models/owner/model/revision/${REVISION}`) {
         return new Response(JSON.stringify({ id: "owner/model", sha: REVISION, private: false, gated: false }), { status: 200 });
       }
-      assert.equal(target.pathname, `/api/models/owner/model/tree/${REVISION}`);
+      assert.equal(target.pathname, `/api/models/owner/model/tree/${REVISION}/weights`);
       assert.equal(target.searchParams.get("recursive"), "false");
       assert.equal(target.searchParams.get("expand"), "true");
       return new Response(JSON.stringify([
@@ -182,6 +182,15 @@ test("revision inspection fails closed for mismatched, private, gated, malformed
   await assert.rejects(
     inspectHuggingFaceRevision("owner/model", REVISION, { fetchImpl: async () => new Response("no", { status: 404 }) }),
     /hf-revision-unverified/,
+  );
+});
+
+test("artifact metadata preflight rejects string-valued gated revisions", async () => {
+  await assert.rejects(
+    inspectHuggingFaceArtifactMetadata("owner/model", REVISION, "model.gguf", {
+      fetchImpl: async () => new Response(JSON.stringify({ id: "owner/model", sha: REVISION, private: false, gated: "manual" }), { status: 200 }),
+    }),
+    /hf-artifact-unverified/,
   );
 });
 

@@ -213,7 +213,7 @@ export async function inspectHuggingFaceRevision(
     }
     const raw = await boundedJson(response);
     if (!isRecord(raw) || (raw.id !== repoId && raw.modelId !== repoId)
-      || raw.sha !== revision || raw.private === true || raw.gated === true) {
+      || raw.sha !== revision || raw.private === true || raw.gated !== false) {
       fail("hf-revision-unverified");
     }
     return {
@@ -254,7 +254,13 @@ export async function inspectHuggingFaceArtifactMetadata(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     await inspectHuggingFaceRevision(repoId, revision, options);
-    const url = new URL(`/api/models/${repoId}/tree/${revision}`, HUB);
+    const parentDirectory = artifactPath.includes("/")
+      ? artifactPath.slice(0, artifactPath.lastIndexOf("/"))
+      : "";
+    const endpointPath = parentDirectory
+      ? `/api/models/${repoId}/tree/${revision}/${parentDirectory}`
+      : `/api/models/${repoId}/tree/${revision}`;
+    const url = new URL(endpointPath, HUB);
     url.searchParams.set("recursive", "false");
     url.searchParams.set("expand", "true");
     const response = await (options.fetchImpl ?? fetch)(url, {
