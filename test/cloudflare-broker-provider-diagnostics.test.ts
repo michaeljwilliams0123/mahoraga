@@ -40,7 +40,7 @@ test("bound provider without independent proof reports unavailable instead of si
 
 test("accepted but unhealthy provider cannot be shown as admitted", async () => {
   const attestation = capability();
-  attestation.capabilities[0].healthy = false;
+  attestation.capabilities[0]!.healthy = false;
   const reply = await inspect({ CLOUD_PROVIDER: bound({ attestations: [attestation] }) });
   assert.deepEqual(reply.routes, []);
   assert.deepEqual(reply.providerReadiness, {
@@ -92,7 +92,7 @@ test("adapted legacy attestations exceeding universal freshness limit are not co
 
 test("accepted read-only provider proof reports one eligible live route and no authority escalation", async () => {
   const reply = await inspect({ CLOUD_PROVIDER: bound({ attestations: [capability()] }) });
-  assert.deepEqual(reply.routes.map(x => [x.capability, x.permissionClass]), [["cloud.inspect", "read"]]);
+  assert.deepEqual(reply.routes.map((x: { capability: string; permissionClass: string }) => [x.capability, x.permissionClass]), [["cloud.inspect", "read"]]);
   assert.deepEqual(reply.providerReadiness, {
     state: "admitted", reasonCode: null,
     boundProviders: ["CLOUD_PROVIDER"], acceptedAttestations: 1, routableCapabilities: 1,
