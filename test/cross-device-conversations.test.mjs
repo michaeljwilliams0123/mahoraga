@@ -104,6 +104,6 @@ test("late history or message content cannot repaint the UI after session invali
 test("refresh results from an earlier owner session cannot repopulate cached conversation titles", () => {
   const ui = read("cloud-app/components/workspace.tsx");
   const refresh = ui.slice(ui.indexOf("function refreshSavedConversations()"), ui.indexOf("function reconnectRuntime()"));
-  assert.match(refresh, /const generation = runtimePollGeneration\\.current;\\s*const epoch = historyEpoch\\.current/);
-  assert.match(refresh, /if \\(historyEpoch\\.current !== epoch \\|\\| runtimePollGeneration\\.current !== generation \\|\\| relay\\.current !== transport \\|\\| !transport\\.connected\\) return;\\s*setSavedConversations\\(conversations\\)/);
+  assert.match(refresh, /const generation = runtimePollGeneration\.current;\s*const epoch = historyEpoch\.current/);
+  assert.match(refresh, /if \(historyEpoch\.current !== epoch \|\| runtimePollGeneration\.current !== generation \|\| relay\.current !== transport \|\| !transport\.connected\) return;\s*setSavedConversations\(conversations\)/);
 });
