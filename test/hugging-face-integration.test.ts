@@ -6,6 +6,7 @@ import { modelInspectionReceiptSha256 } from "../src/model-supply-chain.mjs";
 import {
   discoverHuggingFace,
   evaluateHuggingFaceAdmission,
+  inspectHuggingFaceRevision,
   probeHuggingFaceLocalReadiness,
   scoreHuggingFaceBenchmark,
 } from "../src/hugging-face-integration.ts";
@@ -54,6 +55,7 @@ test("public catalog requests are GET-only, bounded, unauthenticated, and never 
       assert.equal(target.pathname, "/api/models");
       assert.equal(target.searchParams.get("search"), "qwen");
       assert.equal(target.searchParams.get("sort"), "downloads");
+      assert.equal(target.searchParams.get("full"), "true");
       assert.equal(target.searchParams.get("limit"), "2");
       assert.equal(init?.method, "GET");
       assert.equal(init?.credentials, "omit");
@@ -94,6 +96,54 @@ test("research search emits bounded paper metadata, never instructions or abstra
   if (result.kind !== "papers") throw new Error("unexpected-kind");
   assert.deepEqual(result.papers, [{ id: "2501.12345", title: "Agent Evaluation", publishedAt: "2026-10-08T00:00:00.000Z" }]);
   assert.equal(JSON.stringify(result).includes("MALICIOUS"), false);
+});
+
+test("revision inspection binds one public repository to its requested immutable Hub SHA", async () => {
+  const result = await inspectHuggingFaceRevision("owner/model", REVISION, {
+    fetchImpl: async (url, init) => {
+      const target = new URL(String(url));
+      assert.equal(target.origin, "https://huggingface.co");
+      assert.equal(target.pathname, `/api/models/owner/model/revision/${REVISION}`);
+      assert.equal(init?.method, "GET");
+      assert.equal(init?.credentials, "omit");
+      assert.equal(init?.redirect, "error");
+      assert.equal(init?.headers && "Authorization" in init.headers, false);
+      return new Response(JSON.stringify({ id: "owner/model", sha: REVISION, private: false, gated: false }), { status: 200 });
+    },
+  });
+  assert.deepEqual(result, {
+    repoId: "owner/model",
+    revision: REVISION,
+    revisionVerified: true,
+    readOnly: true,
+    artifactVerified: false,
+    admissionState: "requires-independent-inspection",
+    inferencePerformed: false,
+    creditCost: 0,
+  });
+});
+
+test("revision inspection fails closed for mismatched, private, gated, malformed, or unavailable Hub records", async () => {
+  for (const body of [
+    { id: "owner/model", sha: "d".repeat(40), private: false, gated: false },
+    { id: "other/model", sha: REVISION, private: false, gated: false },
+    { id: "owner/model", sha: REVISION, private: true, gated: false },
+    { id: "owner/model", sha: REVISION, private: false, gated: true },
+    { id: "owner/model", sha: REVISION.slice(0, 39), private: false, gated: false },
+  ]) {
+    await assert.rejects(
+      inspectHuggingFaceRevision("owner/model", REVISION, {
+        fetchImpl: async () => new Response(JSON.stringify(body), { status: 200 }),
+      }),
+      /hf-revision-unverified/,
+    );
+  }
+  await assert.rejects(inspectHuggingFaceRevision("invalid", REVISION), /hf-revision-input-invalid/);
+  await assert.rejects(inspectHuggingFaceRevision("owner/model", "main"), /hf-revision-input-invalid/);
+  await assert.rejects(
+    inspectHuggingFaceRevision("owner/model", REVISION, { fetchImpl: async () => new Response("no", { status: 404 }) }),
+    /hf-revision-unverified/,
+  );
 });
 
 test("discovery rejects invalid arguments, remote redirects, bad schemas, oversized data, and upstream failures", async () => {
