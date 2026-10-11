@@ -46,11 +46,14 @@ test("security baseline attests live exact-head main protection", async () => {
   const baseline = await source("docs/GITHUB-SECURITY-BASELINE.md");
   assert.match(baseline, /does\s+not\s+change\s+repository\s+visibility/);
   assert.match(baseline, /Secret scanning, push protection, Dependabot alerts/i);
-  assert.match(baseline, /Ruleset `22502690` \(`Protect main - exact-head Verify`\) is active with no\s+bypass actors/);
+  assert.match(baseline, /Ruleset `22502690` \(`Protect main - exact-head Verify`\) is active/);
+  assert.match(baseline, /two configured bypass actors/);
+  assert.match(baseline, /zero approving reviews and does not require code-owner review/);
   assert.match(baseline, /requires strict, exact-head success for exactly these contexts/);
   assert.match(baseline, /Verify \(ubuntu-latest\)/);
   assert.match(baseline, /Verify \(windows-latest\)/);
-  assert.match(baseline, /No actor may bypass, synthesize, or substitute these checks/);
+  assert.match(baseline, /A green Verify\s+result is not independent approval or permission to bypass protected landing/);
+  assert.match(baseline, /Never synthesize or substitute checks/);
   assert.match(baseline, /github-live-protection\.mjs/);
   assert.match(baseline, /incumbent-trust-epoch\.json/);
   assert.doesNotMatch(baseline, /does not require pull requests or status checks/);
