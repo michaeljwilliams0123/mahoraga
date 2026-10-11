@@ -28,3 +28,30 @@ test("duplicate projections are counted once, and mixed observed routes remain d
  assert.match(component,/does not establish that the private Cloudflare broker has a bound provider/);
  assert.match(cockpit,/<ExecutionBrokerCard capabilities=\{runtimeCapabilities\}/);
 });
+
+test("disabled-only tool route remains observed and held, never routable", () => {
+ const state = projectExecutionBrokerObservation([{ ...cap("cloud.inspect", true), enabled: false }]);
+ assert.deepEqual(state, {status:"partially-held",observed:1,routable:0,held:1,reasons:["capability-disabled"]});
+});
+test("disabled routable and enabled-held duplicates cannot falsely report readiness", () => {
+ const state = projectExecutionBrokerObservation([
+  { ...cap("cloud.inspect", true), enabled: false },
+  cap("cloud.inspect", false, "provider-unavailable"),
+ ]);
+ assert.deepEqual(state, {status:"partially-held",observed:1,routable:0,held:1,
+  reasons:["capability-disabled","provider-unavailable"]});
+});
+test("enabled routable twin remains routable without counting disabled advertisement", () => {
+ const state = projectExecutionBrokerObservation([
+  { ...cap("cloud.inspect", true), enabled: false },
+  cap("cloud.inspect", true),
+ ]);
+ assert.deepEqual(state, {status:"observed-routable",observed:1,routable:1,held:0,reasons:[]});
+});
+test("disabled held capability and independent enabled route remain distinct", () => {
+ const state = projectExecutionBrokerObservation([
+  { ...cap("cloud.inspect", true), enabled: false },
+  cap("repository.inspect", true),
+ ]);
+ assert.deepEqual(state, {status:"partially-held",observed:2,routable:1,held:1,reasons:["capability-disabled"]});
+});
