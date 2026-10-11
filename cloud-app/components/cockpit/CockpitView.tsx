@@ -315,7 +315,7 @@ export function CockpitView({
         <ConnectorRoutingCards coreReady={coreReady} runtimeCapabilities={runtimeCapabilities} health={health} />
         <PredictionBacktestCards snapshot={health?.predictionBacktest} />
         <InteractionTruthCards truth={interactionTruth} />
-        <ExecutionBrokerCard />
+        <ExecutionBrokerCard capabilities={runtimeCapabilities} />
         <AcceptanceEvidenceCards receipt={health?.cloudflareAcceptance ?? health?.productionAcceptance ?? health?.acceptance ?? health?.receipt} expectedSha={expectedDeploymentCommit} deploymentSha={deploymentCommit} />
         <TransformationProvenanceCards />
         <BrokerLeaseCards />
