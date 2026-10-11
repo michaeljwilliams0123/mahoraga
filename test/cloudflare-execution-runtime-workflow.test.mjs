@@ -45,6 +45,31 @@ test("Cloudflare exact-main workflow preserves SHA authority and fails closed on
   assert.match(workflow, /Hard-zero provider credentials are not configured/);
 });
 
+test("every mutation rechecks exact main immediately without leaking GitHub token to deploy tools", async () => {
+  const workflow = await readFile(workflowPath, "utf8");
+  const mutators = [
+    ["Deploy isolated budgeted Workers AI provider", "npx --yes wrangler@4.136.1 deploy"],
+    ["Independently admit and deploy opt-in read-only Cloudflare action worker", "node --input-type=module"],
+    ["Deploy private universal execution broker", "npm run cloudflare:execution-broker:deploy"],
+    ["Deploy exact verified execution runtime", "node scripts/cloudflare-execution-runtime.ts deploy"],
+    ["Refresh hard-zero provider admission", "node --input-type=module"],
+    ["Deploy exact verified owner gateway", "npx --yes wrangler@4.132.0 deploy"],
+    ["Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough", "node scripts/cloudflare-production-acceptance.ts"],
+  ];
+  for (const [stepName, mutation] of mutators) {
+    const begin = workflow.indexOf("      - name: " + stepName + "\n");
+    assert.ok(begin >= 0, stepName + ": step exists");
+    const end = workflow.indexOf("\n      - name: ", begin + 1);
+    const block = workflow.slice(begin, end < 0 ? undefined : end);
+    assert.match(block, /GITHUB_TOKEN: \$\{\{ github\.token \}\}/, stepName + ": scoped verification token");
+    const check = block.indexOf("node scripts/verify-exact-head.mjs");
+    const unset = block.indexOf("unset GITHUB_TOKEN");
+    const mutationIndex = block.indexOf(mutation);
+    assert.ok(check >= 0 && unset > check && mutationIndex > unset,
+      stepName + ": fail closed on stale main and clear token before mutation");
+  }
+});
+
 test("Cloudflare exact-main workflow proves account billing before deploying provider, runtime, and acceptance", async () => {
   const [workflow, billingAttestationScript] = await Promise.all([
     readFile(workflowPath, "utf8"),
