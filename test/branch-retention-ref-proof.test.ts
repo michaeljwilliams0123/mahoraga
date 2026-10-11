@@ -2,6 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 // @ts-ignore Existing migration-debt module remains the canonical cleanup classifier.
 import { classifyCleanupBranch } from "../src/branch-cleanup-ledger.mjs";
+import { parseLocalOriginRefs } from "../scripts/branch-retention-audit.ts";
+
+test("retention audit excludes symbolic origin HEAD without hiding actual branches", () => {
+  const sha = "a".repeat(40);
+  const source = [
+    `refs/remotes/origin/HEAD\t${sha}`,
+    `refs/remotes/origin/main\t${sha}`,
+    `refs/remotes/origin/feature/candidate\t${sha}`,
+  ].join("\n");
+  assert.deepEqual(parseLocalOriginRefs(source), [{ name: "feature/candidate", headSha: sha }]);
+});
 
 const ghost = {
   name: "copilot/fix-example",

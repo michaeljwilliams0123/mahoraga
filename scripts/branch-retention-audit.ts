@@ -6,6 +6,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 // @ts-ignore Existing JS migration-debt module is the canonical ledger.
 import { classifyCleanupBranch } from "../src/branch-cleanup-ledger.mjs";
 
@@ -26,6 +27,14 @@ function command(bin: string, args: string[]): string {
     timeout: 60000, windowsHide: true }).trim();
 }
 const lines = (value: string): string[] => value ? value.split(/\r?\n/).filter(Boolean) : [];
+/** Compare full remote ref names, not Git's ambiguous short symbolic origin/HEAD alias. */
+export function parseLocalOriginRefs(raw: string): { name: string; headSha: string }[] {
+  const prefix = "refs/remotes/origin/";
+  return lines(raw).map(line => line.split("\t"))
+    .filter(([ref, sha]) => ref?.startsWith(prefix) && ref !== prefix + "HEAD" && !!sha)
+    .map(([ref, sha]) => ({ name: ref!.slice(prefix.length), headSha: sha! }))
+    .filter(ref => ref.name !== "main");
+}
 function parseHeadRefs(raw: string): Map<string,string> {
   const refs = new Map<string,string>();
   for (const line of lines(raw)) {
@@ -68,10 +77,8 @@ function main(): void {
   const sha = command(GIT, ["rev-parse", "refs/remotes/origin/main"]);
   const remote = parseHeadRefs(command(GIT, ["ls-remote", "--heads", "origin"]));
   if (remote.get("main") !== sha) throw new Error("branch-audit-main-sha-stale");
-  const localRaw = command(GIT, ["for-each-ref", "--format=%(refname:short)%09%(objectname)", "refs/remotes/origin"]);
-  const refs = lines(localRaw).map(line => line.split("\t"))
-    .filter(([name, ref]) => name?.startsWith("origin/") && ref && name !== "origin/HEAD")
-    .map(([name, ref]) => ({ name: name!.slice(7), headSha: ref! })).filter(r => r.name !== "main");
+  const localRaw = command(GIT, ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/remotes/origin"]);
+  const refs = parseLocalOriginRefs(localRaw);
   if (refs.length !== remote.size - 1 || refs.some(x => !remote.has(x.name))) {
     throw new Error("branch-audit-remote-ref-set-stale");
   }
@@ -138,4 +145,4 @@ function main(): void {
     note:"Reference/ancestry classification is advisory. Revalidate each exact remote SHA, PR state and archive evidence before any destructive action.",
   }, null, 2));
 }
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
