@@ -48,7 +48,8 @@ test('workspace workflow separates verified static publication from accepted run
  const { readFile } = await import('node:fs/promises');
  const workflow = await readFile(new URL('../.github/workflows/cloudflare-workspace-candidate.yml', import.meta.url), 'utf8');
  assert.match(workflow, /workflow_call:\s*\n\s*inputs:\s*\n\s*verified_sha:\s*\n\s*required: true\s*\n\s*type: string/);
- const triggers = workflow.split('\npermissions:')[0];
+ assert.ok(workflow.includes('\npermissions:'), 'workflow permissions boundary must exist');
+ const triggers = workflow.slice(0, workflow.indexOf('\npermissions:'));
  assert.match(triggers, /^\s*workflow_dispatch:/m);
  assert.match(triggers, /^\s*workflow_call:/m);
  assert.doesNotMatch(triggers, /^\s*workflow_run:/m, 'standalone Verify-triggered publication must be disabled');
