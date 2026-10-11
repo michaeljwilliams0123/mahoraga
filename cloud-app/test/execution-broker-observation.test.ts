@@ -1,9 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { projectExecutionBrokerObservation } from "../lib/execution-broker-observation.ts";
 import type { RuntimeCapability } from "../lib/runtime-relay.ts";
+const cockpitPath = join(dirname(fileURLToPath(import.meta.url)), "..", "components", "cockpit");
 const cap = (capability: string, routable: boolean, routingReason: string | null = null): RuntimeCapability =>
   ({ capability, routable, enabled: true, workerIds: [], routingReason });
 test("missing tool capabilities remain explicitly unobserved", () => {
@@ -21,8 +23,8 @@ test("duplicate projections are counted once, and mixed observed routes remain d
  assert.equal(state.routable,1);
  assert.equal(state.observed,2);
  assert.equal(state.held,1);
- const component=readFileSync(join(process.cwd(),"components/cockpit/ExecutionBrokerCard.tsx"),"utf8");
- const cockpit=readFileSync(join(process.cwd(),"components/cockpit/CockpitView.tsx"),"utf8");
+ const component=readFileSync(join(cockpitPath,"ExecutionBrokerCard.tsx"),"utf8");
+ const cockpit=readFileSync(join(cockpitPath,"CockpitView.tsx"),"utf8");
  assert.match(component,/does not establish that the private Cloudflare broker has a bound provider/);
  assert.match(cockpit,/<ExecutionBrokerCard capabilities=\{runtimeCapabilities\}/);
 });
