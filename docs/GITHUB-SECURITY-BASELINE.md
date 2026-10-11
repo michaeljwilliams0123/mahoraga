@@ -29,8 +29,12 @@ success is not proof of live settings. Because the repository is public, missing
 live ruleset evidence now fails closed instead of entering private-plan advisory
 mode.
 
-Ruleset `22502690` (`Protect main - exact-head Verify`) is active with no
-bypass actors. It requires strict, exact-head success for exactly these contexts:
+Ruleset `22502690` (`Protect main - exact-head Verify`) is active. In the
+2026-10-11 live snapshot it has **two configured bypass actors**: a
+`RepositoryRole` actor (`pull_request` bypass mode) and an `Integration`
+actor (`always` bypass mode). These settings must be reconciled with the
+intended owner-approval policy; configuration does not prove an actual bypass.
+It requires strict, exact-head success for exactly these contexts:
 
 - `Verify (ubuntu-latest)`
 - `Verify (windows-latest)`
@@ -40,9 +44,15 @@ not a PR completion gate, runtime fallback, or authority signal. The
 live-protection evaluator fails closed if any context beyond the two required
 Verify checks is configured as required.
 
-No actor may bypass, synthesize, or substitute these checks. Autonomous
-integration may squash-merge only after both exact-head checks pass and the
-candidate base is still current.
+The live protection evaluator attests configured required checks, PR rules,
+deletion and force-push restrictions. It reports observed bypass-actor count,
+bypass modes, approving-review count, and code-owner-review requirement as
+**diagnostic evidence only**. It does not enforce independent human approval,
+zero bypass actors, or owner authorization. The 2026-10-11 live ruleset requires
+zero approving reviews and does not require code-owner review. A green Verify
+result is not independent approval or permission to bypass protected landing.
+Autonomous integration must preserve both exact-head checks, freshness, and
+separate owner authorization. Never synthesize or substitute checks.
 
 Account-level controls last verified 2026-08-24 and re-checked 2026-09-21:
 
