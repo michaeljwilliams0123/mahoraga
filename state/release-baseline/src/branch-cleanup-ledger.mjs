@@ -70,6 +70,16 @@ export function classifyCleanupBranch(input = {}) {
   if (openPrCount > 0) {
     return frozen({ name, disposition: "keep", reason: "open-pr", creditCost: 0, paidFallback: false });
   }
+  const activeRefCount = branch.activeRefCount ?? 0;
+  if (!Number.isSafeInteger(activeRefCount) || activeRefCount < 0) fail("cleanup-branch-reference-count-invalid");
+  const netChangedPathCount = branch.netChangedPathCount;
+  if (netChangedPathCount !== undefined && (!Number.isSafeInteger(netChangedPathCount) || netChangedPathCount < 0)) {
+    fail("cleanup-branch-net-path-count-invalid");
+  }
+  if (activeRefCount > 0) {
+    return frozen({ name, disposition: "reconcile", reason: "live-reference-in-current-main",
+      activeRefCount, creditCost: 0, paidFallback: false });
+  }
   const aheadBy = branch.aheadBy;
   if (!Number.isSafeInteger(aheadBy) || aheadBy < 0) fail("cleanup-branch-ahead-invalid");
   const wave = branch.wave === "A" || branch.wave === "B" ? branch.wave : classifyLeftoverWave(name);
@@ -83,6 +93,19 @@ export function classifyCleanupBranch(input = {}) {
       mergedPullNumber: merged?.mergedPullNumber ?? null,
       creditCost: 0,
       paidFallback: false,
+    });
+  }
+  if (aheadBy > 0 && netChangedPathCount === 0
+    && branch.refVerified === true && branch.prHistoryComplete === true) {
+    return frozen({
+      name,
+      disposition: "archive-then-delete",
+      reason: "empty-change-verified",
+      aheadBy,
+      evidenceTag: branch.evidenceTag ?? null,
+      creditCost: 0,
+      paidFallback: false,
+      note: "The branch has no changes since its fork, but deletion requires an independent archive and a fresh exact-ref check.",
     });
   }
   if (aheadBy === 0) {
