@@ -22,6 +22,7 @@ export function planWorldStateActions(snapshot, {
 
   const actions = [];
   const objectives = Array.isArray(snapshot.objectives) ? snapshot.objectives : [];
+  assertUniqueObjectiveIds(objectives);
   assertAcyclicDependencies(objectives);
 
   const objectiveById = new Map(objectives.map((objective) => [String(objective?.id ?? "unknown"), objective]));
@@ -356,6 +357,17 @@ function validateCalibrationProfile(value) {
   return Object.freeze({ ...normalized, fingerprint: value.fingerprint });
 }
 
+function assertUniqueObjectiveIds(objectives) {
+  const seen = new Set();
+  for (const objective of objectives) {
+    const id = objective?.id;
+    if (typeof id !== "string" || id.trim().length === 0 || id.trim() !== id) {
+      throw plannerError("planner-objective-id-invalid");
+    }
+    if (seen.has(id)) throw plannerError("planner-objective-id-duplicate");
+    seen.add(id);
+  }
+}
 function assertAcyclicDependencies(objectives) {
   const graph = new Map();
   for (const objective of objectives) {
