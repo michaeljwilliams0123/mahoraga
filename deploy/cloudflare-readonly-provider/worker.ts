@@ -91,8 +91,24 @@ export function createReadonlyCloudflareProvider(env: InspectorEnv, { fetchImpl 
       if (path !== "/api/execute") return json({ error: "not-found" }, 404);
       if (request.method !== "POST") return json({ error: "method-not-allowed" }, 405);
       if (!(request.headers.get("content-type") ?? "").startsWith("application/json")) return json({ error: "invalid-request" }, 415);
-      const raw = await request.text();
-      if (raw.length > 4096) return json({ error: "invalid-request" }, 413);
+      const reader = request.body?.getReader();
+      if (!reader) return json({ error: "invalid-request" }, 400);
+      const decoder = new TextDecoder();
+      let raw = "";
+      let bytes = 0;
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          bytes += chunk.value.byteLength;
+          if (bytes > 4096) {
+            await reader.cancel();
+            return json({ error: "invalid-request" }, 413);
+          }
+          raw += decoder.decode(chunk.value, { stream: true });
+        }
+        raw += decoder.decode();
+      } catch { return json({ error: "invalid-request" }, 400); }
       let body: Record<string, unknown> | null;
       try { body = record(JSON.parse(raw)); } catch { body = null; }
       if (!body || !keys(body, ["lease", "payload", "evidenceRefs"])) return json({ error: "invalid-request" }, 400);

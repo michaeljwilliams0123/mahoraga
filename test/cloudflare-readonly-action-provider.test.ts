@@ -110,6 +110,26 @@ test("deployment chronology is enforced before provider attestation and executio
   }
 });
 
+test("streaming oversized inspection requests stop reading after the 4 KiB limit", async () => {
+  let chunks = 0;
+  let cancelled = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      chunks += 1;
+      controller.enqueue(new TextEncoder().encode("x".repeat(1024)));
+      if (chunks === 128) controller.close();
+    },
+    cancel() { cancelled = true; },
+  });
+  const provider = createReadonlyCloudflareProvider(env, { now: () => NOW, fetchImpl: fakeApi });
+  const response = await provider.fetch(new Request("https://private-provider/api/execute", {
+    method: "POST", headers: { "content-type": "application/json" }, body, duplex: "half",
+  } as RequestInit & { duplex: "half" }));
+  assert.equal(response.status, 413);
+  assert.ok(chunks < 20, "The provider must not buffer an entire oversized upload");
+  assert.equal(cancelled, true);
+});
+
 test("write, expired, future, wrong worker, widened scope, invalid target and extra fields fail closed", async () => {
   let calls = 0;
   const provider = createReadonlyCloudflareProvider(env, { now: () => NOW, fetchImpl: async () => {
