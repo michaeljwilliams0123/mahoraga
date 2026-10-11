@@ -66,7 +66,8 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
     const billingEligible = zeroMarginalRequired ? preBillingCandidates.filter((candidate) => zeroMarginalEligible(candidate, context)) : preBillingCandidates;
     // A worker may be projected by more than one evidence source. Compete each
     // worker once so recovery cannot cycle through duplicate representations.
-    const candidates = uniqueWorkers(billingEligible).slice(0, 16);
+    const { unique: eligibleWorkers, conflictedWorkerIds } = uniqueWorkers(billingEligible);
+    const candidates = eligibleWorkers.slice(0, 16);
 
     if (preBillingCandidates.length > 0 && candidates.length === 0 && zeroMarginalRequired) {
       const billingDecision = Object.freeze({ required: true, effectiveClass: preBillingCandidates[0].billingClass, eligible: false });
@@ -81,7 +82,9 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
       });
     }
 
-    const reason = ranked.reason ?? (normalizedCandidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
+    const reason = candidates.length === 0 && conflictedWorkerIds.length > 0
+      ? "routing-evidence-ambiguous"
+      : ranked.reason ?? (normalizedCandidates.length > 0 ? "worker-excluded" : "routing-evidence-missing");
     if (candidates.length === 0) {
       const authorityDecision = createAuthorityDecision({
         ownerGrant, task, providerDecision, creditFreeDecision, context, legacyReason: reason,
@@ -133,12 +136,29 @@ export function createTaskRouter({ rankRoutes = rankCapabilityRoutes } = {}) {
 }
 
 function uniqueWorkers(candidates) {
-  const seen = new Set();
-  return candidates.filter((candidate) => {
-    if (seen.has(candidate.workerId)) return false;
-    seen.add(candidate.workerId);
-    return true;
-  });
+  const first = new Map();
+  const conflicts = new Set();
+  for (const candidate of candidates) {
+    const fingerprint = JSON.stringify({
+      capability: candidate.capability,
+      costClass: candidate.costClass,
+      billingClass: candidate.billingClass,
+      permissionClass: candidate.permissionClass ?? null,
+      dataClasses: normalizedScopes(candidate.dataClasses),
+      authorityScopes: normalizedScopes(candidate.authorityScopes),
+      platformAuthorityScopes: normalizedScopes(candidate.platformAuthorityScopes),
+    });
+    const prior = first.get(candidate.workerId);
+    if (!prior) first.set(candidate.workerId, { candidate, fingerprint });
+    else if (prior.fingerprint !== fingerprint) conflicts.add(candidate.workerId);
+  }
+  return {
+    unique: [...first.values()].filter(({candidate}) => !conflicts.has(candidate.workerId)).map(({candidate}) => candidate),
+    conflictedWorkerIds: [...conflicts].sort(),
+  };
+}
+function normalizedScopes(scopes) {
+  return Array.isArray(scopes) ? [...new Set(scopes)].sort() : [];
 }
 
 function evaluateCandidate({ candidate, ownerGrant, task, context, providerDecision, creditFreeDecision, zeroMarginalRequired }) {
