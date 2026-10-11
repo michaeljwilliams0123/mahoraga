@@ -91,8 +91,33 @@ export function evaluateLiveMainProtection({ rulesets = [], contract } = {}) {
     reason: "live-main-protection-attested",
     rulesetIds: Object.freeze(covering.map((ruleset) => ruleset.id).filter((id) => Number.isInteger(id))),
     requiredContexts: expected.requiredContexts,
+    // Observation only: does not grant, waive, or strengthen authority.
+    governanceObservation: observeMainGovernance(covering),
     creditCost: 0,
     paidFallback: false,
+  });
+}
+
+function observeMainGovernance(rulesets) {
+  const bypassKnown = rulesets.every((ruleset) => Array.isArray(ruleset.bypass_actors));
+  const bypassActors = bypassKnown ? rulesets.flatMap((ruleset) => ruleset.bypass_actors) : [];
+  const reviewRules = rulesets.flatMap((ruleset) =>
+    (Array.isArray(ruleset.rules) ? ruleset.rules : [])
+      .filter((rule) => rule?.type === "pull_request").map((rule) => rule.parameters));
+  const reviewCountsKnown = reviewRules.length > 0
+    && reviewRules.every((params) => Number.isInteger(params?.required_approving_review_count)
+      && params.required_approving_review_count >= 0);
+  const codeOwnerKnown = reviewRules.length > 0
+    && reviewRules.every((params) => typeof params?.require_code_owner_review === "boolean");
+  return Object.freeze({
+    bypassActorCount: bypassKnown ? bypassActors.length : null,
+    bypassModes: bypassKnown ? Object.freeze(
+      [...new Set(bypassActors.map((actor) => String(actor.actor_type) + ":" + String(actor.bypass_mode)))].sort(),
+    ) : null,
+    requiredApprovingReviewCount: reviewCountsKnown
+      ? Math.max(...reviewRules.map((params) => params.required_approving_review_count)) : null,
+    codeOwnerReviewRequired: codeOwnerKnown
+      ? reviewRules.some((params) => params.require_code_owner_review) : null,
   });
 }
 

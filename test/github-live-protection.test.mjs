@@ -34,6 +34,37 @@ function ruleset(overrides = {}) {
   };
 }
 
+test("live main governance observations expose real bypasses without converting them into approvals", () => {
+  const live = ruleset({
+    bypass_actors: [
+      { actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "pull_request" },
+      { actor_id: 5187100, actor_type: "Integration", bypass_mode: "always" },
+    ],
+    rules: ruleset().rules.map((rule) => rule.type === "pull_request"
+      ? { ...rule, parameters: { required_approving_review_count: 0, require_code_owner_review: false } }
+      : rule),
+  });
+  const report = evaluateLiveMainProtection({ rulesets: [live], contract });
+  assert.equal(report.ok, true); // This checker attests checks, not absence of bypass.
+  assert.deepEqual(report.governanceObservation, {
+    bypassActorCount: 2,
+    bypassModes: ["Integration:always", "RepositoryRole:pull_request"],
+    requiredApprovingReviewCount: 0,
+    codeOwnerReviewRequired: false,
+  });
+});
+
+test("missing bypass and review metadata is reported unknown, never asserted safe", () => {
+  const report = evaluateLiveMainProtection({ rulesets: [ruleset()], contract });
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.governanceObservation, {
+    bypassActorCount: null,
+    bypassModes: null,
+    requiredApprovingReviewCount: 0,
+    codeOwnerReviewRequired: null,
+  });
+});
+
 test("live main protection admits an active exact-head Verify ruleset", () => {
   const report = evaluateLiveMainProtection({ rulesets: [ruleset()], contract });
   assert.equal(report.ok, true);
