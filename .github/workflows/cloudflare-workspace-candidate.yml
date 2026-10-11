@@ -1,11 +1,8 @@
 name: Publish Mahoraga Cloudflare Workspace Candidate
 
 on:
+  # Owner-only manual recovery; routine publication requires accepted-runtime workflow_call.
   workflow_dispatch:
-  # Publish only a static candidate from successfully verified main; runtime acceptance stays separate.
-  workflow_run:
-    workflows: ["Verify Mahoraga"]
-    types: [completed]
   workflow_call:
     inputs:
       verified_sha:
@@ -28,18 +25,6 @@ jobs:
        github.actor == github.repository_owner &&
        github.repository == 'michaeljwilliams0123/mahoraga' &&
        github.ref == 'refs/heads/main') ||
-      (github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main' &&
-       github.event_name == 'workflow_run' &&
-       github.repository == 'michaeljwilliams0123/mahoraga' &&
-       github.ref == 'refs/heads/main' &&
-       github.event.workflow_run.name == 'Verify Mahoraga' &&
-       github.event.workflow_run.path == '.github/workflows/verify.yml' &&
-       github.event.workflow_run.status == 'completed' &&
-       github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.head_branch == 'main' &&
-       github.event.workflow_run.head_repository.full_name == github.repository &&
-       (github.event.workflow_run.actor.login == github.repository_owner || github.event.workflow_run.actor.login == 'github-actions[bot]') &&
-       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) ||
       (github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main' &&
        github.repository == 'michaeljwilliams0123/mahoraga' &&
        github.ref == 'refs/heads/main' &&
@@ -49,7 +34,7 @@ jobs:
     timeout-minutes: 15
     env:
       VERIFIED_SHA: ${{ inputs.verified_sha || (github.event_name == 'workflow_run' && github.event.workflow_run.head_sha) || github.sha }}
-      # Only the standalone verified UI lane may attest static source without asserting runtime readiness.
+      # Explicit owner recovery stays static-only; paired runtime publication requires accepted source.
       MAHORAGA_STATIC_ONLY: ${{ github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -79,10 +64,6 @@ jobs:
       - name: Validate canonical accepted-runtime caller
         if: github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main'
         run: node scripts/cloudflare-workspace-proof.ts caller
-
-      - name: Validate verified-main static publication caller
-        if: github.workflow_ref == 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-workspace-candidate.yml@refs/heads/main' && github.event_name == 'workflow_run'
-        run: node scripts/cloudflare-workspace-proof.ts caller-static
 
       - name: Verify exact SHA is still authoritative main
         env:
