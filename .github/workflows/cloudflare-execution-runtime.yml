@@ -264,6 +264,20 @@ jobs:
             npm run cloudflare:execution-broker:deploy
           fi
 
+      # Verify what Cloudflare actually deployed, not only the Wrangler config.
+      # Only in owner-enabled mode, require the private inspector, its secret
+      # bindings, and 100% traffic. Default Cloudflare deployments are unchanged.
+      - name: Verify live broker CLOUD_PROVIDER binding before runtime promotion
+        if: env.MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-exact-head.mjs
+          unset GITHUB_TOKEN
+          node scripts/cloudflare-readonly-binding-acceptance.mjs
+
       - name: Deploy exact verified execution runtime
         env:
           GITHUB_TOKEN: ${{ github.token }}
