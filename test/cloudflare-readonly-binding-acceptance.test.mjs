@@ -14,7 +14,7 @@ const id = "12345678-1234-1234-1234-123456789abc";
 const env = { accountId:"a".repeat(32), apiToken:"broker-deployment-only-test-token-".repeat(2) };
 const wrap = (result) => ({ success:true, result });
 const service = () => ({ name:"CLOUD_PROVIDER", type:"service", service:INSPECTOR, environment:"production" });
-const settings = (bindings=[]) => wrap({ bindings });
+const version = (bindings=[]) => wrap({ id, resources:{ bindings } });
 const deployment = (alter={}) => wrap({ deployments:[{
   id, created_on:new Date(NOW - 120_000).toISOString(),
   versions:[{version_id:id, percentage:100}], ...alter,
@@ -24,8 +24,8 @@ const secrets = [
   {name:"CLOUDFLARE_ACCOUNT_ID",type:"secret_text"},
 ];
 const valid = (other={}) => ({
-  enabled:true, brokerSettings:settings([service()]), brokerDeployments:deployment(),
-  inspectorSettings:settings(secrets), inspectorDeployments:deployment(),
+  enabled:true, brokerVersion:version([service()]), brokerDeployments:deployment(),
+  inspectorVersion:version(secrets), inspectorDeployments:deployment(),
   nowMs:NOW, ...other,
 });
 
@@ -42,14 +42,14 @@ test("actual bound provider with both secret names and 100-percent deployments v
 });
 
 test("disabled mode proves no latent service binding; does not require or query inspector", () => {
-  const s=verifyReadonlyBindingSnapshot({enabled:false,brokerSettings:settings(),nowMs:NOW});
+  const s=verifyReadonlyBindingSnapshot({enabled:false,brokerVersion:version(),brokerDeployments:deployment(),nowMs:NOW});
   assert.deepEqual(s,{
     kind:"cloudflare-readonly-binding-readback",status:"disabled-unbound",
     providerBindingPresent:false,executableActionConfirmed:false,
   });
-  for (const bad of [settings([service()]), settings([{name:"OTHER",type:"service",service:"external"}])]) {
+  for (const bad of [version([service()]), version([{name:"OTHER",type:"service",service:"external"}])]) {
     assert.throws(() => verifyReadonlyBindingSnapshot({
-      enabled:false,brokerSettings:bad,nowMs:NOW,
+      enabled:false,brokerVersion:bad,brokerDeployments:deployment(),nowMs:NOW,
     }),/readonly-binding-unexpected-live-service/);
   }
 });
@@ -62,7 +62,7 @@ test("missing, incorrect, duplicate, and extra service names fail closed", () =>
     [service(),{name:"EXTRA",type:"service",service:"somewhere"}],
     [service(),{name:"EXTRA_SECRET",type:"secret_text"}],
     [{...service(),environment:"preview"}],
-  ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({brokerSettings:settings(b)})),
+  ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({brokerVersion:version(b)})),
     /readonly-binding-cloud-provider-mismatch/);
 });
 
@@ -71,7 +71,7 @@ test("missing inspector credentials, duplicate metadata and outbound service bin
     [], [secrets[0]], [secrets[1]], [secrets[0],secrets[0],secrets[1]],
     [...secrets,{name:"OTHER_SERVICE",type:"service",service:"unexpected"}],
     [...secrets,{name:"EXTRA_TOKEN",type:"secret_text"}],
-  ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({inspectorSettings:settings(b)})),
+  ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({inspectorVersion:version(b)})),
     /readonly-binding-inspector-credentials-unverified/);
 });
 
@@ -90,6 +90,17 @@ test("split traffic, missing deployment IDs, or future observations cannot be pr
   }
 });
 
+test("uploaded but undeployed Worker settings never count as the active service binding", () => {
+  const wrongId = "b".repeat(8)+"-1234-1234-1234-123456789abc";
+  const newVersion = (bindings) => wrap({ id:wrongId, resources:{bindings} });
+  assert.throws(() => verifyReadonlyBindingSnapshot(valid({
+    brokerVersion:newVersion([service()]),
+  })), /readonly-binding-broker-unverified/);
+  assert.throws(() => verifyReadonlyBindingSnapshot(valid({
+    inspectorVersion:newVersion(secrets),
+  })), /readonly-binding-inspector-unverified/);
+});
+
 test("Cloudflare API calls are read-only, only fixed paths, and never show token in receipt", async () => {
   const paths = [];
   const get = async (url, init) => {
@@ -99,9 +110,9 @@ test("Cloudflare API calls are read-only, only fixed paths, and never show token
     assert.equal(new Headers(init.headers).get("cache-control"),"no-store");
     paths.push(String(url));
     const suffix = String(url).split("/workers/scripts/")[1];
-    if (suffix===BROKER+"/settings")return Response.json(settings([service()]));
+    if (suffix===BROKER+"/versions/"+id)return Response.json(version([service()]));
     if (suffix===BROKER+"/deployments")return Response.json(deployment());
-    if (suffix===INSPECTOR+"/settings")return Response.json(settings(secrets));
+    if (suffix===INSPECTOR+"/versions/"+id)return Response.json(version(secrets));
     if (suffix===INSPECTOR+"/deployments")return Response.json(deployment());
     throw Error("unauthorized path");
   };
@@ -113,15 +124,18 @@ test("Cloudflare API calls are read-only, only fixed paths, and never show token
   assert.doesNotMatch(JSON.stringify(result),/broker-deployment-only-test-token|Bearer/);
 });
 
-test("disabled mode performs exactly one broker settings GET and rejects existing provider", async () => {
-  let count=0;
+test("disabled mode inspects only the deployed broker version, never the inspector", async () => {
+  const paths=[];
   const response=await readReadonlyBindingSnapshot({...env,enabled:false,nowMs:NOW,fetchImpl:async url=>{
-    assert.ok(String(url).endsWith(BROKER+"/settings"));
-    count++;
-    return Response.json(settings());
+    const p=String(url);
+    paths.push(p);
+    if(p.endsWith(BROKER+"/deployments"))return Response.json(deployment());
+    if(p.endsWith(BROKER+"/versions/"+id))return Response.json(version());
+    throw new Error("unexpected endpoint");
   }});
   assert.equal(response.status,"disabled-unbound");
-  assert.equal(count,1);
+  assert.equal(paths.length,2);
+  assert.ok(paths.every(p=>!p.includes(INSPECTOR)));
 });
 
 test("API failures and token absence are sanitized without action grants", async () => {
