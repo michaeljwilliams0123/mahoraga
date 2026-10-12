@@ -34,11 +34,12 @@ test("four-hour cycle stays deterministic with empty providers and no generation
   assert.equal(waiting.providerId, "waiting-zero-credit-provider");
 });
 
-test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted Actions admission is unavailable", async () => {
+test("four-hour cycle matches portable Windows zero-credit capacity and never a named device", async () => {
   const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");
-  assert.match(workflow, /candidate-cycle:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
-  assert.match(workflow, /producer-smoke:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
-  assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
+  const required = /runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*zero-credit\]/gi;
+  assert.equal((workflow.match(required) ?? []).length, 2, "candidate and smoke must both require free local capacity");
+  assert.doesNotMatch(workflow, /sd009wc7|runs-on:\s*(?:windows|ubuntu)-latest/i);
+  assert.match(workflow, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
 });
 
 
