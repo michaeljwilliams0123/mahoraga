@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Optional Linux/macOS runner. Never changes sovereign Windows job eligibility.
 set -euo pipefail
-mode="\${1:-inspect}"
+mode="${1:-inspect}"
 case "$mode" in inspect|enroll) ;; *) echo 'Usage: bash scripts/portable-runner-enroll.sh [inspect|enroll]' >&2; exit 64 ;; esac
 repo='michaeljwilliams0123/mahoraga'
 version='2.337.0'
@@ -19,7 +19,7 @@ case "$platform:$arch" in
   Darwin:arm64) asset="actions-runner-osx-arm64-$version.tar.gz"; sha='5a2cd92908a93d7276a194e1de6008099f3e7946f3f8e14aa7a1a7b4a31fdec2' ;;
   *) echo 'Unsupported OS/architecture: no implicit fallback.' >&2; exit 66 ;;
 esac
-runner_dir="\${MAHORAGA_RUNNER_DIRECTORY:-$HOME/.mahoraga/actions-runner}"
+runner_dir="${MAHORAGA_RUNNER_DIRECTORY:-$HOME/.mahoraga/actions-runner}"
 case "$runner_dir" in /*) ;; *) echo 'Runner directory must be absolute.' >&2; exit 65 ;; esac
 if [[ "$mode" == 'inspect' ]]; then
   printf 'status=inspect-only\nrepository=%s\nplatform=%s\nasset=%s\nregistration=no; credentials=untouched; paidFallback=false\n' "$repo" "$platform:$arch" "$asset"
@@ -39,8 +39,8 @@ if [[ "$platform" == Linux ]] && ! sudo -n true 2>/dev/null; then
   exit 69
 fi
 host_name="$(hostname | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
-name="mahoraga-\${host_name:0:30}-$(node -p 'require("node:crypto").randomBytes(4).toString("hex")')"
-archive="$(mktemp "\${TMPDIR:-/tmp}/mahoraga-runner.XXXXXXXX")"
+name="mahoraga-${host_name:0:30}-$(node -p 'require("node:crypto").randomBytes(4).toString("hex")')"
+archive="$(mktemp "${TMPDIR:-/tmp}/mahoraga-runner.XXXXXXXX")"
 token=''
 cleanup() { token=''; rm -f -- "$archive"; }
 trap cleanup EXIT
