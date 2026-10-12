@@ -15,13 +15,20 @@ concurrency:
 
 jobs:
   learn:
-    # Public: standard free hosted Ubuntu. Private: local Windows only if the
-    # owner explicitly enables the local Steward lane. Never use private-hosted minutes.
+    # Owner-selectable repo routing: auto (default), cloud, local, hold.
+    # Public may use only free hosted Ubuntu; private may use only owner-enabled
+    # local Windows. Unknown/unsupported modes hold before runner allocation.
     if: >-
       (github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123') &&
-      (github.event.repository.private == false ||
+      ((github.event.repository.private == false &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'cloud')) ||
        (github.event.repository.private == true &&
-        vars.MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED == 'true'))
+        vars.MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED == 'true' &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'local')))
     runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
     permissions:
