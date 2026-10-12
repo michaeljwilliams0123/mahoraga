@@ -50,6 +50,54 @@ broker-backed attestation is missing, together with a concrete
 configuration/readiness explanation. Neither static UI rendering nor
 synthetic tests establish action execution.
 
+## Live service binding promotion verification (October 2026)
+
+The private binding already declared in
+`deploy/cloudflare-execution-broker/wrangler.readonly-provider.jsonc`
+targets `CLOUD_PROVIDER → mahoraga-cloudflare-readonly-inspector`.
+When and **only when** the owner opt-in
+`MAHORAGA_READONLY_PROVIDER_ENABLED=true` is set, the canonical workflow
+deploys that inspector and broker and immediately runs
+`node scripts/cloudflare-readonly-binding-acceptance.mjs`
+**before promoting the execution runtime or Owner Gateway**.
+
+The acceptance script uses only the **separate dedicated read-only token**
+in `CLOUDFLARE_READONLY_AUDIT_TOKEN` for bounded GET requests to Cloudflare
+Worker settings/deployments. It confirms that:
+
+- The real deployed broker has **exactly one binding**, of type `service`,
+  named `CLOUD_PROVIDER` and targeting the exact private inspector in
+  production; no unexpected provider or secret bindings are accepted.
+- The inspector settings contain exactly the two required secret binding
+  names `CLOUDFLARE_AUDIT_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, and no
+  downstream service bindings. Binding names indicate configured secrets,
+  **not** that token permissions or provider execution have been verified.
+- Both inspector and broker have genuine Cloudflare deployment IDs, one
+  uniquely identified version receiving **100% traffic**, and no future
+  deployment chronology beyond the existing five-second clock tolerance.
+- The result is a sanitized `bound-for-runtime-attestation` readback,
+  **not** an action success, an owner authority grant, or a billing exception.
+  Upstream API failures and ambiguous metadata stop promotion.
+
+When the opt-in is unset/false, **the readback step is skipped entirely**,
+preserving existing free exact-main deployments with no new API requests
+and zero provider binding. The pure validator also supports
+`disabled-unbound` observations for future diagnostic use, but no
+inactive-mode live probe is claimed by the deployment workflow.
+
+Cloudflare's connected management plugin does not currently have the
+permissions to enumerate/create API tokens (permission error 9109) or
+read account subscriptions (authentication error 10000). It cannot
+provision the independent least-privilege runtime secret by itself. The
+owner should create the account-scoped **Workers Scripts Read** token
+in Cloudflare and add it only to GitHub Actions Secrets using
+`gh secret set CLOUDFLARE_READONLY_AUDIT_TOKEN -R michaeljwilliams0123/mahoraga`
+or the GitHub secret UI; **never paste its value into the repository,
+chat, logs, a workflow variable, or the browser.** The owner opt-in should
+remain off until the existing independent billing guard is confirmed.
+The GitHub workflow then checks actual provider identity and execution
+through its separate post-deployment attestation/owner-session proof.
+
 ## Safe-by-default release behavior
 The ordinary broker configuration remains `deploy/cloudflare-execution-broker/wrangler.jsonc` with **no** external providers. The opt-in file `wrangler.readonly-provider.jsonc` binds only the new private Worker. No existing native GitHub App secret is copied or redistributed. This is one initial **read-only** live action, not unrestricted action authority.
 
