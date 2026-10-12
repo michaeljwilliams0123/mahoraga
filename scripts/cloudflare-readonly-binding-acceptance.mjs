@@ -115,7 +115,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     if (!["", "false", "true"].includes(flag)) throw new Error("readonly-binding-mode-invalid");
     const receipt = await readReadonlyBindingSnapshot({
       accountId: (process.env.CLOUDFLARE_ACCOUNT_ID ?? "").trim(),
-      apiToken: (process.env.CLOUDFLARE_API_TOKEN ?? "").trim(),
+      apiToken: (process.env.CLOUDFLARE_READONLY_AUDIT_TOKEN ?? "").trim(),
       enabled: flag === "true",
     });
     process.stdout.write(JSON.stringify(receipt) + "\n");
