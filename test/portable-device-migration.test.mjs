@@ -41,10 +41,14 @@ test('portable enrollment stays private, owner-invoked, and requires official re
   assert.match(unix, /Refusing self-hosted enrollment: repository must be private/);
 });
 
-test('Steward stays public-hosted only, with no secret private metered fallback', () => {
+test('Steward routes free hosted public jobs or owner-enabled private self-hosted jobs only', () => {
   const steward = read('.github/workflows/steward-two-hour-learning.yml');
   assert.match(steward, /github\.event\.repository\.private == false/);
-  assert.match(steward, /runs-on:\s*ubuntu-latest/);
-  assert.doesNotMatch(steward, /\[self-hosted/);
+  assert.match(steward, /github\.event\.repository\.private == true/);
+  assert.match(steward, /MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED == 'true'/);
+  assert.match(steward, /fromJSON\(github\.event\.repository\.private/);
+  assert.match(steward, /\["self-hosted","windows","x64","mahoraga","zero-credit"\]/);
+  assert.match(steward, /'"ubuntu-latest"'/);
+  assert.doesNotMatch(steward, /runs-on:\s*ubuntu-latest\b/);
   assert.equal(steward, read('state/release-baseline/.github/workflows/steward-two-hour-learning.yml'));
 });
