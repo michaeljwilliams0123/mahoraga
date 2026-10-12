@@ -93,7 +93,7 @@ test('switch requires an explicit owner apply action, never secrets or workflow-
   assert.match(cli, /--apply/);
   assert.match(cli, /gh.*variable set|variable", "set"/);
   assert.match(cli, /MAHORAGA_EXECUTION_ROUTE/);
-  assert.match(cli, /permissions\.admin/);
+  assert.match(cli, /info\.permissions\?\.admin/);
   assert.match(cli, /resolveExecutionRoute/);
   assert.doesNotMatch(cli, /OPENAI_API_KEY|CODEX_API_KEY|--replace|gh secret set|gh repo edit/);
 });
