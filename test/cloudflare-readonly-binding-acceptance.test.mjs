@@ -60,6 +60,7 @@ test("missing, incorrect, duplicate, and extra service names fail closed", () =>
     [{...service(),name:"REPOSITORY_PROVIDER"}],
     [service(),service()],
     [service(),{name:"EXTRA",type:"service",service:"somewhere"}],
+    [service(),{name:"EXTRA_SECRET",type:"secret_text"}],
     [{...service(),environment:"preview"}],
   ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({brokerSettings:settings(b)})),
     /readonly-binding-cloud-provider-mismatch/);
@@ -69,6 +70,7 @@ test("missing inspector credentials, duplicate metadata and outbound service bin
   for (const b of [
     [], [secrets[0]], [secrets[1]], [secrets[0],secrets[0],secrets[1]],
     [...secrets,{name:"OTHER_SERVICE",type:"service",service:"unexpected"}],
+    [...secrets,{name:"EXTRA_TOKEN",type:"secret_text"}],
   ]) assert.throws(()=>verifyReadonlyBindingSnapshot(valid({inspectorSettings:settings(b)})),
     /readonly-binding-inspector-credentials-unverified/);
 });
