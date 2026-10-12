@@ -10,7 +10,7 @@
 
 ## Replacement Windows x64 PC: one owner-initiated enrollment command
 
-Prerequisites: a trusted copy of the repository, Node.js **24+**, Git and **Git Bash on PATH**, GitHub CLI `gh` authenticated with repository **owner/admin** access, and elevated PowerShell. GitHub recommends installing its runner in a drive-root directory for Windows service account compatibility.
+Prerequisites: a trusted copy of the repository, Node.js **24+**, Git and **Git Bash on the system/service PATH**, GitHub CLI `gh` authenticated with repository **owner/admin** access, and elevated PowerShell. GitHub recommends installing its runner in a drive-root directory for Windows service account compatibility.
 
 1. On the replacement machine, retrieve and inspect the canonical source:
 
@@ -19,13 +19,13 @@ Prerequisites: a trusted copy of the repository, Node.js **24+**, Git and **Git 
    cd mahoraga
    git switch main
    git pull --ff-only
-   pwsh -NoProfile -File scripts/portable-runner-enroll.ps1 -Mode Inspect
+   powershell.exe -NoProfile -File scripts/portable-runner-enroll.ps1 -Mode Inspect
    ```
 
 2. When the repo is **private**, open an **administrator PowerShell** in that trusted directory, then run:
 
    ```powershell
-   pwsh -NoProfile -File scripts/portable-runner-enroll.ps1 -Mode Enroll
+   powershell.exe -NoProfile -File scripts/portable-runner-enroll.ps1 -Mode Enroll
    ```
 
    **Inspect** never downloads software, fetches tokens, or changes runner registrations. **Enroll** uses the official, pinned GitHub Actions runner **v2.337.0**, verifies its official SHA-256 digest, fetches a short-lived registration token just-in-time through your existing `gh` account, assigns a unique device name and common **mahoraga,zero-credit** labels, and requests a Windows service.
