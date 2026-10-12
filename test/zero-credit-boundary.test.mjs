@@ -42,7 +42,7 @@ test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted A
 });
 
 
-test("release uses hosted Linux and cancels superseded automatic runs while Steward stays self-hosted", async () => {
+test("release uses hosted Linux and Steward permits free public-only Ubuntu without spending private minutes", async () => {
   const releaseWorkflow = await readFile(path.join(root, ".github/workflows/release.yml"), "utf8");
   assert.match(releaseWorkflow, /runs-on:\s*ubuntu-latest/i);
   assert.match(releaseWorkflow, /group:\s*mahoraga-release-/i);
@@ -50,6 +50,13 @@ test("release uses hosted Linux and cancels superseded automatic runs while Stew
   assert.doesNotMatch(releaseWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
 
   const stewardWorkflow = await readFile(path.join(root, ".github/workflows/steward-two-hour-learning.yml"), "utf8");
-  assert.match(stewardWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
-  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*ubuntu-latest/i);
+  // Job-level if is evaluated before a hosted runner is allocated. Keep the
+  // privacy guard in the SAME learn job, not in a later step or an advisory.
+  assert.match(stewardWorkflow, /learn:\s*[\s\S]*?if:\s*>-[\s\S]*?github\.event\.repository\.private\s*==\s*false[\s\S]*?runs-on:\s*ubuntu-latest/i);
+  assert.match(stewardWorkflow, /github\.event_name\s*==\s*'schedule'/);
+  assert.match(stewardWorkflow, /github\.actor\s*==\s*'michaeljwilliams0123'/);
+  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
+  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*ubuntu-\d+-core/i);
+  const governedMirror = await readFile(path.join(root, "state/release-baseline/.github/workflows/steward-two-hour-learning.yml"), "utf8");
+  assert.equal(stewardWorkflow, governedMirror);
 });

@@ -15,9 +15,13 @@ concurrency:
 
 jobs:
   learn:
-    if: github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123'
-    # Deterministic repository work must not depend on hosted Actions billing admission.
-    runs-on: [self-hosted, linux, x64]
+    # Standard GitHub-hosted Ubuntu is free for public repositories.
+    # Fail closed before runner allocation if the repository becomes private;
+    # never spend included private Actions minutes or use a paid runner fallback.
+    if: >-
+      (github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123') &&
+      github.event.repository.private == false
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: write
