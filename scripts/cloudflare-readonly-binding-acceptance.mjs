@@ -74,6 +74,7 @@ export function verifyReadonlyBindingSnapshot({
     kind: "cloudflare-readonly-binding-readback", status: "bound-for-runtime-attestation",
     binding: "CLOUD_PROVIDER", service: INSPECTOR, providerBindingPresent: true,
     brokerDeploymentId: brokerDeployment.deploymentId,
+    brokerVersionId: brokerDeployment.versionId,
     inspectorDeploymentId: inspectorDeployment.deploymentId,
     inspectorVersionId: inspectorDeployment.versionId,
     trafficPercentage: 100, requiredSecretsPresent: true,
