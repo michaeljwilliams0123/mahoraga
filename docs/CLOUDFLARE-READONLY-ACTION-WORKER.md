@@ -63,7 +63,8 @@ deploys that inspector and broker and immediately runs
 
 The acceptance script uses only the **separate dedicated read-only token**
 in `CLOUDFLARE_READONLY_AUDIT_TOKEN` for bounded GET requests to Cloudflare
-Worker settings/deployments. It confirms that:
+**deployed Worker version details and deployment records** (not the latest
+uploaded script settings). It confirms that:
 
 - The real deployed broker has **exactly one binding**, of type `service`,
   named `CLOUD_PROVIDER` and targeting the exact private inspector in
