@@ -150,6 +150,10 @@ test("exact-main CI checks live broker binding after deployment and before runti
   assert.match(block,/node scripts\/verify-exact-head.mjs/);
   assert.match(block,/unset GITHUB_TOKEN/);
   assert.match(block,/node scripts\/cloudflare-readonly-binding-acceptance.mjs/);
+  assert.match(block,/if: env.MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'/);
+  const implementation=readFileSync(join(root,"scripts/cloudflare-readonly-binding-acceptance.mjs"),"utf8");
+  assert.match(implementation,/process.env.CLOUDFLARE_READONLY_AUDIT_TOKEN/);
+  assert.doesNotMatch(implementation,/process.env.CLOUDFLARE_API_TOKEN/);
   assert.doesNotMatch(block,/wrangler.*deploy|secret put|token create/);
   assert.match(workflow,/MAHORAGA_READONLY_PROVIDER_ENABLED: \$\{\{ vars.MAHORAGA_READONLY_PROVIDER_ENABLED \}\}/);
 });
