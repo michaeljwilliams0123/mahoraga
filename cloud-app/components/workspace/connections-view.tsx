@@ -63,7 +63,7 @@ export function ConnectionsView({
     <section className="connection-panel" aria-label="Connections">
       <div className="section-heading">
         <div>
-          <span className="eyebrow">Core-mediated</span>
+          <span className="eyebrow">Core-mediated · 7.0.0-alpha.2</span>
           <h2>Connections</h2>
         </div>
         <ShieldCheck size={20} />
@@ -73,7 +73,7 @@ export function ConnectionsView({
         Provider and worker readiness comes only from the paired Mahoraga core. This browser does not select providers, hold GitHub authority,
         or create an alternate execution path.
       </p>
-      <p className="muted">Route status is observed when the runtime pairs. Execution rechecks authority and provider readiness for each request.</p>
+      <p className="muted">Route status is observed when the runtime pairs. Execution rechecks authority and provider readiness for each request. Build provenance 7.0.0-alpha.2.</p>
 
       <div className="capability-list" aria-label="Agentic, generative, and predictive readiness">
         {projectCapabilityFamilies(coreReady, runtimeCapabilities).map((family) => (
