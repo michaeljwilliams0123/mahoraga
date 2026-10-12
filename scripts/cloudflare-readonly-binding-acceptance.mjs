@@ -53,14 +53,15 @@ export function verifyReadonlyBindingSnapshot({
       providerBindingPresent: false, executableActionConfirmed: false,
     });
   }
-  if (services.length !== 1 || providerNames.length !== 1
+  if (bindings.length !== 1 || services.length !== 1 || providerNames.length !== 1
       || services[0].name !== "CLOUD_PROVIDER" || services[0].service !== INSPECTOR
       || (services[0].environment !== undefined && services[0].environment !== "production")) {
     throw new Error("readonly-binding-cloud-provider-mismatch");
   }
   const inspectorBindings = assertSettings(inspectorSettings, "inspector");
   const secretNames = inspectorBindings.filter(b => record(b)?.type === "secret_text").map(b => b.name);
-  if (REQUIRED_SECRETS.some(n => secretNames.filter(x => x === n).length !== 1)
+  if (inspectorBindings.length !== REQUIRED_SECRETS.length
+      || REQUIRED_SECRETS.some(n => secretNames.filter(x => x === n).length !== 1)
       || inspectorBindings.some(b => record(b)?.type === "service")) {
     throw new Error("readonly-binding-inspector-credentials-unverified");
   }
