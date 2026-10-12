@@ -1,5 +1,5 @@
 /**
- * Verify ACTUAL live Cloudflare service-binding metadata after broker deploy.
+ * Verify bindings on the EXACT Cloudflare Worker versions serving live traffic.
  * This tool cannot grant an action, provision a token, or assert owner receipt.
  * Opt-in checks run before the execution runtime or Owner Gateway is promoted.
  */
@@ -16,13 +16,14 @@ const REQUIRED_SECRETS = ["CLOUDFLARE_AUDIT_TOKEN", "CLOUDFLARE_ACCOUNT_ID"];
 const cloudId = (s) => typeof s === "string" && /^[a-zA-Z0-9-]{12,100}$/.test(s);
 const record = (s) => s !== null && typeof s === "object" && !Array.isArray(s) ? s : null;
 
-const assertSettings = (value, label) => {
+const assertDeployedVersion = (value, label, expectedVersionId) => {
   const wrapper = record(value);
-  const settings = record(wrapper?.result);
-  if (wrapper?.success !== true || !Array.isArray(settings?.bindings)) {
+  const version = record(wrapper?.result), resources = record(version?.resources);
+  if (wrapper?.success !== true || version?.id !== expectedVersionId
+      || !Array.isArray(resources?.bindings)) {
     throw new Error("readonly-binding-" + label + "-unverified");
   }
-  return settings.bindings;
+  return resources.bindings;
 };
 const assertDeployment = (value, label, nowMs) => {
   const wrapper = record(value), result = record(wrapper?.result);
@@ -40,10 +41,13 @@ const assertDeployment = (value, label, nowMs) => {
 
 /** Pure, mockable validation: never report binding merely from source configuration. */
 export function verifyReadonlyBindingSnapshot({
-  enabled, brokerSettings, brokerDeployments, inspectorSettings, inspectorDeployments, nowMs = Date.now(),
+  enabled, brokerVersion, brokerDeployments, inspectorVersion, inspectorDeployments, nowMs = Date.now(),
 } = {}) {
   if (typeof enabled !== "boolean" || !Number.isSafeInteger(nowMs)) throw new Error("readonly-binding-mode-invalid");
-  const bindings = assertSettings(brokerSettings, "broker");
+  const brokerDeployment = assertDeployment(brokerDeployments, "broker", nowMs);
+  // Bindings must come from the EXACT version deployed at 100% traffic.
+  // A newer uploaded (but undeployed) script/settings snapshot is insufficient.
+  const bindings = assertDeployedVersion(brokerVersion, "broker", brokerDeployment.versionId);
   const services = bindings.filter(b => record(b)?.type === "service");
   const providerNames = services.map(b => b.name).filter(name => PROVIDER_BINDINGS.has(name));
   if (!enabled) {
@@ -58,15 +62,14 @@ export function verifyReadonlyBindingSnapshot({
       || (services[0].environment !== undefined && services[0].environment !== "production")) {
     throw new Error("readonly-binding-cloud-provider-mismatch");
   }
-  const inspectorBindings = assertSettings(inspectorSettings, "inspector");
+  const inspectorDeployment = assertDeployment(inspectorDeployments, "inspector", nowMs);
+  const inspectorBindings = assertDeployedVersion(inspectorVersion, "inspector", inspectorDeployment.versionId);
   const secretNames = inspectorBindings.filter(b => record(b)?.type === "secret_text").map(b => b.name);
   if (inspectorBindings.length !== REQUIRED_SECRETS.length
       || REQUIRED_SECRETS.some(n => secretNames.filter(x => x === n).length !== 1)
       || inspectorBindings.some(b => record(b)?.type === "service")) {
     throw new Error("readonly-binding-inspector-credentials-unverified");
   }
-  const brokerDeployment = assertDeployment(brokerDeployments, "broker", nowMs);
-  const inspectorDeployment = assertDeployment(inspectorDeployments, "inspector", nowMs);
   return Object.freeze({
     kind: "cloudflare-readonly-binding-readback", status: "bound-for-runtime-attestation",
     binding: "CLOUD_PROVIDER", service: INSPECTOR, providerBindingPresent: true,
@@ -99,14 +102,15 @@ export async function readReadonlyBindingSnapshot({
     try { return await response.json(); }
     catch { throw new Error("readonly-binding-api-invalid"); }
   }
-  // Disabled mode must still verify the canonical broker has NO latent external bindings.
-  const brokerSettings = await get(BROKER, "settings");
-  if (!enabled) return verifyReadonlyBindingSnapshot({ enabled, brokerSettings, nowMs });
-  const [brokerDeployments, inspectorSettings, inspectorDeployments] = await Promise.all([
-    get(BROKER, "deployments"), get(INSPECTOR, "settings"), get(INSPECTOR, "deployments"),
-  ]);
+  const brokerDeployments = await get(BROKER, "deployments");
+  const brokerDeployment = assertDeployment(brokerDeployments, "broker", nowMs);
+  const brokerVersion = await get(BROKER, "versions/" + brokerDeployment.versionId);
+  if (!enabled) return verifyReadonlyBindingSnapshot({ enabled, brokerVersion, brokerDeployments, nowMs });
+  const inspectorDeployments = await get(INSPECTOR, "deployments");
+  const inspectorDeployment = assertDeployment(inspectorDeployments, "inspector", nowMs);
+  const inspectorVersion = await get(INSPECTOR, "versions/" + inspectorDeployment.versionId);
   return verifyReadonlyBindingSnapshot({
-    enabled, brokerSettings, brokerDeployments, inspectorSettings, inspectorDeployments, nowMs,
+    enabled, brokerVersion, brokerDeployments, inspectorVersion, inspectorDeployments, nowMs,
   });
 }
 
