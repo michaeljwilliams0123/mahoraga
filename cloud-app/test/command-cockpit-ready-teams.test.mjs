@@ -1,1 +1,106 @@
-$(cat /tmp/command-cockpit-ready-teams.test.mjs)
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { describe, it } from "node:test";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const cockpit = readFileSync(join(root, "components/cockpit/CommandCockpit.tsx"), "utf8");
+const cockpitView = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+
+describe("7.0.0-alpha.2 CommandCockpit ready + Teams surface", () => {
+  it("distinguishes live health from ready state after shared bearer injection", () => {
+    assert.match(cockpit, /LIVE_OK/);
+    assert.match(cockpit, /READY_ONLINE/);
+    assert.match(cockpit, /READY_OFFLINE/);
+    assert.match(cockpit, /parent supervisor injects a shared core bearer only when the configured token is blank/);
+    assert.match(cockpit, /Bearer value is never shown/);
+    assert.match(cockpit, /PAIRING_CLEAR/);
+    assert.match(cockpit, /Ready is live health plus paired core/);
+    assert.doesNotMatch(cockpit, /MAHORAGA_PRIMARY_CODEX_TOKEN\s*=/);
+  });
+
+  it("keeps attended Teams send observational with no browser send action", () => {
+    assert.match(cockpit, /TEAMS_ATTENDED_OBS/);
+    assert.match(cockpit, /Observational status only/);
+    assert.match(cockpit, /No Graph, SendKeys, or discovery/);
+    assert.match(cockpit, /No browser send action/);
+    assert.match(cockpit, /active Windows runtime.*observed through live core status/is);
+    assert.match(cockpit, /legacy rollback predecessor.*3\.6\.0/is);
+    assert.doesNotMatch(cockpit, /Windows production stays 3\.6\.0/);
+    assert.doesNotMatch(cockpit, /onClick=\{.*sendTeams/);
+  });
+
+  it("presents one Mahoraga brain without user-facing runtime slot selection", () => {
+    assert.match(cockpit, /Mahoraga workspace/);
+    assert.match(cockpit, /build provenance/i);
+    assert.match(cockpit, /authoritative runtime<\/dt><dd>Mahoraga core \(4782\)/i);
+    assert.match(cockpit, /brain-routed; no lane or port selection required/i);
+    assert.doesNotMatch(cockpit, /Mahoraga 7\.0\.0-alpha\.2 workspace/);
+    assert.doesNotMatch(cockpit, /<dt>candidate<\/dt><dd>7\.0\.0-alpha\.2/);
+    assert.doesNotMatch(cockpit, /live 3\.6\.0, candidate 7\.0\.0-alpha\.2/);
+    assert.doesNotMatch(cockpit, /4783/);
+  });
+
+  it("surfaces the #550 same-origin mutation boundary without adding browser authority", () => {
+    assert.match(cockpit, /ORIGIN_BOUNDARY_#550/);
+    assert.match(cockpit, /same-origin only/i);
+    assert.match(cockpit, /gateway-same-origin-required/);
+    assert.match(cockpit, /only the current request origin is trusted/i);
+    assert.match(cockpit, /legacy hosting environment variables grant no origin authority/i);
+    assert.match(cockpit, /Cloudflare owner gateway same-origin mutation boundary/i);
+    assert.doesNotMatch(cockpit, /onClick=\{.*(?:gateway|origin).*mutation/i);
+  });
+
+  it("reports Railway as retired non-routing evidence and Cloudflare as fail-closed deployment truth", () => {
+    assert.match(cockpit, /RAILWAY_RETIRED/);
+    assert.match(cockpit, /legacy evidence only/i);
+    assert.match(cockpit, /zero-route, zero-influence, zero-fallback, zero-authority/i);
+    assert.match(cockpit, /do not repair or revive it/i);
+    assert.doesNotMatch(cockpit, /rollback\/evidence|rollback anchor/i);
+    assert.match(cockpit, /exact-main Cloudflare deployment plus acceptance/i);
+    assert.doesNotMatch(cockpit, /RAILWAY_PROMOTE_#656|canonical Railway upstream|Railway exact-SHA promotion/i);
+  });
+  it("reports retired Vercel as observation only across the cockpit", () => {
+    assert.match(cockpit, /VERCEL_RETIRED/);
+    assert.match(cockpit, /vercelStatus/);
+    assert.match(cockpit, /vercel status/i);
+    assert.match(cockpit, /observation-only/);
+    assert.doesNotMatch(cockpit, /mahoraga-cloud-workspace\.vercel\.app/);
+  });
+  it("preserves CONVERGED_#460 language", () => {
+    assert.match(cockpit, /CONVERGED_#460/);
+    assert.match(cockpit, /7\.0\.0-alpha\.2/);
+  });
+
+  it("surfaces informational CI Steward public free ubuntu-latest copy", () => {
+    assert.match(cockpit, /CI_STEWARD_PUBLIC_UBUNTU/);
+    assert.match(cockpit, /public-only free ubuntu-latest/);
+    assert.match(cockpit, /Steward runs on the free ubuntu-latest GitHub-hosted runner only while the repository is public/);
+    assert.match(cockpitView, /public free ubuntu-latest \(Steward\)/);
+    assert.match(cockpitView, /fails closed if private/);
+    assert.doesNotMatch(cockpit, /(?<!does not )activate 7\.0\.0-alpha\.2 on Windows/i);
+  });
+
+  it("derives Ready from fail-closed /api/ready evidence rather than static health metadata", () => {
+    assert.match(cockpitView, /useRuntimeReadiness\(relay, readinessSourceSha\(health\), coreReady\)/);
+    assert.match(cockpitView, /const readyOk = coreReady && readinessOk/);
+    assert.doesNotMatch(cockpitView, /const readyOk = coreReady && liveOk/);
+  });
+});
+
+it("surfaces bounded deterministic cognitive execution without promoting traffic authority", () => {
+  assert.match(cockpitView, /Predictive scenario route/);
+  assert.match(cockpitView, /cognitive\.predict/);
+  assert.match(cockpitView, /explicit \/predict only/);
+  assert.match(cockpitView, /hypothetical transition with predicted state \+ uncertainty/);
+  assert.match(cockpitView, /not a measured forecast/);
+  assert.match(cockpitView, /Requires an observed deterministic cognitive\.predict route/);
+  assert.match(cockpit, /deterministic cognitive\.predict only when observed/);
+  assert.match(cockpit, /explicit <code>\/predict<\/code>/);
+  assert.match(cockpit, /hypothetical transition with predicted state, uncertainty, and fingerprint/);
+  assert.match(cockpit, /never fall through to the generative answer provider/);
+  assert.match(cockpit, /cognitive\.cycle/);
+  assert.match(cockpit, /without executing the proposed action/);
+  assert.match(cockpit, /traffic authority/);
+});
