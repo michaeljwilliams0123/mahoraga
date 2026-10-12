@@ -34,29 +34,33 @@ test("four-hour cycle stays deterministic with empty providers and no generation
   assert.equal(waiting.providerId, "waiting-zero-credit-provider");
 });
 
-test("four-hour cycle uses the SD00 zero-credit self-hosted runner when hosted Actions admission is unavailable", async () => {
+test("four-hour cycle matches portable Windows zero-credit capacity and never a named device", async () => {
   const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");
-  assert.match(workflow, /candidate-cycle:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
-  assert.match(workflow, /producer-smoke:\s*[\s\S]*?runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*sd009wc7,\s*zero-credit\]/i);
-  assert.doesNotMatch(workflow, /runs-on:\s*ubuntu-latest/);
+  const required = /runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*zero-credit\]/gi;
+  assert.equal((workflow.match(required) ?? []).length, 2, "candidate and smoke must both require free local capacity");
+  assert.doesNotMatch(workflow, /sd009wc7|runs-on:\s*(?:windows|ubuntu)-latest/i);
+  assert.match(workflow, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
 });
 
 
-test("release uses hosted Linux and Steward permits free public-only Ubuntu without spending private minutes", async () => {
+test("release remains hosted while Steward gates private runs onto owner-enabled local capacity", async () => {
   const releaseWorkflow = await readFile(path.join(root, ".github/workflows/release.yml"), "utf8");
   assert.match(releaseWorkflow, /runs-on:\s*ubuntu-latest/i);
   assert.match(releaseWorkflow, /group:\s*mahoraga-release-/i);
   assert.match(releaseWorkflow, /cancel-in-progress:\s*true/i);
   assert.doesNotMatch(releaseWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
 
-  const stewardWorkflow = await readFile(path.join(root, ".github/workflows/steward-two-hour-learning.yml"), "utf8");
-  // Job-level if is evaluated before a hosted runner is allocated. Keep the
-  // privacy guard in the SAME learn job, not in a later step or an advisory.
-  assert.match(stewardWorkflow, /learn:\s*[\s\S]*?if:\s*>-[\s\S]*?github\.event\.repository\.private\s*==\s*false[\s\S]*?runs-on:\s*ubuntu-latest/i);
-  assert.match(stewardWorkflow, /github\.event_name\s*==\s*'schedule'/);
-  assert.match(stewardWorkflow, /github\.actor\s*==\s*'michaeljwilliams0123'/);
-  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
-  assert.doesNotMatch(stewardWorkflow, /runs-on:\s*ubuntu-\d+-core/i);
+  const steward = await readFile(path.join(root, ".github/workflows/steward-two-hour-learning.yml"), "utf8");
+  assert.match(steward, /github\.event\.repository\.private == false/);
+  assert.match(steward, /github\.event\.repository\.private == true/);
+  assert.match(steward, /MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED == 'true'/);
+  assert.match(steward, /fromJSON\(github\.event\.repository\.private/);
+  assert.match(steward, /\["self-hosted","windows","x64","mahoraga","zero-credit"\]/);
+  assert.match(steward, /'"ubuntu-latest"'/);
+  assert.match(steward, /github\.event_name == 'schedule'/);
+  assert.match(steward, /github\.actor == 'michaeljwilliams0123'/);
+  assert.doesNotMatch(steward, /runs-on:\s*ubuntu-latest\b/i);
+  assert.doesNotMatch(steward, /runs-on:\s*\[self-hosted,\s*linux,\s*x64\]/i);
   const governedMirror = await readFile(path.join(root, "state/release-baseline/.github/workflows/steward-two-hour-learning.yml"), "utf8");
-  assert.equal(stewardWorkflow, governedMirror);
+  assert.equal(steward, governedMirror);
 });
