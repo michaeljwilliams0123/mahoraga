@@ -148,7 +148,7 @@ test("API failures and token absence are sanitized without action grants", async
   ]) {
     await assert.rejects(readReadonlyBindingSnapshot({
       ...env,enabled:true,nowMs:NOW,fetchImpl:async()=>response.clone(),
-    }),/readonly-binding-(api-unavailable|api-invalid|broker-unverified)/);
+    }),/readonly-binding-(api-unavailable|api-invalid|broker-unverified|broker-deployment-unverified)/);
   }
   await assert.rejects(readReadonlyBindingSnapshot({
     ...env,enabled:true,nowMs:NOW,fetchImpl:async()=>{throw Error("Bearer "+env.apiToken);},
