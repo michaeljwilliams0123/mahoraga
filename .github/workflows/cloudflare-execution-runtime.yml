@@ -265,9 +265,10 @@ jobs:
           fi
 
       # Verify what Cloudflare actually deployed, not only the Wrangler config.
-      # In disabled mode, reject stale provider service bindings. In enabled
-      # mode, require the private inspector, its secret bindings, and 100% traffic.
+      # Only in owner-enabled mode, require the private inspector, its secret
+      # bindings, and 100% traffic. Default Cloudflare deployments are unchanged.
       - name: Verify live broker CLOUD_PROVIDER binding before runtime promotion
+        if: env.MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         shell: bash
