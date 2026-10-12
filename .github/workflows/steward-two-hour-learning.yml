@@ -15,13 +15,14 @@ concurrency:
 
 jobs:
   learn:
-    # Standard GitHub-hosted Ubuntu is free for public repositories.
-    # Fail closed before runner allocation if the repository becomes private;
-    # never spend included private Actions minutes or use a paid runner fallback.
+    # Public: standard free hosted Ubuntu. Private: local Windows only if the
+    # owner explicitly enables the local Steward lane. Never use private-hosted minutes.
     if: >-
       (github.event_name == 'schedule' || github.actor == 'michaeljwilliams0123') &&
-      github.event.repository.private == false
-    runs-on: ubuntu-latest
+      (github.event.repository.private == false ||
+       (github.event.repository.private == true &&
+        vars.MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED == 'true'))
+    runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
     permissions:
       contents: write
