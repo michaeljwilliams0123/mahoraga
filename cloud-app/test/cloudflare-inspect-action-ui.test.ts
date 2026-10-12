@@ -27,6 +27,12 @@ test("same universal Connections screen invokes cloud.inspect only through authe
   assert.match(connections, /import \{ isFreshCloudInspectorCapability \}/);
   assert.match(connections, /await relay\.inspectCloudflareDeployment\(\)/);
   assert.match(connections, /Inspect Cloudflare/);
+  assert.match(connections, /Live Cloudflare action · cloud\.inspect/);
+  assert.match(connections, /no fresh independently admitted read-only broker provider/);
+  assert.match(connections, /!eligibleCloudInspector\(\)/);
+  assert.match(connections, /disabled=\{!cloudInspectReady \|\| cloudBusy\}/);
+  assert.match(connections, /No action was executed/);
+
   assert.match(gateway, /NATIVE_ACTIONS = new Set\(\["chat"/);
   assert.match(runtime, /input\?\.type === "execute"/);
   assert.doesNotMatch(connections, /CLOUDFLARE_AUDIT_TOKEN|GITHUB_APP_PRIVATE_KEY|api\.cloudflare\.com|localStorage/);

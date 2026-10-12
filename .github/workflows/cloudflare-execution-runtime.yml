@@ -194,6 +194,16 @@ jobs:
           );
           NODE
 
+      # When the owner opts in, prove read-only credentials and the existing
+      # hard-zero account attestation BEFORE the first Cloudflare mutation.
+      # A missing secret must not partially update the normal runtime.
+      - name: Preflight opt-in read-only action provider
+        if: env.MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/cloudflare-readonly-activation-preflight.mjs
+
       - name: Deploy isolated budgeted Workers AI provider
         env:
           GITHUB_TOKEN: ${{ github.token }}

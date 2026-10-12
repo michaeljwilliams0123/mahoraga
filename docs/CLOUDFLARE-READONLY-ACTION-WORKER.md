@@ -18,6 +18,38 @@ First executable broker provider for the canonical Owner Gateway. It is **not** 
 5. Check broker `/api/capabilities` returns **cloud.inspect** with a freshly validated `cloudflare-readonly-inspector` attestation and no arbitrary action classes. Issue an authenticated gateway `execute` request for target `mahoraga-owner-gateway`, `requestedPermission=read`, `authorityScopes=[cloud:read]`, `constraints.requireZeroCredit=true`; require the real Cloudflare deployment ID/version in its execution receipt. Repeat from iPhone and desktop with independent owner sessions.
 6. Verify no arbitrary script access, no writes, no paid route, no cross-owner history leak, no Railway/Vercel fallback. Record a redacted exact-main receipt. Disable the variable to return to the legacy no-provider configuration on a subsequent owner-approved deployment.
 
+## Fail-before-mutation activation preflight (October 2026)
+
+The canonical `.github/workflows/cloudflare-execution-runtime.yml` checks
+`MAHORAGA_READONLY_PROVIDER_ENABLED == 'true'` **before the first Wrangler
+deployment step**. After the existing exact-main and independent hard-zero
+billing attestation, it executes
+`node scripts/cloudflare-readonly-activation-preflight.mjs`.
+
+Preflight requires a dedicated `CLOUDFLARE_READONLY_AUDIT_TOKEN` and
+account-matched, fresh, zero-billable-subscription evidence. It performs a
+single bounded `GET` against the fixed Owner Gateway deployment path,
+rejecting HTTP denial, malformed/future-dated/split-traffic evidence and
+non-100%-traffic versions. Its successful sanitized receipt says
+`admitted-for-deployment-only` and
+`executionAuthorityGranted:false`; it never claims a routed or executed
+action. Errors have fixed reason codes with **no token or upstream body
+logging**. Missing credentials stop the workflow before any Cloudflare
+deployment mutation, instead of allowing a partial provider/runtime update.
+
+With the opt-in variable disabled or absent, the new step skips; no new
+provider binding, action authority, token, paid route, or deployment side
+effect is introduced. **This does not replace the post-deployment live
+attestation, broker binding and owner-execution receipt requirements.**
+The audit token and opt-in flag are currently not configured, so this
+change alone does not activate `cloud.inspect`.
+
+The existing workspace Connections panel now keeps the disabled
+`Inspect Cloudflare` action visible when the owner is paired but a fresh
+broker-backed attestation is missing, together with a concrete
+configuration/readiness explanation. Neither static UI rendering nor
+synthetic tests establish action execution.
+
 ## Safe-by-default release behavior
 The ordinary broker configuration remains `deploy/cloudflare-execution-broker/wrangler.jsonc` with **no** external providers. The opt-in file `wrangler.readonly-provider.jsonc` binds only the new private Worker. No existing native GitHub App secret is copied or redistributed. This is one initial **read-only** live action, not unrestricted action authority.
 

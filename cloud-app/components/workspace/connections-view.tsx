@@ -147,15 +147,21 @@ export function ConnectionsView({
         </div>
       )}
 
-      {cloudInspectReady && (
+      {coreReady && (
         <div className="capability-list" style={{ marginTop: 16 }}>
           <div>
-            <strong>Live Cloudflare action</strong>
-            <span>{cloudReceipt
-              ? `Verified read · ${cloudReceipt.script} · version ${cloudReceipt.versionId} · ${cloudReceipt.trafficPercentage}% traffic · ${new Date(cloudReceipt.observedAt).toLocaleString()}`
-              : cloudError ? `Execution unavailable · ${cloudError}` : "Read-only deployment inspection; execution requires a fresh broker lease and receipt."}</span>
+            <strong>Live Cloudflare action · cloud.inspect</strong>
+            <span>{!eligibleCloudInspector()
+              ? "Unavailable · no fresh independently admitted read-only broker provider. Check the private CLOUD_PROVIDER binding, dedicated audit credential, owner opt-in, and Cloudflare zero-cost controls. No action was executed."
+              : !cloudInspectReady
+                ? "Unavailable · authenticated supported runtime transport required; observed capability does not authorize execution."
+                : cloudReceipt
+                  ? `Verified read · ${cloudReceipt.script} · version ${cloudReceipt.versionId} · ${cloudReceipt.trafficPercentage}% traffic · ${new Date(cloudReceipt.observedAt).toLocaleString()}`
+                  : cloudError
+                    ? `Execution unavailable · ${cloudError}`
+                    : "Eligible read-only route observed; executing still requires a fresh broker lease and a real provider result."}</span>
           </div>
-          <button type="button" disabled={cloudBusy} onClick={() => void inspectCloudflare()}>
+          <button type="button" disabled={!cloudInspectReady || cloudBusy} onClick={() => void inspectCloudflare()}>
             {cloudBusy ? "Inspecting live Cloudflare…" : "Inspect Cloudflare"}
           </button>
         </div>
