@@ -95,8 +95,10 @@ in Cloudflare and add it only to GitHub Actions Secrets using
 or the GitHub secret UI; **never paste its value into the repository,
 chat, logs, a workflow variable, or the browser.** The owner opt-in should
 remain off until the existing independent billing guard is confirmed.
-The GitHub workflow then checks actual provider identity and execution
-through its separate post-deployment attestation/owner-session proof.
+The GitHub workflow checks deployed binding identity and its existing
+runtime acceptance. A fresh provider attestation and an authenticated
+owner-session `cloud.inspect` action receipt **remain distinct activation
+criteria**, and are not established by a binding settings readback.
 
 ## Safe-by-default release behavior
 The ordinary broker configuration remains `deploy/cloudflare-execution-broker/wrangler.jsonc` with **no** external providers. The opt-in file `wrangler.readonly-provider.jsonc` binds only the new private Worker. No existing native GitHub App secret is copied or redistributed. This is one initial **read-only** live action, not unrestricted action authority.
