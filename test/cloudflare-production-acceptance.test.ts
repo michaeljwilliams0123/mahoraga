@@ -243,3 +243,81 @@ test("fail-closed proof retries transient hard-zero admission restoration", asyn
   assert.equal(refreshes, 3);
   assert.deepEqual(sleeps, [25]);
 });
+
+
+test("fail-closed execution probe recovers from transient stale Durable Object SHA without relaxing 503", async () => {
+  let refreshes = 0;
+  let executions = 0;
+  const sleeps: number[] = [];
+  const keys: Array<string | null> = [];
+  await proveFailClosedZeroBilling({
+    accessToken: "access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    providerRefreshSecret: "refresh-secret",
+    acceptanceRunId: "cutover-stale-do-sha",
+    billingAttestation: JSON.stringify({ schemaVersion: 1, verifiedAt: 100, expiresAt: 200 }),
+    failClosedShaRetryAttempts: 3,
+    failClosedShaRetryDelayMs: 15000,
+    sleep: async (ms) => { sleeps.push(ms); },
+    fetchImpl: async (input, init) => {
+      const request = new Request(input, init);
+      const pathname = new URL(request.url).pathname;
+      if (pathname === "/api/live") return Response.json({ status: "live", sha: SHA });
+      if (pathname === "/api/ready") return Response.json({ status: "ready", sha: SHA, durableState: "cloudflare-do-sqlite" });
+      if (pathname === "/api/provider/refresh") {
+        refreshes++;
+        return Response.json({ zeroCreditEligible: refreshes > 1 }, { status: refreshes === 1 ? 503 : 200 });
+      }
+      if (pathname === "/api/execute") {
+        executions++;
+        keys.push(request.headers.get("x-idempotency-key"));
+        assert.equal(request.headers.get("x-target-sha"), SHA);
+        return Response.json(
+          executions < 3 ? { error: "Precondition Failed: SHA mismatch" } : { error: "Cognition provider unavailable" },
+          { status: executions < 3 ? 412 : 503 },
+        );
+      }
+      throw new Error("unexpected-request");
+    },
+  });
+  assert.equal(executions, 3);
+  assert.equal(refreshes, 2);
+  assert.deepEqual(sleeps, [15000, 15000]);
+  assert.deepEqual(keys, ["fail-closed-cutover-stale-do-sha", "fail-closed-cutover-stale-do-sha", "fail-closed-cutover-stale-do-sha"]);
+});
+
+test("persistent stale SHA fails closed after bounded retries but restores valid provider admission", async () => {
+  let refreshes = 0;
+  let executions = 0;
+  const sleeps: number[] = [];
+  await assert.rejects(proveFailClosedZeroBilling({
+    accessToken: "access-token",
+    baseUrl: BASE_URL,
+    targetSha: SHA,
+    providerRefreshSecret: "refresh-secret",
+    acceptanceRunId: "cutover-stale-do-persistent",
+    billingAttestation: JSON.stringify({ schemaVersion: 1, verifiedAt: 100, expiresAt: 200 }),
+    failClosedShaRetryAttempts: 3,
+    failClosedShaRetryDelayMs: 25,
+    sleep: async ms => { sleeps.push(ms); },
+    fetchImpl: async (input, init) => {
+      const request = new Request(input, init);
+      const path = new URL(request.url).pathname;
+      if (path === "/api/live") return Response.json({ status: "live", sha: SHA });
+      if (path === "/api/ready") return Response.json({ status: "ready", sha: SHA, durableState: "cloudflare-do-sqlite" });
+      if (path === "/api/provider/refresh") {
+        refreshes++;
+        return Response.json({ zeroCreditEligible: refreshes > 1 }, { status: refreshes === 1 ? 503 : 200 });
+      }
+      if (path === "/api/execute") {
+        executions++;
+        return Response.json({ error: "Precondition Failed" }, { status: 412 });
+      }
+      throw new Error("unexpected-request");
+    },
+  }), /accept-fail-closed-execution-412/);
+  assert.equal(executions, 3);
+  assert.equal(refreshes, 2);
+  assert.deepEqual(sleeps, [25, 25]);
+});
