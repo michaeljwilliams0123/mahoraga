@@ -112,7 +112,7 @@ test("management workflow is opt-in owner-only and cannot replace the production
   assert.match(workflow,/Verify \(ubuntu-latest\)/);
   assert.match(workflow,/Verify \(windows-latest\)/);
   assert.match(workflow,/deploy\/cloudflare-management-canary\/wrangler\.jsonc/);
-  assert.match(workflow,/cloudflare-workers-management-token\.mjs attest/);
+  assert.match(workflow,/cloudflare-workers-management-token\.ts attest/);
   assert.match(prod,/CLOUDFLARE_API_TOKEN:\s*\$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/);
   assert.doesNotMatch(prod,/CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN/);
   assert.equal(JSON.parse(canary).workers_dev,false);
