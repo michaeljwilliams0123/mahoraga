@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import {
   verifyWorkersManagementToken, attestPrivateCanary,
   EXISTING_WORKER, CANARY_WORKER,
-} from "../scripts/cloudflare-workers-management-token.mjs";
+} from "../scripts/cloudflare-workers-management-token.ts";
 
 const ACCOUNT = "a".repeat(32), TOKEN = "secret-not-real-token-" + "x".repeat(32);
 const SHA = "b".repeat(40), D = "11111111-1111-4111-8111-111111111111";
