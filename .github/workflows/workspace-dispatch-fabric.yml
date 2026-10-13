@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with: {persist-credentials: false}
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with: {node-version: "24"}
       - run: node --test --test-isolation=none test/workspace-route-policy.test.mjs test/workspace-dispatch-fabric.test.mjs test/workspace-agent-receiver.test.mjs test/destiny-trigger-trust.test.mjs
       - name: Persist exact-head plan
@@ -35,7 +35,7 @@ jobs:
           POLICY: ${{ inputs.route_policy }}
           CAP: ${{ inputs.max_parallel }}
         run: node -e 'const fs=require("node:fs"),ids=process.env.IDS.split(",").map(x=>x.trim()).filter(Boolean),cap=Number(process.env.CAP);if(!ids.length||ids.length>8||!Number.isInteger(cap)||cap<1||cap>8)throw Error("fabric-input-invalid");fs.writeFileSync(process.env.RUNNER_TEMP+"/fabric-plan.json",JSON.stringify({ids,policy:process.env.POLICY,maxParallel:cap,exactHead:process.env.GITHUB_SHA},null,2))'
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: workspace-fabric-plan-${{ github.run_id }}
           path: ${{ runner.temp }}/fabric-plan.json
