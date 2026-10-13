@@ -122,6 +122,21 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.doesNotMatch(card, /https?:\/\/|127\.0\.0\.1|localhost/i);
     assert.doesNotMatch(card, /\bfetch\s*\(/);
   });
+
+  it("surfaces gateway observability and retirement guards as observational only", () => {
+    const card = readFileSync(join(root, "components/cockpit/GatewayObservabilityCard.tsx"), "utf8");
+    assert.match(cockpit, /GatewayObservabilityCard/);
+    assert.match(card, /Gateway observability/);
+    assert.match(card, /Bounded sampled \(observational\)/);
+    assert.match(card, /Merged #1076/);
+    assert.match(card, /bounded sampled Cloudflare owner-gateway observability/);
+    assert.match(card, /failure grouping/);
+    assert.match(card, /RAILWAY_PROJECT_TOKEN/);
+    assert.match(card, /Product remains Mahoraga/);
+    assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(card, /Not execution readiness, not cognition proof, not traffic authority/);
+    assert.doesNotMatch(card, /\bfetch\s*\(/);
+  });
 });
 
 describe("unified Cloudflare static UI provenance is not runtime authority", () => {
