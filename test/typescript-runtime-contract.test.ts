@@ -31,7 +31,7 @@ test("root control plane has a strict native-TypeScript contract", () => {
   assert.equal(tsconfig.compilerOptions.exactOptionalPropertyTypes, true);
   assert.ok(pkg.scripts["verify:pretest"].startsWith("npm run typecheck &&"));
   assert.equal(pkg.scripts.verify, "npm run verify:pretest && npm test");
-  assert.equal(pkg.scripts["verify:windows"], "npm run verify:pretest && npm run test:windows");
+  assert.equal(pkg.scripts["verify:windows"], undefined);
 });
 
 test("answer quality is migrated to native TypeScript with no stale imports", () => {
@@ -58,6 +58,6 @@ test("Verify installs pinned root dependencies before the complete platform gate
   assert.ok(verifyIndex >= 0, "Verify must retain the authoritative repository gate");
   assert.ok(installIndex < verifyIndex, "dependency install must precede verification");
   assert.match(workflow, /run: npm ci --ignore-scripts/);
-  assert.match(workflow, /run: npm run \$\{\{ matrix\.verify_script \}\}/);
+  assert.match(workflow, /run: npm run verify/);
   assert.ok(pkg.scripts["verify:pretest"].startsWith("npm run typecheck &&"), "the shared gate must begin with TypeScript");
 });

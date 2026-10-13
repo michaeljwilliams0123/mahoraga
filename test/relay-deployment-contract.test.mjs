@@ -38,14 +38,13 @@ test("verification keeps repository gates after Vercel production retirement", a
   assert.doesNotMatch(verify, /name:\s*Verify unified Vercel workspace/);
   assert.match(verify, /ubuntu-latest/);
   assert.match(verify, /windows-latest/);
-  assert.match(verify, /verify_script:\s*verify\s*$/m);
-  assert.match(verify, /verify_script:\s*verify:windows\s*$/m);
-  assert.match(verify, /run:\s*npm run \$\{\{ matrix\.verify_script \}\}/);
+  assert.doesNotMatch(verify, /verify_script:/);
+  assert.match(verify, /run:\s*npm run verify\s*$/m);
   const scripts = JSON.parse(packageSource).scripts;
   assert.equal(scripts.verify, "npm run verify:pretest && npm test");
-  assert.equal(scripts["verify:windows"], "npm run verify:pretest && npm run test:windows");
+  assert.equal(scripts["verify:windows"], undefined);
+  assert.equal(scripts["test:windows"], undefined);
   assert.match(scripts.test, /node --test --test-isolation=none/);
-  assert.match(scripts["test:windows"], /node --test --test-concurrency=2/);
   assert.match(scripts["verify:conversation-plane"], /conversation-plane-smoke/);
   assert.match(scripts["verify:conversation-plane"], /relay-deployment-contract/);
 });
