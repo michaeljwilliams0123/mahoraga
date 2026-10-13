@@ -79,6 +79,8 @@ export async function proveFailClosedZeroBilling(input: {
   readyDelayMs?: number;
   providerRestoreAttempts?: number;
   providerRestoreDelayMs?: number;
+  failClosedShaRetryAttempts?: number;
+  failClosedShaRetryDelayMs?: number;
   sleep?: (milliseconds: number) => Promise<void>;
 }): Promise<void> {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -112,6 +114,15 @@ export async function proveFailClosedZeroBilling(input: {
       method: "POST", headers, body: JSON.stringify({ billingAttestation }), redirect: "manual",
     });
   };
+  const failClosedShaRetryAttempts = input.failClosedShaRetryAttempts ?? 4;
+  const failClosedShaRetryDelayMs = input.failClosedShaRetryDelayMs ?? 15_000;
+  if (!Number.isInteger(failClosedShaRetryAttempts) || failClosedShaRetryAttempts < 1 || failClosedShaRetryAttempts > 5) {
+    throw new Error("accept-fail-closed-sha-attempts-invalid");
+  }
+  if (!Number.isInteger(failClosedShaRetryDelayMs) || failClosedShaRetryDelayMs < 0 || failClosedShaRetryDelayMs > 30_000) {
+    throw new Error("accept-fail-closed-sha-delay-invalid");
+  }
+  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolveSleep) => setTimeout(resolveSleep, milliseconds)));
   let proofError: unknown = null;
   try {
     const denied = await refresh(expired);
@@ -122,19 +133,28 @@ export async function proveFailClosedZeroBilling(input: {
     executeHeaders.set("content-type", "application/json");
     executeHeaders.set("x-target-sha", input.targetSha);
     executeHeaders.set("x-idempotency-key", `fail-closed-${input.acceptanceRunId}`);
-    const blocked = await fetchImpl(new URL("/api/execute", baseUrl), {
-      method: "POST",
-      headers: executeHeaders,
-      body: JSON.stringify({ conversationId: "acceptance-fail-closed", turnId: `fail-closed-${input.acceptanceRunId}`, message: "This request must not reach inference" }),
-      redirect: "manual",
-    });
-    if (blocked.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) throw new Error(`accept-fail-closed-execution-${blocked.status}`);
+    // A hibernating Durable Object may briefly reject the newly deployed SHA.
+    // A 412 occurs before idempotency reservation or inference. Retry only that
+    // precondition response with identical SHA/idempotency, never a 503 bypass.
+    let blocked: Response | null = null;
+    for (let attempt = 1; attempt <= failClosedShaRetryAttempts; attempt += 1) {
+      blocked = await fetchImpl(new URL("/api/execute", baseUrl), {
+        method: "POST",
+        headers: executeHeaders,
+        body: JSON.stringify({ conversationId: "acceptance-fail-closed", turnId: `fail-closed-${input.acceptanceRunId}`, message: "This request must not reach inference" }),
+        redirect: "manual",
+      });
+      if (blocked.status !== 412 || attempt === failClosedShaRetryAttempts) break;
+      await sleep(failClosedShaRetryDelayMs);
+    }
+    if (blocked?.status !== 503 || blocked.headers.get("x-bypass-applied") !== null) {
+      throw new Error(`accept-fail-closed-execution-${blocked?.status ?? "unavailable"}`);
+    }
   } catch (error) { proofError = error; }
   const restoreAttempts = input.providerRestoreAttempts ?? 6;
   const restoreDelayMs = input.providerRestoreDelayMs ?? 1_000;
   if (!Number.isInteger(restoreAttempts) || restoreAttempts < 1 || restoreAttempts > 30) throw new Error("accept-provider-restore-attempts-invalid");
   if (!Number.isInteger(restoreDelayMs) || restoreDelayMs < 0 || restoreDelayMs > 30_000) throw new Error("accept-provider-restore-delay-invalid");
-  const sleep = input.sleep ?? ((milliseconds: number) => new Promise<void>((resolveSleep) => setTimeout(resolveSleep, milliseconds)));
   let restored = await refresh(input.billingAttestation);
   for (let attempt = 1; restored.status === 503 && attempt < restoreAttempts; attempt += 1) {
     await sleep(restoreDelayMs);
