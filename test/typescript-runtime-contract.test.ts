@@ -29,7 +29,9 @@ test("root control plane has a strict native-TypeScript contract", () => {
   assert.equal(tsconfig.compilerOptions.verbatimModuleSyntax, true);
   assert.equal(tsconfig.compilerOptions.noUncheckedIndexedAccess, true);
   assert.equal(tsconfig.compilerOptions.exactOptionalPropertyTypes, true);
-  assert.ok(pkg.scripts.verify.startsWith("npm run typecheck &&"));
+  assert.ok(pkg.scripts["verify:pretest"].startsWith("npm run typecheck &&"));
+  assert.equal(pkg.scripts.verify, "npm run verify:pretest && npm test");
+  assert.equal(pkg.scripts["verify:windows"], "npm run verify:pretest && npm run test:windows");
 });
 
 test("answer quality is migrated to native TypeScript with no stale imports", () => {
@@ -48,12 +50,14 @@ test("answer quality is migrated to native TypeScript with no stale imports", ()
   assert.deepEqual(staleImports, []);
 });
 
-test("Verify installs pinned root dependencies before TypeScript execution", () => {
+test("Verify installs pinned root dependencies before the complete platform gate", () => {
   const workflow = readFileSync(path.join(root, ".github/workflows/verify.yml"), "utf8");
   const installIndex = workflow.indexOf("- name: Install root dependencies");
-  const typecheckIndex = workflow.indexOf("- name: Typecheck control plane");
+  const verifyIndex = workflow.indexOf("- name: Verify authoritative repository");
   assert.ok(installIndex >= 0, "Verify must install root dependencies");
-  assert.ok(typecheckIndex >= 0, "Verify must retain the TypeScript gate");
-  assert.ok(installIndex < typecheckIndex, "dependency install must precede typecheck");
+  assert.ok(verifyIndex >= 0, "Verify must retain the authoritative repository gate");
+  assert.ok(installIndex < verifyIndex, "dependency install must precede verification");
   assert.match(workflow, /run: npm ci --ignore-scripts/);
+  assert.match(workflow, /run: npm run \$\{\{ matrix\.verify_script \}\}/);
+  assert.ok(pkg.scripts["verify:pretest"].startsWith("npm run typecheck &&"), "the shared gate must begin with TypeScript");
 });
