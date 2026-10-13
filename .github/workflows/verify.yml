@@ -34,8 +34,10 @@ jobs:
         include:
           - check_name: ubuntu-latest
             runner_labels: '"ubuntu-latest"'
+            verify_script: verify
           - check_name: windows-latest
             runner_labels: '"windows-latest"'
+            verify_script: verify:windows
 
     steps:
       - name: Check out repository
@@ -58,21 +60,13 @@ jobs:
           source /etc/os-release
           test "$ID" = "ubuntu"
 
-      - name: Verify conversation and evolution contracts
-        run: npm run verify:conversation-plane
-
-      - name: Typecheck control plane
-        run: npm run typecheck
-
       - name: Verify authoritative repository
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npm run verify
-
-      - name: Validate static self-upgrade policy
-        run: npm run self-upgrade:validate
+        run: npm run ${{ matrix.verify_script }}
 
       - name: Render declared capability gap audit
+        if: matrix.check_name == 'ubuntu-latest'
         run: npm run gap:audit
 
       - name: Publish GitHub assurance dashboard

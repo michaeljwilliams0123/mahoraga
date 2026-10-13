@@ -27,12 +27,14 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
-  assert.match(source, /run:\s*npm run verify\s*$/m);
+  assert.match(source, /verify_script:\s*verify\s*$/m);
+  assert.match(source, /verify_script:\s*verify:windows\s*$/m);
+  assert.match(source, /run:\s*npm run \$\{\{ matrix\.verify_script \}\}\s*$/m);
   assert.doesNotMatch(source, /run:\s*npm run verify:fast\s*$/m);
   assert.doesNotMatch(source, /npm run verify -- --test-concurrency=1/);
-  assert.match(source, /npm run gap:audit/);
+  assert.doesNotMatch(source, /name:\s*(Verify conversation and evolution contracts|Typecheck control plane|Validate static self-upgrade policy)/);
+  assert.match(source, /name:\s*Render declared capability gap audit\s*\n\s*if: matrix\.check_name == 'ubuntu-latest'\s*\n\s*run: npm run gap:audit/);
   assert.match(source, /github-audit\.mjs --format markdown >> "\$GITHUB_STEP_SUMMARY"/);
-  assert.match(source, /if: matrix\.check_name == 'ubuntu-latest'/);
 });
 
 test("fast Verify retains exact-head governance and focused regression coverage", async () => {
@@ -64,7 +66,25 @@ test("fast Verify retains exact-head governance and focused regression coverage"
     "test/verification-pipeline.test.ts",
   ]) assert.match(fast, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(fast, /cli-runtime-database-target\.test\.mjs/);
-  assert.match(pkg.scripts?.verify ?? "", /node --test --test-isolation=none/);
+
+  const pretest = pkg.scripts?.["verify:pretest"] ?? "";
+  for (const required of [
+    "npm run typecheck",
+    "npm run typecheck:cloudflare",
+    "npm run typecheck:execution-broker",
+    "npm run language:verify",
+    "node src/cli.mjs validate",
+    "node scripts/self-upgrade-instruction.mjs validate",
+    "node scripts/github-live-protection.mjs",
+    "node scripts/create-release-baseline.mjs --verify",
+    "npm run test:cloudflare",
+  ]) assert.match(pretest, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+
+  assert.equal(pkg.scripts?.verify, "npm run verify:pretest && npm test");
+  assert.equal(pkg.scripts?.["verify:windows"], "npm run verify:pretest && npm run test:windows");
+  assert.match(pkg.scripts?.test ?? "", /node --test --test-isolation=none/);
+  assert.match(pkg.scripts?.["test:windows"] ?? "", /node --test --test-concurrency=4/);
+  assert.doesNotMatch(pkg.scripts?.["test:windows"] ?? "", /--test-isolation=none/);
 });
 
 test("canonical CI remains read-only", async () => {
