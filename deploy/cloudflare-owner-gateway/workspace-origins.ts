@@ -3,7 +3,9 @@ export function normalizeWorkspaceOrigin(value: unknown): string | null {
  if (typeof value !== 'string' || !value.trim() || value.length > 2048 || /[\r\n\t]/.test(value)) return null;
  try {
   const url = new URL(value.trim());
-  return url.protocol === 'https:' && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash ? url.origin : null;
+  // Historical provider origins are permanently excluded from the live owner frame allowlist.
+  const retired = /(?:^|\.)(?:railway\.app|vercel\.app|vercel\.sh)$/i.test(url.hostname);
+  return !retired && url.protocol === 'https:' && !url.username && !url.password && url.pathname === '/' && !url.search && !url.hash ? url.origin : null;
  } catch { return null; }
 }
 /** The new host is explicit; absent configuration keeps the incumbent Pages boundary. */
