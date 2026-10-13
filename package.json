@@ -45,7 +45,7 @@
     "baseline:refresh": "node scripts/create-release-baseline.mjs --refresh",
     "baseline:verify": "node scripts/create-release-baseline.mjs --verify",
     "test": "node --test --test-isolation=none",
-    "test:windows": "node --test --test-concurrency=4",
+    "test:windows": "node --test --test-concurrency=2",
     "test:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
     "test:lifecycle": "node --test --test-isolation=none test/cognitive-investigation.test.ts test/curious-lifecycle.test.ts test/curious-lifecycle-evaluator.test.ts test/cloudflare-lifecycle-controller.test.ts test/lifecycle-dependency-policy.test.ts test/cloudflare-lifecycle-workflow.test.ts && vitest run --config vitest.lifecycle.config.ts",
     "typecheck:lifecycle": "tsc --noEmit -p deploy/cloudflare-lifecycle-evaluation/tsconfig.json",

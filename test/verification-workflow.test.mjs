@@ -83,7 +83,7 @@ test("fast Verify retains exact-head governance and focused regression coverage"
   assert.equal(pkg.scripts?.verify, "npm run verify:pretest && npm test");
   assert.equal(pkg.scripts?.["verify:windows"], "npm run verify:pretest && npm run test:windows");
   assert.match(pkg.scripts?.test ?? "", /node --test --test-isolation=none/);
-  assert.match(pkg.scripts?.["test:windows"] ?? "", /node --test --test-concurrency=4/);
+  assert.match(pkg.scripts?.["test:windows"] ?? "", /node --test --test-concurrency=2/);
   assert.doesNotMatch(pkg.scripts?.["test:windows"] ?? "", /--test-isolation=none/);
 });
 
