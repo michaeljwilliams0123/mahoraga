@@ -14,11 +14,39 @@ if ($LASTEXITCODE -ne 0) { throw 'Unable to fetch protected main.' }
 $target = (& git -C $root rev-parse origin/main).Trim()
 if ($target -notmatch '^[0-9a-fA-F]{40}$') { throw 'Protected main commit is invalid.' }
 
+function Assert-SafeControllerWorktree {
+    if (-not (Test-Path -LiteralPath $controllerRoot)) { return }
+    if (-not (Test-Path -LiteralPath $controllerRoot -PathType Container)) {
+        throw 'controller-worktree-target-not-a-directory; existing path preserved.'
+    }
+
+    $gitTop = (& git -C $controllerRoot rev-parse --show-toplevel 2>$null)
+    if ($LASTEXITCODE -ne 0 -or -not $gitTop) {
+        throw 'controller-worktree-not-git; existing path preserved.'
+    }
+    $expectedPath = [System.IO.Path]::GetFullPath($controllerRoot).TrimEnd('\', '/')
+    $actualPath = [System.IO.Path]::GetFullPath(([string]$gitTop).Trim()).TrimEnd('\', '/')
+    if (-not $expectedPath.Equals($actualPath, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'controller-worktree-path-mismatch; existing path preserved.'
+    }
+
+    $changes = @(& git -C $controllerRoot status --porcelain --untracked-files=all)
+    if ($LASTEXITCODE -ne 0) { throw 'controller-worktree-status-unavailable; existing path preserved.' }
+    if ($changes.Count -ne 0) { throw 'controller-worktree-dirty; existing files preserved.' }
+
+    $attachedBranch = & git -C $controllerRoot symbolic-ref --quiet --short HEAD 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        throw 'controller-worktree-attached-branch; existing branch preserved.'
+    }
+    if ($LASTEXITCODE -ne 1) { throw 'controller-worktree-branch-indeterminate; existing path preserved.' }
+}
+
 function New-ControllerWorktree {
     if (Test-Path -LiteralPath $controllerRoot) {
-        & git -C $root worktree remove --force $controllerRoot 2>$null
-        if ($LASTEXITCODE -ne 0 -and (Test-Path -LiteralPath $controllerRoot)) {
-            Remove-Item -LiteralPath $controllerRoot -Recurse -Force
+        Assert-SafeControllerWorktree
+        & git -C $root worktree remove $controllerRoot
+        if ($LASTEXITCODE -ne 0) {
+            throw 'Cannot safely remove clean detached controller worktree; existing path preserved.'
         }
         & git -C $root worktree prune
         if ($LASTEXITCODE -ne 0) { throw 'Unable to prune stale convergence worktree metadata.' }
@@ -30,6 +58,7 @@ function New-ControllerWorktree {
 if (-not (Test-Path -LiteralPath $controllerRoot -PathType Container)) {
     New-ControllerWorktree
 } else {
+    Assert-SafeControllerWorktree
     & git -C $controllerRoot sparse-checkout disable 2>$null
     $sparseDisableExit = $LASTEXITCODE
     if ($sparseDisableExit -eq 0) {
