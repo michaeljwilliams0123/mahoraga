@@ -5,6 +5,8 @@ default:
   image: node:24
 
 variables:
+  # Signed handshake validation checks ancestry beyond the runner default depth.
+  GIT_DEPTH: "0"
   NODE_ENV: test
 
 verify:
