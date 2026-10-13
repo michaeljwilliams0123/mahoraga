@@ -119,7 +119,11 @@ function installBridgeHarness(t, bridgeOrigin, autoLoad = true) {
 
 test("public bridge configuration accepts only an HTTPS origin with no path or credentials", async () => {
   const client = await clientModule();
-  assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-runtime-main-production.up.railway.app"), "https://mahoraga-runtime-main-production.up.railway.app");
+  assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev"), "https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev");
+  assert.equal(client.validatePublicBridgeOrigin("https://owner.example"), "https://owner.example");
+  assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-runtime-main-production.up.railway.app"), null);
+  assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-workspace.vercel.app"), null);
+  assert.equal(client.validatePublicBridgeOrigin("https://preview.vercel.sh"), null);
   assert.equal(client.validatePublicBridgeOrigin("http://mahoraga-runtime-main-production.up.railway.app"), null);
   assert.equal(client.validatePublicBridgeOrigin("https://mahoraga-runtime-main-production.up.railway.app/api"), null);
   assert.equal(client.validatePublicBridgeOrigin(["https://user:pass", "@mahoraga-runtime-main-production.up.railway.app"].join("")), null);
