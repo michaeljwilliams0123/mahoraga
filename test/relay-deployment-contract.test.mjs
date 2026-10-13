@@ -33,13 +33,19 @@ test("private-repository relay deployment keeps legacy workspace trust explicit 
 
 test("verification keeps repository gates after Vercel production retirement", async () => {
   const [verify, packageSource] = await Promise.all([read(".github/workflows/verify.yml"), read("package.json")]);
-  assert.match(verify, /npm run verify:conversation-plane/);
+  assert.doesNotMatch(verify, /run:\s*npm run verify:conversation-plane\s*$/m);
   assert.match(verify, /Vercel production deployment is retired/);
   assert.doesNotMatch(verify, /name:\s*Verify unified Vercel workspace/);
   assert.match(verify, /ubuntu-latest/);
   assert.match(verify, /windows-latest/);
-  assert.match(verify, /npm run verify/);
+  assert.match(verify, /verify_script:\s*verify\s*$/m);
+  assert.match(verify, /verify_script:\s*verify:windows\s*$/m);
+  assert.match(verify, /run:\s*npm run \$\{\{ matrix\.verify_script \}\}/);
   const scripts = JSON.parse(packageSource).scripts;
+  assert.equal(scripts.verify, "npm run verify:pretest && npm test");
+  assert.equal(scripts["verify:windows"], "npm run verify:pretest && npm run test:windows");
+  assert.match(scripts.test, /node --test --test-isolation=none/);
+  assert.match(scripts["test:windows"], /node --test --test-concurrency=4/);
   assert.match(scripts["verify:conversation-plane"], /conversation-plane-smoke/);
   assert.match(scripts["verify:conversation-plane"], /relay-deployment-contract/);
 });
