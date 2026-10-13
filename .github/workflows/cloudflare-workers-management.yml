@@ -1,0 +1,107 @@
+name: Verify Cloudflare Workers Management Token
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Verify secret only, or prove authorized create/edit/deploy on the isolated private canary
+        required: true
+        default: verify
+        type: choice
+        options:
+          - verify
+          - create-and-deploy-private-canary
+
+permissions:
+  actions: read
+  checks: read
+  contents: read
+
+concurrency:
+  group: mahoraga-cloudflare-management
+  cancel-in-progress: false
+
+jobs:
+  management:
+    name: Verify managed Cloudflare Worker authority
+    if: >-
+      github.repository == 'michaeljwilliams0123/mahoraga' &&
+      github.actor == github.repository_owner &&
+      github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERIFIED_SHA: ${{ github.sha }}
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ env.VERIFIED_SHA }}
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Use Mahoraga Node runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "24"
+
+      - name: Verify exact main and protected Ubuntu and Windows checks
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-exact-head.mjs
+          test "$(git rev-parse HEAD)" = "$VERIFIED_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/commits/$VERIFIED_SHA/check-runs?per_page=100" |
+            jq -e --arg sha "$VERIFIED_SHA" '
+              [.check_runs[] | select(.head_sha == $sha and .conclusion == "success"
+                and (.name == "Verify (ubuntu-latest)" or .name == "Verify (windows-latest)"))
+                | .name] | unique | length == 2'
+
+      - name: Verify expanded Cloudflare management credential without disclosure
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/cloudflare-workers-management-token.mjs verify
+
+      - name: Prove hard-zero account billing before optional Worker mutation
+        if: inputs.operation == 'create-and-deploy-private-canary'
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_BILLING_READ_TOKEN: ${{ secrets.CLOUDFLARE_BILLING_READ_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/cloudflare-zero-credit-attestation.mjs --output "$RUNNER_TEMP/management-billing-attestation.json"
+          test -s "$RUNNER_TEMP/management-billing-attestation.json"
+
+      - name: Create or update only the private management canary
+        if: inputs.operation == 'create-and-deploy-private-canary'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          node scripts/verify-exact-head.mjs
+          unset GITHUB_TOKEN
+          npx --yes wrangler@4.136.1 deploy \
+            --config deploy/cloudflare-management-canary/wrangler.jsonc \
+            --var "TARGET_SHA:$VERIFIED_SHA"
+
+      - name: Independently read back exact deployed canary version
+        if: inputs.operation == 'create-and-deploy-private-canary'
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN: ${{ secrets.CLOUDFLARE_WORKERS_MANAGEMENT_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/cloudflare-workers-management-token.mjs attest
