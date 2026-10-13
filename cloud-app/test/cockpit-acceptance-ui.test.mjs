@@ -146,3 +146,17 @@ describe("unified Cloudflare static UI provenance is not runtime authority", () 
     assert.doesNotMatch(staticCard, /executionAuthorityGranted: true|pairedRuntimeSourceVerified: true/);
   });
 });
+
+describe("Windows worktree guard from #1079", () => {
+  it("surfaces observational StatusCard for stale/dirty worktree preservation", () => {
+    const card = readFileSync(join(root, "components/cockpit/WindowsWorktreeGuardCard.tsx"), "utf8");
+    assert.match(cockpit, /WindowsWorktreeGuardCard/);
+    assert.match(card, /Windows convergence installer guard/);
+    assert.match(card, /Stale\/dirty worktree preserved \(observational\)/);
+    assert.match(card, /Merged #1079/);
+    assert.match(card, /fails closed before worktree removal/);
+    assert.match(card, /Product remains Mahoraga/);
+    assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
+    assert.match(card, /Not execution readiness, not cognition proof, and not production traffic authority/);
+  });
+});
