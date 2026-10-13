@@ -27,9 +27,8 @@ test("canonical CI verifies Linux and Windows with Node 24", async () => {
   assert.match(source, /actions\/checkout@[a-f0-9]{40} # v7/);
   assert.match(source, /actions\/setup-node@[a-f0-9]{40} # v7/);
   assert.match(source, /node-version:\s*"24"/);
-  assert.match(source, /verify_script:\s*verify\s*$/m);
-  assert.match(source, /verify_script:\s*verify:windows\s*$/m);
-  assert.match(source, /run:\s*npm run \$\{\{ matrix\.verify_script \}\}\s*$/m);
+  assert.doesNotMatch(source, /verify_script:/);
+  assert.match(source, /run:\s*npm run verify\s*$/m);
   assert.doesNotMatch(source, /run:\s*npm run verify:fast\s*$/m);
   assert.doesNotMatch(source, /npm run verify -- --test-concurrency=1/);
   assert.doesNotMatch(source, /name:\s*(Verify conversation and evolution contracts|Typecheck control plane|Validate static self-upgrade policy)/);
@@ -81,10 +80,9 @@ test("fast Verify retains exact-head governance and focused regression coverage"
   ]) assert.match(pretest, new RegExp(required.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
 
   assert.equal(pkg.scripts?.verify, "npm run verify:pretest && npm test");
-  assert.equal(pkg.scripts?.["verify:windows"], "npm run verify:pretest && npm run test:windows");
+  assert.equal(pkg.scripts?.["verify:windows"], undefined);
+  assert.equal(pkg.scripts?.["test:windows"], undefined);
   assert.match(pkg.scripts?.test ?? "", /node --test --test-isolation=none/);
-  assert.match(pkg.scripts?.["test:windows"] ?? "", /node --test --test-concurrency=2/);
-  assert.doesNotMatch(pkg.scripts?.["test:windows"] ?? "", /--test-isolation=none/);
 });
 
 test("canonical CI remains read-only", async () => {

@@ -34,10 +34,8 @@ jobs:
         include:
           - check_name: ubuntu-latest
             runner_labels: '"ubuntu-latest"'
-            verify_script: verify
           - check_name: windows-latest
             runner_labels: '"windows-latest"'
-            verify_script: verify:windows
 
     steps:
       - name: Check out repository
@@ -63,7 +61,7 @@ jobs:
       - name: Verify authoritative repository
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: npm run ${{ matrix.verify_script }}
+        run: npm run verify
 
       - name: Render declared capability gap audit
         if: matrix.check_name == 'ubuntu-latest'
