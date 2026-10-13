@@ -275,9 +275,12 @@ export class RuntimeRelay {
     this.cloudSession = null;
     this.bridgeAuthenticated = false;
     this.cloudSessionDiagnostic = null;
-    // One primary edge origin (custom domain); the legacy bridge variable remains the fallback.
-    const bridgeOrigin = validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN)
-      ?? validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
+    // A present but rejected primary origin is a configuration fault, not permission to fall back to a stale provider.
+    // The legacy variable is read only when no primary origin is configured (older static exports).
+    const primaryOrigin = process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN;
+    const bridgeOrigin = primaryOrigin?.trim()
+      ? validatePublicBridgeOrigin(primaryOrigin)
+      : validatePublicBridgeOrigin(process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN);
     const currentOrigin = typeof window !== "undefined" ? window.location.origin : null;
     if (bridgeOrigin && currentOrigin) {
       try {
