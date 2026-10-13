@@ -20,14 +20,14 @@ test("Windows convergence controller periodically promotes verified main without
   assert.doesNotMatch(installer, /Repetition\.Interval\s*=/);
   assert.match(installer, /MultipleInstances IgnoreNew/);
   assert.match(installer, /sparse-checkout\s+disable/i);
-  assert.doesNotMatch(installer, /worktree\\s+remove\\s+--force/i);
-  assert.doesNotMatch(installer, /Remove-Item[^\\n]*-Recurse[^\\n]*-Force/i);
+  assert.doesNotMatch(installer, /worktree\s+remove\s+--force/i);
+  assert.doesNotMatch(installer, /Remove-Item[^\n]*-Recurse[^\n]*-Force/i);
   assert.match(installer, /function Assert-SafeControllerWorktree/);
   assert.match(installer, /controller-worktree-dirty/);
   assert.match(installer, /controller-worktree-attached-branch/);
   assert.match(installer, /status --porcelain --untracked-files=all/);
   assert.match(installer, /symbolic-ref --quiet --short HEAD/);
-  assert.match(installer, /worktree remove \\$controllerRoot/);
+  assert.match(installer, /worktree remove \$controllerRoot/);
   assert.match(installer, /Runtime convergence controller is missing after repair/i);
   assert.match(startupInstaller, /install-runtime-convergence\.ps1/);
   assert.match(startupInstaller, /Runtime convergence installer is missing/);
