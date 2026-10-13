@@ -13,6 +13,12 @@ test("owner gateway keeps identity and assertion key out of tracked vars and has
   assert.match(config, /\[\[services\]\][\s\S]*binding\s*=\s*"MAHORAGA_EXECUTION_RUNTIME"[\s\S]*service\s*=\s*"mahoraga-execution-runtime"/);
 });
 
+test("owner gateway enables bounded sampled observability and failure grouping", () => {
+  assert.match(config, /\[observability\][\s\S]*enabled\s*=\s*true[\s\S]*head_sampling_rate\s*=\s*0\.1/);
+  assert.match(config, /\[observability\.issues\][\s\S]*enabled\s*=\s*true/);
+  assert.doesNotMatch(config, /CLOUDFLARE_[A-Z0-9_]+\s*=/);
+});
+
 test("Wrangler local state is ignored everywhere in the repository", () => {
   assert.match(ignore, /(^|\n)\.wrangler\/(\r?\n|$)/);
 });
