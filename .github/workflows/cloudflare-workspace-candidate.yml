@@ -41,6 +41,7 @@ jobs:
       CLOUDFLARE_ACCESS_TOKEN: ${{ secrets.CLOUDFLARE_ACCESS_TOKEN }}
       CLOUDFLARE_ACCESS_CLIENT_ID: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_ID }}
       CLOUDFLARE_ACCESS_CLIENT_SECRET: ${{ secrets.CLOUDFLARE_ACCESS_CLIENT_SECRET }}
+      NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN: https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev
       NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN: https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev
       MAHORAGA_DEPLOYMENT_PROVIDER: cloudflare-workers
       MAHORAGA_DEPLOYMENT_ENV: candidate

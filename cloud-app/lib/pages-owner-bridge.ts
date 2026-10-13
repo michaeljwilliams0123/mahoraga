@@ -14,7 +14,8 @@ export type PagesBridgeSession = { token: string; csrf: string; expiresAt: numbe
 export function validatePagesOrigin(value: string) {
   let parsed: URL;
   try { parsed = new URL(value); } catch { throw bridgeError("cloud-pages-origin-invalid", 503); }
-  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+  if (/(?:^|\.)(?:railway\.app|vercel\.app|vercel\.sh)$/i.test(parsed.hostname)
+    || parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
     throw bridgeError("cloud-pages-origin-invalid", 503);
   }
   return parsed.origin;

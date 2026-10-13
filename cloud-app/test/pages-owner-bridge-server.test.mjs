@@ -23,7 +23,7 @@ async function importActionModule() {
 }
 
 function bridgeRequest(session, { nonce = crypto.randomUUID(), timestamp = Date.now(), csrf = session.csrf, token = session.token } = {}) {
-  return new Request("https://mahoraga-runtime-main-production.up.railway.app/api/runtime/pages-bridge/action", {
+  return new Request("https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev/api/runtime/pages-bridge/action", {
     method: "POST",
     headers: {
       "x-mahoraga-bridge-session": token,
@@ -40,6 +40,8 @@ test("Pages bridge exposes only an HTTPS origin-only protocol and the existing b
   assert.equal(bridge.PAGES_BRIDGE_PROTOCOL_VERSION, 1);
   assert.equal(bridge.validatePagesOrigin("https://michaeljwilliams0123.github.io"), "https://michaeljwilliams0123.github.io");
   assert.throws(() => bridge.validatePagesOrigin("http://michaeljwilliams0123.github.io"));
+  assert.throws(() => bridge.validatePagesOrigin("https://mahoraga-runtime-main-production.up.railway.app"));
+  assert.throws(() => bridge.validatePagesOrigin("https://mahoraga-workspace.vercel.app"));
   assert.throws(() => bridge.validatePagesOrigin("https://michaeljwilliams0123.github.io/path"));
   assert.throws(() => bridge.validatePagesOrigin(["https://user:pass", "@michaeljwilliams0123.github.io"].join("")));
   assert.equal(actions.ALLOWED_CLOUD_RUNTIME_ACTIONS.has("chat"), true);
