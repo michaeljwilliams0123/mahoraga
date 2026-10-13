@@ -45,6 +45,18 @@ test('retired resources can never route or become canonical', async () => {
   }
   assert.equal(routablePlatformResources(value).some((item) => item.provider === 'vercel'), false);
 });
+
+test('discovered unmanaged Workers remain visible but cannot route', async () => {
+  const value = await registry();
+  const discovered = value.resources.find((item) => item.logicalId === 'edge.discovered.lively-smoke-02ec');
+  assert.ok(discovered);
+  assert.equal(discovered.provider, 'cloudflare');
+  assert.equal(discovered.providerResourceId, 'lively-smoke-02ec');
+  assert.equal(discovered.lifecycle, 'standby');
+  assert.equal(discovered.canonical, false);
+  assert.equal(discovered.routingEligible, false);
+  assert.equal(routablePlatformResources(value).some((item) => item.providerResourceId === 'lively-smoke-02ec'), false);
+});
 test('display names never determine authority', async () => {
   const value = await registry();
   const changed = structuredClone(value);

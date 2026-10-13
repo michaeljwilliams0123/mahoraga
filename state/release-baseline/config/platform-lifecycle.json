@@ -181,6 +181,18 @@
       "canonical": false,
       "routingEligible": false,
       "environment": "production"
+    },
+    {
+      "logicalId": "edge.discovered.lively-smoke-02ec",
+      "provider": "cloudflare",
+      "providerProjectId": "mahoraga-mjw0123",
+      "providerResourceId": "lively-smoke-02ec",
+      "displayName": "Discovered unmanaged Worker lively-smoke-02ec",
+      "lifecycle": "standby",
+      "authorityRole": "edge",
+      "canonical": false,
+      "routingEligible": false,
+      "environment": "production"
     }
   ]
 }
