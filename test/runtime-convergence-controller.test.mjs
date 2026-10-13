@@ -20,7 +20,14 @@ test("Windows convergence controller periodically promotes verified main without
   assert.doesNotMatch(installer, /Repetition\.Interval\s*=/);
   assert.match(installer, /MultipleInstances IgnoreNew/);
   assert.match(installer, /sparse-checkout\s+disable/i);
-  assert.match(installer, /worktree\s+remove\s+--force/i);
+  assert.doesNotMatch(installer, /worktree\s+remove\s+--force/i);
+  assert.doesNotMatch(installer, /Remove-Item[^\n]*-Recurse[^\n]*-Force/i);
+  assert.match(installer, /function Assert-SafeControllerWorktree/);
+  assert.match(installer, /controller-worktree-dirty/);
+  assert.match(installer, /controller-worktree-attached-branch/);
+  assert.match(installer, /status --porcelain --untracked-files=all/);
+  assert.match(installer, /symbolic-ref --quiet --short HEAD/);
+  assert.match(installer, /worktree remove \$controllerRoot/);
   assert.match(installer, /Runtime convergence controller is missing after repair/i);
   assert.match(startupInstaller, /install-runtime-convergence\.ps1/);
   assert.match(startupInstaller, /Runtime convergence installer is missing/);
@@ -38,6 +45,23 @@ test("Windows convergence controller periodically promotes verified main without
   assert.match(controller, /Stop-Listener/);
   assert.match(controller, /Wait-ForCommit\s+\$targetCommit\s+\$true/);
   assert.doesNotMatch(controller, /codex\s+exec|openai|model invocation|gemini/i);
+});
+
+
+test("controller installer rejects stale or dirty branch checkout before any destructive fallback", async () => {
+  const installer = await source("scripts/install-runtime-convergence.ps1");
+  const guard = installer.indexOf("function Assert-SafeControllerWorktree");
+  const installerBody = installer.indexOf("if (-not (Test-Path -LiteralPath $controllerRoot -PathType Container))");
+  const explicitPreflight = installer.lastIndexOf("Assert-SafeControllerWorktree", installer.indexOf("sparse-checkout disable"));
+  const sparseDisable = installer.indexOf("sparse-checkout disable");
+  assert.ok(guard >= 0 && installerBody > guard);
+  assert.ok(explicitPreflight > guard && explicitPreflight < sparseDisable);
+  assert.match(installer, /controller-worktree-path-mismatch/);
+  assert.match(installer, /controller-worktree-status-unavailable/);
+  assert.match(installer, /controller-worktree-branch-indeterminate/);
+  assert.ok(installer.indexOf("Assert-SafeControllerWorktree", installer.indexOf("function New-ControllerWorktree")) <
+    installer.indexOf("worktree remove $controllerRoot"));
+  assert.doesNotMatch(installer, /worktree remove --force|Remove-Item -LiteralPath \$controllerRoot -Recurse -Force/);
 });
 
 test("Windows convergence bootstraps protected main when the 4783 candidate is absent", async () => {
