@@ -11,6 +11,8 @@ export function validatePublicBridgeOrigin(value: string | undefined) {
   if (!value?.trim()) return null;
   try {
     const parsed = new URL(value.trim());
+    // Retired Railway/Vercel hosts must never become live owner-bridge routes, even from stale build variables.
+    if (/(?:^|\.)(?:railway\.app|vercel\.app|vercel\.sh)$/i.test(parsed.hostname)) return null;
     if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) return null;
     return parsed.origin;
   } catch { return null; }
