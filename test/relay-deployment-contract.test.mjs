@@ -39,7 +39,10 @@ test("verification keeps repository gates after Vercel production retirement", a
   assert.match(verify, /ubuntu-latest/);
   assert.match(verify, /windows-latest/);
   assert.doesNotMatch(verify, /verify_script:/);
+  assert.match(verify, /name:\s*Verify authoritative repository\s*\n\s*if: matrix\.check_name == 'ubuntu-latest'/);
   assert.match(verify, /run:\s*npm run verify\s*$/m);
+  assert.match(verify, /name:\s*Verify Windows portability contract\s*\n\s*if: matrix\.check_name == 'windows-latest'/);
+  assert.match(verify, /run:\s*npm run verify:fast\s*$/m);
   const scripts = JSON.parse(packageSource).scripts;
   assert.equal(scripts.verify, "npm run verify:pretest && npm test");
   assert.equal(scripts["verify:windows"], undefined);

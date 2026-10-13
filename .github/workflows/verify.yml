@@ -59,9 +59,16 @@ jobs:
           test "$ID" = "ubuntu"
 
       - name: Verify authoritative repository
+        if: matrix.check_name == 'ubuntu-latest'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: npm run verify
+
+      - name: Verify Windows portability contract
+        if: matrix.check_name == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run verify:fast
 
       - name: Render declared capability gap audit
         if: matrix.check_name == 'ubuntu-latest'
