@@ -340,6 +340,16 @@ jobs:
             --config deploy/cloudflare-owner-gateway/wrangler.toml \
             --secrets-file "$OWNER_GATEWAY_SECRETS_FILE"
 
+      - name: Verify live Cloudflare Cron triggers match source
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-exact-head.mjs
+          unset GITHUB_TOKEN
+          node scripts/cloudflare-cron-source-readback.mjs
+
       - name: Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough
         env:
           GITHUB_TOKEN: ${{ github.token }}
