@@ -5,12 +5,12 @@ Mahoraga is three surfaces. Use the **operator console** for GitHub work so you 
 | Surface | Version | Host | Language | What it is |
 |---|---|---|---|---|
 | Windows rollback predecessor | `3.6.0` | Loopback `127.0.0.1:4782` when restored on a Windows host | Existing Node.js control plane | Protected rollback predecessor, not proof of the active Windows runtime. SHA `397acebf16766f44e3b4317f9d8b68b10de5f821`. |
-| Conversation workspace | `7.0.0-alpha.2` | Railway-only production (`cloud-app/`). No active `vercel.json` deploy config. Historical Vercel docs retained. | TypeScript (Next.js `cloud-app/`) | ChatGPT-style workspace. Not the Windows PID. After steward #263, signed-browser is live; local-reasoner and microsoft-durable-queue remain holds. L7 in-memory mesh experiment isolated under `experiments/level7-inmemory-mesh/` (PR #177). |
+| Conversation workspace | `7.0.0-alpha.2` | Access-protected Cloudflare owner gateway (`cloud-app/`), with GitHub Pages as a derived presentation/provenance mirror. | TypeScript (Next.js `cloud-app/`) | ChatGPT-style workspace. Not the Windows PID. After steward #263, signed-browser is live; local-reasoner and microsoft-durable-queue remain holds. L7 in-memory mesh experiment isolated under `experiments/level7-inmemory-mesh/` (PR #177). |
 | Operator console | `fleet-1` | Non-deployable TypeScript reference/control library (`operator-deck/`); operator capabilities live in `cloud-app/`. | TypeScript (TanStack Start) | Reference/control helpers for the unified operator surface; no separate deployed UI. |
 
 ## Host decision
 
-**Railway** is the production application host for the single deployable `cloud-app/` browser UI. `operator-deck/` is not deployed. Active Vercel deployment configuration is retired. Historical Vercel documentation may remain. Google Workspace is identity, mail, and docs. It is not an application host.
+The **Cloudflare owner gateway** is the production application host for the single deployable `cloud-app/` browser UI. GitHub Pages is a derived presentation/provenance mirror. **Railway** is legacy evidence only with zero-route, zero-influence, zero-fallback, and zero-authority; do not repair or revive it. `operator-deck/` is not deployed. Vercel is retired and observation-only. Historical Vercel documentation may remain. Google Workspace is identity, mail, and docs. It is not an application host.
 
 ## Language lock
 
