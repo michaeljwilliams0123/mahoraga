@@ -17,7 +17,7 @@ backend, listener, or vendor deployment is active.
 
 ## Required controls
 
-- User authentication and same-origin enforcement at the owner-facing Access-protected edge; the fixed Railway upstream remains server-side and is never caller-selected.
+- User authentication and same-origin enforcement at the owner-facing Access-protected edge. The gateway forwards execution only through the fixed, service-bound canonical Cloudflare runtime, never a caller-selected upstream. Railway has zero route, influence, fallback, or authority.
 - CSRF compared with a timing-safe digest bound to the session.
 - Idempotent submit. Repeating a key with a different task type conflicts.
 - Pagination limited to 50 events. Unknown cursors fail as stale.
