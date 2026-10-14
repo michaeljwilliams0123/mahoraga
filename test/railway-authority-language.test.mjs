@@ -40,7 +40,7 @@ test('current authority surfaces keep Railway legacy-only without rollback seman
   );
   readmeCurrent = stripSection(
     readmeCurrent,
-    '## Historical Railway production model (rollback reference)',
+    '## Historical Railway production model (archived evidence; not a rollback option)',
     '## Observed cloud status during this README reconciliation',
   );
   assertCurrentRailwayBoundary(readmeCurrent, 'README current authority sections');
