@@ -174,3 +174,116 @@ test("a valid one-hop budget permits direct completion without a handoff", async
   assert.equal((await response.json()).handoffCount,0);
   assert.equal(fixture.counts().calls,1);
 });
+
+function discoveryFixture({deadline=false, freshObservation=false, legacy=false}={}) {
+  let now = NOW;
+  let executions = 0;
+  const proof = ATT("github","discovery-worker","cloud",[CAP("repository.inspect","read",["repo:read"])]);
+  if (!deadline && !freshObservation) proof.expiresAt = new Date(NOW + 1_000).toISOString();
+  const repository = {async fetch(request) {
+    if (new URL(request.url).pathname === "/api/capabilities") {
+      if (legacy) return Response.json({attestations:[]});
+      if (freshObservation) {
+        now += 10_000;
+        proof.observedAt = new Date(now).toISOString();
+        proof.expiresAt = new Date(now + 60_000).toISOString();
+      }
+      return Response.json(proof);
+    }
+    executions++;
+    return Response.json({status:"complete",receipt:{id:"discovery-execution"}});
+  }};
+  // A later binding delays discovery after the repository proof was accepted.
+  const cloud = {async fetch() { now += 2_000; return Response.json({attestations:[]}); }};
+  const legacyBinding = {async fetch() {
+    now += 10_000;
+    return Response.json({schemaVersion:1,kind:"connector-capability-attestation",
+      observedAt:new Date(now).toISOString(),expiresAt:new Date(now+60_000).toISOString(),
+      grants:[{capability:"repository.inspect",provider:"github",permissionClass:"read",healthy:true,zeroCreditEligible:true}]});
+  }};
+  const broker = createExecutionBroker({REPOSITORY_PROVIDER:repository,CLOUD_PROVIDER:cloud,
+    ...(legacy ? {CONNECTOR_CAPABILITY_BROKER:legacyBinding} : {})},()=>now);
+  const request = {taskId:"discovery-task",chainId:"discovery-chain",requiredCapability:"repository.inspect",
+    requestedPermission:"read",dataClass:"enterprise",authorityScopes:["repo:read"],maxHops:2,
+    constraints:{requireZeroCredit:true},evidenceRefs:[],
+    ...(deadline ? {deadlineAt:new Date(NOW+1_000).toISOString()} : {})};
+  return {executions:()=>executions, now:()=>now, async run(path) {
+    if (path === "capabilities") return broker.fetch(new Request("https://broker/api/capabilities"));
+    const body = path === "execute" ? {request,payload:{objective:"fresh discovery"}}
+      : path === "handoff" ? {request,handoff:{schemaVersion:1,taskId:request.taskId,chainId:request.chainId,
+        fromWorkerId:"previous-worker",requiredNextCapability:"repository.inspect",requestedPermission:"read",
+        authorityScopes:["repo:read"],evidenceRefs:[],hopCount:1}} : request;
+    return broker.fetch(new Request(`https://broker/api/${path}`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)}));
+  }};
+}
+
+for (const path of ["route","execute","handoff"]) {
+  test(`${path} rejects proof that expires while a later provider is being discovered`,async()=>{
+    const fixture = discoveryFixture();
+    const response = await fixture.run(path);
+    const body = await response.json();
+    assert.equal(fixture.executions(),0,"expired proof must never authorize a provider call");
+    assert.equal(response.status,503);
+    assert.equal(body.error,"no-eligible-route");
+    assert.equal(body.lease,undefined);
+  });
+  test(`${path} rejects a deadline crossed during provider discovery`,async()=>{
+    const fixture = discoveryFixture({deadline:true});
+    const response = await fixture.run(path);
+    const body = await response.json();
+    assert.equal(fixture.executions(),0,"expired deadlines must stop execution before dispatch");
+    assert.equal(response.status,503);
+    assert.equal(body.error,"execution-deadline-exceeded");
+    assert.equal(body.lease,undefined);
+  });
+}
+
+test("capability pool excludes proof expired during discovery and reports its actual observation time",async()=>{
+  const fixture = discoveryFixture();
+  const response = await fixture.run("capabilities");
+  const body = await response.json();
+  assert.equal(response.status,200);
+  assert.deepEqual(body.routes,[]);
+  assert.equal(body.providerReadiness.routableCapabilities,0);
+  assert.notEqual(body.providerReadiness.state,"admitted");
+  assert.equal(body.observedAt,new Date(fixture.now()).toISOString());
+});
+
+for (const legacy of [false,true]) {
+  test(`${legacy ? "legacy" : "universal"} proof observed during a slow capability read remains routable`,async()=>{
+    const fixture = discoveryFixture({freshObservation:true,legacy});
+    const response = await fixture.run("execute");
+    assert.equal(response.status,200);
+    assert.equal((await response.json()).status,"complete");
+    assert.equal(fixture.executions(),1);
+  });
+}
+
+test("each handoff rechecks discovery freshness before dispatching its successor",async()=>{
+  let now = NOW;
+  let discoveries = 0;
+  let executions = 0;
+  const repository = binding(ATT("github","handoff-discovery-worker","cloud",[
+    CAP("repository.inspect","read",["repo:read"]),CAP("repository.verify","read",["repo:read"]),
+  ]),({lease})=>{
+    executions++;
+    return {status:"handoff",handoff:{schemaVersion:1,taskId:lease.taskId,chainId:lease.chainId,
+      fromWorkerId:lease.workerId,requiredNextCapability:"repository.verify",requestedPermission:"read",
+      authorityScopes:["repo:read"],evidenceRefs:[],hopCount:1}};
+  });
+  const cloud = {async fetch() {
+    if (++discoveries === 2) now += 61_000;
+    return Response.json({attestations:[]});
+  }};
+  const broker = createExecutionBroker({REPOSITORY_PROVIDER:repository,CLOUD_PROVIDER:cloud},()=>now);
+  const response = await broker.fetch(new Request("https://broker/api/execute",{method:"POST",
+    headers:{"content-type":"application/json"},body:JSON.stringify({request:{taskId:"late-successor",chainId:"late-chain",
+      requiredCapability:"repository.inspect",requestedPermission:"read",dataClass:"enterprise",authorityScopes:["repo:read"],
+      maxHops:3,constraints:{requireZeroCredit:true},evidenceRefs:[]}})}));
+  assert.equal(response.status,503);
+  const body = await response.json();
+  assert.equal(body.error,"no-eligible-route");
+  assert.equal(executions,1,"expired successor proof must not dispatch a second execution");
+  assert.equal(body.receipts.filter(r=>r.kind==="handoff-receipt").length,1);
+  assert.equal(body.receipts.some(r=>r.kind==="execution-receipt"),false);
+});
