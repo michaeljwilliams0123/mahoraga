@@ -17,7 +17,7 @@ export function expectedCronSchedule(config, format) {
   try {
     if (format === "json") value = JSON.parse(config)?.triggers?.crons;
     else if (format === "toml") {
-      const section = config.match(/(?:^|\n)\[triggers\]\s*\r?\n([^\[]*)/);
+      const section = config.match(/(?:^|\n)\[triggers\][^\r\n]*\r?\n([\s\S]*?)(?=\r?\n\[|$)/);
       const list = section?.[1]?.match(/^\s*crons\s*=\s*(\[[^\r\n]*\])\s*$/m)?.[1];
       value = JSON.parse(list ?? "");
     }
