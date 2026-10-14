@@ -97,3 +97,80 @@ test("execution fails closed when a route lease expires during provider work", a
   assert.equal(body.error, "execution-lease-expired");
   assert.equal(body.chainId, "chain-expiring");
 });
+
+
+const hopScopes = ["repo:read", "cloud:read"];
+function budgetFixture({maxHops=2, wrongWorker=false, completeImmediately=false, omitBudget=false}={}) {
+  let calls = 0; let capabilityReads = 0;
+  const fixtureBinding = (provider, worker, capability, next) => ({ fetch:async request => {
+    if (new URL(request.url).pathname === "/api/capabilities") {
+      capabilityReads++;
+      return Response.json(ATT(provider,worker,"cloud",[CAP(capability,"read",hopScopes)]));
+    }
+    const {lease} = await request.json(); calls++;
+    if (completeImmediately || calls === 6) return Response.json({status:"complete",receipt:{id:"bounded-fixture-end"}});
+    return Response.json({status:"handoff",handoff:{schemaVersion:1,taskId:lease.taskId,chainId:lease.chainId,
+      fromWorkerId:wrongWorker ? "unleased-worker" : lease.workerId, requiredNextCapability:next,
+      requestedPermission:"read",authorityScopes:hopScopes,evidenceRefs:[],hopCount:1}});
+  } });
+  const broker = createExecutionBroker({
+    REPOSITORY_PROVIDER:fixtureBinding("github","repository-worker","repository.inspect","cloud.inspect"),
+    CLOUD_PROVIDER:fixtureBinding("cloudflare","cloud-worker","cloud.inspect","repository.inspect"),
+  },()=>NOW);
+  return {
+    counts:()=>({calls,capabilityReads}),
+    run:()=>broker.fetch(new Request("https://broker/api/execute",{method:"POST",headers:{"content-type":"application/json"},
+      body:JSON.stringify({request:{taskId:"budget-task",chainId:"budget-chain",requiredCapability:"repository.inspect",
+        requestedPermission:"read",dataClass:"enterprise",authorityScopes:hopScopes,maxHops:omitBudget ? undefined : maxHops,
+        constraints:{requireZeroCredit:true},evidenceRefs:[]},payload:{objective:"bounded synthetic inspection"}})})),
+  };
+}
+
+test("broker-owned hop budget stops repeated provider counters before a third execution", async()=>{
+  const fixture = budgetFixture({maxHops:2});
+  const response = await fixture.run();
+  assert.equal(response.status,409);
+  const result = await response.json();
+  assert.equal(result.error,"handoff-hop-limit");
+  assert.equal(result.chainId,"budget-chain");
+  assert.equal(fixture.counts().calls,2);
+  assert.equal(result.receipts.filter(r=>r.kind==="handoff-receipt").length,1);
+  assert.equal(result.receipts.some(r=>r.kind==="execution-receipt"),false);
+});
+
+test("a reset provider hop counter cannot continue under a larger broker budget", async()=>{
+  const fixture = budgetFixture({maxHops:4});
+  const response = await fixture.run();
+  assert.equal(response.status,409);
+  assert.equal((await response.json()).error,"handoff-hop-count-mismatch");
+  assert.equal(fixture.counts().calls,2);
+});
+
+test("handoff cannot impersonate a worker outside the active execution lease", async()=>{
+  const fixture = budgetFixture({maxHops:4,wrongWorker:true});
+  const response = await fixture.run();
+  assert.equal(response.status,409);
+  const result = await response.json();
+  assert.equal(result.error,"handoff-worker-mismatch");
+  assert.equal(fixture.counts().calls,1);
+  assert.equal(result.receipts.some(r=>r.kind==="handoff-receipt"),false);
+});
+
+test("invalid execution hop budgets are denied before capability reads or executor calls", async()=>{
+  for (const maxHops of [null,0,-1,1.5,"2",Number.POSITIVE_INFINITY,Number.MAX_SAFE_INTEGER+1]) {
+    const fixture = budgetFixture({maxHops,completeImmediately:true});
+    assert.equal((await fixture.run()).status,400,String(maxHops));
+    assert.deepEqual(fixture.counts(),{calls:0,capabilityReads:0});
+  }
+  const missing = budgetFixture({omitBudget:true,completeImmediately:true});
+  assert.equal((await missing.run()).status,400);
+  assert.deepEqual(missing.counts(),{calls:0,capabilityReads:0});
+});
+
+test("a valid one-hop budget permits direct completion without a handoff", async()=>{
+  const fixture = budgetFixture({maxHops:1,completeImmediately:true});
+  const response = await fixture.run();
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).handoffCount,0);
+  assert.equal(fixture.counts().calls,1);
+});

@@ -109,6 +109,10 @@ async function executeRequest(env: BrokerEnv, input: unknown, nowFn: () => numbe
   if (!input || typeof input !== "object" || Array.isArray(input)) return { status:400, body:{ error:"request-invalid" } };
   const envelope = input as { request?: Record<string,unknown>; payload?: unknown };
   if (!envelope.request || typeof envelope.request.taskId !== "string" || typeof envelope.request.chainId !== "string") return { status:400, body:{ error:"request-invalid" } };
+  const maxHops = envelope.request.maxHops;
+  if (typeof maxHops !== "number" || !Number.isSafeInteger(maxHops) || maxHops < 1) {
+    return { status:400, body:{ error:"request-invalid" } };
+  }
   let currentRequest = envelope.request;
   const chain = createExecutionChain(currentRequest.taskId as string, currentRequest.chainId as string);
   while (true) {
@@ -131,6 +135,12 @@ async function executeRequest(env: BrokerEnv, input: unknown, nowFn: () => numbe
       chain.receipts.push(executionReceipt(lease, result.receipt));
       return { status:200, body:{ status:"complete", taskId:chain.taskId, chainId:chain.chainId, handoffCount:chain.handoffCount, receipts:chain.receipts } };
     }
+    // The active lease and broker-owned counter govern every successor step.
+    // A provider cannot impersonate another worker or reset its remaining budget.
+    const nextHop = chain.handoffCount + 1;
+    if (nextHop >= maxHops) return { status:409, body:{ error:"handoff-hop-limit", chainId:chain.chainId, receipts:chain.receipts } };
+    if (result.handoff.fromWorkerId !== lease.workerId) return { status:409, body:{ error:"handoff-worker-mismatch", chainId:chain.chainId, receipts:chain.receipts } };
+    if (result.handoff.hopCount !== nextHop) return { status:409, body:{ error:"handoff-hop-count-mismatch", chainId:chain.chainId, receipts:chain.receipts } };
     const validation = validateHandoff(currentRequest, result.handoff, chain.history, new Date(completedAt));
     if (!validation.ok) return { status:409, body:{ error:validation.reason, chainId:chain.chainId, receipts:chain.receipts } };
     chain.receipts.push(handoffReceipt(result.handoff));
