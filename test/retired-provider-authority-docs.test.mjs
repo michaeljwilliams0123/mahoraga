@@ -31,4 +31,5 @@ test("current browser entry and historical rollback documentation remain distinc
   assert.doesNotMatch(deployment, /GitHub Pages is the current browser presentation/i);
   assert.match(readme, /Historical Railway production model \(archived evidence; not a rollback option\)/);
   assert.doesNotMatch(readme, /Historical Railway production model \(rollback reference\)/);
+  assert.doesNotMatch(readme, /retained for rollback\/evidence only/i);
 });
