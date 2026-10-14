@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expectedCronSchedule, verifyCronScheduleSnapshot, readLiveCronSchedules } from "../scripts/cloudflare-cron-source-readback.mjs";
@@ -75,4 +77,43 @@ test("canonical deploy reads live Cron after gateway deploy but before acceptanc
   assert.match(block,/unset GITHUB_TOKEN/);
   assert.match(block,/node scripts\/cloudflare-cron-source-readback.mjs/);
   assert.doesNotMatch(block,/wrangler.*deploy|secret put|curl.*-X PUT/);
+});
+
+const finalReadbackName = "- name: Verify final Cloudflare Cron triggers before accepting release";
+
+test("final Cron readback follows acceptance redeployment and gates summary and artifact publication", () => {
+  const yaml = readConfig(".github/workflows/cloudflare-execution-runtime.yml");
+  const proof = yaml.indexOf("- name: Prove Access, provenance, Cloudflare cognition, replay, and no Railway fallthrough");
+  const final = yaml.indexOf(finalReadbackName);
+  const retain = yaml.indexOf("- name: Retain sanitized Cloudflare acceptance receipt");
+  assert.ok(final > proof && retain > final, "final readback must follow redeployment and precede acceptance publication");
+  assert.doesNotMatch(yaml.slice(proof, final), /GITHUB_STEP_SUMMARY/);
+  const block = yaml.slice(final, retain);
+  assert.match(block, /set -euo pipefail/);
+  assert.match(block, /node scripts\/verify-exact-head.mjs[\s\S]*unset GITHUB_TOKEN[\s\S]*node scripts\/cloudflare-cron-source-readback.mjs[\s\S]*GITHUB_STEP_SUMMARY/);
+  assert.doesNotMatch(yaml.slice(final), /wrangler.*deploy|node scripts\/cloudflare-execution-runtime.ts deploy/);
+  assert.match(yaml.slice(retain), /- name: Remove temporary Cloudflare secret files\s+if: always\(\)/);
+});
+
+test("final readback shell fails closed without publishing a summary, and publishes only after success", () => {
+  const yaml = readConfig(".github/workflows/cloudflare-execution-runtime.yml");
+  const start = yaml.indexOf(finalReadbackName);
+  assert.notEqual(start, -1, "final deployment Cron gate must exist");
+  const block = yaml.slice(start, yaml.indexOf("- name: Retain sanitized Cloudflare acceptance receipt"));
+  const script = block.split("run: |\n")[1].split("\n").map(line => line.replace(/^ {10}/, "")).join("\n");
+  const dir = mkdtempSync(join(tmpdir(), "mahoraga-final-cron-"));
+  try {
+    mkdirSync(join(dir, "scripts")); mkdirSync(join(dir, "reports"));
+    writeFileSync(join(dir, "reports/cloudflare-execution-runtime-acceptance.json"), '{"status":"accepted"}');
+    writeFileSync(join(dir, "scripts/verify-exact-head.mjs"), 'process.stdout.write("source-rechecked\\n");');
+    writeFileSync(join(dir, "scripts/cloudflare-cron-source-readback.mjs"), 'if (process.env.GITHUB_TOKEN) process.exit(2); process.exitCode = Number(process.env.TEST_READBACK_EXIT);');
+    const summary = join(dir, "summary.md");
+    for (const exit of [1, 0]) {
+      const result = spawnSync("bash", ["-c", script], { cwd: dir, encoding: "utf8", env: { ...process.env, GITHUB_TOKEN: "fixture-only", GITHUB_STEP_SUMMARY: summary, TEST_READBACK_EXIT: String(exit) } });
+      assert.equal(result.status, exit, result.stderr);
+      assert.match(result.stdout, /source-rechecked/);
+      if (exit) assert.equal(existsSync(summary), false, "failed final readback must not publish acceptance");
+      else assert.match(readFileSync(summary, "utf8"), /\{"status":"accepted"\}/);
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });

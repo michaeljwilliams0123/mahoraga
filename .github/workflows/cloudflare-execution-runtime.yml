@@ -365,6 +365,18 @@ jobs:
             --redeploy-secrets-file "$RUNTIME_SECRETS_FILE" \
             --billing-attestation-file "$BILLING_ATTESTATION_FILE" \
             --receipt reports/cloudflare-execution-runtime-acceptance.json
+
+      # Acceptance tests durable continuity by redeploying the runtime. Reconcile
+      # the final deployment, not only the version observed before that proof.
+      - name: Verify final Cloudflare Cron triggers before accepting release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/verify-exact-head.mjs
+          unset GITHUB_TOKEN
+          node scripts/cloudflare-cron-source-readback.mjs
           {
             echo '### Cloudflare execution-runtime acceptance'
             echo '```json'
