@@ -1,1 +1,42 @@
-PLACEHOLDER
+"use client";
+
+import { useState } from "react";
+import { projectAcceptanceEvidence } from "@/lib/acceptance-evidence";
+import { AcceptanceEvidenceCards } from "./AcceptanceEvidenceCards";
+import { ExecutionBrokerCard } from "./ExecutionBrokerCard";
+import { Activity, GitBranch, Link2, ShieldCheck } from "lucide-react";
+import { projectInteractionReadiness, projectZeroCreditAdmission } from "@/lib/interaction-readiness";
+import { projectCognitiveLearningSurface } from "@/lib/cognitive-learning-surface";
+import { projectHardZeroHold } from "@/lib/hard-zero-hold";
+import { projectInteractionTruth } from "@/lib/interaction-truth";
+import type { CollectiveDissentReceipt } from "@/lib/dissent-receipt";
+import type { CockpitViewProps, HardZeroQuotaAction, HardZeroQuotaReceipt, Health, SanitizedAcceptanceReceipt } from "../workspace/workspace-types";
+import { ConnectorRoutingCards } from "./ConnectorRoutingCards";
+import { InteractionTruthCards } from "./InteractionTruthCards";
+import { TransformationProvenanceCards } from "./TransformationProvenanceCards";
+import { BrokerLeaseCards } from "./BrokerLeaseCards";
+import { UndiciSecurityBumpCard } from "./UndiciSecurityBumpCard";
+import { DataverseCliBumpCard } from "./DataverseCliBumpCard";
+import { SourceMapJsBumpCard } from "./SourceMapJsBumpCard";
+import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
+import { ZeroCreditModelUrlBoundaryCard } from "./ZeroCreditModelUrlBoundaryCard";
+import { BotPushPublicationCard } from "./BotPushPublicationCard";
+import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
+import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
+import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
+import { StaticWorkspaceParityCard } from "./StaticWorkspaceParityCard";
+import { PagesWorkspaceStatusCard } from "./PagesWorkspaceStatusCard";
+import { DissentReceiptPanel } from "./DissentReceiptPanel";
+import { PlannerReceiptPanel } from "./PlannerReceiptPanel";
+import { PredictionBacktestCards } from "./PredictionBacktestCards";
+import { PredictionLearningPanel } from "./PredictionLearningPanel";
+import { TelemetrySparkline } from "./TelemetrySparkline";
+import { PagesFrameContractCard } from "./PagesFrameContractCard";
+import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
+import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
+import { TelemetryStreamBoundCard } from "./TelemetryStreamBoundCard";
+import { OpenAiRouteCreditsCard } from "./OpenAiRouteCreditsCard";
+import { RetiredRailwayAuthorityCard } from "./RetiredRailwayAuthorityCard";
+import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
+
+// ... truncated for response, full file is the original with import and card added
