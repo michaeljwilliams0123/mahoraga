@@ -32,8 +32,8 @@ test("cloud supervisor strips candidate-only runtime port from inherited cloud e
 
 test("cloud supervisor emits source provenance and listener-boundary lifecycle evidence", async () => {
   const service = await read("scripts/cloud-service.mjs");
-  assert.match(service, /RAILWAY_GIT_COMMIT_SHA/);
-  assert.match(service, /MAHORAGA_SOURCE_COMMIT/);
+  assert.doesNotMatch(service, /RAILWAY_GIT_COMMIT_SHA/);
+  assert.match(service, /const sourceCommit = process\.env\.MAHORAGA_SOURCE_COMMIT\?\.trim\(\) \|\| null;/);
   assert.match(service, /cloud-supervisor-bootstrap/);
   assert.match(service, /cloud-child-spawn/);
   assert.match(service, /cloud-core-ready/);

@@ -8,7 +8,7 @@ const stateRoot = "/var/lib/mahoraga";
 const receiptFile = path.join(stateRoot, "idle-receipts.ndjson");
 const children = new Map();
 const restartHistory = new Map();
-const sourceCommit = process.env.RAILWAY_GIT_COMMIT_SHA?.trim() || process.env.MAHORAGA_SOURCE_COMMIT?.trim() || null;
+const sourceCommit = process.env.MAHORAGA_SOURCE_COMMIT?.trim() || null;
 let stopping = false;
 let idleTimer = null;
 mkdirSync(stateRoot, { recursive: true });
