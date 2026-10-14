@@ -124,7 +124,14 @@ function routeFrom(attestation, capability) {
     queueDepth: Number.isFinite(attestation.queueDepth) ? attestation.queueDepth : Number.MAX_SAFE_INTEGER,
     reliabilityScore: Number.isFinite(attestation.reliabilityScore) ? attestation.reliabilityScore : 0,
     ...(attestation.interactionSupport === undefined ? {} : { interactionSupport:attestation.interactionSupport }),
-    ...capability,
+    // Capability evidence cannot redefine its independently validated worker.
+    capability: capability.capability,
+    permissionClass: capability.permissionClass,
+    healthy: capability.healthy,
+    zeroCreditEligible: capability.zeroCreditEligible,
+    costClass: capability.costClass,
+    dataClassesAllowed: capability.dataClassesAllowed,
+    authorityScopes: capability.authorityScopes,
   };
 }
 export function eligibleWorkerRoutes(request, attestations, now = new Date()) {

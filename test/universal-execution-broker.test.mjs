@@ -159,3 +159,38 @@ test("malformed interaction context or support fails closed", () => {
   assert.equal(eligibleWorkerRoutes(req({ interactionContext:{ interactionId:"bad", modalities:["text"], protocolFamily:"native" } }), [att()], NOW).length, 0);
   assert.equal(eligibleWorkerRoutes(req({ interactionContext:{ interactionId:"interaction-bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", modalities:["text"], protocolFamily:"native" } }), [att({ interactionSupport:{ modalities:["text"], protocolFamilies:["native"], locales:["https://evil.example"] } })], NOW).length, 0);
 });
+
+
+test("capability metadata cannot replace attested executor identity or extend its lease", () => {
+  const shadowed = att({ expiresAt:iso(10_000), capabilities:[cap({
+    workerId:"forged-worker", provider:"cloudflare", locality:"desktop",
+    observedAt:iso(4000), expiresAt:iso(300_000), arbitraryMetadata:"must-not-propagate",
+  })] });
+  const selected = selectWorkerRoute(req(), [shadowed], NOW).selected;
+  assert.equal(selected.workerId, shadowed.workerId);
+  assert.equal(selected.provider, shadowed.provider);
+  assert.equal(selected.locality, shadowed.locality);
+  assert.equal(selected.observedAt, shadowed.observedAt);
+  assert.equal(selected.expiresAt, shadowed.expiresAt);
+  assert.equal(Object.hasOwn(selected, "arbitraryMetadata"), false);
+  const lease = issueRouteLease(req(), selected, NOW);
+  assert.equal(lease.workerId, shadowed.workerId);
+  assert.equal(lease.provider, shadowed.provider);
+  assert.equal(lease.expiresAt, shadowed.expiresAt);
+  assert.equal(lease.permissionClass, "read");
+  assert.deepEqual(lease.authorityScopes, ["repo:mahoraga:read"]);
+});
+
+test("capability routing hints cannot override validated attestation ranking or interaction support", () => {
+  const support = { modalities:["text"], protocolFamilies:["native"] };
+  const slow = att({ workerId:"slow-attested", observedLatencyMs:100, queueDepth:4, reliabilityScore:.5,
+    interactionSupport:support, capabilities:[cap({ observedLatencyMs:0, queueDepth:-1, reliabilityScore:10,
+      interactionSupport:{ modalities:["image"] } })] });
+  const fast = att({ workerId:"fast-attested", observedLatencyMs:10 });
+  assert.equal(selectWorkerRoute(req(), [slow, fast], NOW).selected.workerId, "fast-attested");
+  const projected = selectWorkerRoute(req(), [slow], NOW).selected;
+  assert.equal(projected.observedLatencyMs, 100);
+  assert.equal(projected.queueDepth, 4);
+  assert.equal(projected.reliabilityScore, .5);
+  assert.deepEqual(projected.interactionSupport, support);
+});
