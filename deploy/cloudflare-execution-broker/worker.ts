@@ -40,12 +40,13 @@ async function fetchJson(binding: BrokerBinding, path: string): Promise<unknown 
     return response.ok ? await response.json() : null;
   } catch { return null; }
 }
-async function collectAttestations(env: BrokerEnv, now: number): Promise<UniversalAttestation[]> {
+async function collectAttestations(env: BrokerEnv, nowFn: () => number): Promise<UniversalAttestation[]> {
   const attestations: UniversalAttestation[] = [];
   for (const name of BINDINGS) {
     const binding = env[name] as BrokerBinding | undefined;
     if (!binding) continue;
     const value = await fetchJson(binding, "/api/capabilities");
+    const now = nowFn();
     const candidates = value && typeof value === "object" && !Array.isArray(value) && Array.isArray((value as {attestations?: unknown[]}).attestations)
       ? (value as {attestations: unknown[]}).attestations : [value];
     for (const candidate of candidates) {
@@ -59,6 +60,7 @@ async function collectAttestations(env: BrokerEnv, now: number): Promise<Univers
   }
   if (env.CONNECTOR_CAPABILITY_BROKER) {
     const legacy = await fetchJson(env.CONNECTOR_CAPABILITY_BROKER as BrokerBinding, "/api/capabilities");
+    const now = nowFn();
     for (const candidate of adaptLegacyConnectorAttestation(legacy, bindingProviderNames(env), now)) {
       if (validateWorkerAttestation(candidate, new Date(now)).ok) attestations.push(candidate);
     }
@@ -96,8 +98,10 @@ function projectRoutes(attestations: UniversalAttestation[], now: number) {
   return routes;
 }
 
-async function routeRequest(env: BrokerEnv, input: unknown, now: number) {
-  const attestations = await collectAttestations(env, now);
+async function routeRequest(env: BrokerEnv, input: unknown, nowFn: () => number) {
+  const attestations = await collectAttestations(env, nowFn);
+  // Discovery can outlive earlier proof or the request deadline.
+  const now = nowFn();
   const selected = selectWorkerRoute(input, attestations, new Date(now));
   if (!selected.ok || !selected.selected) return { status:503, body:{ error:selected.reason } };
   const lease = issueRouteLease(input, selected.selected, new Date(now));
@@ -116,8 +120,8 @@ async function executeRequest(env: BrokerEnv, input: unknown, nowFn: () => numbe
   let currentRequest = envelope.request;
   const chain = createExecutionChain(currentRequest.taskId as string, currentRequest.chainId as string);
   while (true) {
+    const attestations = await collectAttestations(env, nowFn);
     const now = nowFn();
-    const attestations = await collectAttestations(env, now);
     const selection = selectWorkerRoute(currentRequest, attestations, new Date(now));
     if (!selection.ok || !selection.selected) return { status:503, body:{ error:selection.reason, chainId:chain.chainId, receipts:chain.receipts } };
     const lease = issueRouteLease(currentRequest, selection.selected, new Date(now)) as Record<string,unknown>;
@@ -153,10 +157,10 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
   return {
     async fetch(request: Request): Promise<Response> {
       const url = new URL(request.url);
-      const now = nowFn();
       if (url.pathname === "/api/capabilities") {
         if (request.method !== "GET") return json({ error:"method-not-allowed" }, 405);
-        const attestations = await collectAttestations(env, now);
+        const attestations = await collectAttestations(env, nowFn);
+        const now = nowFn();
         const routes = projectRoutes(attestations, now);
         const boundProviders: string[] = BINDINGS.filter((name) => typeof env[name]?.fetch === "function");
         const duplicateIdentities = [...workerIdentityCounts(attestations).values()].some((count) => count > 1);
@@ -177,7 +181,7 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
       if (url.pathname === "/api/route") {
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
         let input: unknown; try { input = await request.json(); } catch { return json({ error:"request-invalid" }, 400); }
-        const result = await routeRequest(env, input, now);
+        const result = await routeRequest(env, input, nowFn);
         return json(result.body, result.status);
       }
       if (url.pathname === "/api/execute") {
@@ -190,9 +194,9 @@ export function createExecutionBroker(env: BrokerEnv, nowFn: () => number = Date
         if (request.method !== "POST") return json({ error:"method-not-allowed" }, 405);
         let body: {request?: unknown; handoff?: unknown; history?: unknown[]} = {};
         try { body = await request.json() as typeof body; } catch { return json({ error:"request-invalid" }, 400); }
-        const handoff = validateHandoff(body.request, body.handoff, Array.isArray(body.history) ? body.history : [], new Date(now));
+        const handoff = validateHandoff(body.request, body.handoff, Array.isArray(body.history) ? body.history : [], new Date(nowFn()));
         if (!handoff.ok) return json({ error:handoff.reason }, 409);
-        const result = await routeRequest(env, handoff.request, now);
+        const result = await routeRequest(env, handoff.request, nowFn);
         return json(result.body, result.status);
       }
       return json({ error:"not-found" }, 404);
