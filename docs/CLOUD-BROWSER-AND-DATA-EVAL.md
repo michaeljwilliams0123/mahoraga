@@ -15,10 +15,11 @@ Every result must contain quantified findings, an answer-first conclusion, and a
 ## Isolated cloud browser
 
 The supported design is a provider-backed isolated browser, not a Chrome
-extension and not remote control of the user's installed browser. The canonical
-Railway workspace exposes this capability only when the complete bounded HTTPS adapter
-configuration is present; a provider name or UI badge alone never marks it
-ready.
+extension and not remote control of the user's installed browser. The
+Access-protected Cloudflare workspace alone is not evidence that this capability
+is enabled. A provider-backed browser is ready only when the complete bounded
+HTTPS adapter configuration is present; a provider name or UI badge alone never
+marks it ready.
 
 Required boundary:
 
