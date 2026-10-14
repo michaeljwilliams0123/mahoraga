@@ -50,6 +50,8 @@ async function collectAttestations(env: BrokerEnv, now: number): Promise<Univers
       ? (value as {attestations: unknown[]}).attestations : [value];
     for (const candidate of candidates) {
       if (validateWorkerAttestation(candidate, new Date(now)).ok
+        // The selected provider must resolve to the binding that supplied proof.
+        && providerBinding(env, (candidate as UniversalAttestation).provider) === binding
         && attestationAllowedForBinding(name as ProviderBindingName, candidate)) {
         attestations.push(candidate as UniversalAttestation);
       }
@@ -97,7 +99,7 @@ function projectRoutes(attestations: UniversalAttestation[], now: number) {
 async function routeRequest(env: BrokerEnv, input: unknown, now: number) {
   const attestations = await collectAttestations(env, now);
   const selected = selectWorkerRoute(input, attestations, new Date(now));
-  if (!selected.ok) return { status:503, body:{ error:selected.reason } };
+  if (!selected.ok || !selected.selected) return { status:503, body:{ error:selected.reason } };
   const lease = issueRouteLease(input, selected.selected, new Date(now));
   return { status:200, body:{ lease, receipt:{ schemaVersion:1, kind:"route-selection-receipt", id:lease.selectionReceiptId,
     taskId:lease.taskId, chainId:lease.chainId, capability:lease.capability,
@@ -113,7 +115,7 @@ async function executeRequest(env: BrokerEnv, input: unknown, nowFn: () => numbe
     const now = nowFn();
     const attestations = await collectAttestations(env, now);
     const selection = selectWorkerRoute(currentRequest, attestations, new Date(now));
-    if (!selection.ok) return { status:503, body:{ error:selection.reason, chainId:chain.chainId, receipts:chain.receipts } };
+    if (!selection.ok || !selection.selected) return { status:503, body:{ error:selection.reason, chainId:chain.chainId, receipts:chain.receipts } };
     const lease = issueRouteLease(currentRequest, selection.selected, new Date(now)) as Record<string,unknown>;
     const binding = providerBinding(env, selection.selected.provider);
     if (!binding) return { status:503, body:{ error:"no-eligible-route", chainId:chain.chainId, receipts:chain.receipts } };
