@@ -33,7 +33,7 @@ export function ConnectorRoutingCards({
       <StatusCard
         label="Permissioned connector routing"
         value={routing.value}
-        detail={`${routing.detail} · fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged · Merge #856 is not live traffic authority`}
+        detail={`${routing.detail} · fail closed when broker evidence is absent, stale, unhealthy, paid, or over-privileged · freshness rechecked after provider discovery (#1094) · Merge #856 is not live traffic authority`}
         tone={routing.tone}
       />
       <StatusCard
@@ -45,8 +45,14 @@ export function ConnectorRoutingCards({
       <StatusCard
         label="Capability family projection"
         value={`agentic ${agentic?.state ?? "unobserved"} · execution ${execution?.state ?? "unobserved"}`}
-        detail={`cognitive.cycle stays off Execution routes · FAMILY_SPLIT_AGENTIC_EXEC · Merge #856 is not live traffic authority`}
+        detail={`cognitive.cycle stays off Execution routes · FAMILY_SPLIT_AGENTIC_EXEC · time resampled before projection (#1094) · Merge #856 is not live traffic authority`}
         tone="neutral"
+      />
+      <StatusCard
+        label="Routing freshness recheck"
+        value="Post-discovery clock resample"
+        detail="Broker clock passed through discovery; proof validated after each capability read; time resampled before route/lease selection and capability projection on every hop. Expired leases and crossed deadlines rejected before executor call. Synthetic fixtures only."
+        tone="good"
       />
     </>
   );
