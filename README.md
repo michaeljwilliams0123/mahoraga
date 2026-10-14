@@ -181,7 +181,7 @@ Those variables describe an execution endpoint; they do **not** themselves prove
 
 A separately governed licensed question-model path may exist for explicitly permitted work. It is not an automatic fallback for zero-credit requests and must never be used to hide missing zero-credit readiness.
 
-## Historical Railway production model (rollback reference)
+## Historical Railway production model (archived evidence; not a rollback option)
 
 The following Railway configuration was recorded before Cloudflare acceptance. It is retained for rollback/evidence only and does not grant current execution routing or traffic authority.
 
