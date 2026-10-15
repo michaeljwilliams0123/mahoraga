@@ -20,7 +20,7 @@ import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestVi
 import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
-import { selectCloudflareHfCandidates } from "./hf-candidate-discovery";
+import { selectCloudflareHfCandidates, classifyHfDiscoveryFailure } from "./hf-candidate-discovery";
 import { shouldObserveHuggingFaceNow } from "./hf-one-time-proof";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
@@ -283,14 +283,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const now = Date.now();
     const previous = this.storage.sql.exec<{ source_sha: string; observed_at: number; next_check_at: number }>("SELECT source_sha,observed_at,next_check_at FROM hf_discovery_state WHERE id=1").toArray()[0];
     if (!shouldObserveHuggingFaceNow(now, this.env.TARGET_SHA, previous)) return;
+    const topics = ["SmolLM", "Qwen", "MiniLM"] as const;
+    const topic = topics[Math.floor(now / 86400000) % topics.length]!;
+    let httpStatus: number | null = null;
     let result: Record<string, unknown>;
     let nextCheck = now + 24 * 60 * 60 * 1000;
     try {
-      const topics = ["SmolLM", "Qwen", "MiniLM"] as const;
-      const topic = topics[Math.floor(now / 86400000) % topics.length]!;
       const response = await fetch(`https://huggingface.co/api/models?search=${topic}&limit=8&sort=downloads&full=true`, {
         method: "GET", redirect: "error", signal: AbortSignal.timeout(5000), headers: { accept: "application/json" },
       });
+      httpStatus = response.status;
       if (!response.ok || response.redirected) throw new Error("hf-cloud-upstream-unavailable");
       const length = Number(response.headers.get("content-length") || 0);
       if (length > 131072) throw new Error("hf-cloud-body-too-large");
@@ -311,11 +313,13 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       let offset = 0;
       for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength; }
       const candidates = selectCloudflareHfCandidates(JSON.parse(new TextDecoder().decode(joined)) as unknown);
-      result = { status: "candidate-metadata-only", query: topic, candidates, creditCost: 0, inferencePerformed: false,
-        modelAdmissionPerformed: false, productionActivated: false };
-    } catch {
+      if (candidates.length === 0) throw new Error("hf-cloud-no-eligible-models");
+      result = { status: "candidate-metadata-only", query: topic, candidates, failureReason: null, httpStatus,
+        creditCost: 0, inferencePerformed: false, modelAdmissionPerformed: false, productionActivated: false };
+    } catch (error) {
       nextCheck = now + 6 * 60 * 60 * 1000;
-      result = { status: "metadata-unavailable", query: null, candidates: [], creditCost: 0, inferencePerformed: false,
+      result = { status: "metadata-unavailable", query: topic, candidates: [],
+        failureReason: classifyHfDiscoveryFailure(error), httpStatus, creditCost: 0, inferencePerformed: false,
         modelAdmissionPerformed: false, productionActivated: false };
     }
     this.storage.sql.exec("INSERT OR REPLACE INTO hf_discovery_state(id,source_sha,observed_at,next_check_at,payload) VALUES(1,?,?,?,?)",
