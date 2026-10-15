@@ -121,7 +121,9 @@ export function ChatView(props: ChatViewProps) {
   function openCloudSignIn() {
     const origin = validatePublicBridgeOrigin(cloudBridgeOrigin);
     if (!origin) return;
-    window.open(origin, "_blank", "noopener,noreferrer");
+    // Navigate to the protected gateway as a first-party site: embedded Access
+    // sign-in can fail in browsers that partition third-party cookies.
+    window.location.assign(origin);
   }
 
   return (
