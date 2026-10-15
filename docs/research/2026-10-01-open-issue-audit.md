@@ -30,6 +30,6 @@ Concrete gaps reproduced in tests: GitLab ledgers could match each other without
 
 ## Verification and integration
 
-Each PR is based on the inspected main and has regression tests. Tranches do not mutate production, disable protected checks, widen authentication, select paid routes, delete evidence, or enable models. Draft PRs avoid requesting Codex review. At most three WIP PRs are created. Full test and exact-head CI results belong in each PR, not inferred from this audit.
+Each PR is based on the inspected main and has regression tests. Tranches do not mutate production, disable protected checks, widen authentication, select paid routes, delete evidence, or enable models. Draft PRs avoid requesting Codex review. That audit used a three-WIP cap. The owner superseded that historical cap on 2026-10-15: current authorized backlog work has no fixed simultaneous draft/WIP PR limit (see the operating doctrine). Full test and exact-head CI results belong in each PR, not inferred from this audit.
 
 Deploy/acceptance remains `GitHub main -> exact source SHA -> Cloudflare deployment -> authenticated acceptance`. No source test in this audit establishes that final chain.

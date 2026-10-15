@@ -30,8 +30,8 @@ Read `docs/MAHORAGA-OPERATING-DOCTRINE.md` before substantive inspection, editin
 
 ## Review transport policy
 
-- Codex is not a code-review path for Mahoraga. It may execute explicitly assigned implementation work only where repository policy otherwise permits it.
-- Do not request, retry, or purchase Codex code review. Do not add credits or generate additional review traffic to recover from a review quota condition.
+- Codex may inspect and review assigned repository changes, implement improvements, and verify exact heads under the owner's standing authorization.
+- Do not request, retry, or purchase an external model review unless the owner explicitly requests that review within an authorized cost envelope. Never add credits or generate additional review traffic to recover from a review quota condition.
 - Codex quota or usage-limit messages are non-blocking infrastructure signals. They are not code defects, merge findings, or reasons to retry a review.
 - Use deterministic exact-head GitHub verification and zero-credit repository evidence instead of an unavailable review bot.
 

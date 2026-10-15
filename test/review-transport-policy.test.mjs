@@ -11,12 +11,12 @@ const POLICY_FILES = [
 ];
 
 const REQUIRED = [
-  "Codex is not a code-review path",
+  "Codex may inspect and review assigned repository changes",
   "Codex quota or usage-limit messages are non-blocking infrastructure signals",
-  "Do not request, retry, or purchase Codex code review",
+  "Do not request, retry, or purchase an external model review unless the owner explicitly requests that review within an authorized cost envelope",
 ];
 
-test("agent instructions consistently prohibit Codex review traffic", async () => {
+test("agent instructions permit assigned review and bound external review traffic", async () => {
   for (const path of POLICY_FILES) {
     const text = await readFile(new URL(`../${path}`, import.meta.url), "utf8");
     for (const phrase of REQUIRED) {

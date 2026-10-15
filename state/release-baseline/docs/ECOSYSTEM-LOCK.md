@@ -73,9 +73,10 @@ They do **not** authorize a substitute architecture.
   apertures for a declared objective/capability, approved independent validator,
   expected peer/target, bounded TTL/idle TTL, and deterministic closure.
   Workers cannot extend their own leases or expose raw 4782/4783 listeners.
-- If a request is allowed but the model is uncertain, **stop**. Ask, or
-  open a narrow PR. Do not resolve uncertainty by generating a new
-  JavaScript app.
+- Resolve routine implementation uncertainty by inspecting current source,
+  running a focused probe, and opening an isolated, concrete PR. Record material
+  unknowns and continue independent work. A new architecture requires an
+  explicit product scope; uncertainty does not authorize a replacement app.
 - Bounded GitHub Actions, Node workers, event-driven learning with a
   periodic fallback, and fail-closed receipts are the product. They are
   not a jailbreak. Do not strip them to look "safer".
