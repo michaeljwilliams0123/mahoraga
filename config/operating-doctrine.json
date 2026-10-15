@@ -73,6 +73,11 @@
     "authorizationPersists": true,
     "repeatApprovalForAuthorizedRoutineWork": false,
     "ownerInstructionSupersedesAdvisoryWorkflow": true,
-    "independentWorkContinuesDuringGates": true
+    "independentWorkContinuesDuringGates": true,
+    "assignedImplementationReviewAllowed": true,
+    "concurrentDraftPullRequestLimit": null,
+    "independentWorktreeImplementationAllowed": true,
+    "routineDesignReapprovalRequired": false,
+    "exactHeadCiMayReplaceDuplicateLocalFullVerify": true
   }
 }

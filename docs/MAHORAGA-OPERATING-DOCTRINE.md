@@ -28,11 +28,11 @@ SD00 is a laboratory and teacher, not source authority. It cannot override GitHu
 2. Mine older branches and worktrees only for capability genuinely missing from current `main`. Compare ancestry, path history, focused diff, and current tests before reviving anything.
 3. For behavior changes, use focused TDD: RED first, minimal GREEN, then regression coverage.
 4. Keep generated runtime reports and local state out of feature commits unless the task explicitly requires them.
-5. Run `git diff --check`, focused tests, and one full `npm run verify` before protected integration unless exact-head equivalent evidence is explicitly reusable under repository policy.
+5. Run `git diff --check` and focused behavioral tests locally. Reuse the full `npm run verify` executed by required exact-head PR CI; a duplicate local full suite is not a prerequisite for opening or integrating that exact verified head. Inspect completed CI results and reverify changed heads.
 6. Push an isolated branch and require exact-head `Verify (ubuntu-latest)` and `Verify (windows-latest)` on that PR head.
 7. Merge only through protected-main policy. Do not force-push, bypass checks, or buy model review to replace deterministic evidence.
 8. Confirm the Cloudflare execution runtime deploys and accepts the exact merged SHA. `/api/live` proves liveness only; `/api/ready` is the stronger application/provenance readiness boundary. Treat Railway as legacy evidence only: zero-route, zero-influence, zero-fallback, zero-authority; verify browser/domain authority separately.
-9. Continue useful independent work while a gate runs: inspect the next branch, deployment layer, acceptance gap, or unresolved capability instead of idling.
+9. Continue useful independent work while a gate runs: implement independent scopes in isolated worktrees, inspect deployment or acceptance gaps, and publish concrete PR checkpoints. There is no fixed simultaneous draft/WIP PR cap; the owner's current backlog scope and available resources determine the batch.
 10. Do not call the capability complete until its real acceptance transaction has current end-to-end evidence.
 
 ## Real acceptance vertical
@@ -62,6 +62,13 @@ and reversible recovery do not require repeated owner confirmation. Resolve advi
 workflow conflicts in favor of the more specific owner instruction. Missing evidence
 is a requirement to obtain evidence, not a reason to invent a new approval step.
 Keep working on independent authorized tasks when a real gate remains.
+
+Assigned implementation review is allowed. External model-review traffic remains
+separately scoped and cost-bound; unavailable review bots and their quotas never
+block deterministic integration. Routine design decisions, source uploads and
+ready/draft transitions need no repeated approval. A draft must contain useful
+source, tests or a concrete implementation design, with remaining evidence stated;
+an empty placeholder is not progress.
 
 Stop rather than infer authority for: credential/authentication-boundary changes, destructive operations, security-boundary weakening, unapproved spend, protected-check bypass, or irreversible owner-sovereignty changes. Existing platform safety rules remain local to the action and are not permission to rewrite the architecture.
 
