@@ -116,6 +116,7 @@ function Wait-ForCommit([string]$Commit, [bool]$RequireCurrent) {
         if (-not $status -or $status.product -ne 'Mahoraga') { continue }
         $source = [string]$status.runtime.provenance.sourceCommit
         if ($source -ne $Commit) { continue }
+        if ($status.runtime.healthy -ne $true) { continue }
         if (-not $RequireCurrent) { return $status }
         $authority = [string]$status.runtime.provenance.authoritativeSourceCommit
         if ($authority -eq $Commit -and [string]$status.runtime.provenance.state -eq 'current') { return $status }

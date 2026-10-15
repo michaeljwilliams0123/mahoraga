@@ -100,6 +100,14 @@ test("Windows convergence reuses only a coherent canonical centralized state bun
   assert.ok(controller.indexOf("$centralStateReady") < controller.indexOf("Find-SourceWorktree $sourceCommit"));
 });
 
+test("Windows convergence refuses unhealthy exact-SHA candidates on both bootstrap and promotion", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const candidate = controller.match(/function Wait-ForCommit\([\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(candidate, /\$status\.runtime\.healthy\s+-ne\s+\$true/);
+  assert.ok(candidate.indexOf("$status.runtime.healthy") < candidate.indexOf("if (-not $RequireCurrent) { return $status }"));
+  assert.match(controller, /function Wait-ForProductionCommit[\s\S]*?\$production\.runtime\.healthy\s+-eq\s+\$true/);
+});
+
 test("Windows convergence stop helper never shadows PowerShell automatic PID", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.doesNotMatch(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$Pid\s*\)/i);
