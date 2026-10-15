@@ -21,6 +21,7 @@ import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
 import { selectCloudflareHfCandidates } from "./hf-candidate-discovery";
+import { shouldObserveHuggingFaceNow } from "./hf-one-time-proof";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
@@ -280,8 +281,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     this.initialize();
     this.storage.sql.exec("CREATE TABLE IF NOT EXISTS hf_discovery_state (id INTEGER PRIMARY KEY CHECK(id = 1), source_sha TEXT NOT NULL, observed_at INTEGER NOT NULL, next_check_at INTEGER NOT NULL, payload TEXT NOT NULL)");
     const now = Date.now();
-    const previous = this.storage.sql.exec<{ source_sha: string; next_check_at: number }>("SELECT source_sha,next_check_at FROM hf_discovery_state WHERE id=1").toArray()[0];
-    if (previous && previous.source_sha === this.env.TARGET_SHA && now < previous.next_check_at) return;
+    const previous = this.storage.sql.exec<{ source_sha: string; observed_at: number; next_check_at: number }>("SELECT source_sha,observed_at,next_check_at FROM hf_discovery_state WHERE id=1").toArray()[0];
+    if (!shouldObserveHuggingFaceNow(now, this.env.TARGET_SHA, previous)) return;
     let result: Record<string, unknown>;
     let nextCheck = now + 24 * 60 * 60 * 1000;
     try {
@@ -908,8 +909,10 @@ export default {
     if (!targetShaValid(env.TARGET_SHA)) throw new Error("internal-source-invalid");
     const runtime = env.EXECUTION_DO.getByName("execution-v1");
     await runtime.ensureInternalActivity();
-    await runtime.ensureNativeContinuity();
+    // The bounded, public Hugging Face observation cannot be starved by
+    // a GitHub evidence publisher's independent network/permission failure.
     await runtime.ensureHuggingFaceDiscovery();
+    await runtime.ensureNativeContinuity();
     if (controller.cron === "0 0 * * *") await runtime.maintainMemory();
     else await runtime.syncMemory();
   },
