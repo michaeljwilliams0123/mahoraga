@@ -1,0 +1,7 @@
+.chat-execution-details { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; }
+.chat-execution-details summary { cursor: pointer; color: var(--muted); }
+.chat-execution-details summary:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.chat-execution-details p { margin: 8px 0; }
+.chat-execution-details dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; }
+.chat-execution-details dt { color: var(--muted); }
+.chat-execution-details dd { margin: 0; overflow-wrap: anywhere; }

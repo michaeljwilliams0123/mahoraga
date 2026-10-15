@@ -10,6 +10,7 @@ import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capabili
 import { deriveExecutionStatus } from "@/lib/execution-status";
 import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
+import { projectMessageExecution, loadSavedConversation } from "@/lib/chat-execution-evidence";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeConversation, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
 import { speakText, startVoiceDictation, voiceSupport, type VoiceController } from "@/lib/voice-chat";
 import { ChatView } from "./workspace/chat-view";
@@ -295,10 +296,10 @@ export function Workspace() {
     setRuntimeBusy(true);
     setRuntimeError(null);
     try {
-      const history = await transport.conversationHistory(conversationId);
+      const restored = await loadSavedConversation(transport, conversationId);
       if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
-      renderedRuntimeMessages.current = new Set(history.map((message) => message.id));
-      setMessages(history.map((message) => ({ id: `runtime-${message.id}`, role: message.role, text: message.text })));
+      renderedRuntimeMessages.current = new Set(restored.map((message) => message.id.slice("runtime-".length)));
+      setMessages(restored);
       setRuntimeConversationId(conversationId);
       historyInitialized.current = true;
       activeRuntimeTask.current = null;
@@ -609,10 +610,16 @@ export function Workspace() {
       renderedRuntimeMessages.current.add(message.id);
       const sourceTask = message.taskId ? taskById.get(message.taskId) : undefined;
       const instantLocal = sourceTask?.capability === "assistant.calculate";
-      additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content, ...(instantLocal ? { instantLocal: true } : {}) });
+      additions.push({ id: `runtime-${message.id}`, role: "assistant", text: content,
+        executionEvidence: projectMessageExecution(message, tasks, conversationId), ...(instantLocal ? { instantLocal: true } : {}) });
     }
     if (runtimePollGeneration.current !== generation || relay.current !== transport || !transport.connected) return false;
-    if (additions.length > 0) setMessages((current) => [...current, ...additions]);
+    // A message may arrive before its final task receipt. Refresh metadata in place.
+    setMessages((current) => [...current.map(message => {
+      if (message.role !== "assistant" || !message.id.startsWith("runtime-")) return message;
+      const matches = runtimeMessages.filter(item => `runtime-${item.id}` === message.id);
+      return { ...message, executionEvidence: projectMessageExecution(matches.length === 1 ? matches[0] : null, tasks, conversationId) };
+    }), ...additions]);
     return additions.length > 0;
   }
 

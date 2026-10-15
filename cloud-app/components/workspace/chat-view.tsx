@@ -31,6 +31,7 @@ import "./owner-pin.css";
 import { GithubWorkspacePanel } from "./GithubWorkspacePanel";
 import { CapabilityReadinessPanel } from "./CapabilityReadinessPanel";
 import { CapabilityExplorer } from "./CapabilityExplorer";
+import { ChatExecutionDetails } from "./ChatExecutionDetails";
 import { validatePublicBridgeOrigin } from "@/lib/pages-owner-bridge-client";
 
 const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
@@ -231,6 +232,7 @@ export function ChatView(props: ChatViewProps) {
                   ) : (
                     <div className="message-text" style={{ whiteSpace: "pre-wrap" }}>{message.text}</div>
                   )}
+                  {message.role === "assistant" && <ChatExecutionDetails evidence={message.executionEvidence} />}
                 </div>
               </article>
             ))}
