@@ -4,6 +4,9 @@ export type InternalActivity = Readonly<{
  lastError: string | null; snapshotFingerprint: string | null; artifactFingerprint: string | null;
  observedAt: string; durableState: 'cloudflare-do-sqlite'; modelInvocations: 0;
  huggingFaceDiscovery?: { status: 'candidate-metadata-only' | 'metadata-unavailable'; query: string | null; sourceSha: string; observedAt: string;
+   failureReason?: null | 'upstream-http' | 'body-too-large' | 'body-unavailable' | 'invalid-json' |
+     'invalid-metadata' | 'no-eligible-models' | 'timeout' | 'network-error';
+   httpStatus?: number | null;
    nextCheckAt: string; candidates: ReadonlyArray<{ repoId: string; revision: string; license: string; downloads: number;
      admissionState: 'requires-independent-inspection'; modelExecutionVerified: false }> };
 }>;
@@ -29,7 +32,15 @@ export function parseInternalActivity(value: unknown, expectedSha: unknown, now 
   const v = o.huggingFaceDiscovery;
   if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
   const d = v as Record<string, unknown>;
-  if (Object.keys(d).sort().join(',') !== 'candidates,creditCost,inferencePerformed,modelAdmissionPerformed,nextCheckAt,observedAt,productionActivated,query,sourceSha,status'
+  const keys = Object.keys(d).sort().join(',');
+  const legacy = keys === 'candidates,creditCost,inferencePerformed,modelAdmissionPerformed,nextCheckAt,observedAt,productionActivated,query,sourceSha,status';
+  const diagnostic = keys === 'candidates,creditCost,failureReason,httpStatus,inferencePerformed,modelAdmissionPerformed,nextCheckAt,observedAt,productionActivated,query,sourceSha,status';
+  const failureReasons = ['upstream-http','body-too-large','body-unavailable','invalid-json',
+   'invalid-metadata','no-eligible-models','timeout','network-error'];
+  if ((!legacy && !diagnostic)
+   || (diagnostic && ((d.status === 'candidate-metadata-only' && d.failureReason !== null)
+     || (d.status === 'metadata-unavailable' && !failureReasons.includes(String(d.failureReason)))
+     || (d.httpStatus !== null && (!Number.isInteger(d.httpStatus) || (d.httpStatus as number) < 100 || (d.httpStatus as number) > 599))))
    || !['candidate-metadata-only','metadata-unavailable'].includes(String(d.status))
    || d.creditCost !== 0 || d.inferencePerformed !== false || d.modelAdmissionPerformed !== false
    || d.productionActivated !== false || d.sourceSha !== expectedSha
@@ -48,6 +59,8 @@ export function parseInternalActivity(value: unknown, expectedSha: unknown, now 
     || c.admissionState !== 'requires-independent-inspection' || c.modelExecutionVerified !== false) return null;
   }
   discovery = { status: d.status as 'candidate-metadata-only' | 'metadata-unavailable',
+   ...(diagnostic ? { failureReason: d.failureReason as NonNullable<InternalActivity['huggingFaceDiscovery']>['failureReason'],
+     httpStatus: d.httpStatus as number | null } : {}),
    query: d.query as string | null, sourceSha: d.sourceSha as string,
    observedAt: d.observedAt, nextCheckAt: d.nextCheckAt, candidates: d.candidates as NonNullable<InternalActivity['huggingFaceDiscovery']>['candidates'] };
  }
