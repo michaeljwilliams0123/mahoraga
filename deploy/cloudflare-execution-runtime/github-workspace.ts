@@ -54,7 +54,7 @@ async function request(path: string, authorization: string, options: Options, bo
 async function token(permission: "pages" | "actions" | "issues", options: Options): Promise<string> {
   const jwt = await createGithubAppJwt(options.env);
   const installationId = String(options.env.GITHUB_INSTALLATION_ID ?? "").trim();
-  const result = await request(`/app/installations/${installationId}/access_tokens`, `Bearer ${jwt}`, options, { repositories: ["mahoraga"], permissions: { [permission]: permission === "issues" ? "write" : "read", metadata: "read" } });
+  const result = await request(`/app/installations/${installationId}/access_tokens`, `Bearer ${jwt}`, options, { repositories: ["mahoraga"], permissions: { [permission === "issues" ? "pull_requests" : permission]: permission === "issues" ? "write" : "read", metadata: "read" } });
   if (typeof result.token !== "string" || !result.token || typeof result.expires_at !== "string") fail("github-native-token-response-invalid");
   return result.token;
 }
