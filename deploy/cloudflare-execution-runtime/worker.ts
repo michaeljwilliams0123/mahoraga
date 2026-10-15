@@ -16,7 +16,7 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
@@ -479,15 +479,15 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     let command: ReturnType<typeof parseRepositoryAdminCommand>;
     try { command = parseRepositoryAdminCommand(message); }
     catch { return json({ error: "repository-admin-command-invalid" }, 400); }
-    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status" : command.action === "create" ? "mahoraga-native-github-pr-create" : "mahoraga-native-github-pr-merge";
+    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status" : command.action === "create" ? "mahoraga-native-github-pr-create" : command.action === "merge" ? "mahoraga-native-github-pr-merge" : command.action === "dispatch" ? "mahoraga-native-github-workflow-dispatch" : "mahoraga-native-github-pr-checks";
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(ownerHash + "\n" + conversationId + "\n" + message);
     const turnId = await digestText(ownerHash + "\n" + key);
     const prior = this.storage.getTurn(turnId);
     if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== providerId)) return json({ error: "idempotency-conflict" }, 409);
-    const capability = command.action === "status" ? "repository.inspect" : "repository.write";
-    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: command.action === "status" };
+    const capability = command.action === "status" || command.action === "checks" || command.action === "diagnose" ? "repository.inspect" : command.action === "dispatch" ? "workflow.dispatch" : "repository.write";
+    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: command.action === "status" || command.action === "checks" || command.action === "diagnose" };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: receipt };
     if (prior?.status === "SUCCESS") return json(result);
     const holder = crypto.randomUUID();
@@ -499,7 +499,11 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         ? await readMahoragaRepositoryWriteReadinessViaGithubApp({}, { env: this.env })
         : command.action === "create"
           ? await createMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env })
-          : await mergeMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env });
+          : command.action === "merge"
+            ? await mergeMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env })
+            : command.action === "dispatch"
+              ? await dispatchMahoragaVerifyWorkflowViaGithubApp(command.proposal, { env: this.env })
+              : await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env });
       const answer = [
         "Repository administration — live GitHub App",
         "Action: " + command.action,

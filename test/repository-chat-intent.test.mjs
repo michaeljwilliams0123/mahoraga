@@ -31,6 +31,15 @@ test("repository administration commands are explicit and typed", () => {
     action: "merge",
     proposal: { number: 1103, expectedMainSha: "a".repeat(40), expectedHeadSha: "b".repeat(40), commitTitle: "Merge native chat" },
   });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo pr checks {"number":1104,"expectedHeadSha":"' + "c".repeat(40) + '"}'), {
+    action: "checks", proposal: { number: 1104, expectedHeadSha: "c".repeat(40) },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo pr diagnose {"number":1104,"expectedHeadSha":"' + "c".repeat(40) + '"}'), {
+    action: "diagnose", proposal: { number: 1104, expectedHeadSha: "c".repeat(40) },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo workflow dispatch {"ref":"mahoraga/native-chat","expectedHeadSha":"' + "c".repeat(40) + '"}'), {
+    action: "dispatch", proposal: { ref: "mahoraga/native-chat", expectedHeadSha: "c".repeat(40) },
+  });
 });
 
 test("natural owner status phrasing routes only the bounded read action", () => {
@@ -39,11 +48,12 @@ test("natural owner status phrasing routes only the bounded read action", () => 
   assert.equal(isRepositoryAdminRequest("do not run /repo admin status"), false);
   assert.equal(isRepositoryAdminRequest("please create a repository PR"), false);
   assert.equal(isRepositoryAdminRequest('/repo pr create {"proposal":true}'), true);
+  assert.equal(isRepositoryAdminRequest('/repo workflow dispatch {"proposal":true}'), true);
 });
 
 test("repository administration parser rejects ambiguous or malformed writes", () => {
   for (const message of [
-    "/repo pr create", "/repo pr merge", "/repo pr create []", "/repo pr merge nope", "/repo admin status now",
+    "/repo pr create", "/repo pr merge", "/repo pr checks", "/repo workflow dispatch", "/repo pr create []", "/repo pr merge nope", "/repo admin status now",
     "Please create a PR", "/repo main write {}", "/repo pr create {\"files\":[] } trailing",
   ]) assert.throws(() => parseRepositoryAdminCommand(message), /repository-admin-command-invalid/);
 });
