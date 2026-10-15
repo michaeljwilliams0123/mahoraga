@@ -15,7 +15,7 @@ const attestation = () => ({
   schemaVersion: 1, evidenceSource: "cloudflare-account-api",
   accountIdHash: createHash("sha256").update(accountId).digest("hex"),
   defaultUsageModel: "standard", billableAccountSubscriptionCount: 0,
-  verifiedAt: nowMs - 3000, expiresAt: nowMs + 90 * 60000,
+  verifiedAt: nowMs - 3000, expiresAt: nowMs - 3000 + 90 * 60000,
 });
 const proof = (overrides = {}) => ({
   success: true, result: { deployments: [{
@@ -71,6 +71,23 @@ test("stale, foreign, future, and billable billing proofs fail without any API r
     {},
   ]) {
     await assert.rejects(preflightReadonlyActivation(input({ billingAttestation: bill, fetchImpl: noFetch })),
+      /readonly-inspection-billing-proof-unavailable/);
+  }
+  assert.equal(called, false);
+});
+
+test("billing freshness cannot be extended beyond the issuer lifetime", async () => {
+  let called = false;
+  const noFetch = async () => { called = true; return Response.json(proof()); };
+  for (const billing of [
+    { ...attestation(), verifiedAt: nowMs - 90 * 60_000 - 1 },
+    { ...attestation(), expiresAt: nowMs + 24 * 60 * 60_000 },
+    { ...attestation(), verifiedAt: 0 },
+    { ...attestation(), verifiedAt: -1 },
+    { ...attestation(), defaultUsageModel: "   " },
+    { ...attestation(), defaultUsageModel: "x".repeat(65) },
+  ]) {
+    await assert.rejects(preflightReadonlyActivation(input({ billingAttestation: billing, fetchImpl: noFetch })),
       /readonly-inspection-billing-proof-unavailable/);
   }
   assert.equal(called, false);
