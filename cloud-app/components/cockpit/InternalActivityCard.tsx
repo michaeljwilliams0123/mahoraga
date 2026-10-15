@@ -25,6 +25,10 @@ export function InternalActivityCard({ activity, label, busy, error, onSetEnable
    <strong>{activity.huggingFaceDiscovery.status === 'candidate-metadata-only' ? `${activity.huggingFaceDiscovery.candidates.length} pinned candidates · ${activity.huggingFaceDiscovery.query}` : 'Public catalog unavailable'}</strong>
    <p>Daily Cloudflare metadata observation, no hosted inference or production model admission.
    Local benchmarks require an independently admitted model and available PC.</p>
+   {activity.huggingFaceDiscovery.status === 'metadata-unavailable' &&
+    <p role="status">Reason: {activity.huggingFaceDiscovery.failureReason ?? 'unclassified (earlier runtime)'}
+      {activity.huggingFaceDiscovery.httpStatus ? ` · HTTP ${activity.huggingFaceDiscovery.httpStatus}` : ''}
+      {' · '}Retry after {new Date(activity.huggingFaceDiscovery.nextCheckAt).toLocaleString()}</p>}
    {activity.huggingFaceDiscovery.candidates.slice(0, 3).map(model =>
     <p key={model.repoId}><a href={`https://huggingface.co/${model.repoId}`} target="_blank" rel="noopener noreferrer">{model.repoId}</a> · {model.license} · inspection required</p>)}
   </article>}
