@@ -17,6 +17,20 @@ test("mobile chat has an authenticated, idempotent native repository inspect com
   assert.ok(runtimeText.includes('turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect"'));
 });
 
+test("mobile chat exposes typed native repository administration with durable receipts", async () => {
+  const runtimeText = await readFile(runtime, "utf8");
+  assert.match(runtimeText, /parseRepositoryAdminCommand/);
+  assert.match(runtimeText, /nativeGithubAdminChat\(ownerHash, conversationId, key, message\)/);
+  assert.match(runtimeText, /readMahoragaRepositoryWriteReadinessViaGithubApp/);
+  assert.match(runtimeText, /createMahoragaPullRequestViaGithubApp\(command\.proposal/);
+  assert.match(runtimeText, /mergeMahoragaPullRequestViaGithubApp\(command\.proposal/);
+  assert.match(runtimeText, /mahoraga-native-github-admin-status/);
+  assert.match(runtimeText, /mahoraga-native-github-pr-create/);
+  assert.match(runtimeText, /mahoraga-native-github-pr-merge/);
+  assert.match(runtimeText, /const capability = command\.action === "status" \? "repository\.inspect" : "repository\.write"/);
+  assert.match(runtimeText, /readOnly: command\.action === "status"/);
+});
+
 test("normal chat reuses authenticated repository evidence and handles bounded read-only summaries", async () => {
   const [runtimeText, providerText] = await Promise.all([
     readFile(runtime, "utf8"),

@@ -16,10 +16,10 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
-import { isReadOnlyRepositoryEvidenceRequest } from "../../src/repository-chat-intent.mjs";
+import { isReadOnlyRepositoryEvidenceRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
 import { ingestExecutionMemory, pruneStaleMemories, searchMemoryIndex, type MemoryRecord } from "./memory-engine";
 export { validateAnswerCompleteness } from "./response-completeness";
@@ -130,7 +130,7 @@ const errorStatus = (error: unknown): number => {
   const status = objectValue(error)?.status;
   return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
 };
-const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" ? "repository.inspect" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
+const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" || providerId === "mahoraga-native-github-admin-status" ? "repository.inspect" : providerId === "mahoraga-native-github-pr-create" || providerId === "mahoraga-native-github-pr-merge" ? "repository.write" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };
@@ -436,6 +436,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (/^\/(?:predict|cycle)(?:\s|$)/i.test(message.trim())) return this.nativeCognitiveChat(payload, ownerHash, conversationId, key, message);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
+    if (/^\/repo\s+(?:admin|pr)\b/i.test(message.trim())) return this.nativeGithubAdminChat(ownerHash, conversationId, key, message);
     if (/^\/repo\s+file(?:\s|$)/i.test(message.trim()) || isReadOnlyRepositoryEvidenceRequest(message)) return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
@@ -473,6 +474,53 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex" } });
     } catch (error) { return this.providerGapResponse(error) ?? json({ error: safeError(error) }, 502); }
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
+  }
+  private async nativeGithubAdminChat(ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
+    let command: ReturnType<typeof parseRepositoryAdminCommand>;
+    try { command = parseRepositoryAdminCommand(message); }
+    catch { return json({ error: "repository-admin-command-invalid" }, 400); }
+    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status" : command.action === "create" ? "mahoraga-native-github-pr-create" : "mahoraga-native-github-pr-merge";
+    const existingConversation = this.storage.getConversation(conversationId);
+    if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
+    const requestDigest = await digestText(ownerHash + "\n" + conversationId + "\n" + message);
+    const turnId = await digestText(ownerHash + "\n" + key);
+    const prior = this.storage.getTurn(turnId);
+    if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== providerId)) return json({ error: "idempotency-conflict" }, 409);
+    const capability = command.action === "status" ? "repository.inspect" : "repository.write";
+    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: command.action === "status" };
+    const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: receipt };
+    if (prior?.status === "SUCCESS") return json(result);
+    const holder = crypto.randomUUID();
+    if (!this.storage.acquireLease("turn:" + turnId, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
+    try {
+      const raced = this.storage.getTurn(turnId);
+      if (raced?.status === "SUCCESS") return json(result);
+      const transaction = command.action === "status"
+        ? await readMahoragaRepositoryWriteReadinessViaGithubApp({}, { env: this.env })
+        : command.action === "create"
+          ? await createMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env })
+          : await mergeMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env });
+      const answer = [
+        "Repository administration — live GitHub App",
+        "Action: " + command.action,
+        "Repository: " + transaction.repository,
+        "Authoritative receipt: " + JSON.stringify(transaction),
+        "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        "Idempotency: duplicate owner requests with this key replay the persisted result; exact external retries are adopted without a second mutation.",
+      ].join("\n");
+      const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();
+      const [userContent, assistantContent] = await Promise.all([
+        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+      ]);
+      this.storage.executeTransaction(() => {
+        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
+        this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+      });
+      return json(result);
+    } catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
+    finally { this.storage.releaseLease("turn:" + turnId, holder); }
   }
   private async nativeGithubInspectChat(ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
     const sourceCommand = /^\/repo\s+file(?:\s+(.+))?$/i.exec(message.trim());
