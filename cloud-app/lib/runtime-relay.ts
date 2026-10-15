@@ -147,6 +147,7 @@ export type RuntimeTask = {
   executionReceipt?: RuntimeExecutionReceipt;
 };
 export type RuntimeExecutionReceipt = {
+  sourceSHA?: string | null;
   workerId: string;
   providerId: string;
   costClass: string;
