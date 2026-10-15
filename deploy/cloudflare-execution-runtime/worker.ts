@@ -16,7 +16,7 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, mutateMahoragaRepositoryViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
@@ -132,7 +132,7 @@ const errorStatus = (error: unknown): number => {
   const status = objectValue(error)?.status;
   return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
 };
-const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" || providerId === "mahoraga-native-github-admin-status" ? "repository.inspect" : providerId === "mahoraga-native-github-pr-create" || providerId === "mahoraga-native-github-pr-merge" ? "repository.write" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
+const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" || providerId === "mahoraga-native-github-admin-status" ? "repository.inspect" : providerId?.startsWith("mahoraga-native-github-") && !providerId.endsWith("-checks") ? "repository.write" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };
@@ -527,7 +527,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     let command: ReturnType<typeof parseRepositoryAdminCommand>;
     try { command = parseRepositoryAdminCommand(message); }
     catch { return json({ error: "repository-admin-command-invalid" }, 400); }
-    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status" : command.action === "create" ? "mahoraga-native-github-pr-create" : command.action === "merge" ? "mahoraga-native-github-pr-merge" : command.action === "dispatch" ? "mahoraga-native-github-workflow-dispatch" : "mahoraga-native-github-pr-checks";
+    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status"
+      : command.action === "create" ? "mahoraga-native-github-pr-create"
+        : command.action === "merge" ? "mahoraga-native-github-pr-merge"
+          : command.action === "dispatch" ? "mahoraga-native-github-workflow-dispatch"
+            : command.action === "checks" || command.action === "diagnose" ? "mahoraga-native-github-pr-checks"
+              : `mahoraga-native-github-${command.action}`;
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(ownerHash + "\n" + conversationId + "\n" + message);
@@ -553,7 +558,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
             ? await mergeMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env })
             : command.action === "dispatch"
               ? await dispatchMahoragaVerifyWorkflowViaGithubApp(command.proposal, { env: this.env })
-              : await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env });
+              : command.action === "checks" || command.action === "diagnose"
+                ? await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env })
+                : await mutateMahoragaRepositoryViaGithubApp(command.action, command.proposal, { env: this.env });
       const answer = [
         "Repository administration — live GitHub App",
         "Action: " + command.action,

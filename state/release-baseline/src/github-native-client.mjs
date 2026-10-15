@@ -223,6 +223,10 @@ export async function createMahoragaDirectMainCommitViaGithubApp(proposal, optio
   const baseCommit = await request("GET", repoPath(`git/commits/${baseSha}`));
   const entries = [];
   for (const file of normalized.files) {
+    if (file.delete === true) {
+      entries.push({ path: file.path, mode: "100644", type: "blob", sha: null });
+      continue;
+    }
     const blob = await request("POST", repoPath("git/blobs"), { content: bytesToBase64(new TextEncoder().encode(file.content)), encoding: "base64" });
     entries.push({ path: file.path, mode: "100644", type: "blob", sha: sha(blob?.sha, "github-native-write-response-invalid") });
   }
@@ -289,6 +293,129 @@ async function compensate(request, number, branch, branchCreated) {
   }
 }
 
+
+const REPOSITORY_MUTATIONS = new Set(["pr-update", "issue-create", "issue-update", "comment-create", "comment-delete", "branch-delete"]);
+
+/** Bounded work-item and branch mutations for the fixed Mahoraga repository. */
+export async function mutateMahoragaRepositoryViaGithubApp(action, proposal, options = {}) {
+  const normalized = normalizeRepositoryMutation(action, proposal);
+  const permissions = normalized.permission === "issues"
+    ? { issues: "write", metadata: "read" }
+    : normalized.permission === "pull_requests"
+      ? { pull_requests: "write", metadata: "read" }
+      : { contents: "write", metadata: "read" };
+  const token = await mintInstallationToken(options, permissions);
+  const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
+
+  if (action === "issue-create") {
+    const created = await request("POST", repoPath("issues"), normalized.update);
+    return projectWorkItem(created, "issue", normalized);
+  }
+  if (action === "issue-update" || action === "pr-update") {
+    const kind = action === "issue-update" ? "issue" : "pull-request";
+    const path = kind === "issue" ? `issues/${normalized.number}` : `pulls/${normalized.number}`;
+    const current = await request("GET", repoPath(path));
+    assertWorkItem(current, kind, normalized.number);
+    if (kind === "pull-request") {
+      if (current?.head?.repo?.full_name !== `${OWNER}/${REPO}` || current?.head?.sha !== normalized.expectedHeadSha
+        || current?.base?.ref !== "main") fail("github-native-pr-update-identity-mismatch", 409);
+    }
+    const updated = await request("PATCH", repoPath(path), normalized.update);
+    return projectWorkItem(updated, kind, normalized);
+  }
+  if (action === "comment-create" || action === "comment-delete") {
+    const path = normalized.kind === "issue" ? `issues/${normalized.number}` : `pulls/${normalized.number}`;
+    assertWorkItem(await request("GET", repoPath(path)), normalized.kind, normalized.number);
+    const issueUrl = `${API_ORIGIN}${repoPath(`issues/${normalized.number}`)}`;
+    if (action === "comment-create") {
+      const created = await request("POST", repoPath(`issues/${normalized.number}/comments`), { body: normalized.body });
+      if (!Number.isSafeInteger(Number(created?.id)) || Number(created.id) < 1 || created?.issue_url !== issueUrl
+        || created?.body !== normalized.body) fail("github-native-comment-readback-mismatch", 502);
+      return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
+        kind: normalized.kind, number: normalized.number, commentId: Number(created.id), url: String(created.html_url ?? "") });
+    }
+    const existing = await request("GET", repoPath(`issues/comments/${normalized.commentId}`));
+    if (Number(existing?.id) !== normalized.commentId || existing?.issue_url !== issueUrl) fail("github-native-comment-identity-mismatch", 409);
+    await request("DELETE", repoPath(`issues/comments/${normalized.commentId}`));
+    return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
+      kind: normalized.kind, number: normalized.number, commentId: normalized.commentId, deleted: true });
+  }
+
+  const refPath = `git/ref/heads/${encodeURIComponent(normalized.branch)}`;
+  const current = await request("GET", repoPath(refPath));
+  if (sha(current?.object?.sha, "github-native-branch-readback-invalid") !== normalized.expectedHeadSha) fail("github-native-branch-moved", 409);
+  await request("DELETE", repoPath(`git/refs/heads/${encodeURIComponent(normalized.branch)}`));
+  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
+    branch: normalized.branch, deletedHeadSha: normalized.expectedHeadSha, deleted: true });
+}
+
+function normalizeRepositoryMutation(action, value) {
+  if (!REPOSITORY_MUTATIONS.has(action) || !value || typeof value !== "object" || Array.isArray(value)) fail("github-native-mutation-invalid", 422);
+  const keys = Object.keys(value);
+  const exact = (allowed, required = []) => {
+    if (keys.some((key) => !allowed.includes(key)) || required.some((key) => !Object.hasOwn(value, key))) fail("github-native-mutation-invalid", 422);
+  };
+  const optionalBody = () => {
+    if (value.body === undefined) return undefined;
+    if (typeof value.body !== "string" || value.body.length > 20_000) fail("github-native-mutation-body-invalid", 422);
+    return value.body;
+  };
+  const state = () => {
+    if (value.state === undefined) return undefined;
+    if (value.state !== "open" && value.state !== "closed") fail("github-native-mutation-state-invalid", 422);
+    return value.state;
+  };
+  if (action === "issue-create") {
+    exact(["title", "body"], ["title"]);
+    return Object.freeze({ permission: "issues", title: bounded(value.title, 1, 200, "github-native-mutation-title-invalid"),
+      update: Object.freeze({ title: value.title, ...(value.body === undefined ? {} : { body: optionalBody() }) }) });
+  }
+  if (action === "issue-update" || action === "pr-update") {
+    const allowed = action === "pr-update" ? ["number", "expectedHeadSha", "title", "body", "state"] : ["number", "title", "body", "state"];
+    const required = action === "pr-update" ? ["number", "expectedHeadSha"] : ["number"];
+    exact(allowed, required);
+    const update = {};
+    if (value.title !== undefined) update.title = bounded(value.title, 1, 200, "github-native-mutation-title-invalid");
+    if (value.body !== undefined) update.body = optionalBody();
+    if (value.state !== undefined) update.state = state();
+    if (Object.keys(update).length === 0) fail("github-native-mutation-empty", 422);
+    return Object.freeze({ permission: action === "pr-update" ? "pull_requests" : "issues",
+      number: positiveInteger(value.number, "github-native-mutation-number-invalid"),
+      ...(action === "pr-update" ? { expectedHeadSha: sha(value.expectedHeadSha, "github-native-mutation-head-invalid") } : {}),
+      update: Object.freeze(update) });
+  }
+  if (action === "comment-create" || action === "comment-delete") {
+    const allowed = action === "comment-create" ? ["kind", "number", "body"] : ["kind", "number", "commentId"];
+    exact(allowed, allowed);
+    if (value.kind !== "issue" && value.kind !== "pull-request") fail("github-native-comment-kind-invalid", 422);
+    return Object.freeze({ permission: value.kind === "issue" ? "issues" : "pull_requests", kind: value.kind,
+      number: positiveInteger(value.number, "github-native-mutation-number-invalid"),
+      ...(action === "comment-create"
+        ? { body: bounded(value.body, 1, 20_000, "github-native-mutation-body-invalid") }
+        : { commentId: positiveInteger(value.commentId, "github-native-comment-id-invalid") }) });
+  }
+  exact(["branch", "expectedHeadSha"], ["branch", "expectedHeadSha"]);
+  const branch = String(value.branch ?? "").trim();
+  if (!/^mahoraga\/[a-z0-9][a-z0-9._/-]{2,79}$/.test(branch) || branch.includes("..") || branch.endsWith("/")) fail("github-native-branch-invalid", 422);
+  return Object.freeze({ permission: "contents", branch, expectedHeadSha: sha(value.expectedHeadSha, "github-native-mutation-head-invalid") });
+}
+
+function assertWorkItem(value, kind, expectedNumber) {
+  const number = positiveInteger(value?.number, "github-native-work-item-invalid");
+  const suffix = kind === "issue" ? `issues/${number}` : `pull/${number}`;
+  if (number !== expectedNumber || String(value?.html_url ?? "") !== `https://github.com/${OWNER}/${REPO}/${suffix}`
+    || (kind === "issue" ? Object.hasOwn(value ?? {}, "pull_request") : !Object.hasOwn(value ?? {}, "head"))) {
+    fail("github-native-work-item-identity-mismatch", 409);
+  }
+}
+function projectWorkItem(value, kind, normalized) {
+  assertWorkItem(value, kind, normalized.number ?? positiveInteger(value?.number, "github-native-work-item-invalid"));
+  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`,
+    action: kind === "issue" && normalized.number === undefined ? "issue-create" : kind === "issue" ? "issue-update" : "pr-update",
+    kind, number: Number(value.number), url: String(value.html_url), state: value.state === "open" || value.state === "closed" ? value.state : "unknown",
+    title: typeof value.title === "string" ? value.title.slice(0, 200) : "" });
+}
+
 async function mintInstallationToken({ env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}, permissions) {
   const jwt = await createGithubAppJwt(env);
   const installationId = String(env.GITHUB_INSTALLATION_ID).trim();
@@ -342,10 +469,15 @@ function normalizeProposal(value) {
     if (!path || path.length > 240 || path.startsWith("/") || path.split("/").some((part) => !part || part === "." || part === "..") || path === ".git" || path.startsWith(".git/")) fail("github-native-proposal-path-invalid", 422);
     if (seen.has(path)) fail("github-native-proposal-path-duplicate", 422);
     seen.add(path);
-    if (typeof file.content !== "string") fail("github-native-proposal-content-invalid", 422);
+    if (file.delete === true) {
+      if (Object.hasOwn(file, "content") || Object.keys(file).some((key) => key !== "path" && key !== "delete")) fail("github-native-proposal-file-invalid", 422);
+      return Object.freeze({ path, delete: true });
+    }
+    if (Object.hasOwn(file, "delete") || typeof file.content !== "string"
+      || Object.keys(file).some((key) => key !== "path" && key !== "content")) fail("github-native-proposal-content-invalid", 422);
     if (sensitive(path, file.content)) fail("github-native-proposal-sensitive", 422);
     bytes += new TextEncoder().encode(file.content).byteLength;
-    return Object.freeze({ path, content: file.content });
+    return Object.freeze({ path, content: file.content, delete: false });
   });
   if (bytes > MAX_BYTES) fail("github-native-proposal-content-too-large", 413);
   return Object.freeze({ expectedMainSha, branch, title, body, commitMessage, files: Object.freeze(files) });

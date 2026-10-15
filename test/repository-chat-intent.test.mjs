@@ -57,3 +57,29 @@ test("repository administration parser rejects ambiguous or malformed writes", (
     "Please create a PR", "/repo main write {}", "/repo pr create {\"files\":[] } trailing",
   ]) assert.throws(() => parseRepositoryAdminCommand(message), /repository-admin-command-invalid/);
 });
+
+
+test("repository work-item and deletion commands stay explicit and typed", () => {
+  assert.deepEqual(parseRepositoryAdminCommand('/repo issue create {"title":"Runtime gap","body":"Observed evidence."}'), {
+    action: "issue-create", proposal: { title: "Runtime gap", body: "Observed evidence." },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo issue update {"number":973,"state":"closed"}'), {
+    action: "issue-update", proposal: { number: 973, state: "closed" },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo pr update {"number":1120,"expectedHeadSha":"' + "a".repeat(40) + '","title":"Updated title"}'), {
+    action: "pr-update", proposal: { number: 1120, expectedHeadSha: "a".repeat(40), title: "Updated title" },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo comment create {"kind":"pull-request","number":1120,"body":"Verified."}'), {
+    action: "comment-create", proposal: { kind: "pull-request", number: 1120, body: "Verified." },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo comment delete {"kind":"issue","number":973,"commentId":44}'), {
+    action: "comment-delete", proposal: { kind: "issue", number: 973, commentId: 44 },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo branch delete {"branch":"mahoraga/obsolete","expectedHeadSha":"' + "b".repeat(40) + '"}'), {
+    action: "branch-delete", proposal: { branch: "mahoraga/obsolete", expectedHeadSha: "b".repeat(40) },
+  });
+  for (const prefix of ["/repo issue", "/repo comment", "/repo branch"]) assert.equal(isRepositoryAdminRequest(prefix + " create {}"), true);
+  for (const malformed of ["/repo issue delete {}", "/repo comment update {}", "/repo branch delete []", "/repo pr update {} trailing"]) {
+    assert.throws(() => parseRepositoryAdminCommand(malformed), /repository-admin-command-invalid/);
+  }
+});
