@@ -55,6 +55,7 @@ test("native repository inspection mints a repository-scoped installation token 
     fetchImpl: async (url, options) => {
       requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
       if (requests.length === 1) return json({ token: "installation-token", expires_at: "2026-10-04T15:00:00Z" }, 201);
+      if (requests.length === 3) return json({ object: { sha: COMMIT_SHA } });
       return json({
         full_name: "michaeljwilliams0123/mahoraga",
         private: true,
@@ -71,13 +72,34 @@ test("native repository inspection mints a repository-scoped installation token 
   });
   assert.equal(requests[1].url, "https://api.github.com/repos/michaeljwilliams0123/mahoraga");
   assert.equal(requests[1].options.headers.authorization, "Bearer installation-token");
+  assert.equal(requests[2].url, "https://api.github.com/repos/michaeljwilliams0123/mahoraga/git/ref/heads/main");
   assert.deepEqual(repository, {
     fullName: "michaeljwilliams0123/mahoraga",
     private: true,
     defaultBranch: "main",
+    headSha: COMMIT_SHA,
     pushedAt: "2026-10-04T14:00:00Z",
     permissions: { admin: false, maintain: true, push: true, pull: true, triage: true },
   });
+});
+
+test("native repository inspection refuses malformed main commit evidence", async () => {
+  const env = await githubAppEnv();
+  let step = 0;
+  await assert.rejects(
+    readMahoragaRepositoryViaGithubApp({}, {
+      env,
+      fetchImpl: async () => {
+        const value = [
+          { token: "installation-token", expires_at: "2026-10-04T15:00:00Z" },
+          { full_name: "michaeljwilliams0123/mahoraga", default_branch: "main" },
+          { object: { sha: "not-a-commit" } },
+        ][step++];
+        return json(value, step === 1 ? 201 : 200);
+      },
+    }),
+    (error) => error?.code === "github-native-main-readback-invalid",
+  );
 });
 
 test("native PR creation uses the exact base tree, creates a draft, and returns a verified receipt", async () => {

@@ -7,6 +7,16 @@ const runtime = new URL("../deploy/cloudflare-execution-runtime/worker.ts", impo
 const bindings = new URL("../deploy/cloudflare-execution-runtime/bindings.d.ts", import.meta.url);
 const config = new URL("../deploy/cloudflare-execution-runtime/wrangler.jsonc", import.meta.url);
 
+test("mobile chat has an authenticated, idempotent native repository inspect command", async () => {
+  const runtimeText = await readFile(runtime, "utf8");
+  assert.ok(runtimeText.includes('"/repo inspect"'));
+  assert.match(runtimeText, /nativeGithubInspectChat/);
+  assert.match(runtimeText, /providerId: "mahoraga-native-github-inspect"/);
+  assert.ok(runtimeText.includes('"repository.inspect"'));
+  assert.match(runtimeText, /readMahoragaRepositoryViaGithubApp/);
+  assert.ok(runtimeText.includes('turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect"'));
+});
+
 test("native GitHub actions terminate in the Cloudflare execution runtime", async () => {
   const [gatewayText, runtimeText, bindingsText, configText] = await Promise.all([
     readFile(gateway, "utf8"), readFile(runtime, "utf8"), readFile(bindings, "utf8"), readFile(config, "utf8"),
