@@ -51,10 +51,10 @@ async function request(path: string, authorization: string, options: Options, bo
   return result;
 }
 
-async function token(permission: "pages" | "actions", options: Options): Promise<string> {
+async function token(permission: "pages" | "actions" | "issues", options: Options): Promise<string> {
   const jwt = await createGithubAppJwt(options.env);
   const installationId = String(options.env.GITHUB_INSTALLATION_ID ?? "").trim();
-  const result = await request(`/app/installations/${installationId}/access_tokens`, `Bearer ${jwt}`, options, { repositories: ["mahoraga"], permissions: { [permission]: "read", metadata: "read" } });
+  const result = await request(`/app/installations/${installationId}/access_tokens`, `Bearer ${jwt}`, options, { repositories: ["mahoraga"], permissions: { [permission]: permission === "issues" ? "write" : "read", metadata: "read" } });
   if (typeof result.token !== "string" || !result.token || typeof result.expires_at !== "string") fail("github-native-token-response-invalid");
   return result.token;
 }
@@ -98,4 +98,79 @@ export async function inspectGithubWorkspace(payload: Record<string, unknown>, o
   if (!payload || typeof payload !== "object" || Array.isArray(payload) || Object.keys(payload).length) fail("github-native-workspace-request-invalid", 400);
   const [pagesResult, actionsResult] = await Promise.all([pages(options), actions(options)]);
   return { repository: REPOSITORY, observedAt: new Date().toISOString(), readOnly: true, pages: pagesResult, actions: actionsResult };
+}
+
+/** Evidence-only observer. Does not activate inference, dispatch workflows, or mutate protected source. */
+export async function inspectNativeSourceProduction(sourceSha: string, runtimeSha: string, options: Options) {
+  if (!/^[a-f0-9]{40}$/.test(sourceSha) || !/^[a-f0-9]{40}$/.test(runtimeSha)) fail("native-source-invalid", 409);
+  const authorization = `Bearer ${await token("actions", options)}`;
+  const readRuns = async (workflow: string) => {
+    const value = await request(`${REPO_PATH}/actions/workflows/${workflow}/runs?branch=main&per_page=10`, authorization, options);
+    if (!Array.isArray(value.workflow_runs)) fail("native-workflow-runs-invalid");
+    return value.workflow_runs.map(record).filter((run): run is JsonRecord => run !== null)
+      .filter(run => run.head_sha === sourceSha && run.head_branch === "main"
+        && run.conclusion === "success" && run.status === "completed"
+        && (run.event === "push" || run.event === "workflow_dispatch" || run.event === "workflow_run"))
+      .sort((a, b) => Number(b.id || 0) - Number(a.id || 0));
+  };
+  const [verification, acceptance] = await Promise.all([
+    readRuns("verify.yml"), readRuns("cloudflare-execution-runtime.yml"),
+  ]);
+  const verifyRunId = id(verification[0]?.id);
+  const acceptanceRunId = id(acceptance[0]?.id);
+  let ubuntuPassed = false, windowsPassed = false;
+  if (verifyRunId !== null) {
+    const jobs = await request(`${REPO_PATH}/actions/runs/${verifyRunId}/jobs?per_page=100`, authorization, options);
+    if (!Array.isArray(jobs.jobs)) fail("native-verification-jobs-invalid");
+    const rows = jobs.jobs.map(record).filter((job): job is JsonRecord => job !== null);
+    ubuntuPassed = rows.some(job => job.name === "Verify (ubuntu-latest)" && job.conclusion === "success");
+    windowsPassed = rows.some(job => job.name === "Verify (windows-latest)" && job.conclusion === "success");
+  }
+  let acceptancePassed = false;
+  if (acceptanceRunId !== null) {
+    const jobs = await request(`${REPO_PATH}/actions/runs/${acceptanceRunId}/jobs?per_page=100`, authorization, options);
+    if (!Array.isArray(jobs.jobs)) fail("native-acceptance-jobs-invalid");
+    const rows = jobs.jobs.map(record).filter((job): job is JsonRecord => job !== null);
+    acceptancePassed = rows.some(job => job.name === "Deploy and accept exact verified main" && job.conclusion === "success")
+      && rows.some(job => typeof job.name === "string" && job.name.startsWith("Publish the paired Cloudflare cockpit")
+        && job.conclusion === "success");
+  }
+  return { sourceSha, runtimeSha, verifyRunId, ubuntuPassed, windowsPassed,
+    acceptanceRunId, acceptancePassed };
+}
+
+const EVIDENCE_ISSUE = 786;
+export async function publishNativeSourceProductionEvidence(
+  fingerprint: string, body: string, options: Options,
+): Promise<{ alreadyPresent: boolean; id: number }> {
+  if (!/^[a-f0-9]{64}$/.test(fingerprint) || body.length < 20 || body.length > 4000) fail("native-evidence-invalid", 400);
+  const authorization = `Bearer ${await token("issues", options)}`;
+  const issue = await request(`${REPO_PATH}/issues/${EVIDENCE_ISSUE}`, authorization, options);
+  if (id(issue.number) !== EVIDENCE_ISSUE || issue.state !== "open") fail("native-evidence-issue-unavailable", 409);
+  const count = typeof issue.comments === "number" && Number.isSafeInteger(issue.comments) ? issue.comments : null;
+  if (count === null || count < 0 || count > 20000) fail("native-evidence-comments-unbounded", 409);
+  const mark = `<!-- mahoraga-native-evidence:${fingerprint} -->`;
+  const perPage = 100;
+  const firstPage = Math.max(1, Math.ceil(count / perPage));
+  // Inspect the tail before posting; a timed-out prior POST may already have succeeded.
+  for (const page of [firstPage, ...(firstPage > 1 ? [firstPage - 1] : [])]) {
+    const response = await (options.fetchImpl ?? fetch)(`${API}${REPO_PATH}/issues/${EVIDENCE_ISSUE}/comments?per_page=${perPage}&page=${page}`, {
+      method: "GET", redirect: "error", signal: AbortSignal.timeout(12_000),
+      headers: { accept: "application/vnd.github+json", authorization,
+        "user-agent": "mahoraga-native-evidence", "x-github-api-version": "2026-03-10" },
+    }).catch(() => fail("native-evidence-read-unreachable", 503));
+    if (!response.ok) { await response.body?.cancel().catch(() => {}); fail("native-evidence-read-failed", response.status); }
+    const value: unknown = await response.json().catch(() => null);
+    if (!Array.isArray(value) || value.length > 100) fail("native-evidence-comments-invalid", 502);
+    for (const item of value) {
+      const comment = record(item);
+      if (typeof comment?.body === "string" && comment.body.includes(mark) && id(comment.id) !== null) {
+        return { alreadyPresent: true, id: id(comment.id)! };
+      }
+    }
+  }
+  const posted = await request(`${REPO_PATH}/issues/${EVIDENCE_ISSUE}/comments`, authorization, options, { body: `${body}\n\n${mark}` });
+  const createdId = id(posted.id);
+  if (createdId === null) fail("native-evidence-publish-unconfirmed", 502);
+  return { alreadyPresent: false, id: createdId };
 }

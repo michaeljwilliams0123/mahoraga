@@ -18,6 +18,8 @@ import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type Act
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
 import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
+import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
+import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
@@ -230,6 +232,46 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("internal-source-invalid");
     await this.ctx.blockConcurrencyWhile(async () => { await this.activityLoop().ensureScheduled(); });
   }
+  private nativeContinuityRun: Promise<void> | null = null;
+  /** Background source-to-production evidence; no model, build dispatch, or mutable source operations. */
+  async ensureNativeContinuity(): Promise<void> {
+    if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("native-source-invalid");
+    if (this.nativeContinuityRun) return this.nativeContinuityRun;
+    // The signed owner pause controls every internal background loop, including evidence publication.
+    if (this.activityLoop().store.load()?.enabled === false) return;
+    const run = async () => {
+      this.initialize();
+      this.storage.sql.exec(`CREATE TABLE IF NOT EXISTS native_continuity_state (id INTEGER PRIMARY KEY CHECK(id = 1), payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS native_continuity_history (fingerprint TEXT PRIMARY KEY, observed_at INTEGER NOT NULL, payload TEXT NOT NULL);`);
+      const store = {
+        load: (): NativeEvidence | null => {
+          const row = this.storage.sql.exec<{ payload: string }>("SELECT payload FROM native_continuity_state WHERE id=1").toArray()[0];
+          if (!row) return null;
+          const value: unknown = JSON.parse(row.payload);
+          return isNativeEvidence(value) ? value : null;
+        },
+        save: (value: NativeEvidence) => {
+          this.storage.sql.exec("INSERT OR REPLACE INTO native_continuity_state(id,payload) VALUES(1,?)", JSON.stringify(value));
+        },
+        archive: (value: NativeEvidence) => {
+          this.storage.sql.exec("INSERT OR REPLACE INTO native_continuity_history(fingerprint,observed_at,payload) VALUES(?,?,?)", value.fingerprint, value.observedAt, JSON.stringify(value));
+          this.storage.sql.exec("DELETE FROM native_continuity_history WHERE fingerprint NOT IN (SELECT fingerprint FROM native_continuity_history ORDER BY observed_at DESC LIMIT 64)");
+        },
+      };
+      await new NativeContinuityWatch(store, this.env.TARGET_SHA).check(
+        async () => {
+          const source = await readMahoragaRepositoryViaGithubApp({}, { env: this.env });
+          return inspectNativeSourceProduction(source.headSha, this.env.TARGET_SHA, { env: this.env });
+        },
+        async evidence => publishNativeSourceProductionEvidence(evidence.fingerprint,
+          `**Mahoraga native source-to-production evidence**\n\n- GitHub main: \`${evidence.sourceSha}\`\n- Runtime target: \`${evidence.runtimeSha}\`\n- Exact-main Verify: [run ${evidence.verifyRunId}](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/${evidence.verifyRunId}) (Ubuntu and Windows passed)\n- Canonical Cloudflare acceptance and paired workspace publication: [run ${evidence.acceptanceRunId}](https://github.com/michaeljwilliams0123/mahoraga/actions/runs/${evidence.acceptanceRunId})\n- Scope: exact-main workflow evidence plus runtime TARGET_SHA; owner mobile execution and separate Worker SHA attestations are **not established** by this receipt.\n- No AI inference, branch mutation, workflow dispatch, or governance change.`,
+          { env: this.env }),
+      );
+    };
+    const pending = run().finally(() => { this.nativeContinuityRun = null; });
+    this.nativeContinuityRun = pending;
+    return pending;
+  }
   async alarm(): Promise<void> {
     if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("internal-source-invalid");
     await this.ctx.blockConcurrencyWhile(async () => {
@@ -247,7 +289,13 @@ export class ExecutionDurableObject extends DurableObject<Env> {
   private activityStatus(): Record<string, unknown> {
     const state = this.activityLoop().store.load();
     if (!state || state.sourceSha !== this.env.TARGET_SHA) return { error: "internal-activity-unavailable" };
-    return { ...state, observedAt: new Date().toISOString(), durableState: DURABLE_STATE, modelInvocations: 0 };
+    const nativeRow = this.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' AND name='native_continuity_state'").toArray();
+    let nativeContinuity: NativeEvidence | null = null;
+    if (nativeRow.length) {
+      const row = this.storage.sql.exec<{ payload: string }>("SELECT payload FROM native_continuity_state WHERE id=1").toArray()[0];
+      if (row) { const value: unknown = JSON.parse(row.payload); if (isNativeEvidence(value)) nativeContinuity = value; }
+    }
+    return { ...state, observedAt: new Date().toISOString(), durableState: DURABLE_STATE, modelInvocations: 0, nativeContinuity };
   }
   private providerConfig(): ZeroCreditProviderConfig { return { origin: this.env.ZERO_CREDIT_PROVIDER_URL, token: this.env.ZERO_CREDIT_PROVIDER_TOKEN, accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH, targetSha: this.env.TARGET_SHA }; }
   private providerGapResponse(error: unknown): Response | null {
@@ -806,6 +854,7 @@ export default {
     if (!targetShaValid(env.TARGET_SHA)) throw new Error("internal-source-invalid");
     const runtime = env.EXECUTION_DO.getByName("execution-v1");
     await runtime.ensureInternalActivity();
+    await runtime.ensureNativeContinuity();
     if (controller.cron === "0 0 * * *") await runtime.maintainMemory();
     else await runtime.syncMemory();
   },
