@@ -31,6 +31,7 @@ export interface AssistantTurnRecord {
   costClass: ExecutionCostClass | null;
   creditPolicy: AssistantCreditPolicy;
   status: AssistantTurnStatus;
+  errorCode: string | null;
   contentIdUser: string;
   contentIdAssistant: string | null;
   createdAt: number;
@@ -64,7 +65,7 @@ export interface StorageAdapter {
   saveConversation(record: ConversationRecord): void;
   getTurn(id: string): AssistantTurnRecord | null;
   listTurns(conversationId: string): AssistantTurnRecord[];
-  listRecentSuccessfulTurns(conversationId: string, limit?: number): AssistantTurnRecord[];
+  listRecentTerminalTurns(conversationId: string, limit?: number): AssistantTurnRecord[];
   saveTurn(record: AssistantTurnRecord): void;
   getProviderState(providerId: string): ProviderStateRecord | null;
   saveProviderState(record: ProviderStateRecord): void;
@@ -99,6 +100,7 @@ type TurnRow = Record<string, SqlStorageValue> & {
   cost_class: ExecutionCostClass | null;
   credit_policy: AssistantCreditPolicy;
   status: AssistantTurnStatus;
+  error_code: string | null;
   content_id_user: string;
   content_id_assistant: string | null;
   created_at: number;
@@ -175,6 +177,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         cost_class TEXT,
         credit_policy TEXT NOT NULL CHECK (credit_policy IN ('zero-codex', 'licensed-approved')),
         status TEXT NOT NULL CHECK (status IN ('PENDING', 'SUCCESS', 'FAILED')),
+        error_code TEXT,
         content_id_user TEXT NOT NULL,
         content_id_assistant TEXT,
         created_at INTEGER NOT NULL,
@@ -207,6 +210,12 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       CREATE INDEX IF NOT EXISTS idx_conversation_content_conversation_created_at
         ON conversation_content(conversation_id, created_at);
     `);
+    const turnColumns = this.sql.exec<{ name: string } & Record<string, SqlStorageValue>>(
+      "PRAGMA table_info(turns)",
+    ).toArray();
+    if (!turnColumns.some((column) => column.name === "error_code")) {
+      this.sql.exec("ALTER TABLE turns ADD COLUMN error_code TEXT");
+    }
   }
 
   acquireLease(resourceId: string, holderId: string, ttlMs: number): boolean {
@@ -309,7 +318,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     const row = this.sql
       .exec<TurnRow>(
         `SELECT id, conversation_id, request_digest, response_digest, provider_id, cost_class,
-                credit_policy, status, content_id_user, content_id_assistant, created_at, completed_at
+                credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
          FROM turns WHERE id = ?`,
         id,
       )
@@ -324,6 +333,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       costClass: row.cost_class,
       creditPolicy: row.credit_policy,
       status: row.status,
+      errorCode: row.error_code,
       contentIdUser: row.content_id_user,
       contentIdAssistant: row.content_id_assistant,
       createdAt: row.created_at,
@@ -337,10 +347,10 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     ).toArray().map((row) => this.getTurn(row.id)!).filter(Boolean);
   }
 
-  listRecentSuccessfulTurns(conversationId: string, limit = 30): AssistantTurnRecord[] {
+  listRecentTerminalTurns(conversationId: string, limit = 30): AssistantTurnRecord[] {
     const boundedLimit = Number.isSafeInteger(limit) ? Math.max(1, Math.min(limit, 30)) : 30;
     const newestFirst = this.sql.exec<{ id: string } & Record<string, SqlStorageValue>>(
-      "SELECT id FROM turns WHERE conversation_id = ? AND status = 'SUCCESS' AND content_id_assistant IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?",
+      "SELECT id FROM turns WHERE conversation_id = ? AND status IN ('SUCCESS', 'FAILED') AND content_id_assistant IS NOT NULL ORDER BY created_at DESC, id DESC LIMIT ?",
       conversationId, boundedLimit,
     ).toArray().map((row) => this.getTurn(row.id)!).filter(Boolean);
     return newestFirst.reverse();
@@ -350,14 +360,15 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     this.sql.exec(
       `INSERT INTO turns (
          id, conversation_id, request_digest, response_digest, provider_id, cost_class,
-         credit_policy, status, content_id_user, content_id_assistant, created_at, completed_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          response_digest = excluded.response_digest,
          provider_id = excluded.provider_id,
          cost_class = excluded.cost_class,
          credit_policy = excluded.credit_policy,
          status = excluded.status,
+         error_code = excluded.error_code,
          content_id_assistant = excluded.content_id_assistant,
          completed_at = excluded.completed_at`,
       record.id,
@@ -368,6 +379,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       record.costClass,
       record.creditPolicy,
       record.status,
+      record.errorCode,
       record.contentIdUser,
       record.contentIdAssistant,
       record.createdAt,

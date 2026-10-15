@@ -34,6 +34,12 @@ test("mobile chat exposes typed native repository administration with durable re
   assert.match(runtimeText, /dispatchMahoragaVerifyWorkflowViaGithubApp/);
   assert.match(runtimeText, /readOnly: command\.action === "status" \|\| command\.action === "checks" \|\| command\.action === "diagnose"/);
   assert.match(runtimeText, /Bounded interpretation: executed only \/repo admin status/);
+  assert.match(runtimeText, /status: "FAILED"/);
+  assert.match(runtimeText, /External action receipt: none/);
+  assert.match(runtimeText, /prior\?\.status === "FAILED"/);
+  assert.match(runtimeText, /errorCode: prior\.errorCode/);
+  assert.match(runtimeText, /turn\.status === "FAILED" \? "failed"/);
+  assert.match(runtimeText, /turn\.errorCode/);
 });
 
 test("normal chat reuses authenticated repository evidence and handles bounded read-only summaries", async () => {

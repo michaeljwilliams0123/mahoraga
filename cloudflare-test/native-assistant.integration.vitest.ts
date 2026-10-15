@@ -132,6 +132,42 @@ describe("native assistant bridge", () => {
     });
   });
 
+  it("persists and replays a failed native GitHub administration turn across reconnect", async () => {
+    const failedStub = env.EXECUTION_DO.getByName("native-github-failure-reconnect");
+    const failedPost = (type: string, payload: Record<string, unknown>) => failedStub.fetch("https://execution.example/api/native/bridge", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-mahoraga-verified-owner": owner, "x-mahoraga-verified-nonce": crypto.randomUUID() },
+      body: JSON.stringify({ type, payload }),
+    });
+    await failedStub.fetch("https://execution.example/api/ready");
+    const conversationId = "native-github-failed-conversation";
+    const payload = {
+      conversationId,
+      content: '/repo pr checks {"number":1106,"expectedHeadSha":"8754a4bbc9b347a5a7870d8a0eeaa730f11c0952"}',
+      mode: "auto",
+      creditPolicy: "zero-codex",
+      idempotencyKey: "native-github-failed-once",
+    };
+    const first = await failedPost("chat", payload);
+    expect(first.status).toBe(200);
+    const firstResult = await first.json() as { task: { status: string; errorCode: string } };
+    expect(firstResult.task).toMatchObject({ status: "failed", errorCode: "github-native-credentials-unavailable" });
+    expect(await (await failedPost("chat", payload)).json()).toEqual(firstResult);
+
+    const tasks = await (await failedPost("tasks", { conversationId })).json() as { tasks: Array<{ status: string; errorCode: string }> };
+    expect(tasks.tasks).toEqual([expect.objectContaining({ status: "failed", errorCode: "github-native-credentials-unavailable" })]);
+    const messages = await (await failedPost("messages", { conversationId })).json() as { messages: Array<{ id: string; contentReference: string; role: string }> };
+    expect(messages.messages).toHaveLength(2);
+    const assistant = messages.messages[1]!;
+    const result = await (await failedPost("message-content", { conversationId, messageId: assistant.id, contentReference: assistant.contentReference })).json() as { content: string };
+    expect(result.content).toContain("Status: failed");
+    expect(result.content).toContain("External action receipt: none");
+
+    const restored = await (await failedPost("conversation-history", { conversationId })).json() as { messages: Array<{ role: string; text: string }> };
+    expect(restored.messages.map(({ role }) => role)).toEqual(["user", "assistant"]);
+    expect(restored.messages[1]?.text).toContain("github-native-credentials-unavailable");
+  });
+
   it("uses completed turns from the same owner's conversation for follow-up cognition", async () => {
     await stub.fetch("https://execution.example/api/ready");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (instance) => {
