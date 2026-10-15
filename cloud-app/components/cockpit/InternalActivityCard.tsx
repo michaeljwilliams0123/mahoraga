@@ -24,12 +24,12 @@ export function InternalActivityCard({ activity, label, busy, error, onSetEnable
    <span>Hugging Face · native model research</span>
    <strong>{activity.huggingFaceDiscovery.status === 'candidate-metadata-only' ? `${activity.huggingFaceDiscovery.candidates.length} pinned candidates · ${activity.huggingFaceDiscovery.query}` : 'Public catalog unavailable'}</strong>
    <p>Daily Cloudflare metadata observation, no hosted inference or production model admission.
-   Local benchmarks require an independently admitted model and available PC.</p>
+   Local benchmarks require an independently admitted model and available PC. One-time production scan requested at 6 PM EDT Oct 15 (merged #1128) is observational metadata only; not model admission or traffic authority.</p>
    {activity.huggingFaceDiscovery.candidates.slice(0, 3).map(model =>
     <p key={model.repoId}><a href={`https://huggingface.co/${model.repoId}`} target="_blank" rel="noopener noreferrer">{model.repoId}</a> · {model.license} · inspection required</p>)}
   </article>}
   {activity?.lastError && <p role="status">Internal assessment is held. Another bounded wake is scheduled.</p>}
   {error && <p role="status">{error}</p>}
-  <p className="internal-activity-note">This loop uses deterministic planning. Model execution and code promotion retain their separate verification gates.</p>
+  <p className="internal-activity-note">This loop uses deterministic planning. Model execution and code promotion retain their separate verification gates. Product remains Mahoraga; 7.0.0-alpha.2 is provenance only.</p>
  </section>;
 }
