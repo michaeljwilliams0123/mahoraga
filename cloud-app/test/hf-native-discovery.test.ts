@@ -20,3 +20,17 @@ test("UI safely parses native continuity and HF metadata extensions without acce
  assert.equal(parseInternalActivity({...state,credential:"secret"},sha,now),null);
  assert.equal(parseInternalActivity(state,sha,now)?.enabled,true);
 });
+
+test("diagnostic reason and HTTP status are safe to render; unknown keys remain rejected", () => {
+ const failure = { ...hf, status: "metadata-unavailable", candidates: [],
+   failureReason: "upstream-http", httpStatus: 503 };
+ const parsed = parseInternalActivity({ ...state, huggingFaceDiscovery: failure }, sha, now);
+ assert.equal(parsed?.huggingFaceDiscovery?.failureReason, "upstream-http");
+ assert.equal(parsed?.huggingFaceDiscovery?.httpStatus, 503);
+ assert.equal(parseInternalActivity({ ...state, huggingFaceDiscovery: { ...failure, failureReason: "private-key" } }, sha, now), null);
+ assert.equal(parseInternalActivity({ ...state, huggingFaceDiscovery: { ...failure, httpStatus: 999 } }, sha, now), null);
+ assert.equal(parseInternalActivity({ ...state, huggingFaceDiscovery: { ...failure, candidates: hf.candidates, status: "candidate-metadata-only" } }, sha, now), null);
+ const clean = parseInternalActivity({ ...state, huggingFaceDiscovery: { ...hf, failureReason: null, httpStatus: 200 } }, sha, now);
+ assert.equal(clean?.huggingFaceDiscovery?.failureReason, null);
+ assert.equal(parseInternalActivity({ ...state, huggingFaceDiscovery: hf }, sha, now)?.huggingFaceDiscovery?.candidates.length, 1);
+});
