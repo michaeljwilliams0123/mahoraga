@@ -10,3 +10,21 @@ export function isReadOnlyRepositoryEvidenceRequest(message) {
   if (!/\b(?:inspect(?:ion)?|verified|authoritative|branch|commit|sha|source parity)\b/i.test(text)) return false;
   return /\b(?:summari[sz]e|summary|recap|show|what|which|tell|verify|identify|using|based on)\b/i.test(text);
 }
+
+export function parseRepositoryAdminCommand(message) {
+  if (typeof message !== "string" || message.length > 8_000) fail();
+  const text = message.trim();
+  if (text === "/repo admin status") return Object.freeze({ action: "status", proposal: null });
+  const match = /^\/repo pr (create|merge)\s+([\s\S]+)$/.exec(text);
+  if (!match) fail();
+  let proposal;
+  try { proposal = JSON.parse(match[2]); } catch { fail(); }
+  if (!proposal || typeof proposal !== "object" || Array.isArray(proposal)) fail();
+  return Object.freeze({ action: match[1], proposal });
+}
+
+function fail() {
+  const error = new TypeError("repository-admin-command-invalid");
+  error.code = "repository-admin-command-invalid";
+  throw error;
+}

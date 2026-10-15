@@ -59,6 +59,20 @@ export async function readMahoragaRepositoryViaGithubApp(_request = {}, options 
   });
 }
 
+export async function readMahoragaRepositoryWriteReadinessViaGithubApp(_request = {}, options = {}) {
+  const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });
+  const value = await githubRequest("GET", repoPath(""), null, { ...options, token });
+  if (value?.full_name !== `${OWNER}/${REPO}` || value?.default_branch !== "main") fail("github-native-repository-mismatch", 409);
+  const mainRef = await githubRequest("GET", repoPath("git/ref/heads/main"), null, { ...options, token });
+  const permissions = value?.permissions && typeof value.permissions === "object" ? value.permissions : {};
+  if (permissions.push !== true) fail("github-native-write-permission-unavailable", 403);
+  return Object.freeze({
+    provider: "github-app", repository: `${OWNER}/${REPO}`, branch: "main",
+    headSha: sha(mainRef?.object?.sha, "github-native-main-readback-invalid"),
+    permissions: Object.freeze({ contentsWrite: true, pullRequestsWrite: true, metadataRead: true, push: true, admin: permissions.admin === true }),
+  });
+}
+
 const READABLE_SOURCE_PATHS = new Set([
   "src/repository-chat-intent.mjs",
   "src/github-native-client.mjs",
@@ -100,6 +114,14 @@ export async function mergeMahoragaPullRequestViaGithubApp(proposal, options = {
   const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });
   const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
   const pullRequest = await request("GET", repoPath(`pulls/${normalized.number}`));
+  const exactIdentity = pullRequest?.draft === false && pullRequest?.head?.sha === normalized.expectedHeadSha
+    && pullRequest?.base?.ref === "main" && pullRequest?.base?.sha === normalized.expectedMainSha;
+  if (exactIdentity && pullRequest?.state === "closed" && typeof pullRequest?.merged_at === "string") {
+    const mergeSha = sha(pullRequest?.merge_commit_sha, "github-native-merge-response-invalid");
+    const finalRef = await request("GET", repoPath("git/ref/heads/main"));
+    if (sha(finalRef?.object?.sha, "github-native-main-readback-invalid") !== mergeSha) fail("github-native-main-moved", 409);
+    return mergeReceipt(pullRequest, normalized, normalized.expectedMainSha, mergeSha);
+  }
   if (pullRequest?.state !== "open" || pullRequest?.draft !== false
     || pullRequest?.head?.sha !== normalized.expectedHeadSha
     || pullRequest?.base?.ref !== "main" || pullRequest?.base?.sha !== normalized.expectedMainSha) {
@@ -117,6 +139,10 @@ export async function mergeMahoragaPullRequestViaGithubApp(proposal, options = {
   const mergeSha = sha(merged?.sha, "github-native-merge-response-invalid");
   const finalRef = await request("GET", repoPath("git/ref/heads/main"));
   if (sha(finalRef?.object?.sha, "github-native-main-readback-invalid") !== mergeSha) fail("github-native-main-readback-mismatch", 502);
+  return mergeReceipt(pullRequest, normalized, baseSha, mergeSha);
+}
+
+function mergeReceipt(pullRequest, normalized, baseSha, mergeSha) {
   return Object.freeze({
     provider: "github-app", repository: `${OWNER}/${REPO}`, number: normalized.number, merged: true, mergeMethod: "squash",
     head: Object.freeze({ ref: pullRequest.head.ref, sha: normalized.expectedHeadSha }),

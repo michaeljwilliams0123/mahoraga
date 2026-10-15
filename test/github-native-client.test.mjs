@@ -7,6 +7,7 @@ import {
   githubAppConfigured,
   mergeMahoragaPullRequestViaGithubApp,
   readMahoragaRepositoryViaGithubApp,
+  readMahoragaRepositoryWriteReadinessViaGithubApp,
   readMahoragaSourceFileViaGithubApp,
 } from "../src/github-native-client.mjs";
 
@@ -101,6 +102,26 @@ test("native repository inspection refuses malformed main commit evidence", asyn
     }),
     (error) => error?.code === "github-native-main-readback-invalid",
   );
+});
+
+test("native repository administration status verifies write-token mint and exact main", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const readiness = await readMahoragaRepositoryWriteReadinessViaGithubApp({}, {
+    env,
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
+      if (requests.length === 1) return json({ token: "write-token", expires_at: "2026-10-15T05:00:00Z" }, 201);
+      if (requests.length === 2) return json({ full_name: "michaeljwilliams0123/mahoraga", default_branch: "main", permissions: { admin: true, maintain: true, push: true, pull: true, triage: true } });
+      return json({ object: { sha: BASE_SHA } });
+    },
+  });
+  assert.deepEqual(requests[0].body.permissions, { contents: "write", pull_requests: "write", metadata: "read" });
+  assert.equal(requests[1].options.headers.authorization, "Bearer write-token");
+  assert.deepEqual(readiness, {
+    provider: "github-app", repository: "michaeljwilliams0123/mahoraga", branch: "main", headSha: BASE_SHA,
+    permissions: { contentsWrite: true, pullRequestsWrite: true, metadataRead: true, push: true, admin: true },
+  });
 });
 
 test("native source inspection reads an allowlisted file at immutable main SHA using read-only credentials", async () => {
@@ -265,6 +286,24 @@ test("native PR merge requires exact ready head and returns the merged main rece
     base: { ref: "main", sha: BASE_SHA },
     main: { ref: "main", sha: MERGE_SHA },
   });
+});
+
+test("native PR merge retry adopts the exact already-merged result without a second mutation", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const MERGE_SHA = "f".repeat(40);
+  const responses = [
+    json({ token: "installation-token", expires_at: "2026-10-04T15:00:00Z" }, 201),
+    json({ number: 1046, state: "closed", draft: false, merged_at: "2026-10-15T03:00:00Z", merge_commit_sha: MERGE_SHA, head: { ref: "mahoraga/ready", sha: COMMIT_SHA }, base: { ref: "main", sha: BASE_SHA } }),
+    json({ object: { sha: MERGE_SHA } }),
+  ];
+  const receipt = await mergeMahoragaPullRequestViaGithubApp({
+    number: 1046, expectedMainSha: BASE_SHA, expectedHeadSha: COMMIT_SHA, commitTitle: "Merge native GitHub operator canary",
+  }, { env, fetchImpl: async (url, options) => { requests.push({ url, options }); return responses.shift(); } });
+  assert.equal(requests.length, 3);
+  assert.equal(requests.some(({ options }) => options.method === "PUT"), false);
+  assert.equal(receipt.merged, true);
+  assert.equal(receipt.main.sha, MERGE_SHA);
 });
 
 test("native direct-main write requires the exact current main SHA and verifies the new ref", async () => {
