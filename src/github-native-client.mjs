@@ -59,6 +59,42 @@ export async function readMahoragaRepositoryViaGithubApp(_request = {}, options 
   });
 }
 
+const READABLE_SOURCE_PATHS = new Set([
+  "src/repository-chat-intent.mjs",
+  "src/github-native-client.mjs",
+  "deploy/cloudflare-execution-runtime/worker.ts",
+  "deploy/cloudflare-execution-runtime/provider-invoker.ts",
+]);
+const MAX_SOURCE_FILE_BYTES = 64_000;
+const MAX_SOURCE_EXCERPT_CHARS = 4_000;
+
+/** Native GitHub App source read: fixed allowlist, immutable commit and bounded sanitized excerpt. */
+export async function readMahoragaSourceFileViaGithubApp(input = {}, options = {}) {
+  const path = typeof input?.path === "string" ? input.path.trim() : "";
+  if (!READABLE_SOURCE_PATHS.has(path)) fail("github-native-source-path-invalid", 422);
+  const token = await mintInstallationToken(options, { contents: "read", metadata: "read" });
+  const mainRef = await githubRequest("GET", repoPath("git/ref/heads/main"), null, { ...options, token });
+  const headSha = sha(mainRef?.object?.sha, "github-native-main-readback-invalid");
+  const file = await githubRequest("GET", repoPath(`contents/${path}?ref=${headSha}`), null, { ...options, token });
+  if (file?.type !== "file" || file.path !== path || file.encoding !== "base64" || typeof file.content !== "string"
+    || !Number.isSafeInteger(file.size) || file.size < 0 || file.size > MAX_SOURCE_FILE_BYTES) {
+    fail("github-native-source-response-invalid", 502);
+  }
+  const blobSha = sha(file.sha, "github-native-source-response-invalid");
+  let bytes, source;
+  try {
+    bytes = base64ToBytes(file.content.replace(/\s/g, ""));
+    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch { fail("github-native-source-content-invalid", 502); }
+  if (bytes.length !== file.size || sensitive(path, source)) fail("github-native-source-content-invalid", 502);
+  return Object.freeze({
+    repository: `${OWNER}/${REPO}`, branch: "main", headSha, path, blobSha,
+    sizeBytes: bytes.length, excerpt: source.slice(0, MAX_SOURCE_EXCERPT_CHARS),
+    truncated: source.length > MAX_SOURCE_EXCERPT_CHARS,
+    readOnly: true,
+  });
+}
+
 export async function mergeMahoragaPullRequestViaGithubApp(proposal, options = {}) {
   const normalized = normalizeMergeProposal(proposal);
   const token = await mintInstallationToken(options, { contents: "write", pull_requests: "write", metadata: "read" });

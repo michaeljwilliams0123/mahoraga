@@ -7,6 +7,7 @@ import {
   githubAppConfigured,
   mergeMahoragaPullRequestViaGithubApp,
   readMahoragaRepositoryViaGithubApp,
+  readMahoragaSourceFileViaGithubApp,
 } from "../src/github-native-client.mjs";
 
 const BASE_SHA = "a".repeat(40);
@@ -100,6 +101,39 @@ test("native repository inspection refuses malformed main commit evidence", asyn
     }),
     (error) => error?.code === "github-native-main-readback-invalid",
   );
+});
+
+test("native source inspection reads an allowlisted file at immutable main SHA using read-only credentials", async () => {
+  const env = await githubAppEnv();
+  const calls = [];
+  const fileText = "export const verified = true;\n";
+  const responses = [
+    json({ token: "read-only", expires_at: "2026-10-04T15:00:00Z" }, 201),
+    json({ object: { sha: BASE_SHA } }),
+    json({ type: "file", path: "src/repository-chat-intent.mjs", sha: COMMIT_SHA, size: Buffer.byteLength(fileText), encoding: "base64", content: Buffer.from(fileText).toString("base64") }),
+  ];
+  const receipt = await readMahoragaSourceFileViaGithubApp({ path: "src/repository-chat-intent.mjs" }, {
+    env,
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return responses[calls.length - 1];
+    },
+  });
+  assert.deepEqual(JSON.parse(calls[0].options.body).permissions, { contents: "read", metadata: "read" });
+  assert.equal(calls[1].url, "https://api.github.com/repos/michaeljwilliams0123/mahoraga/git/ref/heads/main");
+  assert.equal(calls[2].url, "https://api.github.com/repos/michaeljwilliams0123/mahoraga/contents/src/repository-chat-intent.mjs?ref=" + BASE_SHA);
+  assert.equal(receipt.headSha, BASE_SHA);
+  assert.equal(receipt.blobSha, COMMIT_SHA);
+  assert.equal(receipt.excerpt, fileText);
+  assert.equal(receipt.truncated, false);
+});
+
+test("native source inspection rejects nonallowlisted paths before authentication", async () => {
+  let calls = 0;
+  for (const path of ["../.env", "config/secrets.json", "src/../../keys.pem", ".github/workflows/main.yml", "src/not-listed-file.mjs"]) {
+    await assert.rejects(readMahoragaSourceFileViaGithubApp({ path }, { fetchImpl: async () => { calls += 1; throw Error("unreachable"); } }), (error) => error?.code === "github-native-source-path-invalid");
+  }
+  assert.equal(calls, 0);
 });
 
 test("native PR creation uses the exact base tree, creates a draft, and returns a verified receipt", async () => {

@@ -11,7 +11,7 @@ test("mobile chat has an authenticated, idempotent native repository inspect com
   const runtimeText = await readFile(runtime, "utf8");
   assert.ok(runtimeText.includes('"/repo inspect"'));
   assert.match(runtimeText, /nativeGithubInspectChat/);
-  assert.match(runtimeText, /providerId: "mahoraga-native-github-inspect"/);
+  assert.match(runtimeText, /providerId = sourceCommand \? "mahoraga-native-github-source" : "mahoraga-native-github-inspect"/);
   assert.ok(runtimeText.includes('"repository.inspect"'));
   assert.match(runtimeText, /readMahoragaRepositoryViaGithubApp/);
   assert.ok(runtimeText.includes('turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect"'));
@@ -28,6 +28,16 @@ test("normal chat reuses authenticated repository evidence and handles bounded r
   assert.match(runtimeText, /Suggested next step \(not an inspected-code finding\)/);
   assert.match(providerText, /repository\.inspect=unavailable in the broker inventory does not invalidate a verified native inspection receipt/);
   assert.doesNotMatch(providerText, /repository\.inspect=unavailable means this runtime cannot directly inspect/);
+});
+
+test("source-file chat inspection uses existing authenticated owner action and durable receipt", async () => {
+  const runtimeText = await readFile(runtime, "utf8");
+  assert.match(runtimeText, /readMahoragaSourceFileViaGithubApp/);
+  assert.match(runtimeText, /nativeGithubInspectChat\(ownerHash, conversationId, key, message\)/);
+  assert.match(runtimeText, /mahoraga-native-github-source/);
+  assert.match(runtimeText, /Source-file inspection — live GitHub App/);
+  assert.match(runtimeText, /Git blob SHA:/);
+  assert.match(runtimeText, /sourcePath/);
 });
 
 test("native GitHub actions terminate in the Cloudflare execution runtime", async () => {
