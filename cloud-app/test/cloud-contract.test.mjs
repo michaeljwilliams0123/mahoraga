@@ -54,6 +54,8 @@ test("one host-neutral workspace prefers owner session and retains encrypted rel
   assert.match(chat, /Workspace online/);
   assert.match(chat, /Brain \{brainLabel\}/);
   assert.match(workspace, /routeReadiness === "offline"\s*\? "Offline"/);
+  assert.doesNotMatch(workspace, /licensedRetry \|\| runtimeError \|\| routeReadiness === "degraded"/);
+  assert.doesNotMatch(workspace, /runtimeBusy \|\| licensedRetry \|\| runtimeError \|\| new Set<RelayState>/);
   assert.match(chat, /Execution connection unavailable/);
   assert.doesNotMatch(chat, /Mahoraga: \{brainLabel\}/);
   assert.match(workspace, /creditPolicy:\s*ChatCreditPolicy\s*=\s*"zero-codex"/);

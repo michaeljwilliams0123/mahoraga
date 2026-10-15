@@ -133,7 +133,7 @@ export function Workspace() {
     ? "Connecting"
     : runtimeBusy
       ? "Awake"
-      : licensedRetry || runtimeError || routeReadiness === "degraded"
+      : licensedRetry || routeReadiness === "degraded"
         ? "Degraded"
         : routeReadiness === "ready"
           ? "Idle"
@@ -141,7 +141,7 @@ export function Workspace() {
             ? "Offline"
             : "Connecting";
   const executionStatus = deriveExecutionStatus({ connected: coreReady, observation: capabilityObservation, assistantReady });
-  const brainLabel = runtimeBusy || licensedRetry || runtimeError || new Set<RelayState>(["pairing", "resuming"]).has(relayState) ? brainState : executionStatus.label;
+  const brainLabel = runtimeBusy || licensedRetry || new Set<RelayState>(["pairing", "resuming"]).has(relayState) ? brainState : executionStatus.label;
 
   useEffect(() => {
     fetch(process.env.NEXT_PUBLIC_HEALTH_ENDPOINT ?? "/api/health", { cache: "no-store" })

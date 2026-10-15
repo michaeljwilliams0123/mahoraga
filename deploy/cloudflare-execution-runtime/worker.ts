@@ -326,7 +326,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const conversationId = payload.conversationId;
       const conversation = this.storage.getConversation(conversationId);
       if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
-      const turns = this.storage.listRecentSuccessfulTurns(conversationId);
+      const turns = this.storage.listRecentTerminalTurns(conversationId);
       const messages: Array<{ id: string; role: "user" | "assistant"; text: string }> = [];
       try {
         for (const turn of turns) {
@@ -417,8 +417,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversation = this.storage.getConversation(conversationId);
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
-    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: null, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy } })) });
-    if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => turn.status === "SUCCESS" && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
+    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy } })) });
+    if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => (turn.status === "SUCCESS" || turn.status === "FAILED") && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
     if (input?.type === "message-content") {
       const contentId = payload.contentReference;
       if (!boundedId(contentId) || payload.messageId !== contentId || !turns.some((turn) => turn.contentIdAssistant === contentId || turn.contentIdUser === contentId)) return json({ error: "message-unavailable" }, 404);
@@ -469,7 +469,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex" } });
     } catch (error) { return this.providerGapResponse(error) ?? json({ error: safeError(error) }, 502); }
@@ -490,11 +490,13 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: command.action === "status" || command.action === "checks" || command.action === "diagnose" };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: receipt };
     if (prior?.status === "SUCCESS") return json(result);
+    if (prior?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: prior.errorCode ?? "repository-admin-failed" } });
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease("turn:" + turnId, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
     try {
       const raced = this.storage.getTurn(turnId);
       if (raced?.status === "SUCCESS") return json(result);
+      if (raced?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: raced.errorCode ?? "repository-admin-failed" } });
       const transaction = command.action === "status"
         ? await readMahoragaRepositoryWriteReadinessViaGithubApp({}, { env: this.env })
         : command.action === "create"
@@ -523,10 +525,32 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json(result);
-    } catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
+    } catch (error) {
+      const errorCode = githubErrorCode(error);
+      const answer = [
+        "Repository administration — live GitHub App",
+        "Action: " + command.action,
+        "Status: failed",
+        "Error code: " + errorCode,
+        "External action receipt: none",
+        "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        "Idempotency: duplicate owner requests with this key replay this persisted failure; retry after remediation with a new request.",
+      ].join("\n");
+      const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();
+      const [userContent, assistantContent] = await Promise.all([
+        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
+      ]);
+      this.storage.executeTransaction(() => {
+        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
+        this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "FAILED", errorCode, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+      });
+      return json({ ...result, task: { ...result.task, status: "failed", errorCode } });
+    }
     finally { this.storage.releaseLease("turn:" + turnId, holder); }
   }
   private async nativeGithubInspectChat(ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
@@ -586,7 +610,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent);
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json(result);
     } catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
@@ -638,7 +662,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
         for (const memory of memories) this.queueMemory(memory);
       });
       let memoryState: "indexed" | "pending" = "indexed";

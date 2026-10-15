@@ -42,7 +42,7 @@ test("history routes enforce existing verified owner and do not trust browser id
   assert.doesNotMatch(ui, /localStorage\.|sessionStorage\./);
 });
 
-test("history reads the newest thirty successful turns in chronological order", () => {
+test("history reads the newest thirty terminal turns in chronological order", () => {
   const calls = [];
   const adapter = new CloudflareDOSQLiteAdapter({ storage: { sql: {
     exec(sql, ...values) {
@@ -51,11 +51,32 @@ test("history reads the newest thirty successful turns in chronological order", 
     },
   } } });
   adapter.getTurn = (id) => ({ id });
-  assert.deepEqual(adapter.listRecentSuccessfulTurns("owner-conversation", 500).map(({ id }) => id), ["oldest", "middle", "newest"]);
-  assert.ok(calls[0].sql.includes("status = 'SUCCESS' AND content_id_assistant IS NOT NULL"));
+  assert.deepEqual(adapter.listRecentTerminalTurns("owner-conversation", 500).map(({ id }) => id), ["oldest", "middle", "newest"]);
+  assert.ok(calls[0].sql.includes("status IN ('SUCCESS', 'FAILED') AND content_id_assistant IS NOT NULL"));
   assert.ok(calls[0].sql.includes("ORDER BY created_at DESC, id DESC LIMIT ?"));
   assert.deepEqual(calls[0].values, ["owner-conversation", 30]);
-  assert.ok(read("deploy/cloudflare-execution-runtime/worker.ts").includes("this.storage.listRecentSuccessfulTurns(conversationId)"));
+  assert.ok(read("deploy/cloudflare-execution-runtime/worker.ts").includes("this.storage.listRecentTerminalTurns(conversationId)"));
+});
+
+test("turn storage migrates and projects bounded terminal error codes", () => {
+  const calls = [];
+  const adapter = new CloudflareDOSQLiteAdapter({ storage: { sql: {
+    exec(sql, ...values) {
+      calls.push({ sql, values });
+      if (sql === "PRAGMA table_info(turns)") return { toArray: () => [{ name: "id" }] };
+      if (sql.includes("FROM turns WHERE id = ?")) return { toArray: () => [{
+        id: "failed-turn", conversation_id: "owner-conversation", request_digest: "request",
+        response_digest: "response", provider_id: "mahoraga-native-github-pr-checks",
+        cost_class: "deterministic", credit_policy: "zero-codex", status: "FAILED",
+        error_code: "github-native-http-422", content_id_user: "user-content",
+        content_id_assistant: "assistant-content", created_at: 10, completed_at: 20,
+      }] };
+      return { toArray: () => [] };
+    },
+  } } });
+  adapter.initSchema();
+  assert.ok(calls.some(({ sql }) => sql === "ALTER TABLE turns ADD COLUMN error_code TEXT"));
+  assert.equal(adapter.getTurn("failed-turn")?.errorCode, "github-native-http-422");
 });
 
 test("fresh pairing restores history without reopening it after New Conversation", () => {
