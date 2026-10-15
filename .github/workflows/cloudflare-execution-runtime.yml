@@ -42,7 +42,9 @@ jobs:
        ((github.event.workflow_run.actor.login == github.repository_owner &&
          (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) ||
         (github.event.workflow_run.actor.login == 'github-actions[bot]' &&
-         (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))))
+         (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch')) ||
+        (github.event.workflow_run.actor.login == 'mahoraga-native-pr-operator[bot]' &&
+         github.event.workflow_run.event == 'push')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:

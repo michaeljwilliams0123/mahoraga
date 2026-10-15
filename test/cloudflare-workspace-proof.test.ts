@@ -7,6 +7,7 @@ const run = () => ({ name: 'Deploy and Accept Exact Main on Cloudflare', path: '
 test('workspace publication requires completed canonical cloud acceptance, not renewal or PR verification', () => {
  assert.equal(verifiedWorkspacePublication(run(), sha).sourceSha, sha);
  assert.equal(verifiedWorkspacePublication({ ...run(), actor: { login: 'michaeljwilliams0123' }, event: 'workflow_dispatch' }, sha).sourceSha, sha);
+ assert.equal(verifiedWorkspacePublication({ ...run(), actor: { login: 'mahoraga-native-pr-operator[bot]' } }, sha).sourceSha, sha);
  for (const override of [{ event: 'schedule' }, { event: 'pull_request' }, { actor: { login: 'michaeljwilliams0123' }, event: ['workflow_run'] }, { event: 'workflow_dispatch' }, { name: 'Verify Mahoraga' }, { conclusion: 'failure' }, { status: 'in_progress' }, { head_branch: 'feature/work' }, { head_repository: { full_name: 'attacker/repo' } }, { actor: { login: 'collaborator' } }, { path: '.github/workflows/other.yml' }]) assert.throws(() => verifiedWorkspacePublication({ ...run(), ...override }, sha));
  assert.throws(() => verifiedWorkspacePublication(run(), 'b'.repeat(40)));
 });

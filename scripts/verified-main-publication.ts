@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 const REPOSITORY = 'michaeljwilliams0123/mahoraga';
 const OWNER = 'michaeljwilliams0123';
 const BOT = 'github-actions[bot]';
+const NATIVE_PR_OPERATOR = 'mahoraga-native-pr-operator[bot]';
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 export function validateVerifiedMainPublicationReceipt(value: unknown, run: Record<string, unknown>, expectedSha: string) {
@@ -38,11 +39,12 @@ export function verifiedMainPublication(value: unknown, expectedSha: string, rec
  const actor = record(run.actor).login;
  const ownerPermitted = actor === OWNER && (run.event === 'push' || run.event === 'workflow_dispatch');
  const botPushPermitted = actor === BOT && run.event === 'push';
+ const nativeAppPushPermitted = actor === NATIVE_PR_OPERATOR && run.event === 'push';
  let botDispatchReceipt = null;
  if (actor === BOT && run.event === 'workflow_dispatch') {
   botDispatchReceipt = validateVerifiedMainPublicationReceipt(receipt, run, expectedSha);
  }
- const permitted = ownerPermitted || botPushPermitted || botDispatchReceipt !== null;
+ const permitted = ownerPermitted || botPushPermitted || nativeAppPushPermitted || botDispatchReceipt !== null;
  if (run.name !== 'Verify Mahoraga' || run.path !== '.github/workflows/verify.yml'
   || run.status !== 'completed' || run.conclusion !== 'success' || run.head_branch !== 'main'
   || record(run.head_repository).full_name !== REPOSITORY || !permitted

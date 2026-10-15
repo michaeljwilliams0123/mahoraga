@@ -8,6 +8,7 @@ export const WORKSPACE_URL = 'https://mahoraga-workspace-candidate.mahoraga-mjw0
 export const BRIDGE_ORIGIN = 'https://mahoraga-owner-gateway.mahoraga-mjw0123.workers.dev';
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const validSha = (value: unknown): value is string => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value);
+const NATIVE_PR_OPERATOR = 'mahoraga-native-pr-operator[bot]';
 /** Used only by the reusable job whose caller has a successful deploy-accept dependency.
  * The incumbent runtime job retains its verification-artifact and provider acceptance gates.
  */
@@ -15,14 +16,16 @@ export function verifiedWorkspaceCaller(value: unknown, expectedSha: string) {
  const caller = record(value), event = record(caller.event), run = record(event.workflow_run);
  if (!validSha(expectedSha) || caller.sourceSha !== expectedSha || caller.repository !== 'michaeljwilliams0123/mahoraga'
   || caller.workflowRef !== 'michaeljwilliams0123/mahoraga/.github/workflows/cloudflare-execution-runtime.yml@refs/heads/main'
-  || (caller.actor !== 'michaeljwilliams0123' && caller.actor !== 'github-actions[bot]')) throw new Error('workspace-caller-denied');
+  || (caller.actor !== 'michaeljwilliams0123' && caller.actor !== 'github-actions[bot]' && caller.actor !== NATIVE_PR_OPERATOR)) throw new Error('workspace-caller-denied');
  if (caller.eventName === 'workflow_dispatch' && caller.actor === 'michaeljwilliams0123') return { sourceSha: expectedSha, sourceEvent: 'workflow_dispatch', trustSource: 'accepted-runtime-job' };
  const actor = record(run.actor).login;
+ const actorEventPermitted = ((actor === 'michaeljwilliams0123' || actor === 'github-actions[bot]')
+  && (run.event === 'push' || run.event === 'workflow_dispatch'))
+  || (actor === NATIVE_PR_OPERATOR && run.event === 'push');
  if (caller.eventName !== 'workflow_run' || run.name !== 'Verify Mahoraga' || run.path !== '.github/workflows/verify.yml'
   || run.status !== 'completed' || run.conclusion !== 'success' || run.head_branch !== 'main'
   || record(run.head_repository).full_name !== 'michaeljwilliams0123/mahoraga' || run.head_sha !== expectedSha
-  || (actor !== 'michaeljwilliams0123' && actor !== 'github-actions[bot]')
-  || (run.event !== 'push' && run.event !== 'workflow_dispatch')) throw new Error('workspace-caller-denied');
+  || !actorEventPermitted) throw new Error('workspace-caller-denied');
  return { sourceSha: expectedSha, sourceEvent: run.event, trustSource: 'accepted-runtime-job' };
 }
 /** Standalone verified-main source can publish UI assets, never authorize execution. */
@@ -37,7 +40,7 @@ export function verifiedWorkspaceStaticCaller(value: unknown, expectedSha: strin
 export function verifiedWorkspacePublication(value: unknown, expectedSha: string) {
  const run = record(value), actor = record(run.actor).login;
  const permitted = (actor === 'michaeljwilliams0123' && (run.event === 'workflow_run' || run.event === 'workflow_dispatch'))
-  || (actor === 'github-actions[bot]' && run.event === 'workflow_run');
+  || ((actor === 'github-actions[bot]' || actor === NATIVE_PR_OPERATOR) && run.event === 'workflow_run');
  if (run.name !== 'Deploy and Accept Exact Main on Cloudflare' || run.path !== '.github/workflows/cloudflare-execution-runtime.yml'
   || run.status !== 'completed' || run.conclusion !== 'success' || run.head_branch !== 'main'
   || record(run.head_repository).full_name !== 'michaeljwilliams0123/mahoraga' || !permitted
