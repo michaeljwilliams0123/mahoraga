@@ -64,6 +64,14 @@ test("controller installer rejects stale or dirty branch checkout before any des
   assert.doesNotMatch(installer, /worktree remove --force|Remove-Item -LiteralPath \$controllerRoot -Recurse -Force/);
 });
 
+test("Windows controller refuses source reset when its worktree contains local or untracked changes", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const update = controller.slice(controller.indexOf("if ($currentControllerCommit -ne $targetCommit) {"), controller.indexOf("reset --hard $targetCommit"));
+  assert.match(update, /status --porcelain --untracked-files=all/);
+  assert.match(update, /controller-worktree-dirty/);
+  assert.ok(controller.indexOf("status --porcelain") < controller.indexOf("reset --hard $targetCommit"));
+});
+
 test("Windows convergence bootstraps protected main when the 4783 candidate is absent", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.doesNotMatch(controller, /No paired candidate runtime is active; convergence is a no-op/i);
