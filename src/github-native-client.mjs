@@ -42,11 +42,15 @@ export async function createGithubAppJwt(env = process.env, {
 export async function readMahoragaRepositoryViaGithubApp(_request = {}, options = {}) {
   const token = await mintInstallationToken(options, { contents: "read", metadata: "read" });
   const value = await githubRequest("GET", repoPath(""), null, { ...options, token });
+  if (value?.full_name !== `${OWNER}/${REPO}` || value?.default_branch !== "main") fail("github-native-repository-mismatch", 409);
+  const mainRef = await githubRequest("GET", repoPath("git/ref/heads/main"), null, { ...options, token });
+  const headSha = sha(mainRef?.object?.sha, "github-native-main-readback-invalid");
   const permissions = value?.permissions && typeof value.permissions === "object" ? value.permissions : {};
   return Object.freeze({
-    fullName: typeof value?.full_name === "string" ? value.full_name : null,
-    private: value?.private === true,
-    defaultBranch: typeof value?.default_branch === "string" ? value.default_branch : null,
+    fullName: value.full_name,
+    private: value.private === true,
+    defaultBranch: "main",
+    headSha,
     pushedAt: typeof value?.pushed_at === "string" ? value.pushed_at : null,
     permissions: Object.freeze({
       admin: permissions.admin === true, maintain: permissions.maintain === true,

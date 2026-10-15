@@ -87,6 +87,7 @@ export type RuntimeGithubAppRepositoryProbe = {
     fullName: string | null;
     private: boolean;
     defaultBranch: string | null;
+    headSha: string;
     pushedAt: string | null;
     permissions: { admin: boolean; maintain: boolean; push: boolean; pull: boolean; triage: boolean };
   };
