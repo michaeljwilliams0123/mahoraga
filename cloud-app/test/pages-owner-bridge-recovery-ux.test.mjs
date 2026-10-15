@@ -7,7 +7,7 @@ const read = (file) => readFile(new URL(file, root), "utf8");
 
 test("configured first-party Gateway does not fall through to retired WebSocket relay", async () => {
   const workspace = await read("components/workspace.tsx");
-  assert.ok(workspace.includes("const resumed = attached ?? (process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN?.trim() ? null : await transport.resume());"));
+  assert.ok(workspace.includes("const resumed = attached ?? (process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN?.trim() || process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ? null : await transport.resume());"));
 });
 
 test("Pages keeps execution connector optional and relay recovery explicit", async () => {

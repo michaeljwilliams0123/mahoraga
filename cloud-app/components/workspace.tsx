@@ -192,7 +192,7 @@ export function Workspace() {
         setRelayState("unpaired");
         return;
       }
-      const resumed = attached ?? (process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN?.trim() ? null : await transport.resume());
+      const resumed = attached ?? (process.env.NEXT_PUBLIC_MAHORAGA_PRIMARY_ORIGIN?.trim() || process.env.NEXT_PUBLIC_MAHORAGA_BRIDGE_ORIGIN?.trim() ? null : await transport.resume());
       if (!active) { transport.disconnect(); return; }
       if (!resumed) {
         const code = transport.sessionDiagnostic?.code ?? "cloud-session-unavailable";
