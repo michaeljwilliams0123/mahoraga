@@ -186,6 +186,12 @@ $trackingCommit = Resolve-Commit (& git -C $ControllerRoot rev-parse origin/main
 if ($trackingCommit -ne $targetCommit) { throw 'Local tracking ref does not match authoritative main.' }
 $currentControllerCommit = Resolve-Commit (& git -C $ControllerRoot rev-parse HEAD) 'controller'
 if ($currentControllerCommit -ne $targetCommit) {
+    $pendingChanges = @(& git -C $ControllerRoot status --porcelain --untracked-files=all)
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect controller worktree before update.' }
+    if ($pendingChanges.Count -gt 0) {
+        Write-Receipt @{ state = 'controller-worktree-dirty'; fromCommit = $currentControllerCommit; attemptedCommit = $targetCommit }
+        throw 'Controller checkout contains local changes; refusing destructive source reset.'
+    }
     & git -C $ControllerRoot reset --hard $targetCommit | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Unable to advance dedicated convergence checkout.' }
 }
