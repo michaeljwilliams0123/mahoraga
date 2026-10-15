@@ -20,6 +20,7 @@ test("mobile chat has an authenticated, idempotent native repository inspect com
 test("mobile chat exposes typed native repository administration with durable receipts", async () => {
   const runtimeText = await readFile(runtime, "utf8");
   assert.match(runtimeText, /parseRepositoryAdminCommand/);
+  assert.match(runtimeText, /isRepositoryAdminRequest\(message\)/);
   assert.match(runtimeText, /nativeGithubAdminChat\(ownerHash, conversationId, key, message\)/);
   assert.match(runtimeText, /readMahoragaRepositoryWriteReadinessViaGithubApp/);
   assert.match(runtimeText, /createMahoragaPullRequestViaGithubApp\(command\.proposal/);
@@ -29,6 +30,7 @@ test("mobile chat exposes typed native repository administration with durable re
   assert.match(runtimeText, /mahoraga-native-github-pr-merge/);
   assert.match(runtimeText, /const capability = command\.action === "status" \? "repository\.inspect" : "repository\.write"/);
   assert.match(runtimeText, /readOnly: command\.action === "status"/);
+  assert.match(runtimeText, /Bounded interpretation: executed only \/repo admin status/);
 });
 
 test("normal chat reuses authenticated repository evidence and handles bounded read-only summaries", async () => {
