@@ -2,12 +2,13 @@ import type { CapabilityObservationState } from "@/lib/capability-observer";
 import type { ComponentType, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import type { RuntimeCapability, RuntimeConversation, RuntimeDeliveryTruth, RuntimeInteractionTruth, RuntimeRelay } from "@/lib/runtime-relay";
 import type { CognitiveLearningPromotionReceipt } from "@/lib/cognitive-learning-surface";
+import type { ChatExecutionEvidence } from "@/lib/chat-execution-evidence";
 
 export type TaskMode = "auto" | "ask" | "act";
 export type RelayState = "unpaired" | "resuming" | "pairing" | "connected" | "error";
 export type BrainState = "Connecting" | "Ready" | "Idle" | "Awake" | "Degraded" | "Offline";
 export type ChatCreditPolicy = "zero-codex" | "licensed-approved";
-export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string; instantLocal?: boolean };
+export type WorkspaceMessage = { id: string; role: "assistant" | "user"; text: string; instantLocal?: boolean; executionEvidence?: ChatExecutionEvidence };
 export type WorkspaceView = "chat" | "work" | "files" | "advanced";
 export type QuickActionId = "upload" | "build" | "report" | "handoff" | "create" | "ship";
 export type QuickAction = {
