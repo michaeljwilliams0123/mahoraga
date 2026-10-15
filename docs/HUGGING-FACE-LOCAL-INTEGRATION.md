@@ -96,11 +96,11 @@ cannot trigger a paid fallback.
 **Local operator workflow:**
 
 ```powershell
-npm run hf:study -- SmolLM
-npm run hf:status
-npm run hf:trial -- .\local-benchmark.json
-npm run hf:recall -- .\local-recall.json
-npm run hf:compare
+node scripts/hugging-face-inspect.ts study SmolLM
+node scripts/hugging-face-inspect.ts status
+node scripts/hugging-face-inspect.ts trial .\local-benchmark.json
+node scripts/hugging-face-inspect.ts recall .\local-recall.json
+node scripts/hugging-face-inspect.ts compare
 ```
 
 The study command verifies public exact Hub revisions where available, but a
@@ -155,7 +155,7 @@ Recall uses the same admission boundary and local Ollama embed route; it
 returns only references, similarity scores, hashes and model digest, never raw
 document contents. Do not submit confidential data to public Hub discovery.
 
-`hf:compare` requires at least two completed live-local runs of the same
+`compare` requires at least two completed live-local runs of the same
 fingerprinted suite. Its selection is **recommendation for inspection only**,
 not evaluation independence, promotion, route change or production proof.
 Results are saved as compact metadata in `~/.mahoraga/hf-native-learning.json`,
