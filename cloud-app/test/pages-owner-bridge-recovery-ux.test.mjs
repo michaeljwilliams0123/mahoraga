@@ -20,7 +20,8 @@ test("Pages keeps execution connector optional and relay recovery explicit", asy
   assert.match(chat, /cloudBridgeOrigin &&/);
   assert.match(chat, /Open Cloudflare sign-in/i);
   assert.match(chat, /Retry execution connection/i);
-  assert.match(chat, /window\.open\(/);
+  assert.match(chat, /window\.location\.assign\(origin\)/);
+  assert.doesNotMatch(chat, /window\.open\(origin/);
   assert.match(chat, /onClick=\{reconnectRuntime\}/);
   assert.doesNotMatch(chat, /window\.location\.reload\(\)/);
   assert.match(chat, /Do not enter your owner PIN here/i);
