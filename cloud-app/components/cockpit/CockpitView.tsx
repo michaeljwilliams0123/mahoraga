@@ -277,6 +277,12 @@ export function CockpitView({
           <PagesWorkspaceStatusCard coreReady={coreReady} bridgeOrigin={pagesBridgeOrigin} />
           <StatusCard label="Next dependency provenance" value="16.3.8 (from 16.3.3)" detail="Security fix for GHSA-vcvr-r3jv-pc5j (next/og ImageResponse RCE) · cloud-app/package.json pin only; does not prove deployed runtime remediation or production traffic authority" />
         <StatusCard label="Source Truth" value="Protected GitHub main" detail="Source authority only · exact-head Verify (ubuntu-latest + windows-latest) · edge-convergence foundation #665" tone="good" />
+        <StatusCard
+          label="Native evidence publisher"
+          value="Existing pull_requests:write (observational)"
+          detail="Merged #1124 uses existing GitHub App pull_requests:write for bounded #786 evidence comment (GitHub REST Create an issue comment alternative to Issues:write). No new Issues permission, no credential grant, no App config change. Observational only; does not grant traffic authority, execution readiness, or production deployment claims. Fail-closed."
+          tone="neutral"
+        />
         <StatusCard label="Deployment Truth" value={deploymentTruthLabel} detail={`${deploymentConvergence} · actual ${shortSha(deploymentCommit)} · expected ${shortSha(expectedDeploymentCommit)}`} tone={cloudflareExactMain ? "good" : deploymentConvergence === "Drift" || railwayRetired ? "warn" : "neutral"} />
         <StatusCard label="Live-Runtime Truth" value={liveOk ? "Observed live" : healthError ? "Unavailable" : "Pending"} detail="/api/live observation only · does not prove source or deployment convergence" tone={liveOk ? "good" : healthError ? "warn" : "neutral"} />
         <StatusCard label="Ready / pairing" value={readyOk ? "Ready" : coreReady ? "Paired, execution pending" : "Ready to pair"} detail={readyOk ? `Execution ready at ${shortSha(readiness?.sha)} with paired core` : "LIVE_OK alone is not Ready"} tone={readyOk ? "good" : "neutral"} />
@@ -538,3 +544,4 @@ export function CockpitView({
     </section>
   );
 }
+

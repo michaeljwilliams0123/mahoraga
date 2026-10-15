@@ -31,7 +31,7 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Separate \/ unverified/);
     assert.match(cockpit, /Never inferred from \/api\/ready/);
     assert.match(cockpit, /trafficAuthorityVerified/);
-    assert.doesNotMatch(cockpit, /readyOk \? "Canonical traffic"/);
+    assert.doesNotMatch(cockpit, /readyOk \? \"Canonical traffic\"/);
   });
 
   it("surfaces provider admission restoration retry as bounded observational evidence", () => {
@@ -61,7 +61,7 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   });
 
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
-    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(cockpit, /productName = health\?\.product \?\? \"Mahoraga\"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
     assert.match(types, /SanitizedAcceptanceReceipt/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
@@ -76,6 +76,19 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Merged #986/);
     assert.match(cockpit, /Not execution authority, not cognition proof, and not traffic authority/);
     assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
+  });
+
+  it("surfaces native evidence publisher using existing pull_requests:write as observational only", () => {
+    assert.match(cockpit, /Native evidence publisher/);
+    assert.match(cockpit, /Existing pull_requests:write \(observational\)/);
+    assert.match(cockpit, /Merged #1124/);
+    assert.match(cockpit, /existing GitHub App pull_requests:write/);
+    assert.match(cockpit, /bounded #786 evidence comment/);
+    assert.match(cockpit, /No new Issues permission/);
+    assert.match(cockpit, /no credential grant/);
+    assert.match(cockpit, /Observational only/);
+    assert.match(cockpit, /does not grant traffic authority/);
+    assert.match(cockpit, /Fail-closed/);
   });
 
   it("surfaces the hard-zero quota decision without implying promotion", () => {
@@ -110,7 +123,7 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   it("surfaces the sovereign workflow zero-credit model URL boundary as observational only", () => {
     const card = readFileSync(join(root, "components/cockpit/ZeroCreditModelUrlBoundaryCard.tsx"), "utf8");
     assert.match(cockpit, /ZeroCreditModelUrlBoundaryCard/);
-    assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
+    assert.match(cockpit, /productName = health\?\.product \?\? \"Mahoraga\"/);
     assert.match(card, /MAHORAGA_ZERO_CREDIT_MODEL_URL/);
     assert.match(card, /clears the self-hosted runner/);
     assert.match(card, /cannot inherit the loopback zero-credit model endpoint/);
@@ -134,9 +147,9 @@ describe("unified Cloudflare static UI provenance is not runtime authority", () 
     assert.doesNotMatch(staticCard, /Railway.*execution origin|Vercel.*execution origin/);
   });
   it("fails closed on source manifest and independent runtime claims", () => {
-    assert.match(staticCard, /deployment\?\.provider === "cloudflare-workers"/);
-    assert.match(staticCard, /deployment\.environment === "candidate"/);
-    assert.match(staticCard, /deployment\.gitRef === "main"/);
+    assert.match(staticCard, /deployment\?\.provider === \"cloudflare-workers\"/);
+    assert.match(staticCard, /deployment\.environment === \"candidate\"/);
+    assert.match(staticCard, /deployment\.gitRef === \"main\"/);
     assert.match(staticCard, /validSourceSha\(sourceSha\)/);
     assert.match(staticCard, /pairedRuntimeSourceVerified: false/);
     assert.match(staticCard, /executionAuthorityGranted: false/);
