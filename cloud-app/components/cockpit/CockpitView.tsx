@@ -36,6 +36,7 @@ import { PagesSameOriginSessionCard } from "./PagesSameOriginSessionCard";
 import { StaleDisconnectSelfHealCard } from "./StaleDisconnectSelfHealCard";
 import { TelemetryStreamBoundCard } from "./TelemetryStreamBoundCard";
 import { OpenAiRouteCreditsCard } from "./OpenAiRouteCreditsCard";
+import { NativeAdminFailureCard } from "./NativeAdminFailureCard";
 import { useRuntimeReadiness, readinessSourceSha } from "@/lib/use-runtime-readiness";
 
 const CLOUDFLARE_WORKSPACE_CANDIDATE = "https://mahoraga-workspace-candidate.mahoraga-mjw0123.workers.dev";
@@ -298,6 +299,7 @@ export function CockpitView({
         />
         <StatusCard label="Execution readiness" value={readinessOk ? "Observed ready" : "Not proven"} detail={`Observation ${readinessState.phase} · SHA ${shortSha(readiness?.sha)} · durable ${readiness?.durableState ?? "unavailable"} · cloudflare-execution-runtime is hop identity only`} tone={readinessOk ? "good" : "neutral"} />
         <StatusCard label="Cloudflare cognition" value={cognitionObserved ? "Observed" : "Unverified"} detail={cognitionDetail} tone={cognitionObserved ? "good" : "neutral"} />
+        <NativeAdminFailureCard />
         <StatusCard
           label="Uploaded snippet completeness"
           value="Envelope ignored (observational)"
