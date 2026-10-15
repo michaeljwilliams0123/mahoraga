@@ -56,5 +56,5 @@ test("native evidence publisher requests only Issues write and reconciles an exi
   };
   const p = await publishNativeSourceProductionEvidence(marker, "accepted exact SHA, verify and workspace acceptance receipts", { env: await credentials(), fetchImpl });
   assert.equal(p.alreadyPresent, true); assert.equal(p.id, 999); assert.equal(posts, 0);
-  assert.deepEqual(permissionRequests, [{ issues: "write", metadata: "read" }]);
+  assert.deepEqual(permissionRequests, [{ pull_requests: "write", metadata: "read" }]);
 });
