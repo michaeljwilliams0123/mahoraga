@@ -16,7 +16,7 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest } from "../../src/repository-chat-intent.mjs";
@@ -130,12 +130,12 @@ const errorStatus = (error: unknown): number => {
   const status = objectValue(error)?.status;
   return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
 };
-const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-inspect" ? "repository.inspect" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
+const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" ? "repository.inspect" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };
   const selected: ProviderMessage[] = [current];
-  const completed = storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && (turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect") && turn.contentIdAssistant !== null).slice(-MAX_CONTEXT_TURNS);
+  const completed = storage.listTurns(conversationId).filter((turn) => turn.status === "SUCCESS" && (turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect" || turn.providerId === "mahoraga-native-github-source") && turn.contentIdAssistant !== null).slice(-MAX_CONTEXT_TURNS);
   for (const turn of completed.reverse()) {
     const user = storage.getContentRecord(turn.contentIdUser);
     const assistant = storage.getContentRecord(turn.contentIdAssistant!);
@@ -436,7 +436,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (/^\/(?:predict|cycle)(?:\s|$)/i.test(message.trim())) return this.nativeCognitiveChat(payload, ownerHash, conversationId, key, message);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
-    if (isReadOnlyRepositoryEvidenceRequest(message)) return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
+    if (/^\/repo\s+file(?:\s|$)/i.test(message.trim()) || isReadOnlyRepositoryEvidenceRequest(message)) return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(`${ownerHash}\n${conversationId}\n${message}`);
@@ -456,7 +456,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
       const runtimeCapabilities = await projectRuntimeCapabilities({ assistant: state, executionBroker: this.env.MAHORAGA_EXECUTION_BROKER, connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER });
       const runtimeContext = runtimeContextFromCapabilities(runtimeCapabilities);
-      const priorNativeInspection = this.storage.listTurns(conversationId).some((turn) => turn.status === "SUCCESS" && turn.providerId === "mahoraga-native-github-inspect");
+      const priorNativeInspection = this.storage.listTurns(conversationId).some((turn) => turn.status === "SUCCESS" && (turn.providerId === "mahoraga-native-github-inspect" || turn.providerId === "mahoraga-native-github-source"));
       if (priorNativeInspection) runtimeContext.receipts = ["repository.inspect: native GitHub App read-only inspection completed in this owner conversation; see the preceding persisted assistant result for SHA evidence"];
       const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages, runtimeContext });
       const answer = extractAnswer(result);
@@ -475,13 +475,16 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
   private async nativeGithubInspectChat(ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
+    const sourceCommand = /^\/repo\s+file(?:\s+(.+))?$/i.exec(message.trim());
+    const sourcePath = sourceCommand?.[1]?.trim() ?? "";
+    const providerId = sourceCommand ? "mahoraga-native-github-source" : "mahoraga-native-github-inspect";
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(ownerHash + "\n" + conversationId + "\n" + message);
     const turnId = await digestText(ownerHash + "\n" + key);
     const prior = this.storage.getTurn(turnId);
-    if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== "mahoraga-native-github-inspect")) return json({ error: "idempotency-conflict" }, 409);
-    const receipt = { workerId: "execution-runtime-do", providerId: "mahoraga-native-github-inspect", costClass: "deterministic", creditPolicy: "zero-codex", readOnly: true };
+    if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== providerId)) return json({ error: "idempotency-conflict" }, 409);
+    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: true };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "repository.inspect" }, objective: null, decision: { mode: "ask", execution: "task", capability: "repository.inspect" }, executionReceipt: receipt };
     if (prior?.status === "SUCCESS") return json(result);
     const holder = crypto.randomUUID();
@@ -489,9 +492,23 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     try {
       const raced = this.storage.getTurn(turnId);
       if (raced?.status === "SUCCESS") return json(result);
-      const repository = await readMahoragaRepositoryViaGithubApp({}, { env: this.env });
-      if (repository.fullName !== "michaeljwilliams0123/mahoraga" || repository.defaultBranch !== "main" || !targetShaValid(repository.headSha)) return json({ error: "github-native-repository-mismatch" }, 503);
-      const answer = [
+      const source = sourceCommand ? await readMahoragaSourceFileViaGithubApp({ path: sourcePath }, { env: this.env }) : null;
+      const repository = source ? null : await readMahoragaRepositoryViaGithubApp({}, { env: this.env });
+      if (!source && (repository?.fullName !== "michaeljwilliams0123/mahoraga" || repository?.defaultBranch !== "main" || !targetShaValid(repository?.headSha))) return json({ error: "github-native-repository-mismatch" }, 503);
+      const answer = source ? [
+        "Source-file inspection — live GitHub App",
+        "Repository: " + source.repository,
+        "Branch: main",
+        "Authoritative main SHA: " + source.headSha,
+        "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        "Source parity: " + (source.headSha === this.env.TARGET_SHA ? "matched" : "different; deployed runtime is not current main"),
+        "File: " + source.path,
+        "Git blob SHA: " + source.blobSha,
+        "File bytes: " + source.sizeBytes,
+        "Read-only excerpt" + (source.truncated ? " (truncated)" : "") + ":",
+        source.excerpt,
+        "Scope: allowlisted source file only; no write, PR, model inference or autonomous code review",
+      ].join("\n") : [
         "Repository inspection — live GitHub App",
         "Repository: " + repository.fullName,
         "Branch: " + repository.defaultBranch,
@@ -514,7 +531,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent);
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: "mahoraga-native-github-inspect", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json(result);
     } catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
