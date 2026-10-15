@@ -17,6 +17,19 @@ test("mobile chat has an authenticated, idempotent native repository inspect com
   assert.ok(runtimeText.includes('turn.providerId === ASSISTANT_PROVIDER_ID || turn.providerId === "mahoraga-native-github-inspect"'));
 });
 
+test("normal chat reuses authenticated repository evidence and handles bounded read-only summaries", async () => {
+  const [runtimeText, providerText] = await Promise.all([
+    readFile(runtime, "utf8"),
+    readFile(new URL("../deploy/cloudflare-execution-runtime/provider-invoker.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(runtimeText, /isReadOnlyRepositoryEvidenceRequest\(message\)/);
+  assert.match(runtimeText, /priorNativeInspection/);
+  assert.match(runtimeText, /runtimeContext\.receipts = \[/);
+  assert.match(runtimeText, /Suggested next step \(not an inspected-code finding\)/);
+  assert.match(providerText, /repository\.inspect=unavailable in the broker inventory does not invalidate a verified native inspection receipt/);
+  assert.doesNotMatch(providerText, /repository\.inspect=unavailable means this runtime cannot directly inspect/);
+});
+
 test("native GitHub actions terminate in the Cloudflare execution runtime", async () => {
   const [gatewayText, runtimeText, bindingsText, configText] = await Promise.all([
     readFile(gateway, "utf8"), readFile(runtime, "utf8"), readFile(bindings, "utf8"), readFile(config, "utf8"),
