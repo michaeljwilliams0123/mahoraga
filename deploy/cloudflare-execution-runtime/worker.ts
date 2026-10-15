@@ -18,6 +18,8 @@ import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type Act
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
 import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
+// @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
+import { isReadOnlyRepositoryEvidenceRequest } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
 import { ingestExecutionMemory, pruneStaleMemories, searchMemoryIndex, type MemoryRecord } from "./memory-engine";
 export { validateAnswerCompleteness } from "./response-completeness";
@@ -434,7 +436,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (/^\/(?:predict|cycle)(?:\s|$)/i.test(message.trim())) return this.nativeCognitiveChat(payload, ownerHash, conversationId, key, message);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
-    if (message.trim().toLowerCase() === "/repo inspect") return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
+    if (isReadOnlyRepositoryEvidenceRequest(message)) return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(`${ownerHash}\n${conversationId}\n${message}`);
@@ -453,7 +455,10 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
       const runtimeCapabilities = await projectRuntimeCapabilities({ assistant: state, executionBroker: this.env.MAHORAGA_EXECUTION_BROKER, connectorBroker: this.env.CONNECTOR_CAPABILITY_BROKER });
-      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages, runtimeContext: runtimeContextFromCapabilities(runtimeCapabilities) });
+      const runtimeContext = runtimeContextFromCapabilities(runtimeCapabilities);
+      const priorNativeInspection = this.storage.listTurns(conversationId).some((turn) => turn.status === "SUCCESS" && turn.providerId === "mahoraga-native-github-inspect");
+      if (priorNativeInspection) runtimeContext.receipts = ["repository.inspect: native GitHub App read-only inspection completed in this owner conversation; see the preceding persisted assistant result for SHA evidence"];
+      const result = await invokeZeroCreditProvider(this.providerConfig(), ASSISTANT_MODEL_ID, { messages, runtimeContext });
       const answer = extractAnswer(result);
       if (!answer || answer.length > 32_000) return json({ error: "cognition-provider-response-invalid" }, 502);
       const completeness = validateAnswerCompleteness(message, answer);
@@ -494,6 +499,11 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
         "Source parity: " + (repository.headSha === this.env.TARGET_SHA ? "matched" : "different; current runtime must not claim deployed parity"),
         "Mode: read-only; no repository changes or model-provider usage",
+        ...(message.trim().toLowerCase() !== "/repo inspect" ? [
+          "Verified capability: repository.inspect executed through the native GitHub App; this is separate from the generic execution-broker capability inventory.",
+          "Not verified: general natural-language repository writes, protected PR execution from chat, code-level improvement ranking, Windows current-main promotion, and provider failover.",
+          "Suggested next step (not an inspected-code finding): add exact-SHA GitHub source-file inspection before selecting or creating bounded code changes.",
+        ] : []),
       ].join("\n");
       const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();
       const [userContent, assistantContent] = await Promise.all([
