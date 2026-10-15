@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseInternalActivity } from "../lib/internal-activity.ts";
-import { selectCloudflareHfCandidates } from "../../deploy/cloudflare-execution-runtime/hf-candidate-discovery.ts";
 const sha = "a".repeat(40);
 const now=Date.parse("2026-10-15T15:00:00.000Z");
 const state={
@@ -11,7 +10,7 @@ const state={
  observedAt:new Date(now).toISOString(),durableState:"cloudflare-do-sqlite",modelInvocations:0
 };
 const hf={status:"candidate-metadata-only",query:"SmolLM",sourceSha:sha,observedAt:new Date(now).toISOString(),nextCheckAt:new Date(now+86400000).toISOString(),
- candidates:selectCloudflareHfCandidates([{id:"owner/model",sha,private:false,gated:false,downloads:12,cardData:{license:"apache-2.0"}}]),
+ candidates:[{repoId:"owner/model",revision:sha,license:"apache-2.0",downloads:12,admissionState:"requires-independent-inspection" as const,modelExecutionVerified:false as const}],
  creditCost:0,inferencePerformed:false,modelAdmissionPerformed:false,productionActivated:false};
 test("UI safely parses native continuity and HF metadata extensions without accepting extra private fields",()=>{
  const parsed=parseInternalActivity({...state,nativeContinuity:null,huggingFaceDiscovery:hf},sha,now);
