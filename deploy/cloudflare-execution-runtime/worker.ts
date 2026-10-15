@@ -19,7 +19,7 @@ import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type Act
 import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
-import { isReadOnlyRepositoryEvidenceRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
+import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
 import { ingestExecutionMemory, pruneStaleMemories, searchMemoryIndex, type MemoryRecord } from "./memory-engine";
 export { validateAnswerCompleteness } from "./response-completeness";
@@ -436,7 +436,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (/^\/(?:predict|cycle)(?:\s|$)/i.test(message.trim())) return this.nativeCognitiveChat(payload, ownerHash, conversationId, key, message);
     if (payload.creditPolicy === "licensed-approved") return json({ error: "licensed-provider-unavailable" }, 503);
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto")) return json({ error: "chat-policy-not-allowed" }, 400);
-    if (/^\/repo\s+(?:admin|pr)\b/i.test(message.trim())) return this.nativeGithubAdminChat(ownerHash, conversationId, key, message);
+    if (isRepositoryAdminRequest(message)) return this.nativeGithubAdminChat(ownerHash, conversationId, key, message);
     if (/^\/repo\s+file(?:\s|$)/i.test(message.trim()) || isReadOnlyRepositoryEvidenceRequest(message)) return this.nativeGithubInspectChat(ownerHash, conversationId, key, message);
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
@@ -506,6 +506,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         "Repository: " + transaction.repository,
         "Authoritative receipt: " + JSON.stringify(transaction),
         "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        ...(command.action === "status" && message.trim() !== "/repo admin status"
+          ? ["Bounded interpretation: executed only /repo admin status. No reconnect, pull request, workflow, or other requested action was performed."]
+          : []),
         "Idempotency: duplicate owner requests with this key replay the persisted result; exact external retries are adopted without a second mutation.",
       ].join("\n");
       const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();

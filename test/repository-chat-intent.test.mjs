@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isReadOnlyRepositoryEvidenceRequest, parseRepositoryAdminCommand } from "../src/repository-chat-intent.mjs";
+import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../src/repository-chat-intent.mjs";
 
 test("read-only repository evidence requests use the native GitHub App", () => {
   assert.equal(isReadOnlyRepositoryEvidenceRequest("/repo inspect"), true);
@@ -19,6 +19,7 @@ test("read-only routing never impersonates source editing or general tool calls"
 
 test("repository administration commands are explicit and typed", () => {
   assert.deepEqual(parseRepositoryAdminCommand("/repo admin status"), { action: "status", proposal: null });
+  assert.deepEqual(parseRepositoryAdminCommand("run /repo admin status, reconnect and verify the persisted result"), { action: "status", proposal: null });
   assert.deepEqual(parseRepositoryAdminCommand('/repo pr create {"expectedMainSha":"' + "a".repeat(40) + '","branch":"mahoraga/native-chat","title":"Native chat","body":"Bounded change.","commitMessage":"Native chat","files":[{"path":"docs/native-chat.md","content":"verified\\n"}]}'), {
     action: "create",
     proposal: {
@@ -30,6 +31,14 @@ test("repository administration commands are explicit and typed", () => {
     action: "merge",
     proposal: { number: 1103, expectedMainSha: "a".repeat(40), expectedHeadSha: "b".repeat(40), commitTitle: "Merge native chat" },
   });
+});
+
+test("natural owner status phrasing routes only the bounded read action", () => {
+  assert.equal(isRepositoryAdminRequest("run /repo admin status, reconnect and create a PR"), true);
+  assert.equal(isRepositoryAdminRequest("Please execute /repo admin status and then deploy"), true);
+  assert.equal(isRepositoryAdminRequest("do not run /repo admin status"), false);
+  assert.equal(isRepositoryAdminRequest("please create a repository PR"), false);
+  assert.equal(isRepositoryAdminRequest('/repo pr create {"proposal":true}'), true);
 });
 
 test("repository administration parser rejects ambiguous or malformed writes", () => {

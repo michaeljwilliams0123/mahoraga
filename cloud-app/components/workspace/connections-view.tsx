@@ -103,7 +103,7 @@ export function ConnectionsView({
           <span>{health?.routing?.automaticPaidFallback === true ? "paid fallback (denied policy)" : "zero-credit · no paid fallback"}</span>
         </div>
         <div>
-          <strong>Capability readiness</strong>
+          <strong>Broker capability readiness</strong>
           <span>
             {routableCount}/{displayCapabilities.length} routable
           </span>
@@ -141,7 +141,7 @@ export function ConnectionsView({
           {githubProbe && (
             <div>
               <strong>GitHub App authority</strong>
-              <span>{githubProbe.repository.permissions.push ? "Repository-scoped write authority observed; probe remains read-only" : "Repository-scoped read authority observed"}</span>
+              <span>{githubProbe.repository.permissions.push ? "Repository-scoped write authority observed; probe remains read-only" : "Read authority verified by this probe; run /repo admin status to verify write readiness"}</span>
             </div>
           )}
         </div>
