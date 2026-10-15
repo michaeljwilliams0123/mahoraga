@@ -20,6 +20,7 @@ import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestVi
 import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
+import { selectCloudflareHfCandidates } from "./hf-candidate-discovery";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
 import { validateAnswerCompleteness } from "./response-completeness";
@@ -272,6 +273,54 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     this.nativeContinuityRun = pending;
     return pending;
   }
+  /** Once-daily public metadata scout through the existing Cron and Durable Object.
+   * No model execution, credential use, production admission or routing mutation. */
+  async ensureHuggingFaceDiscovery(): Promise<void> {
+    if (this.activityLoop().store.load()?.enabled === false) return;
+    this.initialize();
+    this.storage.sql.exec("CREATE TABLE IF NOT EXISTS hf_discovery_state (id INTEGER PRIMARY KEY CHECK(id = 1), source_sha TEXT NOT NULL, observed_at INTEGER NOT NULL, next_check_at INTEGER NOT NULL, payload TEXT NOT NULL)");
+    const now = Date.now();
+    const previous = this.storage.sql.exec<{ source_sha: string; next_check_at: number }>("SELECT source_sha,next_check_at FROM hf_discovery_state WHERE id=1").toArray()[0];
+    if (previous && previous.source_sha === this.env.TARGET_SHA && now < previous.next_check_at) return;
+    let result: Record<string, unknown>;
+    let nextCheck = now + 24 * 60 * 60 * 1000;
+    try {
+      const topics = ["SmolLM", "Qwen", "MiniLM"] as const;
+      const topic = topics[Math.floor(now / 86400000) % topics.length]!;
+      const response = await fetch(`https://huggingface.co/api/models?search=${topic}&limit=8&sort=downloads&full=true`, {
+        method: "GET", redirect: "error", signal: AbortSignal.timeout(5000), headers: { accept: "application/json" },
+      });
+      if (!response.ok || response.redirected) throw new Error("hf-cloud-upstream-unavailable");
+      const length = Number(response.headers.get("content-length") || 0);
+      if (length > 131072) throw new Error("hf-cloud-body-too-large");
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("hf-cloud-body-unavailable");
+      const chunks: Uint8Array[] = [];
+      let count = 0;
+      try {
+        for (;;) {
+          const next = await reader.read();
+          if (next.done) break;
+          count += next.value.byteLength;
+          if (count > 131072) throw new Error("hf-cloud-body-too-large");
+          chunks.push(next.value);
+        }
+      } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+      const joined = new Uint8Array(count);
+      let offset = 0;
+      for (const chunk of chunks) { joined.set(chunk, offset); offset += chunk.byteLength; }
+      const candidates = selectCloudflareHfCandidates(JSON.parse(new TextDecoder().decode(joined)) as unknown);
+      result = { status: "candidate-metadata-only", query: topic, candidates, creditCost: 0, inferencePerformed: false,
+        modelAdmissionPerformed: false, productionActivated: false };
+    } catch {
+      nextCheck = now + 6 * 60 * 60 * 1000;
+      result = { status: "metadata-unavailable", query: null, candidates: [], creditCost: 0, inferencePerformed: false,
+        modelAdmissionPerformed: false, productionActivated: false };
+    }
+    this.storage.sql.exec("INSERT OR REPLACE INTO hf_discovery_state(id,source_sha,observed_at,next_check_at,payload) VALUES(1,?,?,?,?)",
+      this.env.TARGET_SHA, now, nextCheck, JSON.stringify({ ...result, sourceSha: this.env.TARGET_SHA, observedAt: new Date(now).toISOString(),
+        nextCheckAt: new Date(nextCheck).toISOString() }));
+  }
   async alarm(): Promise<void> {
     if (!targetShaValid(this.env.TARGET_SHA)) throw new Error("internal-source-invalid");
     await this.ctx.blockConcurrencyWhile(async () => {
@@ -295,7 +344,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       const row = this.storage.sql.exec<{ payload: string }>("SELECT payload FROM native_continuity_state WHERE id=1").toArray()[0];
       if (row) { const value: unknown = JSON.parse(row.payload); if (isNativeEvidence(value)) nativeContinuity = value; }
     }
-    return { ...state, observedAt: new Date().toISOString(), durableState: DURABLE_STATE, modelInvocations: 0, nativeContinuity };
+    const hfTable = this.storage.sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type='table' AND name='hf_discovery_state'").toArray();
+    const hfRow = hfTable.length ? this.storage.sql.exec<{ payload: string }>("SELECT payload FROM hf_discovery_state WHERE id=1").toArray()[0] : null;
+    let huggingFaceDiscovery: unknown = null;
+    if (hfRow) { try { huggingFaceDiscovery = JSON.parse(hfRow.payload) as unknown; } catch { /* unchanged status when malformed */ } }
+    return { ...state, observedAt: new Date().toISOString(), durableState: DURABLE_STATE,
+      modelInvocations: 0, nativeContinuity, huggingFaceDiscovery };
   }
   private providerConfig(): ZeroCreditProviderConfig { return { origin: this.env.ZERO_CREDIT_PROVIDER_URL, token: this.env.ZERO_CREDIT_PROVIDER_TOKEN, accountIdHash: this.env.ZERO_CREDIT_ACCOUNT_ID_HASH, targetSha: this.env.TARGET_SHA }; }
   private providerGapResponse(error: unknown): Response | null {
@@ -855,6 +909,7 @@ export default {
     const runtime = env.EXECUTION_DO.getByName("execution-v1");
     await runtime.ensureInternalActivity();
     await runtime.ensureNativeContinuity();
+    await runtime.ensureHuggingFaceDiscovery();
     if (controller.cron === "0 0 * * *") await runtime.maintainMemory();
     else await runtime.syncMemory();
   },
