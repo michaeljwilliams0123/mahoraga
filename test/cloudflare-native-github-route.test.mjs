@@ -28,8 +28,11 @@ test("mobile chat exposes typed native repository administration with durable re
   assert.match(runtimeText, /mahoraga-native-github-admin-status/);
   assert.match(runtimeText, /mahoraga-native-github-pr-create/);
   assert.match(runtimeText, /mahoraga-native-github-pr-merge/);
-  assert.match(runtimeText, /const capability = command\.action === "status" \? "repository\.inspect" : "repository\.write"/);
-  assert.match(runtimeText, /readOnly: command\.action === "status"/);
+  assert.match(runtimeText, /command\.action === "checks"/);
+  assert.match(runtimeText, /command\.action === "dispatch" \? "workflow\.dispatch"/);
+  assert.match(runtimeText, /readMahoragaPullRequestChecksViaGithubApp/);
+  assert.match(runtimeText, /dispatchMahoragaVerifyWorkflowViaGithubApp/);
+  assert.match(runtimeText, /readOnly: command\.action === "status" \|\| command\.action === "checks" \|\| command\.action === "diagnose"/);
   assert.match(runtimeText, /Bounded interpretation: executed only \/repo admin status/);
 });
 

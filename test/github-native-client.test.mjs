@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createGithubAppJwt,
+  dispatchMahoragaVerifyWorkflowViaGithubApp,
   createMahoragaDirectMainCommitViaGithubApp,
   createMahoragaPullRequestViaGithubApp,
   githubAppConfigured,
   mergeMahoragaPullRequestViaGithubApp,
+  readMahoragaPullRequestChecksViaGithubApp,
   readMahoragaRepositoryViaGithubApp,
   readMahoragaRepositoryWriteReadinessViaGithubApp,
   readMahoragaSourceFileViaGithubApp,
@@ -304,6 +306,53 @@ test("native PR merge retry adopts the exact already-merged result without a sec
   assert.equal(requests.some(({ options }) => options.method === "PUT"), false);
   assert.equal(receipt.merged, true);
   assert.equal(receipt.main.sha, MERGE_SHA);
+});
+
+test("native PR checks bind the exact head and diagnose required job failures", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const responses = [
+    json({ token: "installation-token", expires_at: "2026-10-15T07:00:00Z" }, 201),
+    json({ number: 1104, head: { ref: "mahoraga/checks", sha: COMMIT_SHA, repo: { full_name: "michaeljwilliams0123/mahoraga" } }, base: { ref: "main" } }),
+    json({ workflow_runs: [{ id: 77, name: "Verify Mahoraga", path: ".github/workflows/verify.yml", head_sha: COMMIT_SHA, event: "pull_request", status: "completed", conclusion: "failure", html_url: "https://github.com/michaeljwilliams0123/mahoraga/actions/runs/77" }] }),
+    json({ jobs: [
+      { name: "Verify (ubuntu-latest)", status: "completed", conclusion: "success", steps: [] },
+      { name: "Verify (windows-latest)", status: "completed", conclusion: "failure", steps: [{ name: "Verify Windows portability contract", conclusion: "failure" }] },
+    ] }),
+  ];
+  const receipt = await readMahoragaPullRequestChecksViaGithubApp({ number: 1104, expectedHeadSha: COMMIT_SHA }, {
+    env, fetchImpl: async (url, options) => { requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null }); return responses.shift(); },
+  });
+  assert.deepEqual(requests[0].body.permissions, { actions: "read", pull_requests: "read", metadata: "read" });
+  assert.equal(receipt.state, "failure");
+  assert.deepEqual(receipt.diagnosis, [{ job: "Verify (windows-latest)", conclusion: "failure", failedSteps: ["Verify Windows portability contract"] }]);
+});
+
+test("bounded Verify dispatch requires an exact Mahoraga branch and adopts an existing run", async () => {
+  const env = await githubAppEnv();
+  const requests = [];
+  const run = { id: 88, path: ".github/workflows/verify.yml", head_sha: COMMIT_SHA, event: "workflow_dispatch", status: "queued", conclusion: null, html_url: "https://github.com/michaeljwilliams0123/mahoraga/actions/runs/88" };
+  const responses = [
+    json({ token: "installation-token", expires_at: "2026-10-15T07:00:00Z" }, 201),
+    json({ object: { sha: COMMIT_SHA } }),
+    json({ workflow_runs: [run] }),
+  ];
+  const receipt = await dispatchMahoragaVerifyWorkflowViaGithubApp({ ref: "mahoraga/checks", expectedHeadSha: COMMIT_SHA }, {
+    env, fetchImpl: async (url, options) => { requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null }); return responses.shift(); },
+  });
+  assert.deepEqual(requests[0].body.permissions, { actions: "write", contents: "read", metadata: "read" });
+  assert.equal(requests.some(({ url, options }) => options.method === "POST" && !url.includes("access_tokens")), false);
+  assert.equal(receipt.adopted, true);
+  assert.equal(receipt.run.id, 88);
+});
+
+test("bounded Verify dispatch rejects stale or arbitrary refs before mutation", async () => {
+  const env = await githubAppEnv();
+  await assert.rejects(() => dispatchMahoragaVerifyWorkflowViaGithubApp({ ref: "main", expectedHeadSha: COMMIT_SHA }, { env }), /github-native-dispatch-ref-invalid/);
+  const responses = [json({ token: "installation-token", expires_at: "2026-10-15T07:00:00Z" }, 201), json({ object: { sha: BASE_SHA } })];
+  await assert.rejects(() => dispatchMahoragaVerifyWorkflowViaGithubApp({ ref: "mahoraga/checks", expectedHeadSha: COMMIT_SHA }, {
+    env, fetchImpl: async () => responses.shift(),
+  }), /github-native-dispatch-stale-head/);
 });
 
 test("native direct-main write requires the exact current main SHA and verifies the new ref", async () => {

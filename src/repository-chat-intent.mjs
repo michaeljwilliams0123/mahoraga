@@ -17,18 +17,18 @@ export function parseRepositoryAdminCommand(message) {
   if (text === "/repo admin status" || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text)) {
     return Object.freeze({ action: "status", proposal: null });
   }
-  const match = /^\/repo pr (create|merge)\s+([\s\S]+)$/.exec(text);
+  const match = /^\/repo (pr (create|merge|checks|diagnose)|workflow (dispatch))\s+([\s\S]+)$/.exec(text);
   if (!match) fail();
   let proposal;
-  try { proposal = JSON.parse(match[2]); } catch { fail(); }
+  try { proposal = JSON.parse(match[4]); } catch { fail(); }
   if (!proposal || typeof proposal !== "object" || Array.isArray(proposal)) fail();
-  return Object.freeze({ action: match[1], proposal });
+  return Object.freeze({ action: match[2] ?? match[3], proposal });
 }
 
 export function isRepositoryAdminRequest(message) {
   if (typeof message !== "string" || message.length > 8_000) return false;
   const text = message.trim();
-  return /^\/repo\s+(?:admin|pr)\b/i.test(text)
+  return /^\/repo\s+(?:admin|pr|workflow)\b/i.test(text)
     || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text);
 }
 

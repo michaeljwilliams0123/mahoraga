@@ -73,6 +73,69 @@ export async function readMahoragaRepositoryWriteReadinessViaGithubApp(_request 
   });
 }
 
+export async function readMahoragaPullRequestChecksViaGithubApp(proposal, options = {}) {
+  const normalized = normalizeChecksProposal(proposal);
+  const token = await mintInstallationToken(options, { actions: "read", pull_requests: "read", metadata: "read" });
+  const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
+  const pullRequest = await request("GET", repoPath(`pulls/${normalized.number}`));
+  if (pullRequest?.head?.sha !== normalized.expectedHeadSha || pullRequest?.base?.ref !== "main"
+    || pullRequest?.head?.repo?.full_name !== `${OWNER}/${REPO}`) fail("github-native-checks-identity-mismatch", 409);
+  const runs = await request("GET", repoPath(`actions/runs?head_sha=${normalized.expectedHeadSha}&per_page=20`));
+  if (!Array.isArray(runs?.workflow_runs)) fail("github-native-response-invalid", 502);
+  const run = runs.workflow_runs.filter((value) => value?.name === "Verify Mahoraga"
+    && value?.path === ".github/workflows/verify.yml" && value?.head_sha === normalized.expectedHeadSha
+    && (value?.event === "pull_request" || value?.event === "workflow_dispatch"))
+    .sort((left, right) => Number(right?.id ?? 0) - Number(left?.id ?? 0))[0] ?? null;
+  if (!run) return checksReceipt(normalized, pullRequest, null, []);
+  const jobsValue = await request("GET", repoPath(`actions/runs/${positiveInteger(run.id, "github-native-checks-run-invalid")}/jobs?per_page=100`));
+  if (!Array.isArray(jobsValue?.jobs)) fail("github-native-response-invalid", 502);
+  return checksReceipt(normalized, pullRequest, run, jobsValue.jobs);
+}
+
+export async function dispatchMahoragaVerifyWorkflowViaGithubApp(proposal, options = {}) {
+  const normalized = normalizeDispatchProposal(proposal);
+  const token = await mintInstallationToken(options, { actions: "write", contents: "read", metadata: "read" });
+  const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
+  const ref = await request("GET", repoPath(`git/ref/heads/${encodeURIComponent(normalized.ref)}`));
+  if (sha(ref?.object?.sha, "github-native-dispatch-ref-invalid") !== normalized.expectedHeadSha) fail("github-native-dispatch-stale-head", 409);
+  const prior = await findExactDispatch(request, normalized.expectedHeadSha);
+  if (prior) return dispatchReceipt(normalized, prior, true);
+  await request("POST", repoPath("actions/workflows/verify.yml/dispatches"), { ref: normalized.ref });
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const observed = await findExactDispatch(request, normalized.expectedHeadSha);
+    if (observed) return dispatchReceipt(normalized, observed, false);
+  }
+  return dispatchReceipt(normalized, null, false);
+}
+
+async function findExactDispatch(request, expectedHeadSha) {
+  const value = await request("GET", repoPath(`actions/workflows/verify.yml/runs?event=workflow_dispatch&head_sha=${expectedHeadSha}&per_page=10`));
+  if (!Array.isArray(value?.workflow_runs)) fail("github-native-response-invalid", 502);
+  return value.workflow_runs.find((run) => run?.head_sha === expectedHeadSha && run?.event === "workflow_dispatch"
+    && run?.path === ".github/workflows/verify.yml") ?? null;
+}
+
+function checksReceipt(normalized, pullRequest, run, jobs) {
+  const requiredNames = ["Verify (ubuntu-latest)", "Verify (windows-latest)"];
+  const required = requiredNames.map((name) => {
+    const job = jobs.find((candidate) => candidate?.name === name);
+    const failedSteps = Array.isArray(job?.steps) ? job.steps.filter((step) => step?.conclusion && step.conclusion !== "success" && step.conclusion !== "skipped")
+      .map((step) => String(step.name ?? "unknown").slice(0, 120)).slice(0, 10) : [];
+    return Object.freeze({ name, status: job?.status ?? "not_found", conclusion: job?.conclusion ?? null, failedSteps: Object.freeze(failedSteps) });
+  });
+  const state = !run || required.some((job) => job.status !== "completed") ? "pending"
+    : required.every((job) => job.conclusion === "success") && run.conclusion === "success" ? "success" : "failure";
+  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, number: normalized.number,
+    head: Object.freeze({ ref: pullRequest.head.ref, sha: normalized.expectedHeadSha }), state,
+    run: run ? Object.freeze({ id: Number(run.id), event: run.event, status: run.status, conclusion: run.conclusion ?? null, url: run.html_url }) : null,
+    required: Object.freeze(required), diagnosis: Object.freeze(required.filter((job) => job.conclusion && job.conclusion !== "success").map((job) => Object.freeze({ job: job.name, conclusion: job.conclusion, failedSteps: job.failedSteps }))) });
+}
+
+function dispatchReceipt(normalized, run, adopted) {
+  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, workflow: "verify.yml", ref: normalized.ref,
+    headSha: normalized.expectedHeadSha, accepted: true, adopted, run: run ? Object.freeze({ id: Number(run.id), status: run.status, conclusion: run.conclusion ?? null, url: run.html_url }) : null });
+}
+
 const READABLE_SOURCE_PATHS = new Set([
   "src/repository-chat-intent.mjs",
   "src/github-native-client.mjs",
@@ -296,6 +359,18 @@ function normalizeMergeProposal(value) {
     expectedHeadSha: sha(value.expectedHeadSha, "github-native-merge-head-invalid"),
     commitTitle: bounded(value.commitTitle, 1, 200, "github-native-merge-title-invalid"),
   });
+}
+
+function normalizeChecksProposal(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("github-native-checks-proposal-invalid", 422);
+  return Object.freeze({ number: positiveInteger(value.number, "github-native-checks-number-invalid"), expectedHeadSha: sha(value.expectedHeadSha, "github-native-checks-head-invalid") });
+}
+
+function normalizeDispatchProposal(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) fail("github-native-dispatch-proposal-invalid", 422);
+  const ref = String(value.ref ?? "").trim();
+  if (!/^mahoraga\/[a-z0-9][a-z0-9._-]{2,79}$/.test(ref)) fail("github-native-dispatch-ref-invalid", 422);
+  return Object.freeze({ ref, expectedHeadSha: sha(value.expectedHeadSha, "github-native-dispatch-head-invalid") });
 }
 
 function normalizeDirectMainProposal(value) {
