@@ -240,7 +240,7 @@ test("universal execution broker is private and deploys before execution runtime
 test("Cloudflare publication requires a trusted receipt for bot dispatch and retains owner manual authority", async () => {
  const workflow = await readFile(workflowPath, 'utf8');
  const lane = workflow.slice(workflow.indexOf('  deploy-accept:'), workflow.indexOf('    runs-on:'));
- for (const guard of ["github.actor == github.repository_owner", "github.ref == 'refs/heads/main'", "github.repository == 'michaeljwilliams0123/mahoraga'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'", "status == 'completed'", "actor.login == 'github-actions[bot]'", "event == 'push'", "event == 'workflow_dispatch'"]) assert.ok(lane.includes(guard));
+ for (const guard of ["github.actor == github.repository_owner", "github.ref == 'refs/heads/main'", "github.repository == 'michaeljwilliams0123/mahoraga'", "head_repository.full_name == github.repository", "path == '.github/workflows/verify.yml'", "status == 'completed'", "actor.login == 'github-actions[bot]'", "actor.login == 'mahoraga-native-pr-operator[bot]'", "event == 'push'", "event == 'workflow_dispatch'"]) assert.ok(lane.includes(guard));
  assert.match(workflow, /actions:\s*read/);
  assert.match(workflow, /name:\s*Fetch trusted bot publication receipt/);
  assert.match(workflow, /verified-main-publication-\$VERIFIED_SHA/);

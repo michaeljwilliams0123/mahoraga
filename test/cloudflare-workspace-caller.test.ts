@@ -13,6 +13,9 @@ test('paired publisher accepts only the canonical caller after its runtime accep
   const value = context(); value.event.workflow_run.actor.login = actor; value.event.workflow_run.event = event;
   assert.equal(verifiedWorkspaceCaller(value, sha).sourceSha, sha);
  }
+ const native = context(); native.actor = 'mahoraga-native-pr-operator[bot]'; native.event.workflow_run.actor.login = native.actor;
+ native.event.workflow_run.event = 'push';
+ assert.equal(verifiedWorkspaceCaller(native, sha).sourceSha, sha);
  assert.equal(verifiedWorkspaceCaller({ ...context(), eventName: 'workflow_dispatch', actor: 'michaeljwilliams0123', event: {} }, sha).sourceSha, sha);
 });
 test('paired publisher rejects foreign callers, renewal, PRs, stale source and malformed context', () => {
@@ -27,6 +30,9 @@ test('paired publisher rejects foreign callers, renewal, PRs, stale source and m
   { head_repository: { full_name: 'attacker/repo' } }, { actor: { login: 'other' } }, { event: 'schedule' }, { event: ['push'] }]) {
   const value = context(); assert.throws(() => verifiedWorkspaceCaller({ ...value, event: { workflow_run: { ...value.event.workflow_run, ...override } } }, sha));
  }
+ const nativeDispatch = context(); nativeDispatch.actor = 'mahoraga-native-pr-operator[bot]';
+ nativeDispatch.event.workflow_run.actor.login = nativeDispatch.actor; nativeDispatch.event.workflow_run.event = 'workflow_dispatch';
+ assert.throws(() => verifiedWorkspaceCaller(nativeDispatch, sha));
  for (const value of [null, [], {}, 'caller']) assert.throws(() => verifiedWorkspaceCaller(value, sha));
  assert.throws(() => verifiedWorkspaceCaller(context(), 'bad'));
 });

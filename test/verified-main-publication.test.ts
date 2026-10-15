@@ -36,6 +36,8 @@ test('publication keeps owner and bot-push authority while bot dispatch requires
   assert.equal(verifiedMainPublication(run({ actor: { login: 'michaeljwilliams0123' }, event }), sha).sourceSha, sha);
  }
  assert.equal(verifiedMainPublication(run({ event: 'push' }), sha).sourceSha, sha);
+ assert.equal(verifiedMainPublication(run({ actor: { login: 'mahoraga-native-pr-operator[bot]' }, event: 'push' }), sha).sourceSha, sha);
+ assert.throws(() => verifiedMainPublication(run({ actor: { login: 'mahoraga-native-pr-operator[bot]' }, event: 'workflow_dispatch' }), sha), /verified-main-publication-denied/);
  assert.throws(() => verifiedMainPublication(run(), sha), /verified-main-publication-receipt-invalid/);
  const accepted = verifiedMainPublication(run(), sha, receipt());
  assert.equal(accepted.sourceSha, sha);
