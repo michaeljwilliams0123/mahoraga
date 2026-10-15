@@ -206,6 +206,34 @@ export async function waitForExactRuntimeConvergence(input: CloudflareAccessCred
   throw new Error(`deploy-runtime-convergence-timeout:${lastObservation}`);
 }
 
+// Only these precondition responses prove that the rejected POST stopped before
+// receipt lookup/reservation/inference. Unknown 412s must not become retry advice.
+async function sourcePreconditionRejected(response: Response, targetSha: string): Promise<boolean> {
+  if (response.headers.get("x-idempotent-replay") !== null || response.headers.get("x-bypass-applied") !== null
+    || !response.headers.get("content-type")?.toLowerCase().startsWith("application/json") || !response.body) return false;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > 1024) { await reader.cancel(); return false; }
+      chunks.push(value);
+    }
+    const body: unknown = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+    if (body === null || Array.isArray(body) || typeof body !== "object") return false;
+    const evidence = body as Record<string, unknown>;
+    return Object.keys(evidence).length === 3 && evidence.error === "Precondition Failed: SHA mismatch"
+      && evidence.actual === targetSha && typeof evidence.expected === "string"
+      && SHA_PATTERN.test(evidence.expected) && evidence.expected.toLowerCase() !== targetSha;
+  } catch {
+    // Never reflect response content or transport exceptions in diagnostics.
+    return false;
+  } finally { reader.releaseLock(); }
+}
+
 export async function runAcceptanceProbe(input: {
   accessToken?: string;
   accessClientId?: string;
@@ -313,10 +341,12 @@ export async function runAcceptanceProbe(input: {
   });
   if (staleResponse.status !== 412) throw new Error(`accept-stale-sha-not-rejected-${staleResponse.status}`);
 
+  const originalExecutionHeaders = executionHeaders(accessHeaders, targetSha, idempotencyKey);
+  const originalExecutionBody = JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" });
   const executeRequest = () => fetchImpl(new URL("/api/execute", baseUrl), {
     method: "POST",
-    headers: executionHeaders(accessHeaders, targetSha, idempotencyKey),
-    body: JSON.stringify({ conversationId: "acceptance-live", turnId: idempotencyKey, message: "Acceptance cognition probe" }),
+    headers: new Headers(originalExecutionHeaders),
+    body: originalExecutionBody,
     redirect: "manual",
   });
   const concurrentResponses = await Promise.all([executeRequest(), executeRequest(), executeRequest(), executeRequest()]);
@@ -332,9 +362,20 @@ export async function runAcceptanceProbe(input: {
   const firstBody = await readJson(originalResponses[0]!, "accept-execute-json-invalid");
   if (firstBody.executed !== true) throw new Error("accept-execution-not-confirmed");
   let logicalRequests = concurrentResponses.length;
+  const requestPersistedReplay = async (phase: "replay" | "durable-continuity"): Promise<Response> => {
+    for (let attempt = 1; ; attempt += 1) {
+      logicalRequests += 1;
+      let response: Response;
+      try { response = await executeRequest(); }
+      catch { throw new Error(`accept-${phase}-unreachable`); }
+      if (response.status !== 412 || attempt === 4 || !await sourcePreconditionRejected(response, targetSha)) return response;
+      // The emitting Worker/DO version is unknown. Give stale instances the same
+      // bounded quiet interval as convergence; never change SHA/key/body/authority.
+      await sleep(DO_SOURCE_VERSION_QUIET_MS);
+    }
+  };
   if (replayResponses.length === 0) {
-    const replayResponse = await executeRequest();
-    logicalRequests += 1;
+    const replayResponse = await requestPersistedReplay("replay");
     if (replayResponse.status !== 200) throw new Error(`accept-replay-${replayResponse.status}`);
     replayResponses = [replayResponse];
   }
@@ -346,8 +387,7 @@ export async function runAcceptanceProbe(input: {
   let durableContinuityVerified = false;
   if (input.afterInitialExecution) {
     await input.afterInitialExecution();
-    const continuityResponse = await executeRequest();
-    logicalRequests += 1;
+    const continuityResponse = await requestPersistedReplay("durable-continuity");
     if (continuityResponse.status !== 200 || continuityResponse.headers.get("x-idempotent-replay") !== "true") {
       throw new Error(`accept-durable-continuity-${continuityResponse.status}`);
     }
