@@ -118,6 +118,13 @@ test("coerced outcome objects and trailing-newline identifiers cannot enter publ
     assert.throws(()=>build(changed),/mccb-report-input-invalid/);
   }
 });
+test("sparse API arrays fail closed with bounded validation errors",()=>{
+  const input=fixture();
+  assert.throws(()=>build({...input,cases:Array(1)}),/mccb-report-input-invalid/);
+  assert.throws(()=>build({...input,runs:Array(1)}),/mccb-report-input-invalid/);
+  Reflect.set(input.runs[0]!,"controlViolations",Array(1));
+  assert.throws(()=>build(input),/mccb-report-input-invalid/);
+});
 test("read-only CLI emits the same report and suppresses invalid payloads and filesystem error details",async t=>{
   const cli=fileURLToPath(new URL("../scripts/mccb-report.ts",import.meta.url));
   assert.equal(await access(cli).then(()=>true,()=>false),true,"read-only report CLI must exist");

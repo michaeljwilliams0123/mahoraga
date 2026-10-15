@@ -25,14 +25,14 @@ export function buildMccbReport(value: unknown) {
   const budget: Budget = { maxDurationMs: integer(budgetInput.maxDurationMs, 1, LIMIT),
     maxCostMicros: integer(budgetInput.maxCostMicros, 0, LIMIT), maxWorkers: integer(budgetInput.maxWorkers, 1, 64) };
   if (!Array.isArray(input.cases) || input.cases.length < 1 || input.cases.length > 32) fail();
-  const cases = input.cases.map(value => {
+  const cases = Array.from(input.cases, value => {
     const item = exact(value, ["caseId", "repetitions"]);
     return { caseId: token(item.caseId), repetitions: integer(item.repetitions, 1, 20) };
   }).sort((a, b) => compare(a.caseId, b.caseId));
   const caseById = new Map(cases.map(item => [item.caseId, item]));
   if (caseById.size !== cases.length || !Array.isArray(input.runs) || input.runs.length > 1920) fail();
   const ids = new Set<string>(), cells = new Set<string>(), digests = new Set<string>();
-  const runs = input.runs.map(value => {
+  const runs = Array.from(input.runs, value => {
     const row = normalizeRun(value, expected, budget);
     const declared = caseById.get(row.caseId);
     if (!declared || row.repetition > declared.repetitions) fail("mccb-report-undeclared-cell");
@@ -62,7 +62,7 @@ function normalizeRun(value: unknown, expected: Provenance, budget: Budget): Run
     || !["completed", "failed", "held"].includes(input.outcome)) fail();
   if (input.quality !== null && (typeof input.quality !== "number" || !Number.isFinite(input.quality) || input.quality < 0 || input.quality > 1)) fail();
   if (!Array.isArray(input.controlViolations) || input.controlViolations.length > CONTROL_CODES.size
-    || input.controlViolations.some(code => typeof code !== "string" || !CONTROL_CODES.has(code))
+    || Array.from(input.controlViolations).some(code => typeof code !== "string" || !CONTROL_CODES.has(code))
     || new Set(input.controlViolations).size !== input.controlViolations.length) fail();
   const durationMs = integer(input.durationMs, 0, LIMIT), costMicros = integer(input.costMicros, 0, LIMIT);
   const workers = integer(input.workers, 1, 64), duplicateEffects = integer(input.duplicateEffects, 0, LIMIT);
