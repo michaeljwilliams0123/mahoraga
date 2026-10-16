@@ -27,7 +27,11 @@ billing attestation, it executes
 `node scripts/cloudflare-readonly-activation-preflight.mjs`.
 
 Preflight requires a dedicated `CLOUDFLARE_READONLY_AUDIT_TOKEN` and
-account-matched, fresh, zero-billable-subscription evidence. It performs a
+account-matched, fresh, zero-billable-subscription evidence. The billing
+observation must have a positive issuance time, be no older than the
+canonical issuer's 90-minute lifetime, retain more than one minute of
+validity, and never claim an expiry beyond 90 minutes after issuance.
+Extending an old receipt's expiry does not renew its evidence. It performs a
 single bounded `GET` against the fixed Owner Gateway deployment path,
 rejecting HTTP denial, malformed/future-dated/split-traffic evidence and
 non-100%-traffic versions. Its successful sanitized receipt says
@@ -76,6 +80,13 @@ uploaded script settings). It confirms that:
 - Both inspector and broker have genuine Cloudflare deployment IDs, one
   uniquely identified version receiving **100% traffic**, and no future
   deployment chronology beyond the existing five-second clock tolerance.
+- After collecting version metadata, read both deployment records again.
+  Any changed deployment ID/version or newly ambiguous traffic stops promotion
+  with a fixed `readonly-binding-*-deployment-changed` or
+  `readonly-binding-*-deployment-unverified` reason. This is six fixed GETs
+  when enabled; a disabled diagnostic uses three broker-only GETs. These
+  observations detect changes during collection; they do not lock Cloudflare
+  deployments or replace subsequent live runtime attestation.
 - The result is a sanitized `bound-for-runtime-attestation` readback,
   **not** an action success, an owner authority grant, or a billing exception.
   Upstream API failures and ambiguous metadata stop promotion.

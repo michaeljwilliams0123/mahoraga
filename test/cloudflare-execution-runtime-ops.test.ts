@@ -323,3 +323,113 @@ test("acceptance probe fails when Access does not protect the runtime", async ()
     /accept-access-not-enforced/,
   );
 });
+
+const replayPayload = { executed: true, answer: "persisted-answer", timestamp: 123 };
+const sourcePrecondition = () => Response.json({ error: "Precondition Failed: SHA mismatch", expected: OTHER_SHA, actual: SHA }, { status: 412 });
+function replaySequence(responses: (Response | Error)[]) {
+  const correctRequests: Request[] = [];
+  let providerExecutions = 0;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    if (request.method === "GET" && !request.headers.has("cf-access-token")) return new Response(null, { status: 403 });
+    if (request.method === "GET" && new URL(request.url).pathname === "/api/runtime/attestation") return attestationResponse();
+    if (request.method === "GET") return Response.json(readyBody(SHA));
+    if (request.headers.get("x-target-sha") !== SHA) return new Response(null, { status: 412 });
+    correctRequests.push(request);
+    if (correctRequests.length === 1) { providerExecutions += 1; return Response.json(replayPayload); }
+    if (correctRequests.length <= 4) return new Response(null, { status: 409 });
+    const next = responses.shift();
+    assert.ok(next, "unexpected retry");
+    if (next instanceof Error) throw next;
+    return next;
+  };
+  return { correctRequests, fetchImpl, providerExecutions: () => providerExecutions };
+}
+const persistedReplay = () => Response.json(replayPayload, { headers: { "x-idempotent-replay": "true" } });
+
+test("acceptance retries only source-proven replay preconditions using the original request and receipt", async () => {
+  const sequence = replaySequence([sourcePrecondition(), persistedReplay(), sourcePrecondition(), persistedReplay()]);
+  const sleeps: number[] = [];
+  let redeploys = 0;
+  const receipt = await runAcceptanceProbe({
+    accessToken: "private-access", acceptanceRunId: "scoped-acceptance", targetSha: SHA,
+    idempotencyKey: "persisted-key", fetchImpl: sequence.fetchImpl,
+    sleep: async ms => { sleeps.push(ms); },
+    afterInitialExecution: async () => { redeploys += 1; },
+  });
+  assert.equal(sequence.providerExecutions(), 1);
+  assert.equal(redeploys, 1);
+  assert.deepEqual(sleeps, [15_000, 15_000]);
+  assert.deepEqual(receipt.executionUniqueness, { logicalRequests: 8, providerExecutions: 1, receipts: 1, conflicts: 3, replays: 2, atMostOneVerified: true });
+  assert.equal(receipt.durableContinuityVerified, true);
+  const original = sequence.correctRequests[0]!;
+  const originalBody = await original.clone().text();
+  for (const request of sequence.correctRequests.slice(1)) {
+    assert.equal(request.url, original.url);
+    assert.deepEqual([...request.headers], [...original.headers]);
+    assert.equal(await request.clone().text(), originalBody);
+  }
+});
+
+test("source precondition retries are bounded and cannot accept a permanently stale execution plane", async () => {
+  const sequence = replaySequence(Array.from({ length: 4 }, sourcePrecondition));
+  const sleeps: number[] = [];
+  await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl: sequence.fetchImpl, sleep: async ms => { sleeps.push(ms); } }), /accept-replay-412/);
+  assert.equal(sequence.correctRequests.length, 8);
+  assert.deepEqual(sleeps, [15_000, 15_000, 15_000]);
+});
+
+test("replay retries never hide ambiguous transport, denial, conflict, server, or unproven precondition failures", async () => {
+  for (const response of [new Error("transport-uncertain"), new Response(null, { status: 403 }), new Response(null, { status: 409 }), new Response(null, { status: 503 }), new Response(null, { status: 412 }), Response.json({ error: "other", expected: OTHER_SHA, actual: SHA }, { status: 412 }), Response.json({ error: "Precondition Failed: SHA mismatch", expected: SHA, actual: OTHER_SHA }, { status: 412 })]) {
+    const sequence = replaySequence([response]);
+    await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl: sequence.fetchImpl, sleep: async () => { assert.fail("unsafe retry"); } }));
+    assert.equal(sequence.correctRequests.length, 5);
+  }
+});
+
+test("a retry still requires the persisted replay header and byte-equivalent receipt payload", async () => {
+  for (const [response, reason] of [
+    [Response.json(replayPayload), "accept-replay-header-missing"],
+    [Response.json({ ...replayPayload, timestamp: 456 }, { headers: { "x-idempotent-replay": "true" } }), "accept-replay-payload-drift"],
+  ] as const) {
+    const sequence = replaySequence([sourcePrecondition(), response]);
+    await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl: sequence.fetchImpl, sleep: async () => {} }), new RegExp(reason));
+    assert.equal(sequence.correctRequests.length, 6);
+  }
+});
+
+test("412 evidence parsing is bounded and never reflects malformed or private response content", async () => {
+  for (const response of [
+    new Response("private-upstream-body", { status: 412, headers: { "content-type": "application/json" } }),
+    Response.json({ error: "Precondition Failed: SHA mismatch", expected: OTHER_SHA, actual: SHA, private: "secret" }, { status: 412 }),
+    Response.json({ error: "Precondition Failed: SHA mismatch", expected: "secret", actual: SHA }, { status: 412 }),
+    Response.json({ error: "Precondition Failed: SHA mismatch", expected: OTHER_SHA, actual: SHA }, { status: 412, headers: { "x-idempotent-replay": "true" } }),
+    Response.json({ error: "Precondition Failed: SHA mismatch", expected: OTHER_SHA, actual: SHA }, { status: 412, headers: { "x-bypass-applied": "true" } }),
+    new Response(" ".repeat(1025) + JSON.stringify({ error: "Precondition Failed: SHA mismatch", expected: OTHER_SHA, actual: SHA }), { status: 412, headers: { "content-type": "application/json" } }),
+  ]) {
+    const sequence = replaySequence([response]);
+    await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl: sequence.fetchImpl, sleep: async () => { assert.fail("unproven retry"); } }), /^Error: accept-replay-412$/);
+    assert.equal(sequence.correctRequests.length, 5);
+  }
+});
+
+test("initial concurrent execution and deliberate stale-SHA rejection do not acquire replay retries", async () => {
+  const sequence = replaySequence([]);
+  let posts = 0;
+  const fetchImpl: typeof fetch = async (input, init) => {
+    const request = new Request(input, init);
+    if (request.method === "POST" && request.headers.get("x-target-sha") === SHA) {
+      posts += 1;
+      if (posts === 2) return sourcePrecondition();
+    }
+    return sequence.fetchImpl(input, init);
+  };
+  await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl, sleep: async () => { assert.fail("initial execution retry"); } }), /^Error: accept-execute-412$/);
+  assert.equal(posts, 4);
+});
+
+test("replay transport uncertainty holds immediately with a fixed diagnostic instead of external exception text", async () => {
+  const sequence = replaySequence([new Error("private-access private-provider-error")]);
+  await assert.rejects(runAcceptanceProbe({ targetSha: SHA, accessToken: "private-access", fetchImpl: sequence.fetchImpl, sleep: async () => { assert.fail("transport retry"); } }), /^Error: accept-replay-unreachable$/);
+  assert.equal(sequence.correctRequests.length, 5);
+});
