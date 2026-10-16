@@ -201,16 +201,20 @@ test("zero-credit boundary test is content-bounded and stays off licensed cloud"
   producerModule.assertSafeCandidatePaths(["test/zero-credit-boundary.test.mjs"]);
 });
 
-test("stale leftover candidate branches without an open PR are reclaimable", () => {
+test("stale candidate branches are never deleted, regardless of PR state", async () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const base = "a".repeat(40);
   const drifted = "b".repeat(40);
   assert.equal(producerModule.decideStaleCandidateBranch({ mergeBase: base, baseSha: base, openPrCount: 1 }), "reuse");
-  assert.equal(producerModule.decideStaleCandidateBranch({ mergeBase: drifted, baseSha: base, openPrCount: 0 }), "reclaim");
-  assert.throws(
-    () => producerModule.decideStaleCandidateBranch({ mergeBase: drifted, baseSha: base, openPrCount: 1 }),
-    /candidate-existing-base-drift/,
-  );
+  for (const openPrCount of [0, 1]) {
+    assert.throws(
+      () => producerModule.decideStaleCandidateBranch({ mergeBase: drifted, baseSha: base, openPrCount }),
+      /candidate-existing-base-drift/,
+    );
+  }
+  const source = await readFile(new URL("../src/sovereign-candidate-producer.mjs", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /\["push", "origin", "--delete"/);
+  assert.match(source, /cycleId\.slice\(0, 12\).*baseSha\.slice\(0, 12\)/);
 });
 
 test("GitHub Actions PR policy denial is classified explicitly", () => {
