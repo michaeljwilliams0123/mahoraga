@@ -172,7 +172,8 @@ test("candidate receipt contains only validated metadata and rejects invalid pro
 test("native workflow uses existing narrowly scoped GitHub App and retains an exact candidate artifact", () => {
   assert.equal(workflow.split("actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510").length - 1, 2);
   assert.equal((workflow.match(/permission-pull-requests: write/g) ?? []).length, 2);
-  assert.equal((workflow.match(/permission-actions: write/g) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /permission-actions: write/);
+  assert.equal(workflow.split("MAHORAGA_VERIFY_DISPATCH_TOKEN: $" + "{{ github.token }}").length - 1, 2);
   assert.equal((workflow.match(/permission-contents: write/g) ?? []).length, 2);
   assert.equal(workflow.split("token: $" + "{{ steps.app-token.outputs.token }}").length - 1, 2);
   assert.match(workflow, /Retain bounded candidate receipt/);
@@ -341,8 +342,10 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
   const branchName = "feature/sovereign-evolution-objective-one";
   const changedFiles = ["src/self-extension-worker.mjs"];
   const calls = [];
-  const runCommand = (executable, args) => {
+  const dispatchEnvs = [];
+  const runCommand = (executable, args, _cwd, envOverride) => {
     calls.push([executable, ...args]);
+    if (executable === "gh" && args[0] === "workflow") dispatchEnvs.push(envOverride);
     const command = [executable, ...args].join(" ");
     if (command === "git rev-parse HEAD" || command === "git rev-parse origin/main") return `${baseSha}\n`;
     if (command === `git cat-file -e ${headSha}^{commit}`) return "";
@@ -358,7 +361,7 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
     if (command === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`) return "";
     throw new Error(`unexpected command: ${command}`);
   };
-  const publish = producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-test", runCommand });
+  const publish = producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-test", runCommand, verifyDispatchToken: "scoped-actions-job-token" });
   const receipt = await publish({
     baseSha, headSha, branchName, changedFiles,
     title: "feat: evolve Mahoraga safely",
@@ -370,6 +373,22 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
   });
   assert.ok(calls.some((call) => call.join(" ") === `git push origin ${headSha}:refs/heads/${branchName}`));
   assert.ok(calls.some((call) => call.join(" ") === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`));
+  assert.deepEqual(dispatchEnvs, [{ GH_TOKEN: "scoped-actions-job-token" }]);
+  assert.equal(calls.filter((call) => call[0] === "gh" && call[1] === "workflow").length, 1);
+  const noJobToken = producerModule.createGitHubNativeCandidatePublisher({
+    root: "C:/candidate-test", runCommand, verifyDispatchToken: "",
+  });
+  await assert.rejects(
+    noJobToken({ baseSha, headSha, branchName, changedFiles, title: "Retry", summary: "Held on missing token." }),
+    /candidate-verify-job-token-unavailable/,
+  );
+  assert.equal(dispatchEnvs.length, 1, "missing job token must not dispatch using App credentials");
+  const otherCaller = producerModule.createGitHubNativeCandidatePublisher({
+    root: "C:/candidate-test", runCommand, verifyDispatchToken: undefined,
+  });
+  await otherCaller({ baseSha, headSha, branchName, changedFiles, title: "Existing publisher", summary: "Preserve existing non-Sovereign routing." });
+  assert.deepEqual(dispatchEnvs, [{ GH_TOKEN: "scoped-actions-job-token" }, undefined],
+    "other publisher callers retain their existing token behavior");
 });
 function candidatePublisherFixture({ remoteMain = "1".repeat(40), actualPaths = ["src/example.mjs"], remoteBranch = "" } = {}) {
   const baseSha = "1".repeat(40);

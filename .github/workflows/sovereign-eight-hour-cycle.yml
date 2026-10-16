@@ -69,7 +69,6 @@ jobs:
           app-id: ${{ secrets.MAHORAGA_GITHUB_APP_ID }}
           private-key: ${{ secrets.MAHORAGA_GITHUB_APP_PRIVATE_KEY }}
           repositories: mahoraga
-          permission-actions: write
           permission-contents: write
           permission-pull-requests: write
 
@@ -221,6 +220,7 @@ jobs:
           steps.heartbeat.outputs.next_action != 'hold-planned'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MAHORAGA_VERIFY_DISPATCH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.cadence.outputs.anchor_iso }}
           MAHORAGA_CANDIDATE_PRODUCER: github-native
@@ -317,7 +317,6 @@ jobs:
           app-id: ${{ secrets.MAHORAGA_GITHUB_APP_ID }}
           private-key: ${{ secrets.MAHORAGA_GITHUB_APP_PRIVATE_KEY }}
           repositories: mahoraga
-          permission-actions: write
           permission-contents: write
           permission-pull-requests: write
 
@@ -380,6 +379,7 @@ jobs:
         if: steps.smoke.outputs.should_run == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MAHORAGA_VERIFY_DISPATCH_TOKEN: ${{ github.token }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           MAHORAGA_CYCLE_ANCHOR_UTC: ${{ steps.smoke.outputs.smoke_at }}
           MAHORAGA_CANDIDATE_PRODUCER: github-native
