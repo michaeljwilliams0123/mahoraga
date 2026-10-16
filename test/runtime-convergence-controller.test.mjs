@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "../src/config.mjs";
 
@@ -8,7 +8,7 @@ async function source(relative) {
   return readFile(path.join(ROOT, relative), "utf8");
 }
 
-test("Windows convergence controller periodically promotes verified main without model calls", async () => {
+test("Windows convergence controller evaluates verified main without model calls", async () => {
   const [controller, installer, startupInstaller] = await Promise.all([
     source("scripts/runtime-convergence.ps1"),
     source("scripts/install-runtime-convergence.ps1"),
@@ -122,15 +122,15 @@ test("Windows convergence stop helper never shadows PowerShell automatic PID", a
   assert.match(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$ProcessId\s*\)/i);
 });
 
-test("Windows convergence promotes a verified current 4783 candidate into canonical 4782", async () => {
+test("Windows convergence accepts current production and holds an unsafe replacement", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.match(controller, /\$productionHealthUrl\s*=\s*["']http:\/\/127\.0\.0\.1:4782\/api\/status["']/i);
   assert.match(controller, /function\s+Ensure-ProductionCurrent\s*\(\s*\[string\]\s*\$ExpectedCommit\s*\)/i);
-  assert.match(controller, /start-production\.ps1/i);
   assert.match(controller, /production\.runtime\.provenance\.sourceCommit/i);
   assert.match(controller, /production\.runtime\.provenance\.authoritativeSourceCommit/i);
   assert.match(controller, /production\.runtime\.provenance\.state/i);
-  assert.match(controller, /state\s*=\s*["']production-promoted["']/i);
+  assert.match(controller, /state\s*=\s*["']production-promotion-held["']/i);
+  assert.doesNotMatch(controller, /start-production\.ps1/i);
   assert.match(
     controller,
     /if\s*\(\$sourceCommit\s+-eq\s+\$targetCommit\)\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?exit\s+0/i,
@@ -146,9 +146,28 @@ test("convergence leaves 4783 stopped when canonical 4782 is already current", a
   );
 });
 
-test("successful convergence promotes 4782 and tears down 4783 before exit", async () => {
+test("convergence tears down an exact-main candidate after production acceptance or hold", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.match(controller, /function\s+Stop-VerifiedCandidate/i);
-  assert.match(controller, /Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?Stop-VerifiedCandidate\s+\$targetCommit/i);
+  assert.match(controller, /try\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?finally\s*\{[\s\S]*?Stop-VerifiedCandidate\s+\$targetCommit/i);
   assert.match(controller, /state\s*=\s*["']candidate-stopped["']/i);
+});
+
+test("Windows activation stays in the native controller and holds before an unprotected production replacement", async () => {
+  const [controller, launcher] = await Promise.all([
+    source("scripts/runtime-convergence.ps1"),
+    source("scripts/start-production.ps1"),
+  ]);
+  await assert.rejects(
+    access(path.join(ROOT, "src/windows-production-coordinator.ts")),
+    /ENOENT/,
+  );
+
+  const promotion = controller.match(/function Ensure-ProductionCurrent[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(promotion, /production-promotion-held:trusted-native-restore-unavailable/i);
+  assert.doesNotMatch(promotion, /start-production\.ps1/i);
+
+  const replacement = launcher.match(/if \(\$existing -and \$existing\.product -eq 'Mahoraga'\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(replacement, /production-replacement-held:trusted-native-restore-unavailable/i);
+  assert.doesNotMatch(replacement, /stop-production\.ps1/i);
 });

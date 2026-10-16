@@ -47,9 +47,7 @@ if ($existing -and $existing.product -eq 'Mahoraga') {
         Write-Output "Mahoraga $($existing.version) @ $existingSourceCommit is already running at http://127.0.0.1:4782"
         exit 0
     }
-    Write-Output "Replacing Mahoraga $($existing.version) / UI protocol $($existing.versions.controlCenter) with verified runtime $expectedVersion / UI protocol $expectedControlCenterVersion."
-    & (Join-Path $PSScriptRoot 'stop-production.ps1')
-    Start-Sleep -Milliseconds 500
+    throw 'production-replacement-held:trusted-native-restore-unavailable'
 }
 
 $relayToken = Read-RelayToken

@@ -161,14 +161,8 @@ function Ensure-ProductionCurrent([string]$ExpectedCommit) {
         return $production
     }
 
-    $launcher = Join-Path $ControllerRoot 'scripts\start-production.ps1'
-    if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) { throw 'Production launcher is missing from verified main.' }
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $launcher
-    if ($LASTEXITCODE -ne 0) { throw "Production promotion failed with exit code $LASTEXITCODE." }
-    $production = Wait-ForProductionCommit $ExpectedCommit
-    if (-not $production) { throw 'Production 4782 failed exact-main healthy canary after promotion.' }
-    Write-Receipt @{ state = 'production-promoted'; fromCommit = $previousSource; toCommit = $ExpectedCommit; candidatePort = $Port; productionPort = 4782 }
-    return $production
+    Write-Receipt @{ state = 'production-promotion-held'; fromCommit = $previousSource; attemptedCommit = $ExpectedCommit; reason = 'trusted-native-restore-unavailable'; candidatePort = $Port; productionPort = 4782 }
+    throw 'production-promotion-held:trusted-native-restore-unavailable'
 }
 
 function Invoke-VerificationGate {
@@ -244,8 +238,11 @@ if ($sourceCommit -eq $targetCommit) {
         Write-Receipt @{ state = 'candidate-not-healthy'; attemptedCommit = $targetCommit; candidatePort = $Port }
         throw 'Current candidate is not healthy; production promotion denied.'
     }
-    Ensure-ProductionCurrent $targetCommit | Out-Null
-    Stop-VerifiedCandidate $targetCommit
+    try {
+        Ensure-ProductionCurrent $targetCommit | Out-Null
+    } finally {
+        Stop-VerifiedCandidate $targetCommit
+    }
     Write-Output "Mahoraga production on port 4782 is current at $targetCommit; candidate slot $Port returned to standby."
     exit 0
 }
