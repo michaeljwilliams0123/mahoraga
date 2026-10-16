@@ -14,12 +14,8 @@ const PROVIDER_BINDING: Readonly<Record<string, keyof BrokerEnv>> = Object.freez
   workspace: "WORKSPACE_PROVIDER",
 });
 
-export function providerBindingName(provider: string): keyof BrokerEnv | undefined {
-  return Object.hasOwn(PROVIDER_BINDING, provider) ? PROVIDER_BINDING[provider] : undefined;
-}
-
 export function providerBinding(env: BrokerEnv, provider: string): BrokerBinding | undefined {
-  const key = providerBindingName(provider);
+  const key = PROVIDER_BINDING[provider];
   return key ? env[key] as BrokerBinding | undefined : undefined;
 }
 

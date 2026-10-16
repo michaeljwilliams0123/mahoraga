@@ -6,33 +6,26 @@ authorized, zero-credit providers for the same capability: exhaust the preferred
 and second routes, then require the third to commit the same objective and
 idempotency key through the canonical Cloudflare path.
 
-## Read-only admission inventory
+## Native read-only admission inventory
 
-Capture the private broker's existing `GET /api/capabilities` JSON through the
-already-authorized runtime inspection path. Keep credentials outside the capture.
-Run locally, without deployment or provider mutation:
+Use the private broker's existing `GET /api/capabilities` response through the
+already-authorized runtime inspection path. That native surface already projects
+only fresh, healthy attestations admitted through the broker's provider registry
+and actual service bindings; no parallel file reader or second route validator is
+needed. Keep credentials and private payloads outside any retained capture.
 
-```sh
-node scripts/failover-challenge-preflight.ts /path/to/broker-capabilities.json cloud.inspect
-```
+Inspect `providerReadiness` and the requested capability's `routes`. Provider
+aliases or multiple workers on one execution binding count as one provider.
+Missing, stale, paid, unsupported and malformed attestations are already rejected
+by the broker before projection. At the current source revision, the response
+demonstrates fewer than three independent compatible bindings and therefore only
+a prerequisite shortage—not a challenge result.
 
-The command reads only that local capture, requires a regular file no larger
-than 1 MiB, bounds allocation and reads to 1 MiB plus one overflow byte, and
-rejects size changes during collection. It reports fresh advertised routes
-that match the requested capability, the existing provider binding/registry,
-readiness flags and deterministic/zero-credit cost classes. Provider aliases or
-multiple workers on one execution binding count as one provider. Missing,
-stale, paid, unsupported and malformed entries do not qualify. Exit code 1 means
-the three-provider prerequisite is missing; a malformed input produces only a
-fixed reason code. The receipt excludes tokens, payloads and upstream bodies.
-
-The report always sets `executionChallengeVerified:false`,
-`executionAuthorityGranted:false` and `snapshotProvenanceVerified:false`.
-A captured pool does not itself establish account billing, owner authority,
-data-class/scope compatibility, current exact-source provenance or execution.
-Even three candidate observations would return `live-challenge-required`.
-An independent evaluator must establish those omitted boundaries before running
-the challenge; the inventory never grants admission or authorizes a fault.
+The native capability pool does not itself establish account billing, owner
+authority, data-class/scope compatibility, current exact-source provenance or
+execution. An independent evaluator must establish those omitted boundaries
+before running the challenge; inventory never grants admission or authorizes a
+fault.
 
 ## Concrete source and deployment gaps
 
