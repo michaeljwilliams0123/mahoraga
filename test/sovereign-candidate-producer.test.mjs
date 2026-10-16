@@ -215,6 +215,8 @@ test("stale candidate branches are never deleted, regardless of PR state", async
   const source = await readFile(new URL("../src/sovereign-candidate-producer.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /\["push", "origin", "--delete"/);
   assert.match(source, /cycleId\.slice\(0, 12\).*baseSha\.slice\(0, 12\)/);
+  assert.doesNotMatch(source, /\["config", "user\.(?:name|email)"/);
+  assert.match(source, /\["-c", "user\.name=github-actions\[bot\]", "-c", "user\.email=.*", "commit"/);
 });
 
 test("GitHub Actions PR policy denial is classified explicitly", () => {

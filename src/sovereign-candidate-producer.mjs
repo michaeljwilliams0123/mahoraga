@@ -384,9 +384,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     command(runCommand, "git", ["add", "--", ...enhancement.changedFiles], root);
     const staged = splitLines(command(runCommand, "git", ["diff", "--cached", "--name-only"], root));
     requireExactPaths(staged, enhancement.changedFiles);
-    command(runCommand, "git", ["config", "user.name", "github-actions[bot]"], root);
-    command(runCommand, "git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], root);
-    command(runCommand, "git", ["commit", "-m", enhancement.title], root);
+    command(runCommand, "git", ["-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit", "-m", enhancement.title], root);
 
     const headSha = command(runCommand, "git", ["rev-parse", "HEAD"], root);
     if (!/^[a-f0-9]{40}$/.test(headSha) || headSha === baseSha) throw codedError("candidate-head-invalid");
