@@ -33,7 +33,7 @@ describe("universal execution broker", () => {
 
   it("uses the registry as the sole ordered inventory for provider bindings", async () => {
     const broker = createExecutionBroker({ REPOSITORY_PROVIDER: provider() }, () => NOW);
-    const result = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json()
+    const result = (await (await broker.fetch(new Request("https://broker/api/capabilities"))).json())
       as { providerReadiness: { boundProviders: string[] } };
     expect(result.providerReadiness.boundProviders).toEqual(["REPOSITORY_PROVIDER"]);
   });
