@@ -19,7 +19,8 @@ test("read-only routing never impersonates source editing or general tool calls"
 
 test("repository administration commands are explicit and typed", () => {
   assert.deepEqual(parseRepositoryAdminCommand("/repo admin status"), { action: "status", proposal: null });
-  assert.deepEqual(parseRepositoryAdminCommand("run /repo admin status, reconnect and verify the persisted result"), { action: "status", proposal: null });
+  assert.throws(() => parseRepositoryAdminCommand("run /repo admin status, reconnect and verify the persisted result"), /repository-admin-command-invalid/);
+  assert.deepEqual(parseRepositoryAdminCommand("please run /repo admin status."), { action: "status", proposal: null });
   assert.deepEqual(parseRepositoryAdminCommand('/repo pr create {"expectedMainSha":"' + "a".repeat(40) + '","branch":"mahoraga/native-chat","title":"Native chat","body":"Bounded change.","commitMessage":"Native chat","files":[{"path":"docs/native-chat.md","content":"verified\\n"}]}'), {
     action: "create",
     proposal: {

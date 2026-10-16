@@ -14,7 +14,7 @@ export function isReadOnlyRepositoryEvidenceRequest(message) {
 export function parseRepositoryAdminCommand(message) {
   if (typeof message !== "string" || message.length > 8_000) fail();
   const text = message.trim();
-  if (text === "/repo admin status" || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text)) {
+  if (text === "/repo admin status" || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status[.!]?\s*$/i.test(text)) {
     return Object.freeze({ action: "status", proposal: null });
   }
   const match = /^\/repo (pr create|pr merge|pr checks|pr diagnose|pr update|workflow dispatch|issue create|issue update|comment create|comment delete)\s+([\s\S]+)$/.exec(text);
