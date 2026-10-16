@@ -53,14 +53,16 @@ test("issue creation requests only issue mutation permission and verifies the re
   const calls = [];
   const receipt = await mutateMahoragaRepositoryViaGithubApp("issue-create",
     { title: "Runtime route gap", body: "Observed from the owner UI." },
-    { env: await env(), fetchImpl: async (url, options) => {
+    { env: await env(), mutationId: "1".repeat(64), fetchImpl: async (url, options) => {
       calls.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : null });
-      return calls.length === 1
-        ? json({ token: "issue-token", expires_at: "2026-10-16T00:00:00Z" }, 201)
-        : json(issue(1201, { title: "Runtime route gap" }), 201);
+      if (calls.length === 1) return json({ token: "issue-token", expires_at: "2026-10-16T00:00:00Z" }, 201);
+      if (calls.length === 2) return json([]);
+      return json(issue(1201, { title: "Runtime route gap", body: options.body ? JSON.parse(options.body).body : "" }), 201);
     } });
   assert.deepEqual(calls[0].body.permissions, { issues: "write", metadata: "read" });
-  assert.equal(calls[1].url.endsWith("/issues"), true);
+  assert.match(calls[1].url, /\/issues\?state=all/);
+  assert.equal(calls[2].url.endsWith("/issues"), true);
+  assert.match(calls[2].body.body, /<!-- mahoraga-mutation:1{64} -->/);
   assert.deepEqual(receipt, { provider: "github-app", repository: "michaeljwilliams0123/mahoraga",
     action: "issue-create", kind: "issue", number: 1201,
     url: "https://github.com/michaeljwilliams0123/mahoraga/issues/1201", state: "open", title: "Runtime route gap" });
@@ -103,21 +105,19 @@ test("comment deletion binds kind, parent number and comment identity before DEL
   assert.equal(receipt.deleted, true);
 });
 
-test("branch deletion is namespace and exact-head bound", async () => {
+test("reconcile-only issue creation adopts a prior marker and never posts again", async () => {
   const calls = [];
-  const responses = [
-    json({ token: "contents-token", expires_at: "2026-10-16T00:00:00Z" }, 201),
-    json({ object: { sha: HEAD_SHA } }), new Response(null, { status: 204 }),
-  ];
-  const receipt = await mutateMahoragaRepositoryViaGithubApp("branch-delete",
-    { branch: "mahoraga/obsolete", expectedHeadSha: HEAD_SHA },
-    { env: await env(), fetchImpl: async (url, options) => {
-      calls.push({ url, method: options.method, body: options.body ? JSON.parse(options.body) : null });
-      return responses.shift();
+  const marker = "<!-- mahoraga-mutation:" + "2".repeat(64) + " -->";
+  const receipt = await mutateMahoragaRepositoryViaGithubApp("issue-create",
+    { title: "Recovered issue", body: "Original body" },
+    { env: await env(), mutationId: "2".repeat(64), reconcileOnly: true, fetchImpl: async (url, options) => {
+      calls.push({ url, method: options.method });
+      if (calls.length === 1) return json({ token: "issue-token", expires_at: "2026-10-16T00:00:00Z" }, 201);
+      return json([issue(1203, { title: "Recovered issue", body: "Original body\n\n" + marker })]);
     } });
-  assert.deepEqual(calls[0].body.permissions, { contents: "write", metadata: "read" });
-  assert.equal(calls[2].method, "DELETE");
-  assert.equal(receipt.deletedHeadSha, HEAD_SHA);
+  assert.equal(calls.length, 2);
+  assert.equal(calls.some(call => call.method === "POST" && call.url.endsWith("/issues")), false);
+  assert.equal(receipt.number, 1203);
 });
 
 test("unsupported permanent issue deletion and surplus fields fail before authentication", async () => {

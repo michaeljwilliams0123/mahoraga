@@ -92,4 +92,7 @@ test("native repository work-item mutations route through the durable owner turn
   assert.match(runtimeText, /mahoraga-native-github-\$\{command\.action\}/);
   assert.match(runtimeText, /await mutateMahoragaRepositoryViaGithubApp\(command\.action, command\.proposal/);
   assert.match(runtimeText, /capability = command\.action === "status"[\s\S]*"repository\.write"/);
+  assert.match(runtimeText, /status: "PENDING"/);
+  assert.match(runtimeText, /mutationId: turnId, reconcileOnly/);
+  assert.match(runtimeText, /github-native-mutation-outcome-unknown/);
 });

@@ -298,7 +298,7 @@ async function compensate(request, number, branch, branchCreated) {
 }
 
 
-const REPOSITORY_MUTATIONS = new Set(["pr-update", "issue-create", "issue-update", "comment-create", "comment-delete", "branch-delete"]);
+const REPOSITORY_MUTATIONS = new Set(["pr-update", "issue-create", "issue-update", "comment-create", "comment-delete"]);
 
 /** Bounded work-item and branch mutations for the fixed Mahoraga repository. */
 export async function mutateMahoragaRepositoryViaGithubApp(action, proposal, options = {}) {
@@ -312,7 +312,23 @@ export async function mutateMahoragaRepositoryViaGithubApp(action, proposal, opt
   const request = (method, path, body = null) => githubRequest(method, path, body, { ...options, token });
 
   if (action === "issue-create") {
-    const created = await request("POST", repoPath("issues"), normalized.update);
+    const marker = mutationMarker(options.mutationId);
+    const adopted = await findIssueByMutationMarker(request, normalized, marker);
+    if (adopted) return projectWorkItem(adopted, "issue", normalized);
+    if (options.reconcileOnly === true) fail("github-native-mutation-outcome-unknown", 503);
+    const update = { ...normalized.update, body: appendMutationMarker(normalized.update.body ?? "", marker) };
+    let created;
+    try {
+      created = await request("POST", repoPath("issues"), update);
+    } catch (error) {
+      if (!mutationOutcomeMayBeUnknown(error)) throw error;
+      const reconciled = await findIssueByMutationMarker(request, normalized, marker).catch(() => null);
+      if (reconciled) return projectWorkItem(reconciled, "issue", normalized);
+      fail("github-native-mutation-outcome-unknown", 503);
+    }
+    if (created?.title !== normalized.title || !String(created?.body ?? "").includes(marker)) {
+      fail("github-native-mutation-outcome-unknown", 503);
+    }
     return projectWorkItem(created, "issue", normalized);
   }
   if (action === "issue-update" || action === "pr-update") {
@@ -332,11 +348,23 @@ export async function mutateMahoragaRepositoryViaGithubApp(action, proposal, opt
     assertWorkItem(await request("GET", repoPath(path)), normalized.kind, normalized.number);
     const issueUrl = `${API_ORIGIN}${repoPath(`issues/${normalized.number}`)}`;
     if (action === "comment-create") {
-      const created = await request("POST", repoPath(`issues/${normalized.number}/comments`), { body: normalized.body });
+      const marker = mutationMarker(options.mutationId);
+      const adopted = await findCommentByMutationMarker(request, normalized, marker, issueUrl);
+      if (adopted) return projectCommentMutation(adopted, normalized, action);
+      if (options.reconcileOnly === true) fail("github-native-mutation-outcome-unknown", 503);
+      const body = appendMutationMarker(normalized.body, marker);
+      let created;
+      try {
+        created = await request("POST", repoPath(`issues/${normalized.number}/comments`), { body });
+      } catch (error) {
+        if (!mutationOutcomeMayBeUnknown(error)) throw error;
+        const reconciled = await findCommentByMutationMarker(request, normalized, marker, issueUrl).catch(() => null);
+        if (reconciled) return projectCommentMutation(reconciled, normalized, action);
+        fail("github-native-mutation-outcome-unknown", 503);
+      }
       if (!Number.isSafeInteger(Number(created?.id)) || Number(created.id) < 1 || created?.issue_url !== issueUrl
-        || created?.body !== normalized.body) fail("github-native-comment-readback-mismatch", 502);
-      return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
-        kind: normalized.kind, number: normalized.number, commentId: Number(created.id), url: String(created.html_url ?? "") });
+        || !String(created?.body ?? "").includes(marker)) fail("github-native-mutation-outcome-unknown", 503);
+      return projectCommentMutation(created, normalized, action);
     }
     const existing = await request("GET", repoPath(`issues/comments/${normalized.commentId}`));
     if (Number(existing?.id) !== normalized.commentId || existing?.issue_url !== issueUrl) fail("github-native-comment-identity-mismatch", 409);
@@ -345,12 +373,7 @@ export async function mutateMahoragaRepositoryViaGithubApp(action, proposal, opt
       kind: normalized.kind, number: normalized.number, commentId: normalized.commentId, deleted: true });
   }
 
-  const refPath = `git/ref/heads/${encodeURIComponent(normalized.branch)}`;
-  const current = await request("GET", repoPath(refPath));
-  if (sha(current?.object?.sha, "github-native-branch-readback-invalid") !== normalized.expectedHeadSha) fail("github-native-branch-moved", 409);
-  await request("DELETE", repoPath(`git/refs/heads/${encodeURIComponent(normalized.branch)}`));
-  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
-    branch: normalized.branch, deletedHeadSha: normalized.expectedHeadSha, deleted: true });
+  fail("github-native-mutation-invalid", 422);
 }
 
 function normalizeRepositoryMutation(action, value) {
@@ -398,10 +421,40 @@ function normalizeRepositoryMutation(action, value) {
         ? { body: bounded(value.body, 1, 20_000, "github-native-mutation-body-invalid") }
         : { commentId: positiveInteger(value.commentId, "github-native-comment-id-invalid") }) });
   }
-  exact(["branch", "expectedHeadSha"], ["branch", "expectedHeadSha"]);
-  const branch = String(value.branch ?? "").trim();
-  if (!/^mahoraga\/[a-z0-9][a-z0-9._/-]{2,79}$/.test(branch) || branch.includes("..") || branch.endsWith("/")) fail("github-native-branch-invalid", 422);
-  return Object.freeze({ permission: "contents", branch, expectedHeadSha: sha(value.expectedHeadSha, "github-native-mutation-head-invalid") });
+  fail("github-native-mutation-invalid", 422);
+}
+
+function mutationMarker(value) {
+  const id = String(value ?? "").trim().toLowerCase();
+  if (!/^[a-f0-9]{64}$/.test(id)) fail("github-native-mutation-id-invalid", 422);
+  return `<!-- mahoraga-mutation:${id} -->`;
+}
+function appendMutationMarker(body, marker) {
+  return `${String(body).trimEnd()}${String(body).trimEnd() ? "\n\n" : ""}${marker}`;
+}
+function mutationOutcomeMayBeUnknown(error) {
+  const code = String(error?.code ?? error?.message ?? "");
+  return code === "github-native-request-timeout" || code === "github-native-request-unreachable"
+    || /^github-native-http-5[0-9]{2}$/.test(code);
+}
+async function findIssueByMutationMarker(request, normalized, marker) {
+  const value = await request("GET", repoPath("issues?state=all&sort=created&direction=desc&per_page=100"));
+  if (!Array.isArray(value)) fail("github-native-response-invalid", 502);
+  const matches = value.filter((candidate) => !Object.hasOwn(candidate ?? {}, "pull_request")
+    && candidate?.title === normalized.title && String(candidate?.body ?? "").includes(marker));
+  if (matches.length > 1) fail("github-native-mutation-marker-conflict", 409);
+  return matches[0] ?? null;
+}
+async function findCommentByMutationMarker(request, normalized, marker, issueUrl) {
+  const value = await request("GET", repoPath(`issues/${normalized.number}/comments?sort=created&direction=desc&per_page=100`));
+  if (!Array.isArray(value)) fail("github-native-response-invalid", 502);
+  const matches = value.filter((candidate) => candidate?.issue_url === issueUrl && String(candidate?.body ?? "").includes(marker));
+  if (matches.length > 1) fail("github-native-mutation-marker-conflict", 409);
+  return matches[0] ?? null;
+}
+function projectCommentMutation(created, normalized, action) {
+  return Object.freeze({ provider: "github-app", repository: `${OWNER}/${REPO}`, action,
+    kind: normalized.kind, number: normalized.number, commentId: Number(created.id), url: String(created.html_url ?? "") });
 }
 
 function assertWorkItem(value, kind, expectedNumber) {

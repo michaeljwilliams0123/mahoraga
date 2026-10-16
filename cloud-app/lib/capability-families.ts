@@ -69,7 +69,7 @@ export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabili
 
 export function canSubmitNativeRepositoryChat(coreReady: boolean, text: string, fileCount: number): boolean {
   return coreReady && fileCount === 0
-    && /^\/repo\s+(?:inspect|admin|pr|workflow|issue|comment|branch)\b/i.test(text.trim());
+    && /^\/repo\s+(?:inspect|admin|pr|workflow|issue|comment)\b/i.test(text.trim());
 }
 
 export const PREDICTION_STARTER = "/predict {\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"action\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1}}";

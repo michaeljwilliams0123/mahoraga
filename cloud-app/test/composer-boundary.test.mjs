@@ -49,13 +49,15 @@ test("chat renders assistant markdown once and shows a single visible user label
 
 
 test("paired native GitHub commands remain submit-capable without a model route", async () => {
-  const [chat, capabilities] = await Promise.all([
+  const [workspace, chat, capabilities] = await Promise.all([
+    read("components/workspace.tsx"),
     read("components/workspace/chat-view.tsx"),
     read("lib/capability-families.ts"),
   ]);
   assert.match(capabilities, /canSubmitNativeRepositoryChat/);
   assert.match(capabilities, /\^\\\/repo\\s\+\(\?:inspect\|admin\|pr\|workflow\|issue\|comment\|branch\)/);
   assert.match(chat, /canSubmitNativeRepositoryChat\(coreReady, input, files\.length\)/);
+  assert.match(workspace, /canSubmitNativeRepositoryChat\(coreReady, text, files\.length\)/);
   for (const label of ["Check GitHub write route", "Create issue", "Edit or close issue", "Comment on issue", "Create draft PR", "Delete file in draft PR"]) {
     assert.match(chat, new RegExp(label));
   }
