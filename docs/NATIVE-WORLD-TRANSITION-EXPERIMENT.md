@@ -16,11 +16,34 @@ With the repository's Node.js 24+ environment:
 
 ```bash
 node --test --test-isolation=none test/native-world-model.test.ts
+node --test --test-isolation=none test/native-world-experiment.test.ts
+node scripts/native-world-experiment.ts
 npm run typecheck
 npm run verify
 ```
 
 The tests construct an owner-authorized synthetic task with two actions, sample unseen state values only in the held-out evaluation set, compare initial and trained mean-squared prediction error, replay a seeded run and serialized checkpoint, and reject malformed episodes, overlap, untrained actions, tampering and production authority claims.
+
+## Third-split assessment (issue #899 follow-up)
+
+`assessNativeWorldHoldout` evaluates a fixed checkpoint on a third dataset. Callers supply the original training and development-evaluation episodes; their normalized digests must match the checkpoint manifest. The holdout must cover every trained action, carry rights evidence, and share neither episode IDs nor action/state pairs with either reference split. Changing an outcome label cannot disguise a repeated intervention. Repeated interventions within the holdout are rejected too. Training now applies the same action/state separation to its development split.
+
+The assessment returns overall and per-action prediction MSE, a persistence baseline (predict that the state stays unchanged), dataset/rights digests and the exact checkpoint fingerprint. It does not train, select or promote weights. These checks establish dataset separation within the supplied evidence; they cannot establish that a developer has never seen the holdout.
+
+`scripts/native-world-experiment.ts` reuses the existing architecture with **12 parameters**, two state features and two actions. Each of seeds `7`, `42` and `1337` trains for 150 epochs at learning rate `0.03` on 50 transitions, uses 32 development transitions and assesses 50 distinct holdout interventions. Both synthetic tasks use fixed, hand-authored coordinate grids; the affine task couples both state features in each action. The nonlinear stress replaces those residuals with signed quadratic effects, which the current linear architecture cannot express exactly.
+
+The fixed assessment policy requires MSE at most `0.001`, both overall and for each action, and each action's MSE below 10% of persistence MSE. Results observed with this implementation:
+
+| Task | Third-split MSE, all three seeds | Persistence MSE | Assessment |
+| --- | --- | --- | --- |
+| Coupled affine transitions | approximately `4e-32` | `0.05266075` | qualified offline experiment |
+| Quadratic stress | `0.05209746` | `0.12217050` | **HOLD** |
+
+Near-zero affine error reflects an exactly representable noiseless generating rule, not broad generalization. The stress improves on persistence but still fails both fixed criteria. Its HOLD remains in the report. The command exits successfully when the affine experiment and checkpoint immutability/reload checks pass; this does not mean every reported task passed. The runner never retries seeds or changes thresholds based on results.
+
+Run the CLI from a clean committed checkout: it stamps `HEAD` as the source SHA and rejects tracked source changes or an untracked implementation. The report includes all three split digests and per-action errors; reports/checkpoints are not automatically written into the repository. Function-level tests exercise the same experiment without needing a committed fixture SHA.
+
+This remains **developer-authored, same-process synthetic research**, with development-selected tasks/configuration. A third split is not an independent hidden evaluator. There is no live-experience ingestion, rollout evaluation, uncertainty calibration, new architecture, native serving route, production activation or authority grant. Independent hidden-task collection and evaluation remain required follow-ups.
 
 ## What the result can prove
 
