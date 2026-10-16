@@ -67,11 +67,9 @@ export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabili
     || (/^\/cycle(?:\s|$)/i.test(text.trim()) && cognitiveCycleAvailable(coreReady, capabilities));
 }
 
-/** Deterministic repository operations can run even when no inference route is active. */
 export function canSubmitNativeRepositoryChat(coreReady: boolean, text: string, fileCount: number): boolean {
   return coreReady && fileCount === 0
-    && (/^\/repo\s+(?:inspect|admin\s+status|pr\s+(?:create|merge|checks|diagnose)|workflow\s+dispatch)(?:\s|$)/i.test(text.trim())
-      || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text.trim()));
+    && /^\/repo\s+(?:inspect|admin|pr|workflow|issue|comment)\b/i.test(text.trim());
 }
 
 export const PREDICTION_STARTER = "/predict {\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"action\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1}}";

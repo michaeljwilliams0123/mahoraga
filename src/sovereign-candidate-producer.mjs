@@ -326,9 +326,8 @@ export function decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount } =
     throw codedError("candidate-existing-base-drift");
   }
   if (!Number.isSafeInteger(openPrCount) || openPrCount < 0) throw codedError("candidate-existing-pr-invalid");
-  if (mergeBase === baseSha) return "reuse";
-  if (openPrCount > 0) throw codedError("candidate-existing-base-drift");
-  return "reclaim";
+  if (mergeBase !== baseSha) throw codedError("candidate-existing-base-drift");
+  return "reuse";
 }
 
 export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = fixedCommand } = {}) {
@@ -358,7 +357,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     if (!enhancement) return null;
     assertSafeCandidatePaths(enhancement.changedFiles);
 
-    const branchName = `feature/sovereign-${cycleId.slice(0, 12)}`;
+    const branchName = `feature/sovereign-${cycleId.slice(0, 12)}-${baseSha.slice(0, 12)}`;
     const existing = existingCandidateContext({ repositoryIdentity, branchName, baseSha, enhancement, root, runCommand });
     if (existing) {
       const pr = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
@@ -385,9 +384,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     command(runCommand, "git", ["add", "--", ...enhancement.changedFiles], root);
     const staged = splitLines(command(runCommand, "git", ["diff", "--cached", "--name-only"], root));
     requireExactPaths(staged, enhancement.changedFiles);
-    command(runCommand, "git", ["config", "user.name", "github-actions[bot]"], root);
-    command(runCommand, "git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], root);
-    command(runCommand, "git", ["commit", "-m", enhancement.title], root);
+    command(runCommand, "git", ["-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit", "-m", enhancement.title], root);
 
     const headSha = command(runCommand, "git", ["rev-parse", "HEAD"], root);
     if (!/^[a-f0-9]{40}$/.test(headSha) || headSha === baseSha) throw codedError("candidate-head-invalid");
@@ -412,11 +409,7 @@ function existingCandidateContext({ repositoryIdentity, branchName, baseSha, enh
   const raw = command(runCommand, "gh", ["pr", "list", "--repo", repositoryIdentity, "--head", branchName, "--base", "main", "--state", "open", "--json", "number,headRefOid,baseRefOid,baseRefName,state"], root);
   const prs = JSON.parse(raw);
   if (!Array.isArray(prs)) throw codedError("candidate-existing-pr-invalid");
-  const stale = decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount: prs.length });
-  if (stale === "reclaim") {
-    command(runCommand, "git", ["push", "origin", "--delete", branchName], root);
-    return null;
-  }
+  decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount: prs.length });
   const changedFiles = splitLines(command(runCommand, "git", ["diff", "--name-only", `${baseSha}...${headSha}`], root));
   requireExactPaths(changedFiles, enhancement.changedFiles);
   assertSafeCandidatePaths(changedFiles);

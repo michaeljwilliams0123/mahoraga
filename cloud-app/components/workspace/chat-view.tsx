@@ -43,6 +43,17 @@ const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
   ship: GitPullRequestArrow,
 };
 
+const GITHUB_COMMAND_TEMPLATES = Object.freeze([
+  { label: "Check GitHub write route", command: "/repo admin status" },
+  { label: "Create issue", command: '/repo issue create {"title":"Describe the issue","body":"Current behavior, desired behavior, and acceptance evidence."}' },
+  { label: "Edit or close issue", command: '/repo issue update {"number":123,"state":"closed"}' },
+  { label: "Edit or close PR", command: '/repo pr update {"number":123,"expectedHeadSha":"PASTE_CURRENT_HEAD_SHA","title":"Updated title"}' },
+  { label: "Comment on issue", command: '/repo comment create {"kind":"issue","number":123,"body":"Evidence-backed update."}' },
+  { label: "Delete comment", command: '/repo comment delete {"kind":"issue","number":123,"commentId":456}' },
+  { label: "Create draft PR", command: '/repo pr create {"expectedMainSha":"PASTE_CURRENT_MAIN_SHA","branch":"mahoraga/describe-change","title":"Describe change","body":"Problem, behavior, and validation.","commitMessage":"Describe change","files":[{"path":"docs/change.md","content":"Describe the change.\\n"}]}' },
+  { label: "Delete file in draft PR", command: '/repo pr create {"expectedMainSha":"PASTE_CURRENT_MAIN_SHA","branch":"mahoraga/remove-file","title":"Remove obsolete file","body":"Removes an obsolete tracked file through review.","commitMessage":"Remove obsolete file","files":[{"path":"docs/obsolete.md","delete":true}]}' },
+] as const);
+
 function readableBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
 }
@@ -316,6 +327,18 @@ export function ChatView(props: ChatViewProps) {
             </details>
           </div>
         )}
+
+        {coreReady ? (
+          <details className="github-command-tools">
+            <summary>GitHub actions <span>Create, edit, comment, close, or delete through typed native receipts</span></summary>
+            <p>These commands use the paired runtime's repository-scoped GitHub App. Issue removal is represented by close/reopen; tracked files, comments, and Mahoraga branches have explicit delete commands. Review the populated JSON before sending.</p>
+            <div className="starter-row" aria-label="GitHub command templates">
+              {GITHUB_COMMAND_TEMPLATES.map((template) => (
+                <button key={template.label} type="button" onClick={() => setInput(template.command)}>{template.label}</button>
+              ))}
+            </div>
+          </details>
+        ) : null}
 
         <div className="composer-card one-composer">
           {files.length > 0 && (

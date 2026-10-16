@@ -389,6 +389,8 @@ export function Workspace() {
     setActiveActionLabel(null);
     setRuntimeError(null);
     setLicensedRetry(null);
+    pendingCommandRetry.current = null;
+    setPendingCommandRetryAvailable(false);
     setInput("");
     setFiles([]);
   }
@@ -429,8 +431,9 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
-    if (!assistantReady && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)
-        && !canSubmitNativeRepositoryChat(coreReady, text, files.length)) {
+    if (!assistantReady
+      && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)
+      && !canSubmitNativeRepositoryChat(coreReady, text, files.length)) {
       setRuntimeError(ASSISTANT_ROUTE_UNROUTABLE_ERROR);
       return;
     }
@@ -501,10 +504,8 @@ export function Workspace() {
     }))).join("").slice(0, 7_000);
     const requestText = retry ? retry.text : `${text}${snippetText}`.trim();
     if (!retry && creditPolicy === "zero-codex" && requestText) appendMessage("user", requestText);
-    const idempotencyKey = retry?.idempotencyKey ?? "workspace-" + crypto.randomUUID();
-    // Assign a stable conversation before first delivery; otherwise a retry
-    // with the same key and a newly generated server conversation would conflict.
-    const commandConversation = retry ? retry.conversationId : (runtimeConversationId ?? crypto.randomUUID());
+    const idempotencyKey = retry?.idempotencyKey ?? `workspace-${crypto.randomUUID()}`;
+    const commandConversation = retry?.conversationId ?? runtimeConversationId ?? crypto.randomUUID();
     const pollGeneration = ++runtimePollGeneration.current;
     let chatAccepted = false;
     try {
@@ -537,13 +538,15 @@ export function Workspace() {
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
-        // Preserve original logical identity only on a transport-ambiguous failure.
-        if (!chatAccepted && ambiguousTransportFailure(code) && attachments.length === 0 && creditPolicy === "zero-codex") {
-          pendingCommandRetry.current = retry ?? prepareChatRetry({
-            idempotencyKey, conversationId: commandConversation, text: requestText,
-            mode: modeOverride, creditPolicy,
-          });
+        const retryable = !chatAccepted && ambiguousTransportFailure(code) && attachments.length === 0
+          && creditPolicy === "zero-codex" && canSubmitNativeRepositoryChat(coreReady, requestText, 0);
+        if (retryable) {
+          pendingCommandRetry.current = retry ?? prepareChatRetry({ idempotencyKey, conversationId: commandConversation,
+            text: requestText, mode: modeOverride, creditPolicy });
           setPendingCommandRetryAvailable(true);
+        } else {
+          pendingCommandRetry.current = null;
+          setPendingCommandRetryAvailable(false);
         }
         if (code === "zero-credit-provider-unavailable" && creditPolicy === "zero-codex") {
           setLicensedRetry({ text, mode: modeOverride });
@@ -567,8 +570,8 @@ export function Workspace() {
   async function retryPendingCommand() {
     const pending = pendingCommandRetry.current;
     if (!pending || runtimeBusy || (runtimeConversationId !== null && runtimeConversationId !== pending.conversationId)) {
-      setPendingCommandRetryAvailable(false);
       pendingCommandRetry.current = null;
+      setPendingCommandRetryAvailable(false);
       return;
     }
     await submitCore(pending.text, pending.mode, null, pending.creditPolicy, [], pending);

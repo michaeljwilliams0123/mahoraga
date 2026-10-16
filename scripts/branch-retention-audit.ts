@@ -69,12 +69,19 @@ function collectActiveSourceReferences(branchNames: string[]): Map<string,string
   }
   return found;
 }
+function assertAuditSource(mainSha: string): void {
+  // Active references below are read from this worktree, not from origin/main.
+  // A fresh remote-ref inventory cannot make stale or edited source authoritative.
+  if (command(GIT, ["rev-parse", "HEAD"]) !== mainSha) throw new Error("branch-audit-source-sha-stale");
+  if (command(GIT, ["status", "--porcelain", "--untracked-files=no"])) throw new Error("branch-audit-worktree-dirty");
+}
 function main(): void {
   const root = command(GIT, ["rev-parse", "--show-toplevel"]);
   if (root.toLowerCase().replaceAll("\\", "/") !== process.cwd().toLowerCase().replaceAll("\\", "/")) {
     throw new Error("branch-audit-run-from-repository-root");
   }
   const sha = command(GIT, ["rev-parse", "refs/remotes/origin/main"]);
+  assertAuditSource(sha);
   const remote = parseHeadRefs(command(GIT, ["ls-remote", "--heads", "origin"]));
   if (remote.get("main") !== sha) throw new Error("branch-audit-main-sha-stale");
   const localRaw = command(GIT, ["for-each-ref", "--format=%(refname)%09%(objectname)", "refs/remotes/origin"]);
@@ -138,6 +145,7 @@ function main(): void {
   const counts = rows.reduce<Record<string,number>>((acc,row) => {
     acc[row.disposition]=(acc[row.disposition]??0)+1;return acc;
   },{});
+  assertAuditSource(sha);
   console.log(JSON.stringify({
     schemaVersion:1, kind:"branch-retention-ref-proof", readOnly:true, spentCredits:0,
     mainSha:sha, branchCount: rows.length, prHistoryCount:prs.length,
