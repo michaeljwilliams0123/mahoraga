@@ -55,7 +55,7 @@ test("paired native GitHub commands remain submit-capable without a model route"
     read("lib/capability-families.ts"),
   ]);
   assert.match(capabilities, /canSubmitNativeRepositoryChat/);
-  assert.match(capabilities, /\^\\\/repo\\s\+\(\?:inspect\|admin\|pr\|workflow\|issue\|comment\|branch\)/);
+  assert.match(capabilities, /\^\\\/repo\\s\+\(\?:inspect\|admin\|pr\|workflow\|issue\|comment\)/);
   assert.match(chat, /canSubmitNativeRepositoryChat\(coreReady, input, files\.length\)/);
   assert.match(workspace, /canSubmitNativeRepositoryChat\(coreReady, text, files\.length\)/);
   for (const label of ["Check GitHub write route", "Create issue", "Edit or close issue", "Comment on issue", "Create draft PR", "Delete file in draft PR"]) {
