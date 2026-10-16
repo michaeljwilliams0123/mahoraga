@@ -11,6 +11,9 @@ export type NativeWorldTrainingInput = {
   modelId: string; trainingCodeSha: string; seed: number; epochs: number; learningRate: number;
   features: string[]; actions: string[]; training: NativeWorldEpisode[]; evaluation: NativeWorldEpisode[];
 };
+export type NativeWorldHoldoutInput = {
+  training: NativeWorldEpisode[]; evaluation: NativeWorldEpisode[]; holdout: NativeWorldEpisode[];
+};
 type WorldManifest = {
   schemaVersion: 1; kind: "native-world-transition-candidate"; architecture: "action-conditioned-linear-residual-v1";
   modelId: string; trainingCodeSha: string; seed: number; epochs: number; learningRate: number;
@@ -84,6 +87,16 @@ function freeze<T>(value: T): T {
   }
   return value;
 }
+// An intervention is its action and observed state, regardless of the outcome label.
+function assertSeparateInterventions(reference: readonly NativeWorldEpisode[], heldout: readonly NativeWorldEpisode[]) {
+  const ids = new Set(reference.map(e => e.episodeId));
+  const interventions = new Set(reference.map(e => hash([e.actionId, e.state])));
+  for (const e of heldout) {
+    const intervention = hash([e.actionId, e.state]);
+    if (ids.has(e.episodeId) || interventions.has(intervention)) fail("native-world-data-leakage");
+    ids.add(e.episodeId); interventions.add(intervention);
+  }
+}
 /** Gradient-descent candidate. Its label is always OFFLINE, never production-readiness. */
 export function trainNativeWorldModel(input: NativeWorldTrainingInput) {
   exact(input, ["modelId","trainingCodeSha","seed","epochs","learningRate","features","actions","training","evaluation"], "native-world-input-invalid");
@@ -96,11 +109,7 @@ export function trainNativeWorldModel(input: NativeWorldTrainingInput) {
   const actions = vector(input.actions, isId, 4, "native-world-actions-invalid");
   const training = checkedEpisodes(input.training, features, actions);
   const evaluation = checkedEpisodes(input.evaluation, features, actions);
-  const trainingIds = new Set(training.map(e => e.episodeId));
-  const transitions = new Set(training.map(e => hash([e.actionId,e.state,e.nextState])));
-  for (const e of evaluation) {
-    if (trainingIds.has(e.episodeId) || transitions.has(hash([e.actionId,e.state,e.nextState]))) fail("native-world-data-leakage");
-  }
+  assertSeparateInterventions(training, evaluation);
   if (actions.some(action => !training.some(e => e.actionId === action) || !evaluation.some(e => e.actionId === action))) fail("native-world-action-holdout-incomplete");
   let randomState = input.seed >>> 0;
   const random = () => { randomState ^= randomState << 13; randomState ^= randomState >>> 17; randomState ^= randomState << 5; return (randomState >>> 0) / 4294967296; };
@@ -180,4 +189,31 @@ export function predictNativeWorldState(checkpoint: NativeWorldCheckpoint, actio
   return freeze({ kind: "native-world-offline-prediction" as const, checkpointFingerprint: candidate.fingerprint,
     actionId, predictedState: Object.fromEntries(candidate.features.map((key, i) => [key, normalized[i]! + changes[i]!])),
     executionAuthorityGranted: false as const });
+}
+/** Read-only third-split assessment. Dataset separation does not imply an independent evaluator. */
+export function assessNativeWorldHoldout(checkpoint: NativeWorldCheckpoint, input: NativeWorldHoldoutInput) {
+  const candidate = loadNativeWorldCheckpoint(JSON.stringify(checkpoint));
+  exact(input, ["training", "evaluation", "holdout"], "native-world-holdout-input-invalid");
+  const { features, actions, weights, manifest } = candidate;
+  const training = checkedEpisodes(input.training, features, actions);
+  const evaluation = checkedEpisodes(input.evaluation, features, actions);
+  if (hash(training) !== manifest.trainingDataDigest || hash(evaluation) !== manifest.evaluationDataDigest) fail("native-world-reference-data-mismatch");
+  const holdout = checkedEpisodes(input.holdout, features, actions);
+  assertSeparateInterventions([...training, ...evaluation], holdout);
+  if (actions.some(action => !holdout.some(e => e.actionId === action))) fail("native-world-action-holdout-incomplete");
+  const persistenceWeights = weights.map(() => 0);
+  return freeze({
+    kind: "native-world-third-split-assessment" as const, checkpointFingerprint: candidate.fingerprint,
+    holdoutDataDigest: hash(holdout),
+    rightsManifestDigest: hash(holdout.map(({episodeId, rights, rightsEvidenceDigest}) => ({episodeId, rights, rightsEvidenceDigest}))),
+    holdoutExamples: holdout.length,
+    meanSquaredError: mse(weights, holdout, features, actions),
+    persistenceMeanSquaredError: mse(persistenceWeights, holdout, features, actions),
+    perAction: actions.map(actionId => {
+      const episodes = holdout.filter(e => e.actionId === actionId);
+      return { actionId, examples: episodes.length, meanSquaredError: mse(weights, episodes, features, actions),
+        persistenceMeanSquaredError: mse(persistenceWeights, episodes, features, actions) };
+    }),
+    independentEvaluator: false as const, productionActivated: false as const, executionAuthorityGranted: false as const,
+  });
 }
