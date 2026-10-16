@@ -261,6 +261,10 @@ export async function createMahoragaPullRequestViaGithubApp(proposal, options = 
   const baseTree = sha(baseCommit?.tree?.sha, "github-native-base-response-invalid");
   const entries = [];
   for (const file of normalized.files) {
+    if (file.delete === true) {
+      entries.push({ path: file.path, mode: "100644", type: "blob", sha: null });
+      continue;
+    }
     const blob = await request("POST", repoPath("git/blobs"), { content: bytesToBase64(new TextEncoder().encode(file.content)), encoding: "base64" });
     entries.push({ path: file.path, mode: "100644", type: "blob", sha: sha(blob?.sha, "github-native-write-response-invalid") });
   }

@@ -119,9 +119,9 @@ export function ChatView(props: ChatViewProps) {
   const inspectOnly = runtimeCapabilities.some(route => route.capability === "cloud.inspect" && route.routable === true && route.enabled !== false)
     && !runtimeCapabilities.some(route => route.routable === true && route.enabled !== false
       && (/\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
-  const canSend = assistantReady
-    || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length)
-    || canSubmitNativeRepositoryChat(coreReady, input, files.length);
+  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
+  const nativeRepositoryCanSend = canSubmitNativeRepositoryChat(coreReady, input, files.length);
+  const submitEnabled = canSend || nativeRepositoryCanSend;
 
   useLayoutEffect(() => {
     const element = composer.current;
@@ -368,7 +368,7 @@ export function ChatView(props: ChatViewProps) {
             {busy ? (
               <button type="button" className="send-button" onClick={() => void stopActiveResponse()} aria-label="Stop response"><Square size={15} /></button>
             ) : (
-              <button type="button" className="send-button" onClick={() => void submit()} disabled={!canSend || (!input.trim() && files.length === 0)} aria-label="Send"><ArrowUp size={18} /></button>
+              <button type="button" className="send-button" onClick={() => void submit()} disabled={!submitEnabled || (!input.trim() && files.length === 0)} aria-label="Send"><ArrowUp size={18} /></button>
             )}
           </div>
         </div>
