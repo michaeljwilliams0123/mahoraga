@@ -76,6 +76,7 @@ export function ChatView(props: ChatViewProps) {
     brainLabel,
     brainState,
     licensedRetryAvailable,
+    pendingCommandRetryAvailable,
     health,
     healthError,
     relayState,
@@ -108,6 +109,7 @@ export function ChatView(props: ChatViewProps) {
     reconnectRuntime,
     revokeRuntime,
     retryLicensed,
+    retryPendingCommand,
   } = props;
 
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
@@ -265,6 +267,7 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
+            {pendingCommandRetryAvailable && coreReady && !busy && <button type="button" onClick={() => void retryPendingCommand()}>Retry same command (reuse execution ID)</button>}
             {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}
