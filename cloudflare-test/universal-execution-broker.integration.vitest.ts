@@ -31,6 +31,13 @@ describe("universal execution broker", () => {
     expect(converted[0]?.capabilities[0]?.capability).toBe("repository.inspect");
   });
 
+  it("uses the registry as the sole ordered inventory for provider bindings", async () => {
+    const broker = createExecutionBroker({ REPOSITORY_PROVIDER: provider() }, () => NOW);
+    const result = await (await broker.fetch(new Request("https://broker/api/capabilities"))).json()
+      as { providerReadiness: { boundProviders: string[] } };
+    expect(result.providerReadiness.boundProviders).toEqual(["REPOSITORY_PROVIDER"]);
+  });
+
   it("projects a fresh provider capability and refuses an unbound provider", async () => {
     const broker = createExecutionBroker({ REPOSITORY_PROVIDER: provider() }, () => NOW);
     const response = await broker.fetch(new Request("https://broker/api/capabilities"));
