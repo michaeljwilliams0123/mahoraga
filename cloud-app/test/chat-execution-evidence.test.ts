@@ -86,3 +86,17 @@ test("an unavailable history cannot be replaced by receipt metadata",async()=>{
   await assert.rejects(api.loadSavedConversation({async conversationHistory(){throw new Error("history-unavailable");},
     async tasks(){return [task];},async messages(){return [message];}},"conversation-1"),/history-unavailable/);
 });
+
+test("execution source is validated as runtime-reported metadata and survives exact history joins",()=>{
+  const sourceSHA="a".repeat(40);
+  const tasks=[{...task,executionReceipt:{...receipt,sourceSHA}}];
+  assert.equal(project(message,tasks).sourceSHA,sourceSHA);
+  const saved=api.projectSavedConversation([{id:"answer-1",role:"assistant",text:"answer"}],[message],tasks,"conversation-1");
+  assert.equal(saved[0].executionEvidence.sourceSHA,sourceSHA);
+  for(const invalid of [undefined,null,"private-sentinel","a".repeat(39),123]) {
+    const result=project(message,[{...task,executionReceipt:{...receipt,sourceSHA:invalid}}]);
+    assert.equal(result.status,"reported");
+    assert.equal(result.sourceSHA,undefined);
+    assert.doesNotMatch(JSON.stringify(result),/private-sentinel/);
+  }
+});

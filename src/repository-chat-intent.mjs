@@ -14,21 +14,26 @@ export function isReadOnlyRepositoryEvidenceRequest(message) {
 export function parseRepositoryAdminCommand(message) {
   if (typeof message !== "string" || message.length > 8_000) fail();
   const text = message.trim();
-  if (text === "/repo admin status" || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text)) {
+  if (text === "/repo admin status" || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status[.!]?\s*$/i.test(text)) {
     return Object.freeze({ action: "status", proposal: null });
   }
-  const match = /^\/repo (pr (create|merge|checks|diagnose)|workflow (dispatch))\s+([\s\S]+)$/.exec(text);
+  const match = /^\/repo (pr create|pr merge|pr checks|pr diagnose|pr update|workflow dispatch|issue create|issue update|comment create|comment delete)\s+([\s\S]+)$/.exec(text);
   if (!match) fail();
   let proposal;
-  try { proposal = JSON.parse(match[4]); } catch { fail(); }
+  try { proposal = JSON.parse(match[2]); } catch { fail(); }
   if (!proposal || typeof proposal !== "object" || Array.isArray(proposal)) fail();
-  return Object.freeze({ action: match[2] ?? match[3], proposal });
+  const actions = Object.freeze({
+    "pr create": "create", "pr merge": "merge", "pr checks": "checks", "pr diagnose": "diagnose",
+    "pr update": "pr-update", "workflow dispatch": "dispatch", "issue create": "issue-create",
+    "issue update": "issue-update", "comment create": "comment-create", "comment delete": "comment-delete",
+  });
+  return Object.freeze({ action: actions[match[1]], proposal });
 }
 
 export function isRepositoryAdminRequest(message) {
   if (typeof message !== "string" || message.length > 8_000) return false;
   const text = message.trim();
-  return /^\/repo\s+(?:admin|pr|workflow)\b/i.test(text)
+  return /^\/repo\s+(?:admin|pr|workflow|issue|comment)\b/i.test(text)
     || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text);
 }
 

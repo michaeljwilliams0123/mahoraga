@@ -9,7 +9,8 @@ export function resolveExecutionRoute({ requestedMode = "", repositoryPrivate, p
   const valid = EXECUTION_ROUTES.includes(mode);
   const stewardCloud = valid && !repositoryPrivate && (mode === "auto" || mode === "cloud");
   const stewardLocal = valid && repositoryPrivate && privateStewardEnabled && (mode === "auto" || mode === "local");
-  const sovereignLocal = valid && (mode === "auto" || (mode === "local" && repositoryPrivate));
+  const sovereignCloud = valid && !repositoryPrivate && (mode === "auto" || mode === "cloud");
+  const sovereignLocal = valid && repositoryPrivate && (mode === "auto" || mode === "local");
   const lane = (selected) => ({
     selected,
     state: selected === "held" ? "held" : selected === "local-windows" && !localRunnerReady ? "queued-until-runner-online" : "eligible",
@@ -19,7 +20,7 @@ export function resolveExecutionRoute({ requestedMode = "", repositoryPrivate, p
     mode: valid ? mode : "invalid",
     repositoryPrivate,
     steward: lane(stewardCloud ? "public-hosted-ubuntu" : stewardLocal ? "local-windows" : "held"),
-    sovereign: lane(sovereignLocal ? "local-windows" : "held"),
+    sovereign: lane(sovereignCloud ? "public-hosted-ubuntu" : sovereignLocal ? "local-windows" : "held"),
     privateStewardEnabled,
     localRunnerReady,
     paidFallback: false,

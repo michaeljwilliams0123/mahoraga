@@ -84,6 +84,55 @@ describe("native assistant bridge", () => {
     expect(run).not.toHaveBeenCalled();
   });
 
+  it("returns execution-time source metadata in task history and replays without restamping historical turns", async () => {
+    const conversationId = "source-provenance";
+    const payload = { conversationId, content: '/predict {"observedState":{"load":4},"stateUncertainty":0.2,"action":{"actionId":"capacity","effects":{"load":-2},"uncertainty":0.1}}', mode: "ask", creditPolicy: "zero-codex", idempotencyKey: "source-provenance-key" };
+    const first = await (await post("chat", payload)).json() as { task: { id: string }; executionReceipt: { sourceSHA?: string | null } };
+    expect(first.executionReceipt.sourceSHA).toBe(env.TARGET_SHA);
+    const read = async () => (await (await post("tasks", { conversationId })).json() as { tasks: Array<{ executionReceipt: { sourceSHA?: string | null } }> }).tasks[0]!.executionReceipt.sourceSHA;
+    expect(await read()).toBe(env.TARGET_SHA);
+    // Model a turn produced by an older deployment, then an unprovenanced legacy turn.
+    for (const source of ["b".repeat(40), null]) {
+      await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
+        state.storage.sql.exec("UPDATE turns SET source_sha = ? WHERE id = ?", source, first.task.id);
+      });
+      const replay = await (await post("chat", payload)).json() as { executionReceipt: { sourceSHA?: string | null } };
+      expect(replay.executionReceipt.sourceSHA).toBe(source);
+      expect(await read()).toBe(source);
+    }
+  });
+
+  it.each([
+    ["assistant", "Earlier question", "cloudflare-workers-ai", "SUCCESS"],
+    ["inspect", "/repo inspect", "mahoraga-native-github-inspect", "SUCCESS"],
+    ["source", "/repo file AGENTS.md", "mahoraga-native-github-source", "SUCCESS"],
+    ["admin", "/repo admin status", "mahoraga-native-github-admin-status", "SUCCESS"],
+    ["failure", "/repo admin status", "mahoraga-native-github-admin-status", "FAILED"],
+  ] as const)("preserves historical and unknown source on %s replay", async (name, content, providerId, status) => {
+    const run = vi.fn(); setProviderInvokerForTest(run);
+    const digest = async (value: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))), byte => byte.toString(16).padStart(2, "0")).join("");
+    const ownerHash = await digest(owner);
+    for (const sourceSHA of ["b".repeat(40), null]) {
+      const conversationId = `historical-${name}-${sourceSHA ? "known" : "unknown"}`;
+      const key = `${conversationId}-key`;
+      const id = await digest(`${ownerHash}\n${key}`);
+      const requestDigest = await digest(`${ownerHash}\n${conversationId}\n${content}`);
+      await runInDurableObject<ExecutionDurableObject, void>(stub, instance => {
+        instance.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: 1, updatedAt: 2 });
+        instance.storage.saveTurn({ id, conversationId, requestDigest, sourceSHA, responseDigest: "response", providerId,
+          costClass: providerId === "cloudflare-workers-ai" ? "cloud-open-weight" : "deterministic", creditPolicy: "zero-codex",
+          status, errorCode: status === "FAILED" ? "github-native-credentials-unavailable" : null,
+          contentIdUser: "user", contentIdAssistant: "assistant", createdAt: 1, completedAt: 2 });
+      });
+      const replay = await post("chat", { conversationId, content, mode: "ask", creditPolicy: "zero-codex", idempotencyKey: key });
+      expect(replay.status).toBe(200);
+      expect(await replay.json()).toMatchObject({ task: { id, status: status === "SUCCESS" ? "completed" : "failed" }, executionReceipt: { sourceSHA } });
+      const tasks = await (await post("tasks", { conversationId })).json();
+      expect(tasks).toMatchObject({ tasks: [{ id, executionReceipt: { sourceSHA } }] });
+    }
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it("runs the canonical collective cognitive cycle as a receipt-only deterministic task", async () => {
     const run = vi.fn(); setProviderInvokerForTest(run);
     const input = {
@@ -114,7 +163,9 @@ describe("native assistant bridge", () => {
     const first = await post("chat", payload);
     expect(first.status).toBe(200);
     const replay = await post("chat", payload);
-    expect(await replay.json()).toEqual(await first.json());
+    const firstResult = await first.json();
+    expect(firstResult).toMatchObject({ executionReceipt: { sourceSHA: env.TARGET_SHA } });
+    expect(await replay.json()).toEqual(firstResult);
     expect(run).toHaveBeenCalledTimes(1);
     expect((await post("chat", { ...payload, content: "different" })).status).toBe(409);
     expect((await post("messages", { conversationId: payload.conversationId }, "intruder@example.com")).status).toBe(404);
@@ -151,6 +202,7 @@ describe("native assistant bridge", () => {
     const first = await failedPost("chat", payload);
     expect(first.status).toBe(200);
     const firstResult = await first.json() as { task: { status: string; errorCode: string } };
+    expect(firstResult).toMatchObject({ executionReceipt: { sourceSHA: env.TARGET_SHA } });
     expect(firstResult.task).toMatchObject({ status: "failed", errorCode: "github-native-credentials-unavailable" });
     expect(await (await failedPost("chat", payload)).json()).toEqual(firstResult);
 

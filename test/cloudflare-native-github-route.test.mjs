@@ -83,3 +83,16 @@ test("native GitHub actions terminate in the Cloudflare execution runtime", asyn
   }
   assert.doesNotMatch(gatewayText, /GITHUB_APP_PRIVATE_KEY/);
 });
+
+
+test("native repository work-item mutations route through the durable owner turn", async () => {
+  const runtimeText = await readFile(runtime, "utf8");
+  assert.match(runtimeText, /mutateMahoragaRepositoryViaGithubApp/);
+  assert.match(runtimeText, /command\.action === "checks" \|\| command\.action === "diagnose"/);
+  assert.match(runtimeText, /mahoraga-native-github-\$\{command\.action\}/);
+  assert.match(runtimeText, /await mutateMahoragaRepositoryViaGithubApp\(command\.action, command\.proposal/);
+  assert.match(runtimeText, /capability = command\.action === "status"[\s\S]*"repository\.write"/);
+  assert.match(runtimeText, /status: "PENDING"/);
+  assert.match(runtimeText, /mutationId: turnId, reconcileOnly/);
+  assert.match(runtimeText, /github-native-mutation-outcome-unknown/);
+});

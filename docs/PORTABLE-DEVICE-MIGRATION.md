@@ -40,6 +40,8 @@ Prerequisites: a trusted copy of the repository, Node.js **24+**, Git and **Git 
 
 ## Optional Linux and macOS enrollment
 
+The former QEMU Linux runner recovery requirement is [retired as a protected-CI/cloud prerequisite](OPTIONAL-LINUX-RUNNER.md). Its historical incident does not establish current guest health or make Linux enrollment necessary for cloud work.
+
 On a trusted Linux/macOS computer with Node 24+, Git, `gh`, Bash, curl, and tar:
 
 ```bash

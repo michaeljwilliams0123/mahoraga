@@ -139,6 +139,8 @@ const BOT_BINDING_FIELDS = Object.freeze([
   "objectiveDigest", "authorityDigest", "sourceSha", "trustEpoch",
   "evaluatorFingerprint", "costClass", "audience", "securityBoundary",
 ]);
+// Host observations must refresh independently of the longer-lived mission lease.
+const BOT_OBSERVATION_MAX_AGE_MS = 60_000;
 
 export function resolveBotOperationalAuthority({
   grant,
@@ -175,6 +177,7 @@ export function resolveBotOperationalAuthority({
   if (nowMs > validUntilMs) return botAuthorityDeny("bot-authority-binding-stale", requestedScope, requestedTarget, botId);
   if (observedAtMs > nowMs + 30_000) return botAuthorityDeny("bot-authority-binding-future", requestedScope, requestedTarget, botId);
   if (observedAtMs > validUntilMs) return botAuthorityDeny("bot-authority-binding-expired-observation", requestedScope, requestedTarget, botId);
+  if (nowMs - observedAtMs > BOT_OBSERVATION_MAX_AGE_MS) return botAuthorityDeny("bot-authority-binding-observation-stale", requestedScope, requestedTarget, botId);
   if (BOT_BINDING_FIELDS.some((field) => expected[field] !== observed[field])) {
     return botAuthorityDeny("bot-authority-drift", requestedScope, requestedTarget, botId);
   }
