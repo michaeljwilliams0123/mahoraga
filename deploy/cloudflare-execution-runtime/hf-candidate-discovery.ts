@@ -41,3 +41,24 @@ export function classifyHfDiscoveryFailure(error: unknown): HfDiscoveryFailure {
   if (error.name === "TimeoutError" || error.name === "AbortError") return "timeout";
   return "network-error";
 }
+
+/** Public, unauthenticated metadata only. Two bounded attempts on transport failure. */
+export async function fetchHfPublicCatalog(topic: "SmolLM" | "Qwen" | "MiniLM",
+  fetchImpl: typeof fetch = fetch): Promise<Response> {
+  const base = "https://huggingface.co/api/models?search=" + topic + "&limit=8&sort=downloads";
+  let error: unknown;
+  for (const url of [base + "&full=true", base]) {
+    try {
+      const response = await fetchImpl(url, { method: "GET", redirect: "follow",
+        signal: AbortSignal.timeout(12000), headers: { accept: "application/json" } });
+      // No auth headers or private data sent; check final origin before using any content.
+      if (response.url && new URL(response.url).origin !== "https://huggingface.co")
+        throw new Error("hf-cloud-unexpected-origin");
+      return response;
+    } catch (cause) {
+      if (cause instanceof Error && cause.message === "hf-cloud-unexpected-origin") throw cause;
+      error = cause;
+    }
+  }
+  throw error ?? new Error("hf-cloud-transport-unavailable");
+}

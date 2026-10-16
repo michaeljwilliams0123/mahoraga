@@ -20,7 +20,7 @@ import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestVi
 import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
-import { selectCloudflareHfCandidates, classifyHfDiscoveryFailure } from "./hf-candidate-discovery";
+import { selectCloudflareHfCandidates, classifyHfDiscoveryFailure, fetchHfPublicCatalog } from "./hf-candidate-discovery";
 import { shouldObserveHuggingFaceNow } from "./hf-one-time-proof";
 // @ts-expect-error Shared canonical JavaScript helper is intentionally runtime-neutral.
 import { isReadOnlyRepositoryEvidenceRequest, isRepositoryAdminRequest, parseRepositoryAdminCommand } from "../../src/repository-chat-intent.mjs";
@@ -289,9 +289,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     let result: Record<string, unknown>;
     let nextCheck = now + 24 * 60 * 60 * 1000;
     try {
-      const response = await fetch(`https://huggingface.co/api/models?search=${topic}&limit=8&sort=downloads&full=true`, {
-        method: "GET", redirect: "error", signal: AbortSignal.timeout(5000), headers: { accept: "application/json" },
-      });
+      const response = await fetchHfPublicCatalog(topic);
       httpStatus = response.status;
       if (!response.ok || response.redirected) throw new Error("hf-cloud-upstream-unavailable");
       const length = Number(response.headers.get("content-length") || 0);
