@@ -4,7 +4,7 @@ Mahoraga uses a repository-installed GitHub App directly through `api.github.com
 
 ## Runtime boundary
 
-The browser receives neither the app private key nor installation tokens. An owner-authenticated action reaches the Mahoraga core, which creates a short-lived RS256 app JWT in memory and exchanges it for an installation token scoped to the `mahoraga` repository and only `contents:write`, `pull_requests:write`, and `metadata:read`.
+For exact-main deployment, the native preflight proves both repository PR-write and Actions Verify-dispatch grants using separately scoped short-lived App tokens. Every issued test token is immediately revoked. A missing grant fails closed before any Cloudflare deployment; no App permissions or repository settings are changed by this check. The browser receives neither the app private key nor installation tokens. An owner-authenticated action reaches the Mahoraga core, which creates a short-lived RS256 app JWT in memory and exchanges it for an installation token scoped to the `mahoraga` repository and only `contents:write`, `pull_requests:write`, and `metadata:read`.
 
 Required protected runtime secrets:
 
