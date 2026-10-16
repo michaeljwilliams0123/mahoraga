@@ -45,6 +45,20 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /Observational \/ fail-closed/);
   });
 
+  it("surfaces bounded failover inventory as observational admission metadata only", () => {
+    assert.match(cockpit, /Failover inventory/);
+    assert.match(cockpit, /Admission metadata only \(observational\)/);
+    assert.match(cockpit, /Merged #1122/);
+    assert.match(cockpit, /inventories fresh, compatible, zero-credit routes/);
+    assert.match(cockpit, /native provider registry and real service bindings/);
+    assert.match(cockpit, /Aliases and multiple workers on one binding count once/);
+    assert.match(cockpit, /does not prove execution, authority, or snapshot provenance/);
+    assert.match(cockpit, /Fewer than three distinct admitted providers/);
+    assert.match(cockpit, /Ambiguous provider failures retained without automatic successor attempt/);
+    assert.match(cockpit, /Issue #547 remains open/);
+    assert.match(cockpit, /No provider, credential, flag, paid route, or live fault injection activated/);
+  });
+
   it("surfaces the optional Codespaces environment without granting authority", () => {
     assert.match(cockpit, /Codespaces development environment/);
     assert.match(cockpit, /Optional \/ non-authoritative/);
