@@ -25,7 +25,7 @@ import {
 import { useLayoutEffect } from "react";
 import { Streamdown } from "streamdown";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
-import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
+import { canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
 import { GithubWorkspacePanel } from "./GithubWorkspacePanel";
@@ -65,6 +65,7 @@ export function ChatView(props: ChatViewProps) {
     brainLabel,
     brainState,
     licensedRetryAvailable,
+    pendingCommandRetryAvailable,
     health,
     healthError,
     relayState,
@@ -97,6 +98,7 @@ export function ChatView(props: ChatViewProps) {
     reconnectRuntime,
     revokeRuntime,
     retryLicensed,
+    retryPendingCommand,
   } = props;
 
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
@@ -108,7 +110,8 @@ export function ChatView(props: ChatViewProps) {
   const inspectOnly = runtimeCapabilities.some(route => route.capability === "cloud.inspect" && route.routable === true && route.enabled !== false)
     && !runtimeCapabilities.some(route => route.routable === true && route.enabled !== false
       && (/\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
-  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
+  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length)
+    || canSubmitNativeRepositoryChat(coreReady, input, files.length);
 
   useLayoutEffect(() => {
     const element = composer.current;
@@ -253,6 +256,7 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
+            {pendingCommandRetryAvailable && coreReady && !busy && <button type="button" onClick={() => void retryPendingCommand()}>Retry same command (reuse execution ID)</button>}
             {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}

@@ -8,7 +8,8 @@ import { subscribePagesReconnect } from "@/lib/pages-reconnect";
 import { type CapabilityObservationState } from "@/lib/capability-observer";
 import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capability-stream";
 import { deriveExecutionStatus } from "@/lib/execution-status";
-import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
+import { canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat } from "@/lib/capability-families";
+import { ambiguousTransportFailure, prepareChatRetry, type PendingChatRetry } from "@/lib/command-retry";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { projectMessageExecution, loadSavedConversation } from "@/lib/chat-execution-evidence";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeConversation, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
@@ -101,6 +102,7 @@ export function Workspace() {
   const [runtimeBusy, setRuntimeBusy] = useState(false);
   const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [licensedRetry, setLicensedRetry] = useState<{ text: string; mode: TaskMode } | null>(null);
+  const [pendingCommandRetryAvailable, setPendingCommandRetryAvailable] = useState(false);
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
   const [activeActionLabel, setActiveActionLabel] = useState<string | null>(null);
   const [voiceSupported, setVoiceSupported] = useState(false);
@@ -112,6 +114,7 @@ export function Workspace() {
   const voice = useRef<VoiceController | null>(null);
   const renderedRuntimeMessages = useRef(new Set<string>());
   const activeRuntimeTask = useRef<RuntimeTask | null>(null);
+  const pendingCommandRetry = useRef<PendingChatRetry | null>(null);
   const runtimePollGeneration = useRef(0);
   const historyEpoch = useRef(0);
   const historyInitialized = useRef(false);
@@ -426,7 +429,8 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
-    if (!assistantReady && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)) {
+    if (!assistantReady && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)
+        && !canSubmitNativeRepositoryChat(coreReady, text, files.length)) {
       setRuntimeError(ASSISTANT_ROUTE_UNROUTABLE_ERROR);
       return;
     }
@@ -472,7 +476,7 @@ export function Workspace() {
     if (!latest || !speakText(latest.text)) setRuntimeError("Read-aloud is not available in this browser yet.");
   }
 
-  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null, creditPolicy: ChatCreditPolicy = "zero-codex", attachments: File[] = []) {
+  async function submitCore(text: string, modeOverride: TaskMode = taskMode, actionLabel: string | null = null, creditPolicy: ChatCreditPolicy = "zero-codex", attachments: File[] = [], retry: PendingChatRetry | null = null) {
     const transport = relay.current;
     if (!transport?.connected || (!text && attachments.length === 0)) {
       setRelayState("error");
@@ -480,6 +484,7 @@ export function Workspace() {
       setActiveActionLabel(null);
       return;
     }
+    if (!retry) { pendingCommandRetry.current = null; setPendingCommandRetryAvailable(false); }
     if (creditPolicy === "zero-codex") setLicensedRetry(null);
     setInput("");
     setRuntimeError(null);
@@ -494,20 +499,26 @@ export function Workspace() {
       const content = (await file.text()).slice(0, 3_500);
       return `\n\n--- uploaded snippet: ${file.name} ---\n${content}\n--- end uploaded snippet ---`;
     }))).join("").slice(0, 7_000);
-    const requestText = `${text}${snippetText}`.trim();
-    if (creditPolicy === "zero-codex" && requestText) appendMessage("user", requestText);
+    const requestText = retry ? retry.text : `${text}${snippetText}`.trim();
+    if (!retry && creditPolicy === "zero-codex" && requestText) appendMessage("user", requestText);
+    const idempotencyKey = retry?.idempotencyKey ?? "workspace-" + crypto.randomUUID();
+    const commandConversation = retry ? retry.conversationId : runtimeConversationId;
     const pollGeneration = ++runtimePollGeneration.current;
+    let chatAccepted = false;
     try {
       const uploadedArtifacts = await Promise.all(binaryAttachments.map((file) => transport.uploadArtifact(file)));
       const attachmentIds = uploadedArtifacts.map((artifact) => artifact.id);
       const result = await transport.chat({
-        conversationId: runtimeConversationId,
+        conversationId: commandConversation,
         content: requestText,
         mode: modeOverride,
         creditPolicy,
         attachmentIds,
-        idempotencyKey: `workspace-${crypto.randomUUID()}`,
+        idempotencyKey,
       });
+      chatAccepted = true;
+      pendingCommandRetry.current = null;
+      setPendingCommandRetryAvailable(false);
       if (attachments.length > 0) setFiles([]);
       if (runtimePollGeneration.current !== pollGeneration) {
         if (result.task) {
@@ -524,6 +535,14 @@ export function Workspace() {
     } catch (caught) {
       if (runtimePollGeneration.current === pollGeneration) {
         const code = caught instanceof Error ? caught.message : "runtime-request-failed";
+        // Preserve original logical identity only on a transport-ambiguous failure.
+        if (!chatAccepted && ambiguousTransportFailure(code) && attachments.length === 0 && creditPolicy === "zero-codex") {
+          pendingCommandRetry.current = retry ?? prepareChatRetry({
+            idempotencyKey, conversationId: commandConversation, text: requestText,
+            mode: modeOverride, creditPolicy,
+          });
+          setPendingCommandRetryAvailable(true);
+        }
         if (code === "zero-credit-provider-unavailable" && creditPolicy === "zero-codex") {
           setLicensedRetry({ text, mode: modeOverride });
         }
@@ -541,6 +560,16 @@ export function Workspace() {
         setActiveActionLabel(null);
       }
     }
+  }
+
+  async function retryPendingCommand() {
+    const pending = pendingCommandRetry.current;
+    if (!pending || runtimeBusy || runtimeConversationId !== pending.conversationId) {
+      setPendingCommandRetryAvailable(false);
+      pendingCommandRetry.current = null;
+      return;
+    }
+    await submitCore(pending.text, pending.mode, null, pending.creditPolicy, [], pending);
   }
 
   async function retryLicensed() {
@@ -683,14 +712,14 @@ export function Workspace() {
         <ChatView
           capabilityObservation={capabilityObservation} onRefreshCapabilities={() => refreshCapabilities.current?.()} relay={pairedRelay}
           messages={messages} runtimeBusy={runtimeBusy} runtimeError={runtimeError} input={input} files={files} totalBytes={totalBytes}
-          busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} health={health} healthError={healthError}
+          busy={busy} coreReady={coreReady} assistantReady={assistantReady} taskMode={taskMode} brainLabel={brainLabel} brainState={brainState} licensedRetryAvailable={licensedRetry !== null} pendingCommandRetryAvailable={pendingCommandRetryAvailable} health={health} healthError={healthError}
           relayState={relayState} pairingOffer={pairingOffer} routableCapabilities={routableCapabilities} runtimeCapabilities={runtimeCapabilities} starters={starters} quickActions={quickActions}
           ownerLoginRequired={ownerLoginRequired} ownerLoginPin={ownerLoginPin} ownerLoginBusy={ownerLoginBusy}
           activeActionLabel={activeActionLabel} voiceSupported={voiceSupported} voiceListening={voiceListening} composer={composer} fileInput={fileInput}
           bottom={bottom} setInput={setInput} setPairingOffer={setPairingOffer} setSidebarOpen={setSidebarOpen} chooseStarter={chooseStarter}
           setOwnerLoginPin={setOwnerLoginPin}
           addFiles={addFiles} setFiles={setFiles} submit={submit} runQuickAction={runQuickAction} toggleVoice={toggleVoice} speakLatest={speakLatest}
-          reconnectRuntime={reconnectRuntime} stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed}
+          reconnectRuntime={reconnectRuntime} stopActiveResponse={stopActiveResponse} pairRuntime={pairRuntime} onOwnerLogin={loginDirectOwner} revokeRuntime={revokeRuntime} retryLicensed={retryLicensed} retryPendingCommand={retryPendingCommand}
         />
       )}
 

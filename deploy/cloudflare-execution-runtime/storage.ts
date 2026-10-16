@@ -27,6 +27,8 @@ export interface AssistantTurnRecord {
   conversationId: string;
   requestDigest: string;
   responseDigest: string | null;
+  /** Runtime source captured when this turn executed; absent on legacy writes. */
+  sourceSHA?: string | null;
   providerId: string | null;
   costClass: ExecutionCostClass | null;
   creditPolicy: AssistantCreditPolicy;
@@ -96,6 +98,7 @@ type TurnRow = Record<string, SqlStorageValue> & {
   conversation_id: string;
   request_digest: string;
   response_digest: string | null;
+  source_sha: string | null;
   provider_id: string | null;
   cost_class: ExecutionCostClass | null;
   credit_policy: AssistantCreditPolicy;
@@ -173,6 +176,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         conversation_id TEXT NOT NULL,
         request_digest TEXT NOT NULL,
         response_digest TEXT,
+        source_sha TEXT,
         provider_id TEXT,
         cost_class TEXT,
         credit_policy TEXT NOT NULL CHECK (credit_policy IN ('zero-codex', 'licensed-approved')),
@@ -213,6 +217,9 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     const turnColumns = this.sql.exec<{ name: string } & Record<string, SqlStorageValue>>(
       "PRAGMA table_info(turns)",
     ).toArray();
+    if (!turnColumns.some((column) => column.name === "source_sha")) {
+      this.sql.exec("ALTER TABLE turns ADD COLUMN source_sha TEXT");
+    }
     if (!turnColumns.some((column) => column.name === "error_code")) {
       this.sql.exec("ALTER TABLE turns ADD COLUMN error_code TEXT");
     }
@@ -317,7 +324,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
   getTurn(id: string): AssistantTurnRecord | null {
     const row = this.sql
       .exec<TurnRow>(
-        `SELECT id, conversation_id, request_digest, response_digest, provider_id, cost_class,
+        `SELECT id, conversation_id, request_digest, response_digest, source_sha, provider_id, cost_class,
                 credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
          FROM turns WHERE id = ?`,
         id,
@@ -329,6 +336,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       conversationId: row.conversation_id,
       requestDigest: row.request_digest,
       responseDigest: row.response_digest,
+      sourceSHA: row.source_sha,
       providerId: row.provider_id,
       costClass: row.cost_class,
       creditPolicy: row.credit_policy,
@@ -359,10 +367,11 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
   saveTurn(record: AssistantTurnRecord): void {
     this.sql.exec(
       `INSERT INTO turns (
-         id, conversation_id, request_digest, response_digest, provider_id, cost_class,
+         id, conversation_id, request_digest, response_digest, source_sha, provider_id, cost_class,
          credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
+         -- Execution provenance is immutable, including unknown legacy sources.
          response_digest = excluded.response_digest,
          provider_id = excluded.provider_id,
          cost_class = excluded.cost_class,
@@ -375,6 +384,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       record.conversationId,
       record.requestDigest,
       record.responseDigest,
+      record.sourceSHA ?? null,
       record.providerId,
       record.costClass,
       record.creditPolicy,

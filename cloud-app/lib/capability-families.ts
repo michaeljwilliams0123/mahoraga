@@ -67,6 +67,13 @@ export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabili
     || (/^\/cycle(?:\s|$)/i.test(text.trim()) && cognitiveCycleAvailable(coreReady, capabilities));
 }
 
+/** Deterministic repository operations can run even when no inference route is active. */
+export function canSubmitNativeRepositoryChat(coreReady: boolean, text: string, fileCount: number): boolean {
+  return coreReady && fileCount === 0
+    && (/^\/repo\s+(?:inspect|admin\s+status|pr\s+(?:create|merge|checks|diagnose)|workflow\s+dispatch)(?:\s|$)/i.test(text.trim())
+      || /^(?:please\s+)?(?:run|execute|check|show|get)\s+\/repo\s+admin\s+status\b/i.test(text.trim()));
+}
+
 export const PREDICTION_STARTER = "/predict {\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"action\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1}}";
 export const CYCLE_STARTER = "/cycle {\"members\":[{\"individualId\":\"builder\",\"parentAgentId\":\"mahoraga-core\",\"displayName\":\"Builder\",\"archetype\":\"builder-mind\",\"perspective\":\"implementation\",\"communicationStyle\":\"evidence-first\",\"traits\":{\"curiosity\":0.7},\"epistemicPosture\":{\"evidenceThreshold\":0.8,\"uncertaintyTolerance\":0.4,\"dissentDisposition\":\"surface-material-dissent\"},\"perspectiveTags\":[\"engineering\"],\"privateEpisodicRefs\":[]}],\"requiredPerspectiveTags\":[\"engineering\"],\"positions\":[{\"individualId\":\"builder\",\"conclusion\":\"hold\",\"confidence\":0.8,\"evidenceRefs\":[\"owner:scenario\"],\"assumptions\":[],\"unknowns\":[],\"dissentTags\":[]}],\"metacognition\":{\"evidenceCoverage\":0.9,\"calibratedConfidence\":0.8,\"knownUnknowns\":[],\"materialConflictCount\":0,\"reversible\":true},\"observedState\":{\"queueDepth\":4},\"stateUncertainty\":0.2,\"proposedAction\":{\"actionId\":\"add-capacity\",\"effects\":{\"queueDepth\":-2},\"uncertainty\":0.1},\"plannerSnapshot\":{\"workers\":[],\"activeLeases\":[],\"taskCounts\":{},\"objectives\":[],\"repository\":{\"verified\":true},\"providers\":[]}}";
 

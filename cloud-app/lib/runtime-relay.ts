@@ -147,6 +147,7 @@ export type RuntimeTask = {
   executionReceipt?: RuntimeExecutionReceipt;
 };
 export type RuntimeExecutionReceipt = {
+  sourceSHA?: string | null;
   workerId: string;
   providerId: string;
   costClass: string;
@@ -474,6 +475,7 @@ export class RuntimeRelay {
     return typeof value.content === "string" ? value.content : "";
   }
   async taskAction(taskId: string, conversationId: string, action: "retry" | "cancel") {
+    if (this.bridgeAuthenticated || this.cloudSession) throw relayError("canonical-action-unavailable");
     return this.call<{ task: RuntimeTask }>("task-action", { taskId, conversationId, action });
   }
   /** Resolves to an unsubscribe function when the transport can push capability state (SSE); null when polling is required. */
@@ -542,9 +544,11 @@ export class RuntimeRelay {
     return this.call<{ memories?: Array<{ id: string; fingerprint: string; content: string; kind: string; utilityScore: number; createdAt: number; score: number | null }> }>("memory-search", { query, topK });
   }
   async operationsSnapshot() {
+    if (this.bridgeAuthenticated || this.cloudSession) throw relayError("canonical-action-unavailable");
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
   }
   async operationsAction(input: RuntimeOperationsActionInput) {
+    if (this.bridgeAuthenticated || this.cloudSession) throw relayError("canonical-action-unavailable");
     return this.call<RuntimeOperationsActionResult>("operations-action", { ...input });
   }
 

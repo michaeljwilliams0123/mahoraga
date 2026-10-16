@@ -110,6 +110,7 @@ export type ChatViewProps = {
   brainLabel: string;
   brainState: BrainState;
   licensedRetryAvailable: boolean;
+  pendingCommandRetryAvailable: boolean;
   health: Health | null;
   healthError: boolean;
   relayState: RelayState;
@@ -144,6 +145,7 @@ export type ChatViewProps = {
   reconnectRuntime: () => void;
   revokeRuntime: () => void | Promise<void>;
   retryLicensed: () => void | Promise<void>;
+  retryPendingCommand: () => void | Promise<void>;
 };
 
 export type WorkspaceShellProps = {

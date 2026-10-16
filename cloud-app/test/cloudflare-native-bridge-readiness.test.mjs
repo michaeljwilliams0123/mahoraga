@@ -15,7 +15,8 @@ test("connected transport gates normal chat on assistant.respond and explicit si
   assert.match(workspace, /capability === "assistant\.respond"/);
   assert.match(workspace, /item\.routable/);
   assert.match(workspace, /item\.enabled !== false/);
-  assert.match(workspace, /if \(!assistantReady && !canSubmitDeterministicCognitiveChat\(coreReady, runtimeCapabilities, text, files\.length\)\)/);
+  assert.match(workspace, /if \(!assistantReady && !canSubmitDeterministicCognitiveChat\(coreReady, runtimeCapabilities, text, files\.length\)/);
+  assert.match(workspace, /!canSubmitNativeRepositoryChat\(coreReady, text, files\.length\)/);
   assert.match(chat, /assistantReady/);
   assert.match(chat, /Brain route unavailable/);
   assert.match(chat, /const canSend = assistantReady \|\| canSubmitDeterministicCognitiveChat\(coreReady, runtimeCapabilities, input, files\.length\)/);
