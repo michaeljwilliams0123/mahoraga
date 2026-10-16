@@ -502,7 +502,9 @@ export function Workspace() {
     const requestText = retry ? retry.text : `${text}${snippetText}`.trim();
     if (!retry && creditPolicy === "zero-codex" && requestText) appendMessage("user", requestText);
     const idempotencyKey = retry?.idempotencyKey ?? "workspace-" + crypto.randomUUID();
-    const commandConversation = retry ? retry.conversationId : runtimeConversationId;
+    // Assign a stable conversation before first delivery; otherwise a retry
+    // with the same key and a newly generated server conversation would conflict.
+    const commandConversation = retry ? retry.conversationId : (runtimeConversationId ?? crypto.randomUUID());
     const pollGeneration = ++runtimePollGeneration.current;
     let chatAccepted = false;
     try {
@@ -564,7 +566,7 @@ export function Workspace() {
 
   async function retryPendingCommand() {
     const pending = pendingCommandRetry.current;
-    if (!pending || runtimeBusy || runtimeConversationId !== pending.conversationId) {
+    if (!pending || runtimeBusy || (runtimeConversationId !== null && runtimeConversationId !== pending.conversationId)) {
       setPendingCommandRetryAvailable(false);
       pendingCommandRetry.current = null;
       return;

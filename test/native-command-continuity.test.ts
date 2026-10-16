@@ -35,3 +35,11 @@ test("compound /repo admin status text cannot be silently certified as completed
     assert.throws(()=>parseRepositoryAdminCommand(text),/repository-admin-command-invalid/);
   }
 });
+
+test("first-send conversation identity is fixed client-side before ambiguous retries",async()=>{
+ const ui=await get("cloud-app/components/workspace.tsx");
+ assert.match(ui,/runtimeConversationId \?\? crypto\.randomUUID\(\)/);
+ assert.match(ui,/conversationId: commandConversation/);
+ assert.match(ui,/idempotencyKey,\s*\}\);/);
+ assert.match(ui,/retry \? retry\.conversationId/);
+});
