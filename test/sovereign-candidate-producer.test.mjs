@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { projectCandidateReceipt } from "../scripts/sovereign-candidate-receipt.mjs";
 
 const producerModule = await import("../src/sovereign-candidate-producer.mjs").catch(() => null);
 const cycleModule = await import("../src/cloud-cycle-worker.mjs").catch(() => null);
@@ -56,6 +57,7 @@ const FOUR_SHOT = new Set([
   "test/zero-credit-boundary.test.mjs",
 ]);
 const LEDGER = "reports/sovereign-cycle-outcome.json";
+const RECEIPT_TEST = "test/sovereign-candidate-receipt.test.mjs";
 const CYCLE_A = "a".repeat(64);
 const CYCLE_B = "b".repeat(64);
 
@@ -84,7 +86,7 @@ test("scan holds when cycleId advanced but gap composition is unchanged", () => 
     gapAudit: { open: [] },
   }), "hold");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({
       schemaVersion: 1,
       cycleId: CYCLE_A,
@@ -101,7 +103,7 @@ test("scan holds when cycleId advanced but gap composition is unchanged", () => 
 test("scan refreshes the ledger when cycleId advanced and gaps changed", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({
       schemaVersion: 1,
       cycleId: CYCLE_A,
@@ -120,12 +122,64 @@ test("scan refreshes the ledger when cycleId advanced and gaps changed", () => {
 test("scan returns no actionable work when ledger already records this cycleId", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
     cycleId: CYCLE_A,
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
+});
+
+test("owner-authorized receipt regression becomes one real deterministic candidate", () => {
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
+    cycleId: CYCLE_A,
+    gapAudit: { open: [] },
+  });
+  assert.equal(enhancement.id, "candidate-receipt-regression");
+  assert.deepEqual(enhancement.changedFiles, [RECEIPT_TEST]);
+  producerModule.assertSafeCandidatePaths(enhancement.changedFiles);
+  const generated = producerModule.renderCandidateReceiptRegressionTest();
+  assert.match(generated, /projectCandidateReceipt/);
+  assert.match(generated, /never publish/);
+  assert.doesNotMatch(generated, /OPENAI_API_KEY|npm install|sk-proj/);
+});
+
+test("candidate receipt contains only validated metadata and rejects invalid provenance", () => {
+  const value = {
+    status: "candidate-ready",
+    cycleId: CYCLE_A,
+    windowStartUtc: "2026-10-16T17:24:02.000Z",
+    candidate: {
+      baseSha: "1".repeat(40), headSha: "2".repeat(40),
+      branch: "feature/sovereign-native-receipt", pullRequestNumber: 1136,
+      changedFilesDigest: "3".repeat(64),
+    },
+    secret: "must-not-leak",
+  };
+  const receipt = projectCandidateReceipt(value);
+  assert.equal(receipt.cycleId, CYCLE_A);
+  assert.equal(receipt.pullRequestNumber, 1136);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /must-not-leak/);
+  assert.equal(projectCandidateReceipt({ status: "no-candidate" }), null);
+  assert.throws(() => projectCandidateReceipt({ ...value, cycleId: "invalid" }), /provenance is invalid/);
+  assert.throws(() => projectCandidateReceipt({ ...value, candidate: { ...value.candidate, headSha: value.candidate.baseSha } }), /candidate head must differ/);
+});
+
+test("native workflow uses existing narrowly scoped GitHub App and retains an exact candidate artifact", () => {
+  assert.equal(workflow.split("actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510").length - 1, 2);
+  assert.equal((workflow.match(/permission-pull-requests: write/g) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /permission-actions: write/);
+  assert.equal(workflow.split("MAHORAGA_VERIFY_DISPATCH_TOKEN: $" + "{{ github.token }}").length - 1, 2);
+  assert.equal((workflow.match(/permission-contents: write/g) ?? []).length, 2);
+  assert.equal(workflow.split("token: $" + "{{ steps.app-token.outputs.token }}").length - 1, 2);
+  assert.match(workflow, /Retain bounded candidate receipt/);
+  assert.ok(workflow.includes("sovereign-candidate-receipt.mjs"));
+  assert.match(workflow, /if-no-files-found: error/);
+  assert.doesNotMatch(workflow, /can_approve_pull_request_reviews|permissions: write-all/);
 });
 
 test("cycle outcome ledger render is bounded JSON and zero-credit", () => {
@@ -219,6 +273,11 @@ test("stale candidate branches are never deleted, regardless of PR state", async
   assert.match(source, /\["-c", "user\.name=github-actions\[bot\]", "-c", "user\.email=.*", "commit"/);
 });
 
+test("automated native PR creation is draft by default", async () => {
+  const source = await readFile(new URL("../src/sovereign-candidate-producer.mjs", import.meta.url), "utf8");
+  assert.match(source, /"gh", \["pr", "create", "--draft"/);
+});
+
 test("GitHub Actions PR policy denial is classified explicitly", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   assert.equal(typeof producerModule.classifyPullRequestCreationFailure, "function");
@@ -275,7 +334,7 @@ test("scheduler connects the GitHub-native producer and one-time ten-minute smok
   assert.match(workflow, /createDeploymentAnchor/);
 });
 
-test("publisher pushes the exact contained candidate head and dispatches Verify", async () => {
+test("publisher pushes the exact candidate and relies on pull-request Verify without a duplicate dispatch", async () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   assert.equal(typeof producerModule.createGitHubNativeCandidatePublisher, "function");
   const baseSha = "1".repeat(40);
@@ -283,8 +342,10 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
   const branchName = "feature/sovereign-evolution-objective-one";
   const changedFiles = ["src/self-extension-worker.mjs"];
   const calls = [];
-  const runCommand = (executable, args) => {
+  const dispatchEnvs = [];
+  const runCommand = (executable, args, _cwd, envOverride) => {
     calls.push([executable, ...args]);
+    if (executable === "gh" && args[0] === "workflow") dispatchEnvs.push(envOverride);
     const command = [executable, ...args].join(" ");
     if (command === "git rev-parse HEAD" || command === "git rev-parse origin/main") return `${baseSha}\n`;
     if (command === `git cat-file -e ${headSha}^{commit}`) return "";
@@ -293,14 +354,14 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
     if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return "";
     if (command === `git push origin ${headSha}:refs/heads/${branchName}`) return "";
     if (command.startsWith("gh pr list --repo michaeljwilliams0123/mahoraga")) return "[]";
-    if (command.startsWith("gh pr create --repo michaeljwilliams0123/mahoraga")) return "https://github.com/michaeljwilliams0123/mahoraga/pull/300\n";
+    if (command.startsWith("gh pr create --draft --repo michaeljwilliams0123/mahoraga")) return "https://github.com/michaeljwilliams0123/mahoraga/pull/300\n";
     if (command.startsWith(`gh pr view ${branchName} --repo michaeljwilliams0123/mahoraga`)) {
       return JSON.stringify({ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" });
     }
     if (command === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`) return "";
     throw new Error(`unexpected command: ${command}`);
   };
-  const publish = producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-test", runCommand });
+  const publish = producerModule.createGitHubNativeCandidatePublisher({ root: "C:/candidate-test", runCommand, verifyDispatchToken: "scoped-actions-job-token" });
   const receipt = await publish({
     baseSha, headSha, branchName, changedFiles,
     title: "feat: evolve Mahoraga safely",
@@ -311,8 +372,45 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
     changedFilesDigest: producerModule.candidateChangedFilesDigest(changedFiles),
   });
   assert.ok(calls.some((call) => call.join(" ") === `git push origin ${headSha}:refs/heads/${branchName}`));
-  assert.ok(calls.some((call) => call.join(" ") === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`));
+  assert.deepEqual(dispatchEnvs, [], "opening the PR already triggers exact-head Verify");
+  assert.equal(calls.filter((call) => call[0] === "gh" && call[1] === "workflow").length, 0);
 });
+
+test("publisher retry adopts an existing exact-head Verify run without another dispatch", async () => {
+  const baseSha = "1".repeat(40);
+  const headSha = "2".repeat(40);
+  const branchName = "feature/sovereign-evolution-objective-one";
+  const changedFiles = ["src/self-extension-worker.mjs"];
+  const calls = [];
+  const runCommand = (executable, args, _cwd, envOverride) => {
+    calls.push({ command: [executable, ...args].join(" "), envOverride });
+    const command = [executable, ...args].join(" ");
+    if (command === "git rev-parse HEAD" || command === "git rev-parse origin/main") return `${baseSha}\n`;
+    if (command === `git cat-file -e ${headSha}^{commit}` || command === `git merge-base --is-ancestor ${baseSha} ${headSha}`) return "";
+    if (command === `git diff --name-only ${baseSha}...${headSha}`) return `${changedFiles[0]}\n`;
+    if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return `${headSha}\trefs/heads/${branchName}\n`;
+    if (command.startsWith("gh pr list --repo michaeljwilliams0123/mahoraga")) {
+      return JSON.stringify([{ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" }]);
+    }
+    if (command.startsWith(`gh pr view ${branchName} --repo michaeljwilliams0123/mahoraga`)) {
+      return JSON.stringify({ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" });
+    }
+    if (command.startsWith("gh run list --repo michaeljwilliams0123/mahoraga --workflow verify.yml")) {
+      return JSON.stringify([{ databaseId: 38950557250, event: "pull_request", headSha, status: "completed", conclusion: "success" }]);
+    }
+    if (command === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`) return "";
+    throw new Error(`unexpected command: ${command}`);
+  };
+  const publish = producerModule.createGitHubNativeCandidatePublisher({
+    root: "C:/candidate-test", runCommand, verifyDispatchToken: "scoped-actions-job-token",
+  });
+  const receipt = await publish({ baseSha, headSha, branchName, changedFiles, title: "Retry", summary: "Reuse prior verification." });
+  assert.equal(receipt.pullRequestNumber, 300);
+  assert.equal(calls.filter(({ command }) => command.startsWith("gh run list ")).length, 1);
+  assert.equal(calls.filter(({ command }) => command.startsWith("gh workflow run ")).length, 0);
+  assert.deepEqual(calls.find(({ command }) => command.startsWith("gh run list ")).envOverride, { GH_TOKEN: "scoped-actions-job-token" });
+});
+
 function candidatePublisherFixture({ remoteMain = "1".repeat(40), actualPaths = ["src/example.mjs"], remoteBranch = "" } = {}) {
   const baseSha = "1".repeat(40);
   const headSha = "2".repeat(40);
