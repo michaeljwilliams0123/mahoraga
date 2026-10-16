@@ -1,6 +1,6 @@
 import { adaptLegacyConnectorAttestation } from "./legacy-connector-adapter.ts";
 import { invokeProvider, providerBinding } from "./provider-adapter.ts";
-import { attestationAllowedForBinding, type ProviderBindingName } from "./provider-registry.ts";
+import { attestationAllowedForBinding, PROVIDER_REGISTRY, type ProviderBindingName } from "./provider-registry.ts";
 import { createExecutionChain, executionReceipt, handoffReceipt, selectionReceipt } from "./execution-chain.ts";
 // @ts-ignore Runtime-neutral ESM broker core is shared with Node tests.
 import { issueRouteLease, selectWorkerRoute, validateHandoff, validateWorkerAttestation } from "../../src/universal-execution-broker.mjs";
@@ -24,7 +24,7 @@ type UniversalAttestation = {
 
 const JSON_HEADERS = { "cache-control":"no-store", "content-type":"application/json; charset=utf-8" };
 const json = (body: Record<string, unknown>, status = 200) => new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
-const BINDINGS = ["REPOSITORY_PROVIDER","CLOUD_PROVIDER","INTEGRATION_PROVIDER","BROWSER_PROVIDER","DESKTOP_PROVIDER","CODEX_PROVIDER","MEMORY_PROVIDER","ARTIFACT_PROVIDER","IMAGE_PROVIDER","WORKSPACE_PROVIDER"] as const;
+const BINDINGS = Object.keys(PROVIDER_REGISTRY) as ProviderBindingName[];
 
 function bindingProviderNames(env: BrokerEnv): Set<string> {
   const providers = new Set<string>();
