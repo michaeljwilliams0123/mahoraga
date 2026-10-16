@@ -403,8 +403,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     const branchName = `feature/sovereign-${cycleId.slice(0, 12)}-${baseSha.slice(0, 12)}`;
     const existing = existingCandidateContext({ repositoryIdentity, branchName, baseSha, enhancement, root, runCommand });
     if (existing) {
-      const pr = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
-      dispatchVerify({ repositoryIdentity, branchName, root, runCommand, token: verifyDispatchToken });
+      const { pr, created } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
+      if (!created) dispatchVerify({ repositoryIdentity, branchName, headSha: existing.headSha, root, runCommand, token: verifyDispatchToken });
       return candidateReceipt({ baseSha, headSha: existing.headSha, branchName, pr, changedFiles: existing.changedFiles });
     }
 
@@ -438,8 +438,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     assertSafeCandidatePaths(changedFiles);
 
     command(runCommand, "git", ["push", "origin", `HEAD:refs/heads/${branchName}`], root);
-    const pr = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs: [], root, runCommand });
-    dispatchVerify({ repositoryIdentity, branchName, root, runCommand, token: verifyDispatchToken });
+    const { pr } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs: [], root, runCommand });
     return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles });
   };
 }
@@ -483,18 +482,30 @@ function ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, e
     });
   }
   validatePr(pr, { baseSha, headSha });
-  return pr;
+  return Object.freeze({ pr, created: decision === "create-pr" });
 }
 
-function dispatchVerify({ repositoryIdentity, branchName, root, runCommand, token }) {
+function dispatchVerify({ repositoryIdentity, branchName, headSha, root, runCommand, token }) {
   if (token !== undefined && (typeof token !== "string" || !token.trim())) {
     throw codedError("candidate-verify-job-token-unavailable", {
       stage: "verify-dispatch",
       publicDetail: "The existing Actions job token is unavailable; the candidate PR is preserved for safe retry.",
     });
   }
+  const envOverride = token === undefined ? undefined : { GH_TOKEN: token };
+  let runs;
   try {
-    command(runCommand, "gh", ["workflow", "run", "verify.yml", "--repo", repositoryIdentity, "--ref", branchName], root, token === undefined ? undefined : { GH_TOKEN: token });
+    runs = JSON.parse(command(runCommand, "gh", ["run", "list", "--repo", repositoryIdentity, "--workflow", "verify.yml", "--branch", branchName, "--limit", "100", "--json", "headSha"], root, envOverride));
+    if (!Array.isArray(runs)) throw new TypeError("invalid Verify run list");
+  } catch {
+    throw codedError("candidate-verify-readback-failed", {
+      stage: "verify-dispatch",
+      publicDetail: "Existing Verify runs could not be read; the candidate PR is preserved without risking a duplicate dispatch.",
+    });
+  }
+  if (runs.some((run) => run?.headSha === headSha)) return;
+  try {
+    command(runCommand, "gh", ["workflow", "run", "verify.yml", "--repo", repositoryIdentity, "--ref", branchName], root, envOverride);
   } catch {
     throw codedError("candidate-verify-dispatch-failed", {
       stage: "verify-dispatch",
@@ -614,7 +625,7 @@ export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand =
     }
     if (!Array.isArray(existingPrs)) throw codedError("candidate-existing-pr-invalid");
     const enhancement = Object.freeze({ title, summary });
-    const pr = ensurePullRequest({
+    const { pr, created } = ensurePullRequest({
       repositoryIdentity,
       branchName,
       baseSha,
@@ -624,7 +635,7 @@ export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand =
       root,
       runCommand,
     });
-    dispatchVerify({ repositoryIdentity, branchName, root, runCommand, token: verifyDispatchToken });
+    if (!created) dispatchVerify({ repositoryIdentity, branchName, headSha, root, runCommand, token: verifyDispatchToken });
     return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles: actualPaths });
   };
 }

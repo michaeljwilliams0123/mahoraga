@@ -334,7 +334,7 @@ test("scheduler connects the GitHub-native producer and one-time ten-minute smok
   assert.match(workflow, /createDeploymentAnchor/);
 });
 
-test("publisher pushes the exact contained candidate head and dispatches Verify", async () => {
+test("publisher pushes the exact candidate and relies on pull-request Verify without a duplicate dispatch", async () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   assert.equal(typeof producerModule.createGitHubNativeCandidatePublisher, "function");
   const baseSha = "1".repeat(40);
@@ -372,24 +372,45 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
     changedFilesDigest: producerModule.candidateChangedFilesDigest(changedFiles),
   });
   assert.ok(calls.some((call) => call.join(" ") === `git push origin ${headSha}:refs/heads/${branchName}`));
-  assert.ok(calls.some((call) => call.join(" ") === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`));
-  assert.deepEqual(dispatchEnvs, [{ GH_TOKEN: "scoped-actions-job-token" }]);
-  assert.equal(calls.filter((call) => call[0] === "gh" && call[1] === "workflow").length, 1);
-  const noJobToken = producerModule.createGitHubNativeCandidatePublisher({
-    root: "C:/candidate-test", runCommand, verifyDispatchToken: "",
-  });
-  await assert.rejects(
-    noJobToken({ baseSha, headSha, branchName, changedFiles, title: "Retry", summary: "Held on missing token." }),
-    /candidate-verify-job-token-unavailable/,
-  );
-  assert.equal(dispatchEnvs.length, 1, "missing job token must not dispatch using App credentials");
-  const otherCaller = producerModule.createGitHubNativeCandidatePublisher({
-    root: "C:/candidate-test", runCommand, verifyDispatchToken: undefined,
-  });
-  await otherCaller({ baseSha, headSha, branchName, changedFiles, title: "Existing publisher", summary: "Preserve existing non-Sovereign routing." });
-  assert.deepEqual(dispatchEnvs, [{ GH_TOKEN: "scoped-actions-job-token" }, undefined],
-    "other publisher callers retain their existing token behavior");
+  assert.deepEqual(dispatchEnvs, [], "opening the PR already triggers exact-head Verify");
+  assert.equal(calls.filter((call) => call[0] === "gh" && call[1] === "workflow").length, 0);
 });
+
+test("publisher retry adopts an existing exact-head Verify run without another dispatch", async () => {
+  const baseSha = "1".repeat(40);
+  const headSha = "2".repeat(40);
+  const branchName = "feature/sovereign-evolution-objective-one";
+  const changedFiles = ["src/self-extension-worker.mjs"];
+  const calls = [];
+  const runCommand = (executable, args, _cwd, envOverride) => {
+    calls.push({ command: [executable, ...args].join(" "), envOverride });
+    const command = [executable, ...args].join(" ");
+    if (command === "git rev-parse HEAD" || command === "git rev-parse origin/main") return `${baseSha}\n`;
+    if (command === `git cat-file -e ${headSha}^{commit}` || command === `git merge-base --is-ancestor ${baseSha} ${headSha}`) return "";
+    if (command === `git diff --name-only ${baseSha}...${headSha}`) return `${changedFiles[0]}\n`;
+    if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return `${headSha}\trefs/heads/${branchName}\n`;
+    if (command.startsWith("gh pr list --repo michaeljwilliams0123/mahoraga")) {
+      return JSON.stringify([{ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" }]);
+    }
+    if (command.startsWith(`gh pr view ${branchName} --repo michaeljwilliams0123/mahoraga`)) {
+      return JSON.stringify({ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" });
+    }
+    if (command.startsWith("gh run list --repo michaeljwilliams0123/mahoraga --workflow verify.yml")) {
+      return JSON.stringify([{ databaseId: 38950557250, event: "pull_request", headSha, status: "completed", conclusion: "success" }]);
+    }
+    if (command === `gh workflow run verify.yml --repo michaeljwilliams0123/mahoraga --ref ${branchName}`) return "";
+    throw new Error(`unexpected command: ${command}`);
+  };
+  const publish = producerModule.createGitHubNativeCandidatePublisher({
+    root: "C:/candidate-test", runCommand, verifyDispatchToken: "scoped-actions-job-token",
+  });
+  const receipt = await publish({ baseSha, headSha, branchName, changedFiles, title: "Retry", summary: "Reuse prior verification." });
+  assert.equal(receipt.pullRequestNumber, 300);
+  assert.equal(calls.filter(({ command }) => command.startsWith("gh run list ")).length, 1);
+  assert.equal(calls.filter(({ command }) => command.startsWith("gh workflow run ")).length, 0);
+  assert.deepEqual(calls.find(({ command }) => command.startsWith("gh run list ")).envOverride, { GH_TOKEN: "scoped-actions-job-token" });
+});
+
 function candidatePublisherFixture({ remoteMain = "1".repeat(40), actualPaths = ["src/example.mjs"], remoteBranch = "" } = {}) {
   const baseSha = "1".repeat(40);
   const headSha = "2".repeat(40);
