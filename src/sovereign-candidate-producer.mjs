@@ -466,7 +466,7 @@ function ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, e
   const decision = decideExistingCandidateHandoff(existingPrs);
   if (decision === "create-pr") {
     try {
-      command(runCommand, "gh", ["pr", "create", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.`], root);
+      command(runCommand, "gh", ["pr", "create", "--draft", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.`], root);
     } catch (error) {
       const classified = classifyPullRequestCreationFailure(error);
       throw codedError(classified.code, classified);

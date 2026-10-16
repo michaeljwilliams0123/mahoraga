@@ -272,6 +272,11 @@ test("stale candidate branches are never deleted, regardless of PR state", async
   assert.match(source, /\["-c", "user\.name=github-actions\[bot\]", "-c", "user\.email=.*", "commit"/);
 });
 
+test("automated native PR creation is draft by default", async () => {
+  const source = await readFile(new URL("../src/sovereign-candidate-producer.mjs", import.meta.url), "utf8");
+  assert.match(source, /"gh", \["pr", "create", "--draft"/);
+});
+
 test("GitHub Actions PR policy denial is classified explicitly", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   assert.equal(typeof producerModule.classifyPullRequestCreationFailure, "function");
@@ -346,7 +351,7 @@ test("publisher pushes the exact contained candidate head and dispatches Verify"
     if (command === `git ls-remote --heads origin refs/heads/${branchName}`) return "";
     if (command === `git push origin ${headSha}:refs/heads/${branchName}`) return "";
     if (command.startsWith("gh pr list --repo michaeljwilliams0123/mahoraga")) return "[]";
-    if (command.startsWith("gh pr create --repo michaeljwilliams0123/mahoraga")) return "https://github.com/michaeljwilliams0123/mahoraga/pull/300\n";
+    if (command.startsWith("gh pr create --draft --repo michaeljwilliams0123/mahoraga")) return "https://github.com/michaeljwilliams0123/mahoraga/pull/300\n";
     if (command.startsWith(`gh pr view ${branchName} --repo michaeljwilliams0123/mahoraga`)) {
       return JSON.stringify({ number: 300, headRefOid: headSha, baseRefOid: baseSha, baseRefName: "main", state: "OPEN" });
     }
