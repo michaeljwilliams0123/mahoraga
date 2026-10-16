@@ -19,7 +19,8 @@ test("read-only routing never impersonates source editing or general tool calls"
 
 test("repository administration commands are explicit and typed", () => {
   assert.deepEqual(parseRepositoryAdminCommand("/repo admin status"), { action: "status", proposal: null });
-  assert.deepEqual(parseRepositoryAdminCommand("run /repo admin status, reconnect and verify the persisted result"), { action: "status", proposal: null });
+  assert.throws(() => parseRepositoryAdminCommand("run /repo admin status, reconnect and verify the persisted result"), /repository-admin-command-invalid/);
+  assert.deepEqual(parseRepositoryAdminCommand("please run /repo admin status."), { action: "status", proposal: null });
   assert.deepEqual(parseRepositoryAdminCommand('/repo pr create {"expectedMainSha":"' + "a".repeat(40) + '","branch":"mahoraga/native-chat","title":"Native chat","body":"Bounded change.","commitMessage":"Native chat","files":[{"path":"docs/native-chat.md","content":"verified\\n"}]}'), {
     action: "create",
     proposal: {
@@ -56,4 +57,28 @@ test("repository administration parser rejects ambiguous or malformed writes", (
     "/repo pr create", "/repo pr merge", "/repo pr checks", "/repo workflow dispatch", "/repo pr create []", "/repo pr merge nope", "/repo admin status now",
     "Please create a PR", "/repo main write {}", "/repo pr create {\"files\":[] } trailing",
   ]) assert.throws(() => parseRepositoryAdminCommand(message), /repository-admin-command-invalid/);
+});
+
+
+test("repository work-item and comment deletion commands stay explicit and typed", () => {
+  assert.deepEqual(parseRepositoryAdminCommand('/repo issue create {"title":"Runtime gap","body":"Observed evidence."}'), {
+    action: "issue-create", proposal: { title: "Runtime gap", body: "Observed evidence." },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo issue update {"number":973,"state":"closed"}'), {
+    action: "issue-update", proposal: { number: 973, state: "closed" },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo pr update {"number":1120,"expectedHeadSha":"' + "a".repeat(40) + '","title":"Updated title"}'), {
+    action: "pr-update", proposal: { number: 1120, expectedHeadSha: "a".repeat(40), title: "Updated title" },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo comment create {"kind":"pull-request","number":1120,"body":"Verified."}'), {
+    action: "comment-create", proposal: { kind: "pull-request", number: 1120, body: "Verified." },
+  });
+  assert.deepEqual(parseRepositoryAdminCommand('/repo comment delete {"kind":"issue","number":973,"commentId":44}'), {
+    action: "comment-delete", proposal: { kind: "issue", number: 973, commentId: 44 },
+  });
+  for (const prefix of ["/repo issue", "/repo comment"]) assert.equal(isRepositoryAdminRequest(prefix + " create {}"), true);
+  assert.equal(isRepositoryAdminRequest("/repo branch delete {}"), false);
+  for (const malformed of ["/repo issue delete {}", "/repo comment update {}", "/repo branch delete []", "/repo pr update {} trailing"]) {
+    assert.throws(() => parseRepositoryAdminCommand(malformed), /repository-admin-command-invalid/);
+  }
 });

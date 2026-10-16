@@ -25,7 +25,7 @@ import {
 import { useLayoutEffect } from "react";
 import { Streamdown } from "streamdown";
 import { MAX_INPUT_TEXT_CHARS } from "@/lib/runtime-config";
-import { canSubmitDeterministicCognitiveChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
+import { canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat, cognitiveCycleAvailable, predictiveChatAvailable, projectCapabilityFamilies } from "@/lib/capability-families";
 import type { ChatViewProps, QuickActionId } from "./workspace-types";
 import "./owner-pin.css";
 import { GithubWorkspacePanel } from "./GithubWorkspacePanel";
@@ -42,6 +42,17 @@ const ACTION_ICONS: Record<QuickActionId, typeof Upload> = {
   create: WandSparkles,
   ship: GitPullRequestArrow,
 };
+
+const GITHUB_COMMAND_TEMPLATES = Object.freeze([
+  { label: "Check GitHub write route", command: "/repo admin status" },
+  { label: "Create issue", command: '/repo issue create {"title":"Describe the issue","body":"Current behavior, desired behavior, and acceptance evidence."}' },
+  { label: "Edit or close issue", command: '/repo issue update {"number":123,"state":"closed"}' },
+  { label: "Edit or close PR", command: '/repo pr update {"number":123,"expectedHeadSha":"PASTE_CURRENT_HEAD_SHA","title":"Updated title"}' },
+  { label: "Comment on issue", command: '/repo comment create {"kind":"issue","number":123,"body":"Evidence-backed update."}' },
+  { label: "Delete comment", command: '/repo comment delete {"kind":"issue","number":123,"commentId":456}' },
+  { label: "Create draft PR", command: '/repo pr create {"expectedMainSha":"PASTE_CURRENT_MAIN_SHA","branch":"mahoraga/describe-change","title":"Describe change","body":"Problem, behavior, and validation.","commitMessage":"Describe change","files":[{"path":"docs/change.md","content":"Describe the change.\\n"}]}' },
+  { label: "Delete file in draft PR", command: '/repo pr create {"expectedMainSha":"PASTE_CURRENT_MAIN_SHA","branch":"mahoraga/remove-file","title":"Remove obsolete file","body":"Removes an obsolete tracked file through review.","commitMessage":"Remove obsolete file","files":[{"path":"docs/obsolete.md","delete":true}]}' },
+] as const);
 
 function readableBytes(bytes: number) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.ceil(bytes / 1024))} KB`;
@@ -65,6 +76,7 @@ export function ChatView(props: ChatViewProps) {
     brainLabel,
     brainState,
     licensedRetryAvailable,
+    pendingCommandRetryAvailable,
     health,
     healthError,
     relayState,
@@ -97,6 +109,7 @@ export function ChatView(props: ChatViewProps) {
     reconnectRuntime,
     revokeRuntime,
     retryLicensed,
+    retryPendingCommand,
   } = props;
 
   const pinComplete = /^\d{4}$/.test(ownerLoginPin);
@@ -108,7 +121,8 @@ export function ChatView(props: ChatViewProps) {
   const inspectOnly = runtimeCapabilities.some(route => route.capability === "cloud.inspect" && route.routable === true && route.enabled !== false)
     && !runtimeCapabilities.some(route => route.routable === true && route.enabled !== false
       && (/\.(execute|write)$/.test(route.capability) || route.capability === "self.evolve" || route.capability === "image.generate"));
-  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length);
+  const canSend = assistantReady || canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, input, files.length)
+    || canSubmitNativeRepositoryChat(coreReady, input, files.length);
 
   useLayoutEffect(() => {
     const element = composer.current;
@@ -253,6 +267,7 @@ export function ChatView(props: ChatViewProps) {
         {runtimeError && (
           <div className="inline-alert" role="alert">
             <CircleAlert size={16} /> <span>{runtimeError}</span>
+            {pendingCommandRetryAvailable && coreReady && !busy && <button type="button" onClick={() => void retryPendingCommand()}>Retry same command (reuse execution ID)</button>}
             {licensedRetryAvailable && <button type="button" onClick={() => void retryLicensed()}>Use licensed ChatGPT/Codex for this message</button>}
           </div>
         )}
@@ -312,6 +327,18 @@ export function ChatView(props: ChatViewProps) {
             </details>
           </div>
         )}
+
+        {coreReady ? (
+          <details className="github-command-tools">
+            <summary>GitHub actions <span>Create, edit, comment, close, or delete through typed native receipts</span></summary>
+            <p>These commands use the paired runtime's repository-scoped GitHub App. Issue removal is represented by close/reopen; tracked files, comments, and Mahoraga branches have explicit delete commands. Review the populated JSON before sending.</p>
+            <div className="starter-row" aria-label="GitHub command templates">
+              {GITHUB_COMMAND_TEMPLATES.map((template) => (
+                <button key={template.label} type="button" onClick={() => setInput(template.command)}>{template.label}</button>
+              ))}
+            </div>
+          </details>
+        ) : null}
 
         <div className="composer-card one-composer">
           {files.length > 0 && (

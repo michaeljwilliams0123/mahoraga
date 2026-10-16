@@ -52,6 +52,7 @@ describe("Cloudflare assistant durable state", () => {
         conversationId: "conversation-1",
         requestDigest: "request-digest",
         responseDigest: "response-digest",
+        sourceSHA: SHA,
         providerId: "cloudflare-test-zero",
         costClass: "cloud-open-weight",
         creditPolicy: "zero-codex",
@@ -67,6 +68,7 @@ describe("Cloudflare assistant durable state", () => {
         conversationId: "conversation-1",
         requestDigest: "request-digest",
         responseDigest: "response-digest",
+        sourceSHA: SHA,
         providerId: "cloudflare-test-zero",
         costClass: "cloud-open-weight",
         creditPolicy: "zero-codex",
@@ -86,6 +88,29 @@ describe("Cloudflare assistant durable state", () => {
       expect(columns).not.toContain("answer");
       expect(columns).not.toContain("message");
       expect(columns).not.toContain("content");
+    });
+  });
+
+  it("migrates legacy turns without inventing provenance and keeps recorded sources immutable", async () => {
+    const stub = env.EXECUTION_DO.getByName("assistant-source-migration");
+    await runInDurableObject<ExecutionDurableObject, void>(stub, (instance, state) => {
+      state.storage.sql.exec(`CREATE TABLE turns (
+        id TEXT PRIMARY KEY, conversation_id TEXT NOT NULL, request_digest TEXT NOT NULL,
+        response_digest TEXT, provider_id TEXT, cost_class TEXT, credit_policy TEXT NOT NULL,
+        status TEXT NOT NULL, error_code TEXT, content_id_user TEXT NOT NULL,
+        content_id_assistant TEXT, created_at INTEGER NOT NULL, completed_at INTEGER
+      ); INSERT INTO turns VALUES ('legacy', 'conversation', 'digest', NULL, NULL, NULL,
+        'zero-codex', 'SUCCESS', NULL, 'user', 'assistant', 1, 2)`);
+      instance.storage.initSchema();
+      instance.storage.initSchema();
+      const legacy = instance.storage.getTurn("legacy")!;
+      expect(legacy).toHaveProperty("sourceSHA", null);
+      instance.storage.saveTurn({ ...legacy, sourceSHA: "b".repeat(40) });
+      expect(instance.storage.getTurn("legacy")).toHaveProperty("sourceSHA", null);
+      instance.storage.saveTurn({ ...legacy, id: "new", sourceSHA: "a".repeat(40) });
+      instance.storage.saveTurn({ ...legacy, id: "new", sourceSHA: "b".repeat(40) });
+      expect(instance.storage.getTurn("new")).toHaveProperty("sourceSHA", "a".repeat(40));
+      expect(instance.storage.listTurns("conversation").map(turn => turn.sourceSHA)).toEqual([null, "a".repeat(40)]);
     });
   });
 

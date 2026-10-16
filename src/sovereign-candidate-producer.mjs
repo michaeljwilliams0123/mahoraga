@@ -11,6 +11,7 @@ const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
 const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs";
 const ZERO_CREDIT_BOUNDARY_TEST = "test/zero-credit-boundary.test.mjs";
 const CYCLE_OUTCOME_LEDGER = "reports/sovereign-cycle-outcome.json";
+const CANDIDATE_RECEIPT_TEST = "test/sovereign-candidate-receipt.test.mjs";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -132,7 +133,49 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       });
     }
   }
+  if (!fileExists(CANDIDATE_RECEIPT_TEST)) {
+    return Object.freeze({
+      id: "candidate-receipt-regression",
+      title: "test: verify persisted sovereign candidate receipt",
+      summary: "Add owner-authorized zero-credit regression coverage for the native candidate-receipt artifact contract (issue #786).",
+      changedFiles: Object.freeze([CANDIDATE_RECEIPT_TEST]),
+    });
+  }
   return null;
+}
+
+export function renderCandidateReceiptRegressionTest() {
+  return `import test from "node:test";
+import assert from "node:assert/strict";
+import { projectCandidateReceipt } from "../scripts/sovereign-candidate-receipt.mjs";
+
+test("persisted candidate receipt is exact, content-free, and zero-cost", () => {
+  const cycle = {
+    status: "candidate-ready",
+    cycleId: "a".repeat(64),
+    windowStartUtc: "2026-10-16T17:24:02.000Z",
+    candidate: {
+      baseSha: "b".repeat(40),
+      headSha: "c".repeat(40),
+      branch: "feature/sovereign-acceptance",
+      pullRequestNumber: 1136,
+      changedFilesDigest: "d".repeat(64),
+    },
+    hiddenPayload: "never publish",
+  };
+  const receipt = projectCandidateReceipt(cycle);
+  assert.equal(receipt.cycleId, cycle.cycleId);
+  assert.equal(receipt.headSha, cycle.candidate.headSha);
+  assert.equal(receipt.pullRequestNumber, 1136);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /never publish/);
+  assert.equal(projectCandidateReceipt({ status: "no-candidate" }), null);
+  assert.throws(() => projectCandidateReceipt({
+    ...cycle, candidate: { ...cycle.candidate, headSha: cycle.candidate.baseSha },
+  }), /candidate head must differ/);
+});
+`;
 }
 
 export function assertSafeCandidatePaths(paths) {
@@ -326,12 +369,11 @@ export function decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount } =
     throw codedError("candidate-existing-base-drift");
   }
   if (!Number.isSafeInteger(openPrCount) || openPrCount < 0) throw codedError("candidate-existing-pr-invalid");
-  if (mergeBase === baseSha) return "reuse";
-  if (openPrCount > 0) throw codedError("candidate-existing-base-drift");
-  return "reclaim";
+  if (mergeBase !== baseSha) throw codedError("candidate-existing-base-drift");
+  return "reuse";
 }
 
-export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = fixedCommand } = {}) {
+export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = fixedCommand, verifyDispatchToken = process.env.MAHORAGA_VERIFY_DISPATCH_TOKEN ?? "" } = {}) {
   return async function produceCandidate({ repositoryIdentity, branch, cycleId }) {
     if (branch !== "main") throw codedError("candidate-base-branch-invalid");
     if (!/^[a-f0-9]{64}$/.test(cycleId ?? "")) throw codedError("candidate-cycle-id-invalid");
@@ -358,11 +400,11 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     if (!enhancement) return null;
     assertSafeCandidatePaths(enhancement.changedFiles);
 
-    const branchName = `feature/sovereign-${cycleId.slice(0, 12)}`;
+    const branchName = `feature/sovereign-${cycleId.slice(0, 12)}-${baseSha.slice(0, 12)}`;
     const existing = existingCandidateContext({ repositoryIdentity, branchName, baseSha, enhancement, root, runCommand });
     if (existing) {
-      const pr = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
-      dispatchVerify({ repositoryIdentity, branchName, root, runCommand });
+      const { pr, created } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
+      if (!created) dispatchVerify({ repositoryIdentity, branchName, headSha: existing.headSha, root, runCommand, token: verifyDispatchToken });
       return candidateReceipt({ baseSha, headSha: existing.headSha, branchName, pr, changedFiles: existing.changedFiles });
     }
 
@@ -375,6 +417,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, OPERATOR_STALE_BRANCH_REPORT), renderOperatorStaleBranchReportScript(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "zero-credit-boundary-test") {
       writeFileSync(path.join(root, ZERO_CREDIT_BOUNDARY_TEST), renderZeroCreditBoundaryTest(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "candidate-receipt-regression") {
+      writeFileSync(path.join(root, CANDIDATE_RECEIPT_TEST), renderCandidateReceiptRegressionTest(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "cycle-outcome-ledger") {
       mkdirSync(path.join(root, "reports"), { recursive: true });
       writeFileSync(path.join(root, CYCLE_OUTCOME_LEDGER), renderCycleOutcomeLedger({ cycleId, gapAudit, baseSha }), { encoding: "utf8" });
@@ -385,9 +429,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     command(runCommand, "git", ["add", "--", ...enhancement.changedFiles], root);
     const staged = splitLines(command(runCommand, "git", ["diff", "--cached", "--name-only"], root));
     requireExactPaths(staged, enhancement.changedFiles);
-    command(runCommand, "git", ["config", "user.name", "github-actions[bot]"], root);
-    command(runCommand, "git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], root);
-    command(runCommand, "git", ["commit", "-m", enhancement.title], root);
+    command(runCommand, "git", ["-c", "user.name=github-actions[bot]", "-c", "user.email=41898282+github-actions[bot]@users.noreply.github.com", "commit", "-m", enhancement.title], root);
 
     const headSha = command(runCommand, "git", ["rev-parse", "HEAD"], root);
     if (!/^[a-f0-9]{40}$/.test(headSha) || headSha === baseSha) throw codedError("candidate-head-invalid");
@@ -396,8 +438,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     assertSafeCandidatePaths(changedFiles);
 
     command(runCommand, "git", ["push", "origin", `HEAD:refs/heads/${branchName}`], root);
-    const pr = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs: [], root, runCommand });
-    dispatchVerify({ repositoryIdentity, branchName, root, runCommand });
+    const { pr } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs: [], root, runCommand });
     return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles });
   };
 }
@@ -412,11 +453,7 @@ function existingCandidateContext({ repositoryIdentity, branchName, baseSha, enh
   const raw = command(runCommand, "gh", ["pr", "list", "--repo", repositoryIdentity, "--head", branchName, "--base", "main", "--state", "open", "--json", "number,headRefOid,baseRefOid,baseRefName,state"], root);
   const prs = JSON.parse(raw);
   if (!Array.isArray(prs)) throw codedError("candidate-existing-pr-invalid");
-  const stale = decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount: prs.length });
-  if (stale === "reclaim") {
-    command(runCommand, "git", ["push", "origin", "--delete", branchName], root);
-    return null;
-  }
+  decideStaleCandidateBranch({ mergeBase, baseSha, openPrCount: prs.length });
   const changedFiles = splitLines(command(runCommand, "git", ["diff", "--name-only", `${baseSha}...${headSha}`], root));
   requireExactPaths(changedFiles, enhancement.changedFiles);
   assertSafeCandidatePaths(changedFiles);
@@ -428,7 +465,7 @@ function ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, e
   const decision = decideExistingCandidateHandoff(existingPrs);
   if (decision === "create-pr") {
     try {
-      command(runCommand, "gh", ["pr", "create", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.`], root);
+      command(runCommand, "gh", ["pr", "create", "--draft", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.`], root);
     } catch (error) {
       const classified = classifyPullRequestCreationFailure(error);
       throw codedError(classified.code, classified);
@@ -445,12 +482,30 @@ function ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, e
     });
   }
   validatePr(pr, { baseSha, headSha });
-  return pr;
+  return Object.freeze({ pr, created: decision === "create-pr" });
 }
 
-function dispatchVerify({ repositoryIdentity, branchName, root, runCommand }) {
+function dispatchVerify({ repositoryIdentity, branchName, headSha, root, runCommand, token }) {
+  if (token !== undefined && (typeof token !== "string" || !token.trim())) {
+    throw codedError("candidate-verify-job-token-unavailable", {
+      stage: "verify-dispatch",
+      publicDetail: "The existing Actions job token is unavailable; the candidate PR is preserved for safe retry.",
+    });
+  }
+  const envOverride = token === undefined ? undefined : { GH_TOKEN: token };
+  let runs;
   try {
-    command(runCommand, "gh", ["workflow", "run", "verify.yml", "--repo", repositoryIdentity, "--ref", branchName], root);
+    runs = JSON.parse(command(runCommand, "gh", ["run", "list", "--repo", repositoryIdentity, "--workflow", "verify.yml", "--branch", branchName, "--limit", "100", "--json", "headSha"], root, envOverride));
+    if (!Array.isArray(runs)) throw new TypeError("invalid Verify run list");
+  } catch {
+    throw codedError("candidate-verify-readback-failed", {
+      stage: "verify-dispatch",
+      publicDetail: "Existing Verify runs could not be read; the candidate PR is preserved without risking a duplicate dispatch.",
+    });
+  }
+  if (runs.some((run) => run?.headSha === headSha)) return;
+  try {
+    command(runCommand, "gh", ["workflow", "run", "verify.yml", "--repo", repositoryIdentity, "--ref", branchName], root, envOverride);
   } catch {
     throw codedError("candidate-verify-dispatch-failed", {
       stage: "verify-dispatch",
@@ -493,12 +548,12 @@ function diagnosticText(errorLike) {
   return values.map((value) => Buffer.isBuffer(value) ? value.toString("utf8") : String(value ?? "")).join("\n").slice(0, 4096);
 }
 
-function command(runCommand, executable, args, cwd) {
-  return String(runCommand(executable, args, cwd) ?? "").trim();
+function command(runCommand, executable, args, cwd, envOverride) {
+  return String(runCommand(executable, args, cwd, envOverride) ?? "").trim();
 }
 
-function fixedCommand(executable, args, cwd) {
-  return execFileSync(executable, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: process.env });
+function fixedCommand(executable, args, cwd, envOverride) {
+  return execFileSync(executable, args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env: envOverride ? { ...process.env, ...envOverride } : process.env });
 }
 
 function codedError(code, { stage = null, publicDetail = null } = {}) {
@@ -525,7 +580,7 @@ if (invoked && process.argv.includes("--scan-only")) {
   process.stdout.write(`${JSON.stringify({ status: enhancement ? "actionable" : "no-actionable-work", enhancement, blockedGapIds: report.open.filter((item) => item.state === "blocked").map((item) => item.id).sort() })}\n`);
 }
 
-export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand = fixedCommand } = {}) {
+export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand = fixedCommand, verifyDispatchToken = process.env.MAHORAGA_VERIFY_DISPATCH_TOKEN } = {}) {
   return async function publishCandidate({ baseSha, headSha, branchName, changedFiles, title, summary } = {}) {
     const repositoryIdentity = "michaeljwilliams0123/mahoraga";
     if (!/^[a-f0-9]{40}$/.test(baseSha ?? "") || !/^[a-f0-9]{40}$/.test(headSha ?? "") || headSha === baseSha) {
@@ -570,7 +625,7 @@ export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand =
     }
     if (!Array.isArray(existingPrs)) throw codedError("candidate-existing-pr-invalid");
     const enhancement = Object.freeze({ title, summary });
-    const pr = ensurePullRequest({
+    const { pr, created } = ensurePullRequest({
       repositoryIdentity,
       branchName,
       baseSha,
@@ -580,7 +635,7 @@ export function createGitHubNativeCandidatePublisher({ root = ROOT, runCommand =
       root,
       runCommand,
     });
-    dispatchVerify({ repositoryIdentity, branchName, root, runCommand });
+    if (!created) dispatchVerify({ repositoryIdentity, branchName, headSha, root, runCommand, token: verifyDispatchToken });
     return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles: actualPaths });
   };
 }

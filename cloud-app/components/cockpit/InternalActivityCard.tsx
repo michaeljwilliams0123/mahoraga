@@ -20,6 +20,18 @@ export function InternalActivityCard({ activity, label, busy, error, onSetEnable
    <div><dt>Next wake</dt><dd>{activity?.enabled === false ? 'Paused by owner' : time(activity?.nextWakeAt ?? null)}</dd></div>
    <div><dt>Plans built</dt><dd>{activity?.artifactCount ?? 'Unverified'}</dd></div>
    <div><dt>Candidate actions</dt><dd>{activity?.candidateActionCount ?? 'Unverified'}</dd></div></dl>
+  {activity?.huggingFaceDiscovery && <article className="eclipse-status-card" data-testid="hf-native-discovery">
+   <span>Hugging Face · native model research</span>
+   <strong>{activity.huggingFaceDiscovery.status === 'candidate-metadata-only' ? `${activity.huggingFaceDiscovery.candidates.length} pinned candidates · ${activity.huggingFaceDiscovery.query}` : 'Public catalog unavailable'}</strong>
+   <p>Daily Cloudflare metadata observation, no hosted inference or production model admission.
+   Local benchmarks require an independently admitted model and available PC.</p>
+   {activity.huggingFaceDiscovery.status === 'metadata-unavailable' &&
+    <p role="status">Reason: {activity.huggingFaceDiscovery.failureReason ?? 'unclassified (earlier runtime)'}
+      {activity.huggingFaceDiscovery.httpStatus ? ` · HTTP ${activity.huggingFaceDiscovery.httpStatus}` : ''}
+      {' · '}Retry after {new Date(activity.huggingFaceDiscovery.nextCheckAt).toLocaleString()}</p>}
+   {activity.huggingFaceDiscovery.candidates.slice(0, 3).map(model =>
+    <p key={model.repoId}><a href={`https://huggingface.co/${model.repoId}`} target="_blank" rel="noopener noreferrer">{model.repoId}</a> · {model.license} · inspection required</p>)}
+  </article>}
   {activity?.lastError && <p role="status">Internal assessment is held. Another bounded wake is scheduled.</p>}
   {error && <p role="status">{error}</p>}
   <p className="internal-activity-note">This loop uses deterministic planning. Model execution and code promotion retain their separate verification gates.</p>

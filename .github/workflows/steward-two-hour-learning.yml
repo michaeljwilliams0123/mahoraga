@@ -31,16 +31,23 @@ jobs:
          vars.MAHORAGA_EXECUTION_ROUTE == 'local')))
     runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 20
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
     steps:
+      - name: Mint existing repository-scoped GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.MAHORAGA_GITHUB_APP_ID }}
+          private-key: ${{ secrets.MAHORAGA_GITHUB_APP_PRIVATE_KEY }}
+          repositories: mahoraga
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Check out trusted main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Use Node 24
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -65,18 +72,25 @@ jobs:
       - name: Open bounded learning-state pull request
         if: steps.learn.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         shell: bash
         run: |
           set -euo pipefail
-          branch="feature/sovereign-steward-learning-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="feature/sovereign-steward-learning-${GITHUB_RUN_ID}"
+          pr_url="$(gh pr list --base main --head "${branch}" --state all --limit 1 --json url --jq '.[0].url // empty')"
+          if [[ -n "${pr_url}" ]]; then
+            echo "Reusing pull request: ${pr_url}"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "refs/heads/${branch}" >/dev/null 2>&1; then
+            pr_url="$(gh pr create --draft --base main --head "${branch}" --title "chore: refresh steward learning state" --body "Deterministic two-hour Mahoraga Steward state refresh and bounded permanent-agent foundry update. Zero paid-model/API inference. No Windows activation.")"
+            echo "Opened pull request from retained branch: ${pr_url}"
+            exit 0
+          fi
           git switch -c "${branch}"
           git add -A coordination/agent-factory/registry.json reports/steward-*.json
-          git commit -m "chore: refresh steward learning state"
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore: refresh steward learning state"
           git push origin "HEAD:${branch}"
-          pr_url="$(gh pr create --base main --head "${branch}" --title "chore: refresh steward learning state" --body "Deterministic two-hour Mahoraga Steward state refresh and bounded permanent-agent foundry update. Zero paid-model/API inference. No Windows activation.")"
+          pr_url="$(gh pr create --draft --base main --head "${branch}" --title "chore: refresh steward learning state" --body "Deterministic two-hour Mahoraga Steward state refresh and bounded permanent-agent foundry update. Zero paid-model/API inference. No Windows activation.")"
           pr_number="${pr_url##*/}"
           echo "Opened PR #${pr_number}: ${pr_url}"
-          gh workflow run verify.yml --ref "${branch}"

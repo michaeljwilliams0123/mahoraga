@@ -283,3 +283,40 @@ test("bot authority rejects stale or future evidence and keeps owner-root action
     }).reason, "owner-root-nondelegable");
   }
 });
+
+test("an unexpired mission lease cannot reuse a stale current authority observation", () => {
+  const base = {
+    grant: grant(), bot: BOT, requestedScope: "repo.write",
+    platformScopes: ["repo.write"], capabilityScopes: ["repo.write"],
+    authorityBinding: AUTHORITY_BINDING, currentBinding: CURRENT_BINDING,
+  };
+  const boundary = resolveBotOperationalAuthority({ ...base, now: "2026-10-03T03:01:00.000Z" });
+  assert.equal(boundary.authorized, true);
+  const stale = resolveBotOperationalAuthority({ ...base, now: "2026-10-03T03:01:00.001Z" });
+  assert.equal(stale.authorized, false);
+  assert.equal(stale.reason, "bot-authority-binding-observation-stale");
+  assert.equal(stale.driftVerified, false);
+  assert.equal(resolveBotOperationalAuthority({
+    ...base, now: "2026-10-03T03:01:00.000Z",
+    currentBinding: { ...CURRENT_BINDING, observedAt: "2026-01-01T00:00:00.000Z" },
+  }).reason, "bot-authority-binding-observation-stale");
+});
+
+test("fresh host evidence lets another executor continue the same mission without new owner approval", () => {
+  const base = {
+    grant: grant(), requestedScope: "repo.write", platformScopes: ["repo.write"], capabilityScopes: ["repo.write"],
+    authorityBinding: AUTHORITY_BINDING,
+    currentBinding: { ...CURRENT_BINDING, observedAt: "2026-10-03T03:10:00.000Z" },
+    now: "2026-10-03T03:10:30.000Z",
+  };
+  for (const agentId of [BOT.agentId, "mahoraga-recovery-bot"]) {
+    const result = resolveBotOperationalAuthority({ ...base, bot: { ...BOT, agentId } });
+    assert.equal(result.authorized, true);
+    assert.equal(result.confirmationRequired, false);
+    assert.equal(result.driftVerified, true);
+    assert.equal(result.botId, agentId);
+  }
+  assert.equal(resolveBotOperationalAuthority({
+    ...base, bot: BOT, grant: grant({ revokedScopes: ["repo.write"] }),
+  }).reason, "owner-scope-revoked");
+});

@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const SCRIPT = "mahoraga-owner-gateway";
+const BILLING_MAX_AGE_MS = 90 * 60_000;
 const cloudId = (s) => typeof s === "string" && /^[a-zA-Z0-9-]{12,100}$/.test(s);
 const record = (s) => s && typeof s === "object" && !Array.isArray(s) ? s : null;
 
@@ -22,9 +23,13 @@ export async function preflightReadonlyActivation({
   const accountHash = createHash("sha256").update(accountId).digest("hex");
   if (!billing || billing.schemaVersion !== 1 || billing.evidenceSource !== "cloudflare-account-api"
       || billing.accountIdHash !== accountHash || billing.billableAccountSubscriptionCount !== 0
-      || typeof billing.defaultUsageModel !== "string" || !billing.defaultUsageModel
+      || typeof billing.defaultUsageModel !== "string" || !billing.defaultUsageModel.trim()
+      || billing.defaultUsageModel.length > 64
       || !Number.isSafeInteger(nowMs) || !Number.isSafeInteger(billing.verifiedAt)
+      || nowMs <= 0 || billing.verifiedAt <= 0
       || !Number.isSafeInteger(billing.expiresAt) || billing.verifiedAt > nowMs + 5000
+      || nowMs - billing.verifiedAt > BILLING_MAX_AGE_MS
+      || billing.expiresAt - billing.verifiedAt > BILLING_MAX_AGE_MS
       || billing.expiresAt <= nowMs + 60000) {
     throw new Error("readonly-inspection-billing-proof-unavailable");
   }
