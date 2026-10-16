@@ -7,10 +7,11 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (name) => readFileSync(path.join(root, name), 'utf8');
 
-test('sovereign candidate and producer use the same machine-neutral credit-free Windows labels', () => {
+test('sovereign candidate and producer preserve portable private labels with public free hosting', () => {
   const source = read('.github/workflows/sovereign-eight-hour-cycle.yml');
-  const selected = /runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*zero-credit\]/gi;
-  assert.equal((source.match(selected) ?? []).length, 2, 'both local jobs must have identical capability labels');
+  assert.equal((source.match(/runs-on:\s*\$\{\{ fromJSON\(github\.event\.repository\.private/g) ?? []).length, 2);
+  assert.equal((source.match(/\["self-hosted","windows","x64","mahoraga","zero-credit"\]/g) ?? []).length, 2, 'both private jobs retain identical portable labels');
+  assert.equal((source.match(/'"ubuntu-latest"'/g) ?? []).length, 2);
   assert.doesNotMatch(source, /sd009wc7|runs-on:\s*(?:ubuntu|windows)-latest/i);
   assert.match(source, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
   assert.match(source, /github.event_name == 'workflow_run'/);

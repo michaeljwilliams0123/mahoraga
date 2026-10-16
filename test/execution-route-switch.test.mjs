@@ -18,7 +18,10 @@ test('route matrix never assigns hosted minutes to private repositories', () => 
           assert.equal(result.paidFallback, false);
           assert.equal(result.automaticVisibilityChange, false);
           assert.equal(result.automaticCredentialOrRegistrationChange, false);
-          if (privateRepo) assert.notEqual(result.steward.selected, 'public-hosted-ubuntu');
+          if (privateRepo) {
+            assert.notEqual(result.steward.selected, 'public-hosted-ubuntu');
+            assert.notEqual(result.sovereign.selected, 'public-hosted-ubuntu');
+          }
           if (result.steward.selected === 'local-windows') {
             assert.equal(privateRepo, true);
             assert.equal(privateStewardEnabled, true);
@@ -34,11 +37,11 @@ test('route matrix never assigns hosted minutes to private repositories', () => 
   }
 });
 
-test('default auto retains free public Steward plus existing local sovereign execution', () => {
+test('default auto routes public Steward and Sovereign to free hosted Ubuntu', () => {
   const current = resolveExecutionRoute({ repositoryPrivate: false, localRunnerReady: true });
   assert.equal(current.mode, 'auto');
   assert.equal(current.steward.selected, 'public-hosted-ubuntu');
-  assert.equal(current.sovereign.selected, 'local-windows');
+  assert.equal(current.sovereign.selected, 'public-hosted-ubuntu');
   const privateDisabled = resolveExecutionRoute({ repositoryPrivate: true, privateStewardEnabled: false });
   assert.equal(privateDisabled.steward.selected, 'held');
   assert.equal(privateDisabled.sovereign.state, 'queued-until-runner-online');
@@ -47,10 +50,10 @@ test('default auto retains free public Steward plus existing local sovereign exe
   assert.equal(privateEnabled.steward.state, 'eligible');
 });
 
-test('cloud routes only free public Steward; local private routes only eligible zero-credit self-hosted jobs', () => {
+test('cloud routes free public Steward and Sovereign; private local remains self-hosted', () => {
   for (const privateRepo of [true, false]) {
     const cloud = resolveExecutionRoute({ requestedMode: 'cloud', repositoryPrivate: privateRepo, privateStewardEnabled: true });
-    assert.equal(cloud.sovereign.selected, 'held');
+    assert.equal(cloud.sovereign.selected, privateRepo ? 'held' : 'public-hosted-ubuntu');
     assert.equal(cloud.steward.selected, privateRepo ? 'held' : 'public-hosted-ubuntu');
     const local = resolveExecutionRoute({ requestedMode: 'local', repositoryPrivate: privateRepo, privateStewardEnabled: true });
     assert.equal(local.steward.selected, privateRepo ? 'local-windows' : 'held');
@@ -78,13 +81,19 @@ test('Steward uses a single owner-selectable job-level routing guard with no pri
   assert.match(workflow, /github\.actor == 'michaeljwilliams0123'/);
 });
 
-test('both sovereign jobs honor owner routing modes before runner allocation', () => {
+test('both sovereign jobs gate public cloud and private local routes before runner allocation', () => {
   const workflow = read('.github/workflows/sovereign-eight-hour-cycle.yml');
   assert.match(workflow, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
-  assert.equal((workflow.match(/runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*zero-credit\]/gi) ?? []).length, 2);
-  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == 'local'/g) ?? []).length, 2);
-  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == 'auto'/g) ?? []).length, 2);
-  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == ''/g) ?? []).length, 2);
+  for (const expression of [
+    /github\.event\.repository\.private == false/g,
+    /github\.event\.repository\.private == true/g,
+    /vars\.MAHORAGA_EXECUTION_ROUTE == 'cloud'/g,
+    /vars\.MAHORAGA_EXECUTION_ROUTE == 'local'/g,
+    /runs-on:\s*\$\{\{ fromJSON\(github\.event\.repository\.private/g,
+    /\["self-hosted","windows","x64","mahoraga","zero-credit"\]/g,
+    /'"ubuntu-latest"'/g,
+  ]) assert.equal((workflow.match(expression) ?? []).length, 2, String(expression));
+  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == 'auto'/g) ?? []).length, 4);
   assert.doesNotMatch(workflow, /sd009wc7|runs-on:\s*(?:ubuntu|windows)-latest/i);
 });
 

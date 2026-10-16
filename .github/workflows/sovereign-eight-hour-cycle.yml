@@ -44,18 +44,22 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
-    # Routing switch gates scheduling before an eligible local runner is assigned.
+    # Public standard hosted execution is free; private execution stays local.
     if: >-
-      (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
-       vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
-       (vars.MAHORAGA_EXECUTION_ROUTE == 'local' &&
-        github.event.repository.private == true)) &&
+      ((github.event.repository.private == false &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'cloud')) ||
+       (github.event.repository.private == true &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'local'))) &&
       (github.event_name == 'schedule' ||
        (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123') ||
        (github.event_name == 'workflow_run' &&
         github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.head_branch == 'main'))
-    runs-on: [self-hosted, windows, x64, mahoraga, zero-credit]
+    runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 40
     steps:
       - name: Check out trusted target
@@ -266,16 +270,20 @@ jobs:
       actions: write
       contents: write
       pull-requests: write
-    # Cloud-only, hold, and unknown modes do not allocate local runner time.
+    # Private runs use existing local capacity; public runs use free hosted Ubuntu.
     if: >-
-      (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
-       vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
-       (vars.MAHORAGA_EXECUTION_ROUTE == 'local' &&
-        github.event.repository.private == true)) &&
+      ((github.event.repository.private == false &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'cloud')) ||
+       (github.event.repository.private == true &&
+        (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
+         vars.MAHORAGA_EXECUTION_ROUTE == 'local'))) &&
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.head_branch == 'main'
-    runs-on: [self-hosted, windows, x64, mahoraga, zero-credit]
+    runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
       - name: Check out deployed main
