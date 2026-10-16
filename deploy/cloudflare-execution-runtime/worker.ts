@@ -522,7 +522,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversation = this.storage.getConversation(conversationId);
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
-    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy } })) });
+    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy, sourceSHA: turn.sourceSHA ?? null } })) });
     if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => (turn.status === "SUCCESS" || turn.status === "FAILED") && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
     if (input?.type === "message-content") {
       const contentId = payload.contentReference;
@@ -534,6 +534,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     return json({ error: "cloud-action-not-allowed" }, 400);
   }
   private async nativeChat(payload: Record<string, unknown>, ownerHash: string): Promise<Response> {
+    const sourceSHA = this.env.TARGET_SHA;
     const message = payload.content;
     const conversationId = payload.conversationId ?? crypto.randomUUID();
     const key = payload.idempotencyKey;
@@ -549,14 +550,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const turnId = await digestText(`${ownerHash}\n${key}`);
     const prior = this.storage.getTurn(turnId);
     if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest)) return json({ error: "idempotency-conflict" }, 409);
-    if (prior?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: prior.providerId, costClass: prior.costClass, creditPolicy: prior.creditPolicy } });
+    if (prior?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: prior.providerId, costClass: prior.costClass, creditPolicy: prior.creditPolicy, sourceSHA: prior.sourceSHA ?? null } });
     const capability = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
     if (!capability.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: capability.providerReasonCode }, 503);
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease(`turn:${turnId}`, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
     try {
       const raced = this.storage.getTurn(turnId);
-      if (raced?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: raced.providerId, costClass: raced.costClass, creditPolicy: raced.creditPolicy } });
+      if (raced?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: raced.providerId, costClass: raced.costClass, creditPolicy: raced.creditPolicy, sourceSHA: raced.sourceSHA ?? null } });
       const state = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
       if (!state.routable) return json({ error: "zero-credit-provider-unavailable", reasonCode: state.providerReasonCode }, 503);
       const messages = await conversationMessages(this.storage, conversationId, message, this.env.CONTENT_VAULT_KEY);
@@ -574,9 +575,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
-      return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex" } });
+      return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "assistant.respond" }, objective: null, decision: { mode: "ask", execution: "task" }, executionReceipt: { workerId: "execution-runtime-do", providerId: ASSISTANT_PROVIDER_ID, costClass: "cloud-open-weight", creditPolicy: "zero-codex", sourceSHA } });
     } catch (error) { return this.providerGapResponse(error) ?? json({ error: safeError(error) }, 502); }
     finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
@@ -596,8 +597,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const turnId = await digestText(ownerHash + "\n" + key);
     const prior = this.storage.getTurn(turnId);
     if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== providerId)) return json({ error: "idempotency-conflict" }, 409);
+    let sourceSHA: string | null = prior ? prior.sourceSHA ?? null : this.env.TARGET_SHA;
     const capability = command.action === "status" || command.action === "checks" || command.action === "diagnose" ? "repository.inspect" : command.action === "dispatch" ? "workflow.dispatch" : "repository.write";
-    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: command.action === "status" || command.action === "checks" || command.action === "diagnose" };
+    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", sourceSHA, readOnly: command.action === "status" || command.action === "checks" || command.action === "diagnose" };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: receipt };
     if (prior?.status === "SUCCESS") return json(result);
     if (prior?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: prior.errorCode ?? "repository-admin-failed" } });
@@ -607,6 +609,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     let turnCreatedAt = prior?.createdAt ?? Date.now();
     try {
       const raced = this.storage.getTurn(turnId);
+      if (raced) { sourceSHA = raced.sourceSHA ?? null; receipt.sourceSHA = sourceSHA; }
       if (raced?.status === "SUCCESS") return json(result);
       if (raced?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: raced.errorCode ?? "repository-admin-failed" } });
       const reconcileOnly = raced?.status === "PENDING";
@@ -617,7 +620,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.storage.executeTransaction(() => {
           this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: turnCreatedAt });
           this.storage.saveContentRecord(userContent);
-          this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: null, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "PENDING", errorCode: null, contentIdUser: userId, contentIdAssistant: null, createdAt: turnCreatedAt, completedAt: null });
+          this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: null, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "PENDING", errorCode: null, contentIdUser: userId, contentIdAssistant: null, createdAt: turnCreatedAt, completedAt: null });
         });
       }
       const transaction = command.action === "status"
@@ -636,7 +639,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         "Action: " + command.action,
         "Repository: " + transaction.repository,
         "Authoritative receipt: " + JSON.stringify(transaction),
-        "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        "Cloudflare runtime SHA: " + (sourceSHA ?? "unknown"),
         ...(command.action === "status" && message.trim() !== "/repo admin status"
           ? ["Bounded interpretation: executed only /repo admin status. No reconnect, pull request, workflow, or other requested action was performed."]
           : []),
@@ -647,7 +650,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: now });
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
       });
       return json(result);
     } catch (error) {
@@ -661,7 +664,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         "Status: failed",
         "Error code: " + errorCode,
         "External action receipt: none",
-        "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
+        "Cloudflare runtime SHA: " + (sourceSHA ?? "unknown"),
         "Idempotency: duplicate owner requests with this key replay this persisted failure; retry after remediation with a new request.",
       ].join("\n");
       const now = Date.now(), assistantId = crypto.randomUUID();
@@ -669,7 +672,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: now });
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "FAILED", errorCode, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "FAILED", errorCode, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
       });
       return json({ ...result, task: { ...result.task, status: "failed", errorCode } });
     }
@@ -685,14 +688,15 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const turnId = await digestText(ownerHash + "\n" + key);
     const prior = this.storage.getTurn(turnId);
     if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || prior.providerId !== providerId)) return json({ error: "idempotency-conflict" }, 409);
-    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", readOnly: true };
+    const sourceSHA = prior ? prior.sourceSHA ?? null : this.env.TARGET_SHA;
+    const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", sourceSHA, readOnly: true };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability: "repository.inspect" }, objective: null, decision: { mode: "ask", execution: "task", capability: "repository.inspect" }, executionReceipt: receipt };
     if (prior?.status === "SUCCESS") return json(result);
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease("turn:" + turnId, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
     try {
       const raced = this.storage.getTurn(turnId);
-      if (raced?.status === "SUCCESS") return json(result);
+      if (raced?.status === "SUCCESS") return json({ ...result, executionReceipt: { ...receipt, sourceSHA: raced.sourceSHA ?? null } });
       const source = sourceCommand ? await readMahoragaSourceFileViaGithubApp({ path: sourcePath }, { env: this.env }) : null;
       const repository = source ? null : await readMahoragaRepositoryViaGithubApp({}, { env: this.env });
       if (!source && (repository?.fullName !== "michaeljwilliams0123/mahoraga" || repository?.defaultBranch !== "main" || !targetShaValid(repository?.headSha))) return json({ error: "github-native-repository-mismatch" }, 503);
@@ -732,13 +736,14 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent);
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
       });
       return json(result);
     } catch (error) { return json({ error: githubErrorCode(error) }, errorStatus(error)); }
     finally { this.storage.releaseLease("turn:" + turnId, holder); }
   }
   private async nativeCognitiveChat(payload: Record<string, unknown>, ownerHash: string, conversationId: string, key: string, message: string): Promise<Response> {
+    const sourceSHA = this.env.TARGET_SHA;
     if (payload.creditPolicy !== "zero-codex" || (payload.mode !== undefined && payload.mode !== "ask" && payload.mode !== "auto") || (payload.attachmentIds !== undefined && (!Array.isArray(payload.attachmentIds) || payload.attachmentIds.length !== 0))) return json({ error: "cognitive-policy-not-allowed" }, 400);
     const isPrediction = /^\/predict(?:\s|$)/i.test(message.trim());
     const capability = isPrediction ? "cognitive.predict" : "cognitive.cycle";
@@ -767,7 +772,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const turnId = await digestText(`${ownerHash}\n${key}`);
     const prior = this.storage.getTurn(turnId);
     if (prior && (prior.conversationId !== conversationId || prior.requestDigest !== requestDigest || cognitiveCapability(prior.providerId) !== capability)) return json({ error: "idempotency-conflict" }, 409);
-    if (prior?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: { workerId: "execution-runtime-do", providerId: prior.providerId, costClass: prior.costClass, creditPolicy: prior.creditPolicy } });
+    if (prior?.status === "SUCCESS") return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: { workerId: "execution-runtime-do", providerId: prior.providerId, costClass: prior.costClass, creditPolicy: prior.creditPolicy, sourceSHA: prior.sourceSHA ?? null } });
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease(`turn:${turnId}`, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
     try {
@@ -784,12 +789,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
         this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
         for (const memory of memories) this.queueMemory(memory);
       });
       let memoryState: "indexed" | "pending" = "indexed";
       try { memoryState = await this.flushMemoryOutbox() === 0 ? "indexed" : "pending"; } catch { memoryState = "pending"; }
-      return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: { workerId: "execution-runtime-do", providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", memoryState } });
+      return json({ conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: { workerId: "execution-runtime-do", providerId: isPrediction ? "mahoraga-cognitive-predict" : "mahoraga-cognitive-cycle", costClass: "deterministic", creditPolicy: "zero-codex", sourceSHA, memoryState } });
     } finally { this.storage.releaseLease(`turn:${turnId}`, holder); }
   }
   private telemetryStream(request: Request): Response {

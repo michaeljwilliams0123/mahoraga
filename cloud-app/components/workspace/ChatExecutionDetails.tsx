@@ -7,6 +7,7 @@ export function ChatExecutionDetails({ evidence }: { evidence?: ChatExecutionEvi
     <summary>Execution details</summary>
     <p>{reported ? "Runtime-reported task metadata" : "Execution metadata unavailable for this message"}</p>
     {reported && <dl>
+      <dt>Execution source SHA</dt><dd>{reported.sourceSHA ?? "Unknown"}</dd>
       <dt>Task</dt><dd>{reported.taskId}</dd>
       <dt>Worker</dt><dd>{reported.workerId}</dd>
       <dt>Provider</dt><dd>{reported.providerId}</dd>
@@ -15,6 +16,6 @@ export function ChatExecutionDetails({ evidence }: { evidence?: ChatExecutionEvi
       {reported.memoryState && <><dt>Memory index</dt><dd>{reported.memoryState}</dd></>}
     </dl>}
     <p>Independent execution verification: not supplied.</p>
-    <p>Source, authentication, authority, routing, durable-result and replay receipts: not supplied for this message.</p>
+    <p>Independent source verification, authentication, authority, routing, durable-result and replay receipts: not supplied for this message.</p>
   </details>;
 }
