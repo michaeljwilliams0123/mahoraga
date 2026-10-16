@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { projectCandidateReceipt } from "../scripts/sovereign-candidate-receipt.mjs";
 
 const producerModule = await import("../src/sovereign-candidate-producer.mjs").catch(() => null);
 const cycleModule = await import("../src/cloud-cycle-worker.mjs").catch(() => null);
@@ -56,6 +57,7 @@ const FOUR_SHOT = new Set([
   "test/zero-credit-boundary.test.mjs",
 ]);
 const LEDGER = "reports/sovereign-cycle-outcome.json";
+const RECEIPT_TEST = "test/sovereign-candidate-receipt.test.mjs";
 const CYCLE_A = "a".repeat(64);
 const CYCLE_B = "b".repeat(64);
 
@@ -84,7 +86,7 @@ test("scan holds when cycleId advanced but gap composition is unchanged", () => 
     gapAudit: { open: [] },
   }), "hold");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({
       schemaVersion: 1,
       cycleId: CYCLE_A,
@@ -101,7 +103,7 @@ test("scan holds when cycleId advanced but gap composition is unchanged", () => 
 test("scan refreshes the ledger when cycleId advanced and gaps changed", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({
       schemaVersion: 1,
       cycleId: CYCLE_A,
@@ -120,12 +122,63 @@ test("scan refreshes the ledger when cycleId advanced and gaps changed", () => {
 test("scan returns no actionable work when ledger already records this cycleId", () => {
   assert.ok(producerModule, "sovereign candidate producer module should exist");
   const enhancement = producerModule.scanForSafeEnhancement({
-    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER || relative === RECEIPT_TEST,
     readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
     cycleId: CYCLE_A,
     gapAudit: { open: [{ id: "signed-browser-session", state: "blocked" }] },
   });
   assert.equal(enhancement, null);
+});
+
+test("owner-authorized receipt regression becomes one real deterministic candidate", () => {
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => FOUR_SHOT.has(relative) || relative === LEDGER,
+    readFile: () => JSON.stringify({ schemaVersion: 1, cycleId: CYCLE_A }),
+    cycleId: CYCLE_A,
+    gapAudit: { open: [] },
+  });
+  assert.equal(enhancement.id, "candidate-receipt-regression");
+  assert.deepEqual(enhancement.changedFiles, [RECEIPT_TEST]);
+  producerModule.assertSafeCandidatePaths(enhancement.changedFiles);
+  const generated = producerModule.renderCandidateReceiptRegressionTest();
+  assert.match(generated, /projectCandidateReceipt/);
+  assert.match(generated, /never publish/);
+  assert.doesNotMatch(generated, /OPENAI_API_KEY|npm install|sk-proj/);
+});
+
+test("candidate receipt contains only validated metadata and rejects invalid provenance", () => {
+  const value = {
+    status: "candidate-ready",
+    cycleId: CYCLE_A,
+    windowStartUtc: "2026-10-16T17:24:02.000Z",
+    candidate: {
+      baseSha: "1".repeat(40), headSha: "2".repeat(40),
+      branch: "feature/sovereign-native-receipt", pullRequestNumber: 1136,
+      changedFilesDigest: "3".repeat(64),
+    },
+    secret: "must-not-leak",
+  };
+  const receipt = projectCandidateReceipt(value);
+  assert.equal(receipt.cycleId, CYCLE_A);
+  assert.equal(receipt.pullRequestNumber, 1136);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /must-not-leak/);
+  assert.equal(projectCandidateReceipt({ status: "no-candidate" }), null);
+  assert.throws(() => projectCandidateReceipt({ ...value, cycleId: "invalid" }), /provenance is invalid/);
+  assert.throws(() => projectCandidateReceipt({ ...value, candidate: { ...value.candidate, headSha: value.candidate.baseSha } }), /candidate head must differ/);
+});
+
+test("native workflow uses existing narrowly scoped GitHub App and retains an exact candidate artifact", () => {
+  assert.equal(workflow.split("actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510").length - 1, 2);
+  assert.equal((workflow.match(/permission-pull-requests: write/g) ?? []).length, 2);
+  assert.equal((workflow.match(/permission-actions: write/g) ?? []).length, 2);
+  assert.equal((workflow.match(/permission-contents: write/g) ?? []).length, 2);
+  assert.equal(workflow.split("token: $" + "{{ steps.app-token.outputs.token }}").length - 1, 2);
+  assert.match(workflow, /Retain bounded candidate receipt/);
+  assert.ok(workflow.includes("sovereign-candidate-receipt.mjs"));
+  assert.match(workflow, /if-no-files-found: error/);
+  assert.doesNotMatch(workflow, /can_approve_pull_request_reviews|permissions: write-all/);
 });
 
 test("cycle outcome ledger render is bounded JSON and zero-credit", () => {

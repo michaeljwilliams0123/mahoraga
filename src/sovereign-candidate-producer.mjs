@@ -11,6 +11,7 @@ const OPERATOR_SCAN_REPORT_TEST = "test/sovereign-scan-report.test.mjs";
 const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs";
 const ZERO_CREDIT_BOUNDARY_TEST = "test/zero-credit-boundary.test.mjs";
 const CYCLE_OUTCOME_LEDGER = "reports/sovereign-cycle-outcome.json";
+const CANDIDATE_RECEIPT_TEST = "test/sovereign-candidate-receipt.test.mjs";
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -132,7 +133,49 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       });
     }
   }
+  if (!fileExists(CANDIDATE_RECEIPT_TEST)) {
+    return Object.freeze({
+      id: "candidate-receipt-regression",
+      title: "test: verify persisted sovereign candidate receipt",
+      summary: "Add owner-authorized zero-credit regression coverage for the native candidate-receipt artifact contract (issue #786).",
+      changedFiles: Object.freeze([CANDIDATE_RECEIPT_TEST]),
+    });
+  }
   return null;
+}
+
+export function renderCandidateReceiptRegressionTest() {
+  return `import test from "node:test";
+import assert from "node:assert/strict";
+import { projectCandidateReceipt } from "../scripts/sovereign-candidate-receipt.mjs";
+
+test("persisted candidate receipt is exact, content-free, and zero-cost", () => {
+  const cycle = {
+    status: "candidate-ready",
+    cycleId: "a".repeat(64),
+    windowStartUtc: "2026-10-16T17:24:02.000Z",
+    candidate: {
+      baseSha: "b".repeat(40),
+      headSha: "c".repeat(40),
+      branch: "feature/sovereign-acceptance",
+      pullRequestNumber: 1136,
+      changedFilesDigest: "d".repeat(64),
+    },
+    hiddenPayload: "never publish",
+  };
+  const receipt = projectCandidateReceipt(cycle);
+  assert.equal(receipt.cycleId, cycle.cycleId);
+  assert.equal(receipt.headSha, cycle.candidate.headSha);
+  assert.equal(receipt.pullRequestNumber, 1136);
+  assert.equal(receipt.creditCost, 0);
+  assert.equal(receipt.paidFallback, false);
+  assert.doesNotMatch(JSON.stringify(receipt), /never publish/);
+  assert.equal(projectCandidateReceipt({ status: "no-candidate" }), null);
+  assert.throws(() => projectCandidateReceipt({
+    ...cycle, candidate: { ...cycle.candidate, headSha: cycle.candidate.baseSha },
+  }), /candidate head must differ/);
+});
+`;
 }
 
 export function assertSafeCandidatePaths(paths) {
@@ -374,6 +417,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, OPERATOR_STALE_BRANCH_REPORT), renderOperatorStaleBranchReportScript(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "zero-credit-boundary-test") {
       writeFileSync(path.join(root, ZERO_CREDIT_BOUNDARY_TEST), renderZeroCreditBoundaryTest(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "candidate-receipt-regression") {
+      writeFileSync(path.join(root, CANDIDATE_RECEIPT_TEST), renderCandidateReceiptRegressionTest(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "cycle-outcome-ledger") {
       mkdirSync(path.join(root, "reports"), { recursive: true });
       writeFileSync(path.join(root, CYCLE_OUTCOME_LEDGER), renderCycleOutcomeLedger({ cycleId, gapAudit, baseSha }), { encoding: "utf8" });
