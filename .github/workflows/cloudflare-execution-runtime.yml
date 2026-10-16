@@ -146,7 +146,7 @@ jobs:
           fi
 
       - name: Prove native GitHub App permission grants before any Cloudflare deployment
-        run: node scripts/github-app-grant-preflight.mjs
+        run: node scripts/github-app-grant-preflight.ts
 
       - name: Prove account-level hard-zero billing and prepare provider material
         shell: bash
