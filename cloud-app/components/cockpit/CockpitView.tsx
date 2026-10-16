@@ -22,6 +22,7 @@ import { LocalAiDevOnlyCard } from "./LocalAiDevOnlyCard";
 import { ZeroCreditModelUrlBoundaryCard } from "./ZeroCreditModelUrlBoundaryCard";
 import { BotPushPublicationCard } from "./BotPushPublicationCard";
 import { SovereignSchedulerQueueCard } from "./SovereignSchedulerQueueCard";
+import { SovereignCandidateReceiptCard } from "./SovereignCandidateReceiptCard";
 import { ProviderRenewalWatchdogCard } from "./ProviderRenewalWatchdogCard";
 import { PairedWorkspacePublicationCard } from "./PairedWorkspacePublicationCard";
 import { StaticWorkspaceParityCard } from "./StaticWorkspaceParityCard";
@@ -271,6 +272,7 @@ export function CockpitView({
           <ZeroCreditModelUrlBoundaryCard />
           <BotPushPublicationCard />
           <SovereignSchedulerQueueCard />
+          <SovereignCandidateReceiptCard />
           <ProviderRenewalWatchdogCard />
           <PairedWorkspacePublicationCard />
           <StaticWorkspaceParityCard health={health} />
