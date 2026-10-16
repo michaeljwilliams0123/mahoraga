@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { selectCloudflareHfCandidates, classifyHfDiscoveryFailure } from "../deploy/cloudflare-execution-runtime/hf-candidate-discovery.ts";
+import { selectCloudflareHfCandidates, classifyHfDiscoveryFailure, fetchHfPublicCatalog } from "../deploy/cloudflare-execution-runtime/hf-candidate-discovery.ts";
 const sha = "a".repeat(40);
 test("cloud discovery permits only non-gated immutable public metadata and never admits candidates",()=>{
  const result=selectCloudflareHfCandidates([
@@ -34,4 +34,36 @@ test("the runtime exposes bounded failure classes and no upstream exception text
  assert.equal(classifyHfDiscoveryFailure(new SyntaxError("invalid body")), "invalid-json");
  assert.equal(classifyHfDiscoveryFailure(new DOMException("deadline", "TimeoutError")), "timeout");
  assert.equal(classifyHfDiscoveryFailure(new Error("credentials: sensitive")), "network-error");
+});
+
+test("transient transport error retries the compact same-origin Hub request once", async () => {
+ const urls: string[] = [];
+ const mock = (async (url: RequestInfo | URL) => {
+  urls.push(String(url));
+  if (urls.length === 1) throw new TypeError("private transport exception");
+  return Response.json([{id:"owner/test",sha,gated:false,private:false,tags:["license:apache-2.0"]}]);
+ }) as typeof fetch;
+ const response = await fetchHfPublicCatalog("MiniLM", mock);
+ assert.equal(response.status,200);
+ assert.equal(urls.length,2);
+ assert.equal(urls[0]?.includes("full=true"),true);
+ assert.equal(urls[1]?.includes("full=true"),false);
+ assert.equal(selectCloudflareHfCandidates(await response.json()).length,1);
+});
+test("persistent transport failure stops after two attempts without a paid fallback", async () => {
+ let attempts=0;
+ const mock = (async () => { attempts++; throw new TypeError("blocked outbound"); }) as typeof fetch;
+ await assert.rejects(fetchHfPublicCatalog("Qwen", mock), TypeError);
+ assert.equal(attempts,2);
+});
+test("cross-origin redirect fails closed without further network requests", async () => {
+ let requests=0;
+ const mock = (async () => {
+  requests++;
+  const response = Response.json([]);
+  Object.defineProperty(response,"url",{value:"https://example.invalid/untrusted"});
+  return response;
+ }) as typeof fetch;
+ await assert.rejects(fetchHfPublicCatalog("SmolLM",mock),/hf-cloud-unexpected-origin/);
+ assert.equal(requests,1);
 });
