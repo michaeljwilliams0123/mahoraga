@@ -106,13 +106,28 @@ export async function readReadonlyBindingSnapshot({
   const brokerDeployments = await get(BROKER, "deployments");
   const brokerDeployment = assertDeployment(brokerDeployments, "broker", nowMs);
   const brokerVersion = await get(BROKER, "versions/" + brokerDeployment.versionId);
-  if (!enabled) return verifyReadonlyBindingSnapshot({ enabled, brokerVersion, brokerDeployments, nowMs });
+  async function confirmDeployment(name, label, expected) {
+    // Version metadata may be fetched while a deployment changes. Require a
+    // second current deployment observation before reporting its bindings.
+    const observed = assertDeployment(await get(name, "deployments"), label, nowMs);
+    if (observed.deploymentId !== expected.deploymentId || observed.versionId !== expected.versionId) {
+      throw new Error("readonly-binding-" + label + "-deployment-changed");
+    }
+  }
+  if (!enabled) {
+    const snapshot = verifyReadonlyBindingSnapshot({ enabled, brokerVersion, brokerDeployments, nowMs });
+    await confirmDeployment(BROKER, "broker", brokerDeployment);
+    return snapshot;
+  }
   const inspectorDeployments = await get(INSPECTOR, "deployments");
   const inspectorDeployment = assertDeployment(inspectorDeployments, "inspector", nowMs);
   const inspectorVersion = await get(INSPECTOR, "versions/" + inspectorDeployment.versionId);
-  return verifyReadonlyBindingSnapshot({
+  const snapshot = verifyReadonlyBindingSnapshot({
     enabled, brokerVersion, brokerDeployments, inspectorVersion, inspectorDeployments, nowMs,
   });
+  await confirmDeployment(BROKER, "broker", brokerDeployment);
+  await confirmDeployment(INSPECTOR, "inspector", inspectorDeployment);
+  return snapshot;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
@@ -133,6 +148,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       "readonly-binding-unexpected-live-service", "readonly-binding-cloud-provider-mismatch",
       "readonly-binding-inspector-credentials-unverified",
       "readonly-binding-broker-deployment-unverified", "readonly-binding-inspector-deployment-unverified",
+      "readonly-binding-broker-deployment-changed", "readonly-binding-inspector-deployment-changed",
     ]);
     const reason = error instanceof Error && allowed.has(error.message)
       ? error.message : "readonly-binding-readback-failed";
