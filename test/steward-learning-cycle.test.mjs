@@ -79,3 +79,18 @@ test('two-hour workflow exists, is deterministic, and never references a metered
   assert.doesNotMatch(workflow, /openai\.com|OPENAI_API_KEY|process\.env\.OPENAI/i);
   assert.doesNotMatch(workflow, /git push origin main|git push[^\n]*HEAD:main/i);
 });
+
+test('two-hour workflow uses the repository GitHub App and relies on pull-request Verify', () => {
+  const workflow = readFileSync(path.join(root, '.github/workflows/steward-two-hour-learning.yml'), 'utf8');
+  assert.equal(workflow.split('actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510').length - 1, 1);
+  assert.equal((workflow.match(/permission-contents:\s*write/g) ?? []).length, 1);
+  assert.equal((workflow.match(/permission-pull-requests:\s*write/g) ?? []).length, 1);
+  assert.doesNotMatch(workflow, /permission-actions:\s*write|\n\s+actions:\s*write/);
+  assert.equal(workflow.split('token: $' + '{{ steps.app-token.outputs.token }}').length - 1, 1);
+  assert.equal(workflow.split('GH_TOKEN: $' + '{{ steps.app-token.outputs.token }}').length - 1, 1);
+  assert.doesNotMatch(workflow, /GH_TOKEN:\s*\$\{\{\s*github\.token\s*\}\}/);
+  assert.match(workflow, /gh pr create[^\n]*--draft/);
+  assert.match(workflow, /gh pr list[^\n]*--state all/);
+  assert.doesNotMatch(workflow, /GITHUB_RUN_ATTEMPT/);
+  assert.doesNotMatch(workflow, /gh workflow run verify\.yml/);
+});
