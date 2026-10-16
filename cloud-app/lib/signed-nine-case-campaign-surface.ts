@@ -1,0 +1,1 @@
+$(cat /tmp/signed-nine-case-campaign-surface.ts)
