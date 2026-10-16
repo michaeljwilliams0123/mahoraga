@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { trainNativeWorldModel, loadNativeWorldCheckpoint, predictNativeWorldState } from "../src/native-world-model.ts";
 import type { NativeWorldEpisode, NativeWorldTrainingInput } from "../src/native-world-model.ts";
+import * as worldModel from "../src/native-world-model.ts";
 
 const digest = "a".repeat(64);
 function episode(episodeId: string, actionId: string, value: number, change: number): NativeWorldEpisode {
@@ -92,4 +93,46 @@ test("run is a candidate model only: no production effect or native-world capabi
   assert.equal(proposed.executionAuthorityGranted, false);
   assert.ok(Math.abs(proposed.predictedState.load! - .45) < .04);
   assert.notEqual(candidate.checkpoint.fingerprint, digest);
+});
+test("changed outcome labels cannot disguise a reused training intervention as heldout", () => {
+  const original = input();
+  const reused = { ...original.training[0]!, episodeId: "changed-label", nextState: { load: .9 } };
+  assert.throws(() => trainNativeWorldModel({ ...original, evaluation: [reused, ...original.evaluation] }), /data-leakage/);
+});
+test("third-split assessment measures learned transitions against persistence without updating the checkpoint", () => {
+  assert.equal(typeof worldModel.assessNativeWorldHoldout, "function");
+  const original = input(), checkpoint = trainNativeWorldModel(original).checkpoint;
+  const before = JSON.stringify(checkpoint);
+  const holdout = [episode("final-i", "increase", .7, .2), episode("final-d", "decrease", -.7, -.25)];
+  const result = worldModel.assessNativeWorldHoldout(checkpoint, { training: original.training, evaluation: original.evaluation, holdout });
+  assert.ok(result.meanSquaredError < .001);
+  assert.ok(Math.abs(result.persistenceMeanSquaredError - .05125) < 1e-12);
+  assert.ok(result.meanSquaredError < result.persistenceMeanSquaredError * .1);
+  assert.equal(result.holdoutExamples, 2);
+  assert.equal(result.checkpointFingerprint, checkpoint.fingerprint);
+  assert.match(result.holdoutDataDigest, /^[a-f0-9]{64}$/);
+  assert.deepEqual(result.perAction.map(x => [x.actionId, x.examples]), [["decrease", 1], ["increase", 1]]);
+  assert.equal(result.executionAuthorityGranted, false);
+  assert.equal(Object.isFrozen(result.perAction), true);
+  assert.equal(JSON.stringify(checkpoint), before);
+  assert.deepEqual(result, worldModel.assessNativeWorldHoldout(loadNativeWorldCheckpoint(before), {
+    training: original.training, evaluation: original.evaluation, holdout,
+  }));
+});
+test("third-split assessment binds reference data and rejects reused interventions, ids and missing actions", () => {
+  assert.equal(typeof worldModel.assessNativeWorldHoldout, "function");
+  const original = input(), checkpoint = trainNativeWorldModel(original).checkpoint;
+  const holdout = [episode("final-i", "increase", .7, .2), episode("final-d", "decrease", -.7, -.25)];
+  const assess = (patch: object) => worldModel.assessNativeWorldHoldout(checkpoint, {
+    training: original.training, evaluation: original.evaluation, holdout, ...patch,
+  });
+  assert.throws(() => assess({ training: original.training.slice(1) }), /reference-data-mismatch/);
+  assert.throws(() => assess({ evaluation: original.evaluation.slice(1) }), /reference-data-mismatch/);
+  for (const reused of [original.training[0]!, original.evaluation[0]!]) {
+    assert.throws(() => assess({ holdout: [{ ...reused, episodeId: "fresh-id", nextState: { load: .95 } }, ...holdout] }), /data-leakage/);
+    assert.throws(() => assess({ holdout: [{ ...holdout[0]!, episodeId: reused.episodeId }, holdout[1]!] }), /data-leakage/);
+  }
+  assert.throws(() => assess({ holdout: [holdout[0]!] }), /action-holdout-incomplete/);
+  assert.throws(() => assess({ holdout: [holdout[0]!, { ...holdout[0]!, episodeId: "duplicate-intervention" }, holdout[1]!] }), /data-leakage/);
+  assert.throws(() => assess({ holdout: [{ ...holdout[0]!, rightsEvidenceDigest: "unproven" }, holdout[1]!] }), /episode-invalid/);
 });

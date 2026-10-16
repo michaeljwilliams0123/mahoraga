@@ -80,6 +80,19 @@ describe("universal capability routing migration", () => {
     expect(routes).toEqual([expect.objectContaining({ capability:"repository.inspect", provider:"github" })]);
   });
 
+  it("holds malformed advertised worker routes rather than presenting phantom executors", async () => {
+    const now = Date.parse("2026-09-28T16:31:00.000Z");
+    const valid = { capability:"repository.inspect", routable:true, enabled:true, provider:"github",
+      workerId:"repo-1", workerIds:["repo-1"], permissionClass:"read",
+      costClass:"zero-credit", routingReason:null, providerReasonCode:null, evidenceLevel:"runtime-execution",
+      lastObservedAt:"2026-09-28T16:30:00.000Z", expiresAt:"2026-09-28T16:35:00.000Z" };
+    const routes = [{ ...valid, workerIds:[] }, { ...valid, workerId:"other" },
+      { ...valid, workerIds:["repo-1", "repo-1"] }, valid];
+    const canonical = { async fetch() { return Response.json({ routes }); } };
+    expect(await collectUniversalCapabilityRoutes(canonical, undefined, now))
+      .toEqual([valid]);
+  });
+
   it("fails closed when canonical broker is bound but invalid", async () => {
     const canonical = { async fetch() { return new Response("bad", { status:503 }); } };
     const legacy = { async fetch() { throw new Error("legacy must not be called"); } };
