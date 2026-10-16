@@ -118,7 +118,7 @@ test("Cloudflare API calls are read-only, only fixed paths, and never show token
   };
   const result=await readReadonlyBindingSnapshot({...env,enabled:true,nowMs:NOW,fetchImpl:get});
   assert.equal(result.status,"bound-for-runtime-attestation");
-  assert.equal(paths.length,4);
+  assert.equal(paths.length,6);
   assert.equal(new Set(paths).size,4);
   assert.ok(paths.every(p=>p.startsWith("https://api.cloudflare.com/client/v4/accounts/"+env.accountId+"/workers/scripts/")));
   assert.doesNotMatch(JSON.stringify(result),/broker-deployment-only-test-token|Bearer/);
@@ -134,8 +134,36 @@ test("disabled mode inspects only the deployed broker version, never the inspect
     throw new Error("unexpected endpoint");
   }});
   assert.equal(response.status,"disabled-unbound");
-  assert.equal(paths.length,2);
+  assert.equal(paths.length,3);
   assert.ok(paths.every(p=>!p.includes(INSPECTOR)));
+});
+
+test("deployment changes during version readback stop binding promotion", async () => {
+  const changedId = "abcd5678-1234-1234-1234-123456789abc";
+  for (const enabled of [false, true]) {
+    for (const target of enabled ? [BROKER, INSPECTOR] : [BROKER]) {
+      for (const change of [
+        { id: changedId },
+        { versions: [{ version_id: changedId, percentage: 100 }] },
+        { versions: [{ version_id: id, percentage: 50 }] },
+      ]) {
+        const counts = new Map();
+        await assert.rejects(readReadonlyBindingSnapshot({ ...env, enabled, nowMs: NOW,
+          fetchImpl: async url => {
+            const suffix = String(url).split("/workers/scripts/")[1];
+            const count = (counts.get(suffix) ?? 0) + 1;
+            counts.set(suffix, count);
+            if (suffix === BROKER + "/versions/" + id) return Response.json(version(enabled ? [service()] : []));
+            if (suffix === INSPECTOR + "/versions/" + id) return Response.json(version(secrets));
+            if (suffix === BROKER + "/deployments" || suffix === INSPECTOR + "/deployments") {
+              return Response.json(deployment(suffix === target + "/deployments" && count > 1 ? change : {}));
+            }
+            throw new Error("unexpected endpoint");
+          },
+        }), /readonly-binding-(broker|inspector)-deployment-(changed|unverified)/);
+      }
+    }
+  }
 });
 
 test("API failures and token absence are sanitized without action grants", async () => {

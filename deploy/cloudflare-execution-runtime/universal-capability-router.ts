@@ -22,7 +22,8 @@ function validRoute(value: unknown, now: number): value is UniversalCapabilityRo
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const route = value as Record<string, unknown>;
   if (typeof route.capability !== "string" || !route.capability || route.routable !== true || route.enabled !== true) return false;
-  if (typeof route.provider !== "string" || !route.provider || !Array.isArray(route.workerIds) || !route.workerIds.every((id) => typeof id === "string" && id.length > 0)) return false;
+  if (typeof route.provider !== "string" || !route.provider || !Array.isArray(route.workerIds) || !route.workerIds.length || !route.workerIds.every((id) => typeof id === "string" && id.length > 0) || new Set(route.workerIds).size !== route.workerIds.length) return false;
+  if (route.workerId !== undefined && (typeof route.workerId !== "string" || !route.workerIds.includes(route.workerId))) return false;
   if (route.evidenceLevel !== "runtime-execution" || route.routingReason !== null || route.providerReasonCode !== null) return false;
   const observedAt = Date.parse(String(route.lastObservedAt ?? ""));
   const expiresAt = Date.parse(String(route.expiresAt ?? ""));
