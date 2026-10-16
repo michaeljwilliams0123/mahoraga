@@ -59,7 +59,7 @@ test("repository administration parser rejects ambiguous or malformed writes", (
 });
 
 
-test("repository work-item and deletion commands stay explicit and typed", () => {
+test("repository work-item and comment deletion commands stay explicit and typed", () => {
   assert.deepEqual(parseRepositoryAdminCommand('/repo issue create {"title":"Runtime gap","body":"Observed evidence."}'), {
     action: "issue-create", proposal: { title: "Runtime gap", body: "Observed evidence." },
   });
@@ -75,10 +75,8 @@ test("repository work-item and deletion commands stay explicit and typed", () =>
   assert.deepEqual(parseRepositoryAdminCommand('/repo comment delete {"kind":"issue","number":973,"commentId":44}'), {
     action: "comment-delete", proposal: { kind: "issue", number: 973, commentId: 44 },
   });
-  assert.deepEqual(parseRepositoryAdminCommand('/repo branch delete {"branch":"mahoraga/obsolete","expectedHeadSha":"' + "b".repeat(40) + '"}'), {
-    action: "branch-delete", proposal: { branch: "mahoraga/obsolete", expectedHeadSha: "b".repeat(40) },
-  });
-  for (const prefix of ["/repo issue", "/repo comment", "/repo branch"]) assert.equal(isRepositoryAdminRequest(prefix + " create {}"), true);
+  for (const prefix of ["/repo issue", "/repo comment"]) assert.equal(isRepositoryAdminRequest(prefix + " create {}"), true);
+  assert.equal(isRepositoryAdminRequest("/repo branch delete {}"), false);
   for (const malformed of ["/repo issue delete {}", "/repo comment update {}", "/repo branch delete []", "/repo pr update {} trailing"]) {
     assert.throws(() => parseRepositoryAdminCommand(malformed), /repository-admin-command-invalid/);
   }
