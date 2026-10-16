@@ -60,6 +60,17 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /supplies no production authentication material/);
   });
 
+  it("surfaces native Verify dispatch grant proof as observational only", () => {
+    assert.match(cockpit, /Native Verify dispatch grants/);
+    assert.match(cockpit, /Proven before deployment \(observational\)/);
+    assert.match(cockpit, /Merged #1138/);
+    assert.match(cockpit, /contents:write\+pull_requests:write\+metadata:read/);
+    assert.match(cockpit, /actions:write\+contents:read\+metadata:read/);
+    assert.match(cockpit, /immediately revoked/);
+    assert.match(cockpit, /cloudflare-execution-runtime\.yml/);
+    assert.match(cockpit, /not traffic authority/);
+  });
+
   it("keeps product Mahoraga and 7.0.0-alpha.2 as provenance only", () => {
     assert.match(cockpit, /productName = health\?\.product \?\? "Mahoraga"/);
     assert.match(cockpit, /7\.0\.0-alpha\.2 is build provenance only/);
