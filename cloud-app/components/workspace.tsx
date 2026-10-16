@@ -8,7 +8,7 @@ import { subscribePagesReconnect } from "@/lib/pages-reconnect";
 import { type CapabilityObservationState } from "@/lib/capability-observer";
 import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capability-stream";
 import { deriveExecutionStatus } from "@/lib/execution-status";
-import { canSubmitDeterministicCognitiveChat } from "@/lib/capability-families";
+import { canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat } from "@/lib/capability-families";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { projectMessageExecution, loadSavedConversation } from "@/lib/chat-execution-evidence";
 import { RuntimeRelay, type RuntimeCapability, type RuntimeConversation, type RuntimeMessage, type RuntimeTask } from "@/lib/runtime-relay";
@@ -426,7 +426,9 @@ export function Workspace() {
       setRuntimeError("Connect Mahoraga before submitting work.");
       return;
     }
-    if (!assistantReady && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)) {
+    if (!assistantReady
+      && !canSubmitDeterministicCognitiveChat(coreReady, runtimeCapabilities, text, files.length)
+      && !canSubmitNativeRepositoryChat(coreReady, text, files.length)) {
       setRuntimeError(ASSISTANT_ROUTE_UNROUTABLE_ERROR);
       return;
     }

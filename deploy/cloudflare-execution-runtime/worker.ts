@@ -16,7 +16,7 @@ import { collectUniversalCapabilityRoutes, type UniversalBrokerBinding } from ".
 import { interactionNegotiationHoldReason, projectInteractionContext, projectInteractionRuntimeTruth, validateInteractionRuntimeTruth } from "./interaction-runtime";
 import { InternalActivityLoop, readActivityState, summarizeRecentTurns, type ActivityState, type ActivityArtifact, type ActivityObservation } from "./internal-activity";
 // @ts-expect-error Canonical runtime-neutral GitHub App client is shared with the Node control plane.
-import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
+import { createMahoragaDirectMainCommitViaGithubApp, createMahoragaPullRequestViaGithubApp, dispatchMahoragaVerifyWorkflowViaGithubApp, mergeMahoragaPullRequestViaGithubApp, mutateMahoragaRepositoryViaGithubApp, readMahoragaPullRequestChecksViaGithubApp, readMahoragaRepositoryViaGithubApp, readMahoragaRepositoryWriteReadinessViaGithubApp, readMahoragaSourceFileViaGithubApp } from "../../src/github-native-client.mjs";
 import { inspectGithubWorkspace } from "./github-workspace";
 import { inspectNativeSourceProduction, publishNativeSourceProductionEvidence } from "./github-workspace";
 import { NativeContinuityWatch, isNativeEvidence, type NativeEvidence } from "./native-continuity";
@@ -134,7 +134,7 @@ const errorStatus = (error: unknown): number => {
   const status = objectValue(error)?.status;
   return typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599 ? status : 502;
 };
-const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" || providerId === "mahoraga-native-github-admin-status" ? "repository.inspect" : providerId === "mahoraga-native-github-pr-create" || providerId === "mahoraga-native-github-pr-merge" ? "repository.write" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
+const cognitiveCapability = (providerId: string | null): string => providerId === "mahoraga-native-github-source" || providerId === "mahoraga-native-github-inspect" || providerId === "mahoraga-native-github-admin-status" ? "repository.inspect" : providerId?.startsWith("mahoraga-native-github-") && !providerId.endsWith("-checks") ? "repository.write" : providerId === "mahoraga-cognitive-predict" ? "cognitive.predict" : providerId === "mahoraga-cognitive-cycle" ? "cognitive.cycle" : "assistant.respond";
 
 async function conversationMessages(storage: StorageAdapter, conversationId: string, message: string, vaultKey: string): Promise<ProviderMessage[]> {
   const current: ProviderMessage = { role: "user", content: message };
@@ -584,7 +584,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     let command: ReturnType<typeof parseRepositoryAdminCommand>;
     try { command = parseRepositoryAdminCommand(message); }
     catch { return json({ error: "repository-admin-command-invalid" }, 400); }
-    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status" : command.action === "create" ? "mahoraga-native-github-pr-create" : command.action === "merge" ? "mahoraga-native-github-pr-merge" : command.action === "dispatch" ? "mahoraga-native-github-workflow-dispatch" : "mahoraga-native-github-pr-checks";
+    const providerId = command.action === "status" ? "mahoraga-native-github-admin-status"
+      : command.action === "create" ? "mahoraga-native-github-pr-create"
+        : command.action === "merge" ? "mahoraga-native-github-pr-merge"
+          : command.action === "dispatch" ? "mahoraga-native-github-workflow-dispatch"
+            : command.action === "checks" || command.action === "diagnose" ? "mahoraga-native-github-pr-checks"
+              : `mahoraga-native-github-${command.action}`;
     const existingConversation = this.storage.getConversation(conversationId);
     if (existingConversation && existingConversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const requestDigest = await digestText(ownerHash + "\n" + conversationId + "\n" + message);
@@ -598,10 +603,23 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (prior?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: prior.errorCode ?? "repository-admin-failed" } });
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease("turn:" + turnId, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
+    let userId = prior?.contentIdUser ?? crypto.randomUUID();
+    let turnCreatedAt = prior?.createdAt ?? Date.now();
     try {
       const raced = this.storage.getTurn(turnId);
       if (raced?.status === "SUCCESS") return json(result);
       if (raced?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: raced.errorCode ?? "repository-admin-failed" } });
+      const reconcileOnly = raced?.status === "PENDING";
+      userId = raced?.contentIdUser ?? userId;
+      turnCreatedAt = raced?.createdAt ?? turnCreatedAt;
+      if (!raced) {
+        const userContent = await encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: turnCreatedAt }, this.env.CONTENT_VAULT_KEY);
+        this.storage.executeTransaction(() => {
+          this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: turnCreatedAt });
+          this.storage.saveContentRecord(userContent);
+          this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: null, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "PENDING", errorCode: null, contentIdUser: userId, contentIdAssistant: null, createdAt: turnCreatedAt, completedAt: null });
+        });
+      }
       const transaction = command.action === "status"
         ? await readMahoragaRepositoryWriteReadinessViaGithubApp({}, { env: this.env })
         : command.action === "create"
@@ -610,7 +628,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
             ? await mergeMahoragaPullRequestViaGithubApp(command.proposal, { env: this.env })
             : command.action === "dispatch"
               ? await dispatchMahoragaVerifyWorkflowViaGithubApp(command.proposal, { env: this.env })
-              : await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env });
+              : command.action === "checks" || command.action === "diagnose"
+                ? await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env })
+                : await mutateMahoragaRepositoryViaGithubApp(command.action, command.proposal, { env: this.env, mutationId: turnId, reconcileOnly });
       const answer = [
         "Repository administration — live GitHub App",
         "Action: " + command.action,
@@ -622,19 +642,19 @@ export class ExecutionDurableObject extends DurableObject<Env> {
           : []),
         "Idempotency: duplicate owner requests with this key replay the persisted result; exact external retries are adopted without a second mutation.",
       ].join("\n");
-      const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();
-      const [userContent, assistantContent] = await Promise.all([
-        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-      ]);
+      const now = Date.now(), assistantId = crypto.randomUUID();
+      const assistantContent = await encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY);
       this.storage.executeTransaction(() => {
-        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
-        this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: now });
+        this.storage.saveContentRecord(assistantContent);
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
       });
       return json(result);
     } catch (error) {
       const errorCode = githubErrorCode(error);
+      if (errorCode === "github-native-mutation-outcome-unknown") {
+        return json({ ...result, task: { ...result.task, status: "failed", errorCode } });
+      }
       const answer = [
         "Repository administration — live GitHub App",
         "Action: " + command.action,
@@ -644,15 +664,12 @@ export class ExecutionDurableObject extends DurableObject<Env> {
         "Cloudflare runtime SHA: " + this.env.TARGET_SHA,
         "Idempotency: duplicate owner requests with this key replay this persisted failure; retry after remediation with a new request.",
       ].join("\n");
-      const now = Date.now(), userId = crypto.randomUUID(), assistantId = crypto.randomUUID();
-      const [userContent, assistantContent] = await Promise.all([
-        encryptConversationContent({ contentId: userId, conversationId, role: "user", plaintext: message, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-        encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY),
-      ]);
+      const now = Date.now(), assistantId = crypto.randomUUID();
+      const assistantContent = await encryptConversationContent({ contentId: assistantId, conversationId, role: "assistant", plaintext: answer, createdAt: now }, this.env.CONTENT_VAULT_KEY);
       this.storage.executeTransaction(() => {
-        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? now, updatedAt: now });
-        this.storage.saveContentRecord(userContent); this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "FAILED", errorCode, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: now, completedAt: now });
+        this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: now });
+        this.storage.saveContentRecord(assistantContent);
+        this.storage.saveTurn({ id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "FAILED", errorCode, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
       });
       return json({ ...result, task: { ...result.task, status: "failed", errorCode } });
     }
