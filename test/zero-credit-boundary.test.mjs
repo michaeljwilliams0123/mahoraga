@@ -34,11 +34,16 @@ test("four-hour cycle stays deterministic with empty providers and no generation
   assert.equal(waiting.providerId, "waiting-zero-credit-provider");
 });
 
-test("four-hour cycle matches portable Windows zero-credit capacity and never a named device", async () => {
+test("four-hour cycle admits only zero-cost public hosted or private self-hosted routes", async () => {
   const workflow = await readFile(path.join(root, ".github/workflows/sovereign-eight-hour-cycle.yml"), "utf8");
-  const required = /runs-on:\s*\[self-hosted,\s*windows,\s*x64,\s*mahoraga,\s*zero-credit\]/gi;
-  assert.equal((workflow.match(required) ?? []).length, 2, "candidate and smoke must both require free local capacity");
-  assert.doesNotMatch(workflow, /sd009wc7|runs-on:\s*(?:windows|ubuntu)-latest/i);
+  assert.equal((workflow.match(/github\.event\.repository\.private == false/g) ?? []).length, 2);
+  assert.equal((workflow.match(/github\.event\.repository\.private == true/g) ?? []).length, 2);
+  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == 'cloud'/g) ?? []).length, 2);
+  assert.equal((workflow.match(/vars\.MAHORAGA_EXECUTION_ROUTE == 'local'/g) ?? []).length, 2);
+  assert.equal((workflow.match(/runs-on:\s*\$\{\{ fromJSON\(github\.event\.repository\.private/g) ?? []).length, 2);
+  assert.equal((workflow.match(/\["self-hosted","windows","x64","mahoraga","zero-credit"\]/g) ?? []).length, 2);
+  assert.equal((workflow.match(/'"ubuntu-latest"'/g) ?? []).length, 2);
+  assert.doesNotMatch(workflow, /sd009wc7|paid-fallback|openai\.com/i);
   assert.match(workflow, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
 });
 
