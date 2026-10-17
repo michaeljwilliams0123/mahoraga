@@ -4,7 +4,7 @@ export function SovereignCandidateReceiptCard() {
       <span>Sovereign candidate receipt</span>
       <strong>Zero-credit · observational</strong>
       <p>
-        Merge #1136 (001c8aa8) admits real zero-credit candidate via repository-scoped GitHub App token (contents:write + pull-requests:write only). Content-free 7-day artifact receipt projects cycleId, window, base/head SHA, PR number, branch, changed-files digest, creditCost=0, paidFallback=false. Draft PRs; Verify uses job github.token only. One-shot when test/sovereign-candidate-receipt.test.mjs absent (issue #786); not execution readiness, cognition readiness, or traffic authority. Product remains Mahoraga; 7.0.0-alpha.2 is build provenance only.
+        Merge #1136 (001c8aa8) admits real zero-credit candidate via repository-scoped GitHub App token (contents:write + pull-requests:write only). Content-free 7-day artifact receipt projects cycleId, window, base/head SHA, PR number, branch, changed-files digest, creditCost=0, paidFallback=false. #1155 adds numeric sourceIssueNumber (e.g. #1145) to validated receipts and Refs in generated PR bodies for the allowlisted path-safety recipe; fails closed on malformed identifiers; no auto-close; legacy receipts preserved. Draft PRs; Verify uses job github.token only. One-shot when test/sovereign-candidate-receipt.test.mjs absent (issue #786); not execution readiness, cognition readiness, or traffic authority. Product remains Mahoraga; 7.0.0-alpha.2 is build provenance only.
       </p>
     </article>
   );
