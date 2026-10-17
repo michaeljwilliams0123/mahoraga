@@ -67,6 +67,15 @@ export function canSubmitDeterministicCognitiveChat(coreReady: boolean, capabili
     || (/^\/cycle(?:\s|$)/i.test(text.trim()) && cognitiveCycleAvailable(coreReady, capabilities));
 }
 
+/** Developer execution is distinct from a chat model or a read/write-only GitHub App.
+ * Never infer Build/Ship readiness from assistant.respond or repository.inspect. */
+export function canRunZeroCreditDevelopmentAction(coreReady: boolean, capabilities: readonly RuntimeCapability[]): boolean {
+  return coreReady && capabilities.some((route) =>
+    ["build.execute", "codex.execute", "repository.execute"].includes(route.capability)
+    && route.routable === true && route.enabled !== false
+    && ["deterministic", "zero-credit", "cloud-open-weight", "local-open-weight"].includes(route.costClass ?? ""));
+}
+
 export function canSubmitNativeRepositoryChat(coreReady: boolean, text: string, fileCount: number): boolean {
   return coreReady && fileCount === 0
     && /^\/repo\s+(?:inspect|admin|pr|workflow|issue|comment)\b/i.test(text.trim());

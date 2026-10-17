@@ -12,11 +12,15 @@ test("canonical transports fail closed for UI actions they do not implement", as
     read("deploy/cloudflare-execution-runtime/worker.ts"),
     read("cloud-app/lib/runtime-relay.ts"),
   ]);
-  for (const action of ["task-action", "operations-snapshot", "operations-action"]) {
+  for (const action of ["task-action", "operations-action"]) {
     assert.doesNotMatch(gateway, new RegExp('"'+action+'"'));
     assert.doesNotMatch(worker, new RegExp('input\\?\\.type === "'+action+'"'));
   }
-  assert.equal((relay.match(/canonical-action-unavailable/g) ?? []).length >= 3, true);
+  // Cloud snapshot is now a strictly owner-scoped read; supervisor mutations remain blocked.
+  assert.match(worker, /input\?\.type === "operations-snapshot"/);
+  assert.match(worker, /owner_id_hash = \?/);
+  assert.match(relay, /async operationsSnapshot\(\) \{\s*return this.call<RuntimeOperationsSnapshot>/);
+  assert.match(relay, /async operationsAction[\s\S]*canonical-action-unavailable/);
 });
 
 test("native command retry fixes identity before delivery and clears on reset", async () => {

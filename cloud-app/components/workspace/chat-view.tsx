@@ -216,7 +216,7 @@ export function ChatView(props: ChatViewProps) {
               {quickActions.map((action) => {
                 const Icon = ACTION_ICONS[action.id];
                 return (
-                  <button key={action.id} type="button" onClick={() => void runQuickAction(action.id)} disabled={busy || (action.requiresCore === true && !assistantReady)}>
+                  <button key={action.id} type="button" onClick={() => void runQuickAction(action.id)} disabled={busy || (action.requiresCore === true && !coreReady)}>
                     <span className={`quick-icon quick-${action.id}`}><Icon size={18} /></span>
                     <span><strong>{action.label}</strong><small>{action.description}</small></span>
                   </button>
