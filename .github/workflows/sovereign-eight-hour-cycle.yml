@@ -302,12 +302,17 @@ jobs:
           retention-days: 7
 
   producer-smoke:
+    # Both jobs can mint the same feature/sovereign-* PR. A workflow-level
+    # concurrency group serializes runs, not sibling jobs within one run.
+    # Do not race their branch creation or use stale candidate receipts.
+    needs: candidate-cycle
     permissions:
       actions: write
       contents: write
       pull-requests: write
     # Private runs use existing local capacity; public runs use free hosted Ubuntu.
     if: >-
+      needs.candidate-cycle.result == 'success' &&
       ((github.event.repository.private == false &&
         (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
          vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
