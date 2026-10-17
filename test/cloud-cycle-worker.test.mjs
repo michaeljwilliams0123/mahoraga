@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createCycleId, getFourHourWindowStart, runCloudCycle } from "../src/cloud-cycle-worker.mjs";
+import { createCycleId, getFourHourWindowStart, runCloudCycle, validateCandidateReceipt } from "../src/cloud-cycle-worker.mjs";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
@@ -64,4 +64,23 @@ test("cloud-cycle CLI executes and emits a receipt on every supported runner OS"
   assert.equal(receipt.workflowVersion, "sovereign-four-hour-cycle/v1");
   assert.equal(typeof receipt.status, "string");
   assert.equal(receipt.branch, "main");
+});
+
+test("issue-backed candidate receipts preserve only numeric source issue provenance", () => {
+  const candidate = {
+    baseSha: "a".repeat(40),
+    headSha: "b".repeat(40),
+    branch: "feature/sovereign-issue-regression",
+    pullRequestNumber: 1157,
+    changedFilesDigest: "c".repeat(64),
+    sourceIssueNumber: 1145,
+    privateIssueBody: "must-not-persist",
+  };
+  const normalized = validateCandidateReceipt(candidate);
+  assert.equal(normalized.sourceIssueNumber, 1145);
+  assert.equal("privateIssueBody" in normalized, false);
+  for (const invalid of [-1, 0, "1145", 10_000_000, null, 1.5]) {
+    assert.throws(() => validateCandidateReceipt({ ...candidate, sourceIssueNumber: invalid }), /source issue/i);
+  }
+  assert.equal(validateCandidateReceipt({ ...candidate, sourceIssueNumber: undefined }).sourceIssueNumber, undefined);
 });
