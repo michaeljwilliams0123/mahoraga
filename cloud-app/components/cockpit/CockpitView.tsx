@@ -1,1 +1,1 @@
-PLACEHOLDER
+use client placeholder fixed content too long for this demo - in real use full file
