@@ -264,15 +264,19 @@ test("four-hour cycle workflow runs the credit-free heartbeat before candidate p
   assert.match(source, /node src\/autonomy-heartbeat\.mjs/);
   assert.match(source, /refuse-paid-route/);
   assert.match(source, /node src\/cloud-cycle-worker\.mjs/);
-  assert.match(source, /api-deployments-free-per-day/);
+  assert.doesNotMatch(source, /api-deployments-free-per-day/);
   assert.match(source, /steps\.heartbeat\.outputs\.next_action != 'hold-planned'/);
-  assert.match(source, /MAHORAGA_HOSTED_LEDGER_TEXT/);
+  assert.doesNotMatch(source, /MAHORAGA_HOSTED_LEDGER_TEXT|MAHORAGA_VERCEL_DEPLOYMENTS_TODAY/);
+  assert.doesNotMatch(source, /issues\/comments\?sort=updated/);
+  assert.match(source, /evaluated_sha=/);
+  assert.match(source, /head_sha.*!=.*evaluated_sha/);
+  assert.match(source, /-f sha="\$\{evaluated_sha\}"/);
   assert.match(source, /Restore unattended cycle memory/);
   assert.match(source, /actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/);
   assert.match(source, /state\/unattended-cycle-memory\.json/);
 });
 
-test("unattended heartbeat observes hosted-compute exhaustion from the GitHub ledger instead of defaulting to dispatch", () => {
+test("legacy Vercel ledger behavior remains isolated from the GitHub schedule", () => {
   const marker = hostedComputeFromLedgerText('Resource is limited (more than 100, code: "api-deployments-free-per-day").');
   assert.equal(marker.vercelDeploymentsToday, 100);
   assert.equal(hostedComputeFromLedgerText("healthy preview").vercelDeploymentsToday, 0);
