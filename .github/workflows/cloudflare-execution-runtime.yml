@@ -2,6 +2,15 @@ name: Deploy and Accept Exact Main on Cloudflare
 
 on:
   workflow_dispatch:
+    inputs:
+      verified_sha:
+        description: Exact main SHA from trusted autonomous verification
+        required: false
+        type: string
+      publication_verify_run_id:
+        description: Trusted Verify Mahoraga run containing the publication receipt
+        required: false
+        type: string
   workflow_run:
     workflows: ["Verify Mahoraga"]
     types: [completed]
@@ -21,7 +30,7 @@ jobs:
     if: needs.deploy-accept.result == 'success'
     uses: ./.github/workflows/cloudflare-workspace-candidate.yml
     with:
-      verified_sha: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      verified_sha: ${{ inputs.verified_sha != '' && inputs.verified_sha || github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
     secrets: inherit
 
   deploy-accept:
@@ -31,6 +40,12 @@ jobs:
        github.actor == github.repository_owner &&
        github.repository == 'michaeljwilliams0123/mahoraga' &&
        github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.actor == 'github-actions[bot]' &&
+       github.repository == 'michaeljwilliams0123/mahoraga' &&
+       github.ref == 'refs/heads/main' &&
+       inputs.verified_sha != '' &&
+       inputs.publication_verify_run_id != '') ||
       (github.event_name == 'workflow_run' &&
        github.event.workflow_run.conclusion == 'success' &&
        github.repository == 'michaeljwilliams0123/mahoraga' &&
@@ -48,7 +63,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      VERIFIED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+      VERIFIED_SHA: ${{ inputs.verified_sha != '' && inputs.verified_sha || github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_BILLING_READ_TOKEN: ${{ secrets.CLOUDFLARE_BILLING_READ_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -79,16 +94,22 @@ jobs:
 
       - name: Fetch trusted bot publication receipt
         if: >-
-          github.event_name == 'workflow_run' &&
-          github.event.workflow_run.actor.login == 'github-actions[bot]' &&
-          github.event.workflow_run.event == 'workflow_dispatch'
+          (github.event_name == 'workflow_run' &&
+           github.event.workflow_run.actor.login == 'github-actions[bot]' &&
+           github.event.workflow_run.event == 'workflow_dispatch') ||
+          (github.event_name == 'workflow_dispatch' &&
+           github.actor == 'github-actions[bot]' &&
+           inputs.publication_verify_run_id != '')
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PUBLICATION_VERIFY_RUN_ID: ${{ github.event.workflow_run.id }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || inputs.publication_verify_run_id }}
         run: |
           set -euo pipefail
           [[ "$PUBLICATION_VERIFY_RUN_ID" =~ ^[1-9][0-9]{0,19}$ ]] || exit 1
+          verify_run_json="$RUNNER_TEMP/verified-main-publication-run.json"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID" > "$verify_run_json"
+          echo "VERIFIED_MAIN_RUN_FILE=$verify_run_json" >> "$GITHUB_ENV"
           artifacts_json="$RUNNER_TEMP/verified-main-publication-artifacts.json"
           gh api "repos/$GITHUB_REPOSITORY/actions/runs/$PUBLICATION_VERIFY_RUN_ID/artifacts?per_page=100" > "$artifacts_json"
           artifact_name="verified-main-publication-$VERIFIED_SHA"
@@ -102,7 +123,9 @@ jobs:
           echo "VERIFIED_MAIN_PUBLICATION_RECEIPT=$receipt_path" >> "$GITHUB_ENV"
 
       - name: Validate canonical verification publication receipt
-        if: github.event_name == 'workflow_run'
+        if: >-
+          github.event_name == 'workflow_run' ||
+          (github.event_name == 'workflow_dispatch' && github.actor == 'github-actions[bot]')
         run: node scripts/verified-main-publication.ts
 
       - name: Prepare ephemeral cutover paths

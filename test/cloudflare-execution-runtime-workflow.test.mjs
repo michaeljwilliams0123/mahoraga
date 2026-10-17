@@ -22,6 +22,25 @@ test("Cloudflare exact-main workflow is hosted, owner-bound, and verify-gated", 
   assert.doesNotMatch(workflow, /runs-on:\s*\[self-hosted/);
 });
 
+test("trusted autonomous verification dispatches Cloudflare publication without a suppressed workflow_run hop", async () => {
+  const [workflow, verify] = await Promise.all([
+    readFile(workflowPath, "utf8"),
+    readFile(path.join(root, ".github/workflows/verify.yml"), "utf8"),
+  ]);
+  assert.match(verify, /dispatch-autonomous-cloudflare-publication:/);
+  assert.match(verify, /needs:\s*\[?verify\]?/);
+  assert.match(verify, /workflow_id:\s*["']cloudflare-execution-runtime\.yml["']/);
+  assert.match(verify, /VERIFIED_SHA:\s*\$\{\{ github\.sha \}\}/);
+  assert.match(verify, /PUBLICATION_VERIFY_RUN_ID:\s*\$\{\{ github\.run_id \}\}/);
+  assert.match(verify, /verified_sha:\s*process\.env\.VERIFIED_SHA/);
+  assert.match(verify, /publication_verify_run_id:\s*process\.env\.PUBLICATION_VERIFY_RUN_ID/);
+  assert.match(workflow, /verified_sha:\s*\n\s*description:[^\n]*\n\s*required: false\s*\n\s*type: string/);
+  assert.match(workflow, /publication_verify_run_id:\s*\n\s*description:[^\n]*\n\s*required: false\s*\n\s*type: string/);
+  assert.match(workflow, /github\.actor == 'github-actions\[bot\]'/);
+  assert.match(workflow, /inputs\.publication_verify_run_id/);
+  assert.match(workflow, /inputs\.verified_sha/);
+});
+
 test("Cloudflare exact-main workflow preserves SHA authority and fails closed on credentials", async () => {
   const [workflow, renewalWorkflow] = await Promise.all([
     readFile(workflowPath, "utf8"),
