@@ -3,17 +3,17 @@ import { observePersistedTurnResult } from "../deploy/cloudflare-execution-runti
 
 const turn = {
   id: "turn-1", conversationId: "conversation-1", status: "SUCCESS" as const,
-  contentIdAssistant: "assistant-1", responseDigest: "a".repeat(64),
+  contentIdAssistant: "assistant-1", responseDigest: "a".repeat(43),
 };
 const matching = { contentId: "assistant-1", conversationId: "conversation-1",
-  role: "assistant" as const, contentHash: "a".repeat(64) };
+  role: "assistant" as const, contentHash: "a".repeat(43) };
 
 describe("per-turn encrypted-result storage observation", () => {
   it("confirms only an exact task-owned encrypted content record", () => {
     expect(observePersistedTurnResult(turn, () => matching)).toBe("matched");
     expect(observePersistedTurnResult(turn, () => null)).toBe("missing");
     expect(observePersistedTurnResult(turn, () => { throw new Error("private-read-failure"); })).toBe("not-observed");
-    expect(observePersistedTurnResult(turn, () => ({ ...matching, contentHash: "b".repeat(64) }))).toBe("mismatch");
+    expect(observePersistedTurnResult(turn, () => ({ ...matching, contentHash: "b".repeat(43) }))).toBe("mismatch");
     expect(observePersistedTurnResult(turn, () => ({ ...matching, conversationId: "other" }))).toBe("mismatch");
     expect(observePersistedTurnResult(turn, () => ({ ...matching, role: "user" }))).toBe("mismatch");
     expect(observePersistedTurnResult(turn, () => ({ ...matching, contentId: "other" }))).toBe("mismatch");
@@ -26,7 +26,7 @@ describe("per-turn encrypted-result storage observation", () => {
   });
   it("does not materialize plaintext or disclose raw digests in the status", () => {
     const observation = observePersistedTurnResult(turn, () => ({
-      ...matching, ciphertext: "secret", iv: "secret", contentHash: "a".repeat(64),
+      ...matching, ciphertext: "secret", iv: "secret", contentHash: "a".repeat(43),
     }));
     expect(observation).toBe("matched");
     expect(JSON.stringify(observation)).not.toContain("secret");

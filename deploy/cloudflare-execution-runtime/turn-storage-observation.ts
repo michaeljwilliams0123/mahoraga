@@ -13,7 +13,7 @@ export function observePersistedTurnResult(
   read: (contentId: string) => Pick<EncryptedContentRecord,
     "contentId" | "conversationId" | "role" | "contentHash"> | null,
 ): PersistedResultObservation {
-  if (turn.status !== "SUCCESS" || !turn.contentIdAssistant || !/^[a-f0-9]{64}$/i.test(turn.responseDigest ?? "")) {
+  if (turn.status !== "SUCCESS" || !turn.contentIdAssistant || !/^[A-Za-z0-9_-]{43}$/.test(turn.responseDigest ?? "")) {
     return "not-observed";
   }
   let stored: ReturnType<typeof read>;
