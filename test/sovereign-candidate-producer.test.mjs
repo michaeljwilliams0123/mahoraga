@@ -454,7 +454,7 @@ test("eligible gap becomes a bounded candidate without paid or protected writes"
   producerModule.assertSafeCandidatePaths(candidate.changedFiles);
   const generated = producerModule.renderCandidatePathSafetyTest();
   assert.match(generated, /assertSafeCandidatePaths/);
-  assert.match(generated, /AGENTS\\.md/);
+  assert.ok(generated.includes("AGENTS.md"));
   assert.doesNotMatch(generated, /OPENAI_API_KEY|sk-proj|npm install|git push/);
   assert.equal(producerModule.selectActionableGapRecipe({
     gapAudit: { open: [{ id: "sovereign-candidate-path-safety", state: "blocked" }] },
@@ -473,6 +473,6 @@ test("eligible gap becomes a bounded candidate without paid or protected writes"
 test("cycle completion fails closed if current main differs from evaluated SHA", () => {
   assert.match(workflow, /evaluated_sha=/);
   assert.match(workflow, /head_sha.*!=.*evaluated_sha/);
-  assert.match(workflow, /-f sha="\\$\\{evaluated_sha\\}"/);
-  assert.doesNotMatch(workflow, /-f sha="\\$\\{head_sha\\}"/);
+  assert.ok(workflow.includes('-f sha="${evaluated_sha}"'));
+  assert.ok(!workflow.includes('-f sha="${head_sha}"'));
 });
