@@ -174,8 +174,9 @@ describe("native assistant bridge", () => {
     const assistant = messages.messages[1]!;
     const answer = await (await post("message-content", { conversationId: payload.conversationId, messageId: assistant.id, contentReference: assistant.contentReference })).json();
     expect(answer).toEqual({ content: "The answer is 42." });
-    const tasks = await (await post("tasks", { conversationId: payload.conversationId })).json() as { tasks: Array<{ status: string }> };
+    const tasks = await (await post("tasks", { conversationId: payload.conversationId })).json() as { tasks: Array<{ status: string; executionReceipt: { persistedResultObservation?: string } }> };
     expect(tasks.tasks[0]?.status).toBe("completed");
+    expect(tasks.tasks[0]?.executionReceipt.persistedResultObservation).toBe("matched");
     await runInDurableObject<ExecutionDurableObject, void>(stub, (_instance, state) => {
       const rows = state.storage.sql.exec<{ ciphertext: string }>("SELECT ciphertext FROM conversation_content WHERE conversation_id = ?", payload.conversationId).toArray();
       expect(rows).toHaveLength(2);

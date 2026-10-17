@@ -3,6 +3,7 @@ import { encryptConversationContent, decryptConversationContent } from "./conten
 import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, providerGapReasonFromError, providerInputWithinLimit, providerMessagesWithinLimit, type ProviderMessage, type ProviderRuntimeContext, type ZeroCreditProviderConfig } from "./provider-invoker";
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
+import { observePersistedTurnResult } from "./turn-storage-observation";
 // Canonical deterministic cognition is shared with the local cognitive worker.
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
 import { simulateCounterfactual } from "../../src/cognitive-world-model.mjs";
@@ -522,7 +523,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const conversation = this.storage.getConversation(conversationId);
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
-    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy, sourceSHA: turn.sourceSHA ?? null } })) });
+    if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy, sourceSHA: turn.sourceSHA ?? null,
+      persistedResultObservation: observePersistedTurnResult(turn, (contentId) => this.storage.getContentRecord(contentId)) } })) });
     if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => (turn.status === "SUCCESS" || turn.status === "FAILED") && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
     if (input?.type === "message-content") {
       const contentId = payload.contentReference;

@@ -1,6 +1,7 @@
 export type ChatExecutionEvidence =
   | { status: "unavailable"; reason: "correlation-unavailable" | "task-not-completed" | "metadata-unavailable" }
-  | { status: "reported"; taskId: string; workerId: string; providerId: string; costClass: string; creditPolicy: string; memoryState?: "indexed" | "pending"; sourceSHA?: string };
+  | { status: "reported"; taskId: string; workerId: string; providerId: string; costClass: string; creditPolicy: string; memoryState?: "indexed" | "pending"; sourceSHA?: string;
+      persistedResultObservation?: "matched" | "missing" | "mismatch" | "not-observed" };
 
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const identifier = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(value);
@@ -27,7 +28,9 @@ export function projectMessageExecution(message: unknown, tasks: unknown, conver
   return { status: "reported", taskId: m.taskId, workerId: receipt.workerId, providerId: receipt.providerId,
     costClass: receipt.costClass, creditPolicy: receipt.creditPolicy,
     ...(typeof receipt.sourceSHA === "string" && /^[a-f0-9]{40}$/i.test(receipt.sourceSHA) ? { sourceSHA: receipt.sourceSHA } : {}),
-    ...(receipt.memoryState === undefined ? {} : { memoryState: receipt.memoryState }) };
+    ...(receipt.memoryState === undefined ? {} : { memoryState: receipt.memoryState }),
+    ...(["matched", "missing", "mismatch", "not-observed"].includes(String(receipt.persistedResultObservation))
+      ? { persistedResultObservation: receipt.persistedResultObservation as "matched" | "missing" | "mismatch" | "not-observed" } : {}) };
 }
 
 /** Join the existing history/messages/tasks reads by IDs; never by order or text. */

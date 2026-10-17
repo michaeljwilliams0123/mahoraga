@@ -29,6 +29,11 @@ test("chat details show the turn source as reported metadata and retain unknown 
       assert.match(html, /Independent execution verification: not supplied/);
       assert.match(html, /Independent source verification, authentication, authority, routing, durable-result and replay receipts: not supplied/);
     }
+    const stored = renderToStaticMarkup(createElement(Details, { evidence: { ...evidence, persistedResultObservation: "matched" } }));
+    assert.match(stored, /Matched encrypted record \(runtime reported\)/);
+    const mismatch = renderToStaticMarkup(createElement(Details, { evidence: { ...evidence, persistedResultObservation: "mismatch" } }));
+    assert.match(mismatch, /Record mismatch/);
+    assert.doesNotMatch(stored, /Independent execution verification: verified/);
     assert.match(renderToStaticMarkup(createElement(Details)), /Execution metadata unavailable/);
   } finally {
     await rm(directory, { recursive: true, force: true });

@@ -13,6 +13,7 @@ export function ChatExecutionDetails({ evidence }: { evidence?: ChatExecutionEvi
       <dt>Provider</dt><dd>{reported.providerId}</dd>
       <dt>Cost class</dt><dd>{reported.costClass}</dd>
       <dt>Credit policy</dt><dd>{reported.creditPolicy}</dd>
+      {reported.persistedResultObservation && <><dt>Runtime-stored answer record</dt><dd>{reported.persistedResultObservation === "matched" ? "Matched encrypted record (runtime reported)" : reported.persistedResultObservation === "missing" ? "Missing" : reported.persistedResultObservation === "mismatch" ? "Record mismatch" : "Not observed"}</dd></>}
       {reported.memoryState && <><dt>Memory index</dt><dd>{reported.memoryState}</dd></>}
     </dl>}
     <p>Independent execution verification: not supplied.</p>
