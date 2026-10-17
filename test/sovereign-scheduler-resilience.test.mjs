@@ -7,8 +7,9 @@ import { ROOT } from "../src/config.mjs";
 test("sovereign scheduler uses heartbeat wakeups around a durable anchored clock", async () => {
   const source = await readFile(path.join(ROOT, ".github", "workflows", "sovereign-eight-hour-cycle.yml"), "utf8");
 
-  assert.match(source, /workflow_run:/);
-  assert.match(source, /Publish Staged Mahoraga Update/);
+  assert.doesNotMatch(source, /^  workflow_run:/m);
+  assert.match(source, /scripts\/sovereign-release-evidence\.mjs/);
+  assert.match(source, /workflow_dispatch:/);
   assert.match(source, /cron: '17 \* \* \* \*'/);
   assert.doesNotMatch(source, /cron: '17 \*\/4 \* \* \*'/);
   assert.doesNotMatch(source, /cron: '47 \*\/4 \* \* \*'/);
