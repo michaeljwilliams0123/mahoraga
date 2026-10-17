@@ -90,10 +90,11 @@ test("bridge uses the existing durable replay store and preserves the normal coo
 });
 
 test("bridge routes remain no-store, bounded, and reject authority-expanding payload keys", async () => {
-  const [login, action, artifacts] = await Promise.all([
+  const [login, action, artifacts, artifactUpload] = await Promise.all([
     read("app/api/runtime/pages-bridge/login/route.ts"),
     read("app/api/runtime/pages-bridge/action/route.ts"),
     read("app/api/runtime/pages-bridge/artifacts/route.ts"),
+    read("lib/runtime-artifact-upload.ts"),
   ]);
 
   assert.match(login, /verifyOwnerLoginAttempt/);
@@ -108,8 +109,8 @@ test("bridge routes remain no-store, bounded, and reject authority-expanding pay
   }
   assert.match(action, /cache-control.*no-store/i);
 
-  assert.match(artifacts, /authorizePagesBridgeMutation/);
-  assert.match(artifacts, /MAX_FILE_BYTES/);
-  assert.match(artifacts, /coreArtifactRequest/);
-  assert.match(artifacts, /cache-control.*no-store/i);
+  assert.match(artifacts, /createRuntimeArtifactUploadHandler\(authorizePagesBridgeMutation\)/);
+  assert.match(artifactUpload, /MAX_FILE_BYTES/);
+  assert.match(artifactUpload, /coreArtifactRequest/);
+  assert.match(artifactUpload, /cache-control.*no-store/i);
 });
