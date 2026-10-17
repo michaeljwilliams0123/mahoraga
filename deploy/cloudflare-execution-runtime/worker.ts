@@ -4,6 +4,7 @@ import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, pr
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
 import { observePersistedTurnResult } from "./turn-storage-observation";
+import { projectCloudOwnerOperationsSnapshot } from "./owner-operations-snapshot";
 import { projectGitHubActionReceipt } from "./github-action-receipt.ts";
 // Canonical deterministic cognition is shared with the local cognitive worker.
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
@@ -424,6 +425,17 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       return json(status, status.error ? 503 : 200);
     }
     if (input?.type === "chat") return this.nativeChat(payload, ownerHash);
+    if (input?.type === "operations-snapshot") {
+      if (Object.keys(payload).length !== 0) return json({ error: "operations-snapshot-request-invalid" }, 400);
+      // Aggregate only the authenticated owner's persisted Durable Object turns.
+      // Never convert absent supervisor/worker/repair observations into zero counts.
+      const turns = this.storage.sql.exec<{ status: string; count: number }>(
+        "SELECT t.status AS status, COUNT(*) AS count FROM turns t JOIN conversations c ON c.id = t.conversation_id WHERE c.owner_id_hash = ? GROUP BY t.status", ownerHash,
+      ).toArray();
+      const provider = projectPersistedAssistantCapability(this.storage.getProviderState(ASSISTANT_PROVIDER_ID));
+      return json(projectCloudOwnerOperationsSnapshot({ sourceSha: this.env.TARGET_SHA,
+        observedAt: new Date().toISOString(), turns, assistant: provider }));
+    }
     if (input?.type === "conversations") {
       if (Object.keys(payload).length !== 0) return json({ error: "conversation-list-request-invalid" }, 400);
       return json({ conversations: this.storage.listConversations(ownerHash).map(({ id, createdAt, updatedAt }) => ({ id, createdAt, updatedAt })) });

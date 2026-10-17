@@ -109,6 +109,7 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
     );
   }
 
+  const cloudOnly = snapshot?.observationScope === "owner-cloud-turns";
   const lane = snapshot?.interactionReadiness;
   const interactionTruth = projectInteractionTruth(snapshot ? {
     interaction: snapshot.interactionTruth,
@@ -158,7 +159,17 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
       )}
 
       {!snapshot && !loading && !error && <p className="muted">No operations snapshot yet.</p>}
-      {snapshot && (
+      {snapshot && cloudOnly && (
+        <div className="capability-list" style={{ marginTop: 16 }} data-testid="cloud-owner-operations">
+          <div><strong>Evidence scope</strong><span>Authenticated owner turns in the Cloudflare Durable Object; not the Windows supervisor.</span></div>
+          <div><strong>Deployed runtime SHA</strong><span>{snapshot.cloudEvidence?.sourceSha ?? "unavailable"} (not independently checked against GitHub main)</span></div>
+          <div><strong>Owner turns</strong><span>pending {snapshot.tasks.active} · completed {snapshot.cloudEvidence?.completed ?? "unknown"} · failed {snapshot.tasks.failed}</span></div>
+          <div><strong>Language provider</strong><span>{snapshot.interactionReadiness.ready ? "canary-admitted" : "not routable"} · {snapshot.interactionReadiness.reason ?? snapshot.interactionReadiness.provider}</span></div>
+          <div><strong>Unobserved</strong><span>Workers, waiting queue, repairs, objectives, rollback, repository head and authority decisions.</span></div>
+          <div><strong>Actions</strong><span>Read-only cloud snapshot. This surface does not execute local supervisor operations.</span></div>
+        </div>
+      )}
+      {snapshot && !cloudOnly && (
         <div className="capability-list" style={{ marginTop: 16 }}>
           <div>
             <strong>Runtime</strong>
@@ -242,7 +253,7 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
         </div>
       )}
 
-      <div className="pairing-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
+      {!cloudOnly && <div className="pairing-actions" style={{ marginTop: 16, flexWrap: "wrap" }}>
         <button
           type="button"
           onClick={() =>
@@ -282,7 +293,7 @@ export function OperationsView({ coreReady, relay, onRequestPairing }: Operation
             Request repair
           </button>
         )}
-      </div>
+      </div>}
     </section>
   );
 }
