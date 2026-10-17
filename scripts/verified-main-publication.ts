@@ -68,11 +68,25 @@ async function optionalBoundedReceipt(path: string | undefined) {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
- if (process.env.GITHUB_EVENT_NAME !== 'workflow_run' || process.env.GITHUB_REPOSITORY !== REPOSITORY
+ const eventName = process.env.GITHUB_EVENT_NAME;
+ if (!['workflow_run', 'workflow_dispatch'].includes(eventName ?? '') || process.env.GITHUB_REPOSITORY !== REPOSITORY
   || !process.env.GITHUB_EVENT_PATH || !process.env.VERIFIED_SHA) throw new Error('verified-main-publication-denied');
  const metadata = await stat(process.env.GITHUB_EVENT_PATH);
  if (!metadata.isFile() || metadata.size > 1024 * 1024) throw new Error('verified-main-publication-denied');
  const event = record(JSON.parse(await readFile(process.env.GITHUB_EVENT_PATH, 'utf8')) as unknown);
+ let publicationRun = record(event.workflow_run);
+ if (eventName === 'workflow_dispatch') {
+  const inputs = record(event.inputs);
+  if (record(event.sender).login !== BOT || process.env.GITHUB_REF !== 'refs/heads/main'
+   || inputs.verified_sha !== process.env.VERIFIED_SHA
+   || typeof inputs.publication_verify_run_id !== 'string'
+   || !/^[1-9][0-9]{0,19}$/.test(inputs.publication_verify_run_id)
+   || !process.env.VERIFIED_MAIN_RUN_FILE) throw new Error('verified-main-publication-denied');
+  const runMetadata = await stat(process.env.VERIFIED_MAIN_RUN_FILE);
+  if (!runMetadata.isFile() || runMetadata.size > 1024 * 1024) throw new Error('verified-main-publication-denied');
+  publicationRun = record(JSON.parse(await readFile(process.env.VERIFIED_MAIN_RUN_FILE, 'utf8')) as unknown);
+  if (String(publicationRun.id ?? '') !== inputs.publication_verify_run_id) throw new Error('verified-main-publication-denied');
+ }
  const receipt = await optionalBoundedReceipt(process.env.VERIFIED_MAIN_PUBLICATION_RECEIPT);
- console.log(JSON.stringify(verifiedMainPublication(event.workflow_run, process.env.VERIFIED_SHA, receipt)));
+ console.log(JSON.stringify(verifiedMainPublication(publicationRun, process.env.VERIFIED_SHA, receipt)));
 }

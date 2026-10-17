@@ -188,6 +188,39 @@ jobs:
   # remains Ubuntu + Windows only; historical Vercel references are documentation
   # and must not recreate a deployment or provider-credit path.
 
+  dispatch-autonomous-cloudflare-publication:
+    needs: [verify]
+    if: >-
+      success() &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publication_source_run_id != '' &&
+      inputs.publication_merged_sha == github.sha
+    permissions:
+      actions: write
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Dispatch exact verified main to Cloudflare publication
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3
+        env:
+          VERIFIED_SHA: ${{ github.sha }}
+          PUBLICATION_VERIFY_RUN_ID: ${{ github.run_id }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const { owner, repo } = context.repo;
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: "cloudflare-execution-runtime.yml",
+              ref: "main",
+              inputs: {
+                verified_sha: process.env.VERIFIED_SHA,
+                publication_verify_run_id: process.env.PUBLICATION_VERIFY_RUN_ID,
+              },
+            });
+
   dispatch-sovereign-integration:
     needs: [verify]
     if: >-

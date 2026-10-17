@@ -88,16 +88,31 @@ test('publication CLI validates a bounded receipt without dumping private event 
  try {
   const eventPath = join(directory, 'event.json');
   const receiptPath = join(directory, 'receipt.json');
+  const runPath = join(directory, 'run.json');
   const invoke = (overrides: Record<string, string> = {}) => spawnSync(process.execPath,
    [fileURLToPath(new URL('../scripts/verified-main-publication.ts', import.meta.url))],
    { encoding: 'utf8', env: { ...process.env, GITHUB_REPOSITORY: 'michaeljwilliams0123/mahoraga', GITHUB_EVENT_NAME: 'workflow_run',
-    GITHUB_EVENT_PATH: eventPath, VERIFIED_SHA: sha, VERIFIED_MAIN_PUBLICATION_RECEIPT: receiptPath, ...overrides } });
+    GITHUB_EVENT_PATH: eventPath, GITHUB_REF: 'refs/heads/main', VERIFIED_SHA: sha, VERIFIED_MAIN_PUBLICATION_RECEIPT: receiptPath, ...overrides } });
   await writeFile(eventPath, JSON.stringify({ workflow_run: run(), unrelatedPrivateField: 'private-marker' }));
   await writeFile(receiptPath, JSON.stringify(receipt()));
   const accepted = invoke();
   assert.equal(accepted.status, 0);
   assert.equal(JSON.parse(accepted.stdout).sourceSha, sha);
   assert.doesNotMatch(accepted.stdout + accepted.stderr, /private-marker/);
+
+  await writeFile(eventPath, JSON.stringify({
+   ref: 'refs/heads/main', sender: { login: 'github-actions[bot]' },
+   inputs: { verified_sha: sha, publication_verify_run_id: '456789' },
+  }));
+  await writeFile(runPath, JSON.stringify(run()));
+  const dispatched = invoke({ GITHUB_EVENT_NAME: 'workflow_dispatch', VERIFIED_MAIN_RUN_FILE: runPath });
+  assert.equal(dispatched.status, 0);
+  assert.equal(JSON.parse(dispatched.stdout).sourceSha, sha);
+  const mismatchedDispatch = invoke({ GITHUB_EVENT_NAME: 'workflow_dispatch', VERIFIED_MAIN_RUN_FILE: runPath,
+   VERIFIED_SHA: 'b'.repeat(40) });
+  assert.notEqual(mismatchedDispatch.status, 0);
+
+  await writeFile(eventPath, JSON.stringify({ workflow_run: run(), unrelatedPrivateField: 'private-marker' }));
 
   const missingReceipt = invoke({ VERIFIED_MAIN_PUBLICATION_RECEIPT: '' });
   assert.notEqual(missingReceipt.status, 0);
