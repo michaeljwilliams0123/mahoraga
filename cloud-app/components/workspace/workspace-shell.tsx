@@ -61,7 +61,7 @@ export function WorkspaceShell({
 
         <div className={coreReady ? "brain-card ready" : "brain-card"}>
           <span className="brain-orb"><span /></span>
-          <div><strong>{coreReady || runtimeConnected ? "Execution connected" : "Execution disconnected"}</strong><span>{coreReady ? "Mahoraga chooses the lane." : runtimeConnected ? "Check each ability in Chat." : "The workspace remains online. Connect in Chat to execute work."}</span></div>
+          <div><strong>{coreReady || runtimeConnected ? "Owner runtime connected" : "Execution disconnected"}</strong><span>{coreReady ? "Check individual action routes in Chat; a session is not provider admission." : runtimeConnected ? "Check each ability in Chat." : "The workspace remains online. Connect in Chat to execute work."}</span></div>
         </div>
         <button type="button" className="background-status" onClick={() => { setView("advanced"); setSidebarOpen(false); }} aria-label="Open background work details">{backgroundLabel}</button>
 

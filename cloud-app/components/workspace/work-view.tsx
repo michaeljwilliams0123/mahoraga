@@ -25,6 +25,7 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
   }, [coreReady, relay]);
 
   const authority = snapshot?.latestAuthorityDecision ?? null;
+  const cloudOnly = snapshot?.observationScope === "owner-cloud-turns";
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -49,17 +50,21 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
         </div>
       ) : error ? (
         <div className="one-alert"><CircleAlert size={17} /> {error}</div>
+      ) : !snapshot ? (
+        <p role="status">Reading authenticated work evidence…</p>
       ) : (
         <div className="work-grid">
           <article><Activity size={20} /><span>Active</span><strong>{snapshot?.tasks.active ?? 0}</strong><small>tasks in motion; includes queued retries</small></article>
-          <article><Sparkles size={20} /><span>Waiting</span><strong>{snapshot?.tasks.waiting ?? 0}</strong><small>waiting or waiting for user input</small></article>
+          <article><Sparkles size={20} /><span>{cloudOnly ? "Completed" : "Waiting"}</span><strong>{cloudOnly ? snapshot.tasks.completed ?? "Unknown" : snapshot.tasks.waiting}</strong><small>{cloudOnly ? "Persisted owner-scoped cloud turns" : "waiting or waiting for user input"}</small></article>
           <article><CircleAlert size={20} /><span>Failed</span><strong>{snapshot?.tasks.failed ?? 0}</strong><small>terminal; lease-expired exhausted is not claimable</small></article>
-          <article><GitBranch size={20} /><span>Repository</span><strong>{snapshot?.repository.cleanState ?? "checking"}</strong><small>{snapshot?.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>
-          <article><WandSparkles size={20} /><span>Repairs</span><strong>{snapshot?.repairs.activeIncidents ?? 0}</strong><small>{snapshot?.repairs.lastRepairState ?? "checking"}</small></article>
+          <article><GitBranch size={20} /><span>{cloudOnly ? "Deployed source" : "Repository"}</span><strong>{cloudOnly ? "Provenance only" : snapshot.repository.cleanState}</strong><small>{snapshot.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>
+          <article><WandSparkles size={20} /><span>Repairs</span><strong>{cloudOnly ? "Not observed" : snapshot.repairs.activeIncidents}</strong><small>{cloudOnly ? "Cloud turn ledger does not observe repair incidents" : snapshot.repairs.lastRepairState}</small></article>
         </div>
       )}
 
-      {coreReady && !error && (
+      {cloudOnly && !error && <p role="status">Authenticated Cloudflare turn counts only. Worker leases, waiting work, repairs, repository main, and authority are not established by this snapshot. Operations mutations remain unavailable.</p>}
+
+      {coreReady && !error && !cloudOnly && snapshot && (
         <section className="authority-receipt" aria-label="Latest authority decision">
           <div>
             <span>Canonical routing receipt</span>

@@ -169,6 +169,9 @@ export type CloudSessionDiagnostic = {
 };
 
 export type RuntimeOperationsSnapshot = {
+  observationScope?: "owner-cloud-turns";
+  cloudEvidence?: { sourceSha: string; ownerScoped: true; completed: number;
+    unknown: readonly string[]; mutationActionsSupported: false };
   generatedAt: string;
   runtime: {
     version: string;
@@ -533,7 +536,6 @@ export class RuntimeRelay {
     return this.call<{ memories?: Array<{ id: string; fingerprint: string; content: string; kind: string; utilityScore: number; createdAt: number; score: number | null }> }>("memory-search", { query, topK });
   }
   async operationsSnapshot() {
-    if (this.bridgeAuthenticated || this.cloudSession) throw relayError("canonical-action-unavailable");
     return this.call<RuntimeOperationsSnapshot>("operations-snapshot", {});
   }
   async operationsAction(input: RuntimeOperationsActionInput) {

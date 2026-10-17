@@ -8,7 +8,7 @@ import { subscribePagesReconnect } from "@/lib/pages-reconnect";
 import { type CapabilityObservationState } from "@/lib/capability-observer";
 import { capabilityTransportMode, observeCapabilityStream } from "@/lib/capability-stream";
 import { deriveExecutionStatus } from "@/lib/execution-status";
-import { canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat } from "@/lib/capability-families";
+import { canRunZeroCreditDevelopmentAction, canSubmitDeterministicCognitiveChat, canSubmitNativeRepositoryChat } from "@/lib/capability-families";
 import { ambiguousTransportFailure, prepareChatRetry, type PendingChatRetry } from "@/lib/command-retry";
 import { runtimeTaskPhase } from "@/lib/task-lifecycle";
 import { projectMessageExecution, loadSavedConversation } from "@/lib/chat-execution-evidence";
@@ -40,11 +40,11 @@ const starters: Starter[] = [
 
 const quickActions: QuickAction[] = [
   { id: "upload", label: "Upload", description: "Add files to this work session." },
-  { id: "build", label: "Build", description: "Turn the current idea into working output.", requiresCore: true, mode: "act", prompt: "Build the current request through Mahoraga. Use the conversation as context, choose the best available execution lane, make bounded changes, run focused verification, and keep me updated in plain language. If one critical detail is missing, ask only that question before changing anything." },
+  { id: "build", label: "Build", description: "Turn the current idea into working output.", requiresCore: true, mode: "auto", prompt: "Build the current request through Mahoraga. Use the conversation as context, choose the best available execution lane, make bounded changes, run focused verification, and keep me updated in plain language. If one critical detail is missing, ask only that question before changing anything." },
   { id: "report", label: "Report", description: "Create a polished result from this work.", requiresCore: true, prompt: "Create a polished report from the current conversation and verified evidence. Lead with the answer, keep technical details behind a concise evidence section, and return any available artifact or download reference." },
   { id: "handoff", label: "Handoff", description: "Move the work to the right paired lane.", requiresCore: true, prompt: "Handoff the current objective to the best available paired person or execution lane. Preserve context, do not expose routing mechanics unless I ask, and tell me who has it and what happens next." },
   { id: "create", label: "Create", description: "Start a guided creation session.", requiresCore: true, prompt: "Start a guided creation session using the current context. Choose the appropriate creation capability and ask me only the next decision that materially changes the result." },
-  { id: "ship", label: "Ship", description: "Push the approved code update safely.", requiresCore: true, mode: "act", prompt: "Ship the current approved code update through Mahoraga's authoritative repository path. Inspect repository state, create or reuse a bounded feature branch, apply only the approved change, run focused and required verification, open or update the pull request, and merge only when the repository's normal gates are green. Do not use Codex for code review. Treat Vercel as non-blocking. Return the exact branch, pull request, verification state, commit, and merge evidence." },
+  { id: "ship", label: "Ship", description: "Push the approved code update safely.", requiresCore: true, mode: "auto", prompt: "Ship the current approved code update through Mahoraga's authoritative repository path. Inspect repository state, create or reuse a bounded feature branch, apply only the approved change, run focused and required verification, open or update the pull request, and merge only when the repository's normal gates are green. Do not use Codex for code review. Treat Vercel as non-blocking. Return the exact branch, pull request, verification state, commit, and merge evidence." },
 ];
 
 function readableBytes(bytes: number) {
@@ -447,8 +447,18 @@ export function Workspace() {
       fileInput.current?.click();
       return;
     }
-    if (action.requiresCore && !assistantReady) {
+    if (action.requiresCore && !coreReady) {
       setRuntimeError(`Connect Mahoraga before using ${action.label}.`);
+      navigate("chat");
+      return;
+    }
+    if ((actionId === "build" || actionId === "ship") && !canRunZeroCreditDevelopmentAction(coreReady, runtimeCapabilities)) {
+      setRuntimeError("No verified zero-credit development executor is currently routable. Build/Ship was not submitted. Native typed /repo GitHub commands remain available in Chat.");
+      navigate("chat");
+      return;
+    }
+    if (action.requiresCore && !assistantReady) {
+      setRuntimeError("No admitted language route is available for this action. Native /repo and deterministic commands remain usable.");
       navigate("chat");
       return;
     }
@@ -707,7 +717,7 @@ export function Workspace() {
   }
 
   return (
-    <WorkspaceShell runtimeConnected={health?.deployment?.provider === "github-pages" ? coreReady : assistantReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={assistantReady} onNewConversation={resetConversation}
+    <WorkspaceShell runtimeConnected={coreReady} backgroundLabel={internalActivity.label} view={view} setView={navigate} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} busy={busy} coreReady={coreReady} onNewConversation={resetConversation}
       conversations={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind) ? savedConversations : undefined}
       activeConversationId={runtimeConversationId}
       onOpenConversation={coreReady && pairedRelay && ["same-origin-cloud", "pages-owner-bridge"].includes(pairedRelay.transportKind)
