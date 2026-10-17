@@ -14,7 +14,8 @@ test('sovereign candidate and producer preserve portable private labels with pub
   assert.equal((source.match(/'"ubuntu-latest"'/g) ?? []).length, 2);
   assert.doesNotMatch(source, /sd009wc7|runs-on:\s*(?:ubuntu|windows)-latest/i);
   assert.match(source, /MAHORAGA_ZERO_CREDIT_MODEL_URL:\s*["']{2}/);
-  assert.match(source, /github.event_name == 'workflow_run'/);
+  assert.doesNotMatch(source, /github\.event_name == 'workflow_run'/);
+  assert.match(source, /github\.event_name == 'schedule'/);
   assert.match(source, /github.actor == 'michaeljwilliams0123'/);
 });
 

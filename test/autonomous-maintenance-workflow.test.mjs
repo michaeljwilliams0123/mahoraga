@@ -12,7 +12,8 @@ test("scheduled candidate cycle preserves a four-hour durable cadence without in
   const source = await workflow("sovereign-eight-hour-cycle.yml");
   assert.match(source, /name: Sovereign Four Hour Candidate Cycle/);
   assert.match(source, /cron: '17 \* \* \* \*'/);
-  assert.match(source, /Publish Staged Mahoraga Update/);
+  assert.match(source, /scripts\/sovereign-release-evidence\.mjs/);
+  assert.doesNotMatch(source, /^  workflow_run:/m);
   assert.match(source, /SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-/);
   assert.match(source, /SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-/);
   assert.match(source, /permissions:\s*\n\s*contents: read\s*\n\s*actions: read\s*\n\s*pull-requests: read/);
