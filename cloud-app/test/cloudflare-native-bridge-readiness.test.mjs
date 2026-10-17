@@ -24,13 +24,16 @@ test("connected transport gates normal chat on assistant.respond and explicit si
   assert.match(chat, /disabled=\{!canSend/);
 });
 
-test("sidebar execution readiness follows the assistant route and keeps connectors optional", async () => {
+test("sidebar separates authenticated owner session from language provider admission", async () => {
   const [workspace, shell] = await Promise.all([
     read("components/workspace.tsx"),
     read("components/workspace/workspace-shell.tsx"),
   ]);
 
-  assert.match(workspace, /<WorkspaceShell[\s\S]*coreReady=\{assistantReady\}/);
+  assert.match(workspace, /<WorkspaceShell[\s\S]*coreReady=\{coreReady\}/);
+  assert.match(workspace, /runtimeConnected=\{coreReady\}/);
+  assert.match(shell, /Owner runtime connected/);
+  assert.match(shell, /session is not provider admission/);
   assert.match(shell, /displays Mahoraga independently of execution connectivity/i);
   assert.match(shell, /configured authenticated connector is preferred/i);
   assert.match(shell, /encrypted relay remains recovery/i);
