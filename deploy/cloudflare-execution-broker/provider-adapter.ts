@@ -20,14 +20,23 @@ export function providerBinding(env: BrokerEnv, provider: string): BrokerBinding
 }
 
 export async function invokeProvider(binding: BrokerBinding, lease: Record<string, unknown>, payload: unknown, evidenceRefs: string[]) {
-  const response = await binding.fetch(new Request("https://mahoraga-provider/api/execute", {
-    method: "POST",
-    headers: { "content-type":"application/json", accept:"application/json" },
-    body: JSON.stringify({ lease, payload, evidenceRefs }),
-  }));
-  if (!response.ok) return { status:"failed" as const, error:"worker-execution-failed", httpStatus:response.status };
-  const value = await response.json() as Record<string, unknown>;
-  if (value.status === "complete" && value.receipt && typeof value.receipt === "object") return value as { status:"complete"; receipt:Record<string,unknown> };
-  if (value.status === "handoff" && value.handoff && typeof value.handoff === "object") return value as { status:"handoff"; handoff:Record<string,unknown> };
+  try {
+    const response = await binding.fetch(new Request("https://mahoraga-provider/api/execute", {
+      method: "POST",
+      headers: { "content-type":"application/json", accept:"application/json" },
+      body: JSON.stringify({ lease, payload, evidenceRefs }),
+    }));
+    if (!response.ok) return { status:"failed" as const, error:"worker-execution-failed", httpStatus:response.status };
+    const value: unknown = await response.json();
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return { status:"failed" as const, error:"worker-execution-failed", httpStatus:502 };
+    }
+    const result = value as Record<string, unknown>;
+    if (result.status === "complete" && result.receipt && typeof result.receipt === "object") return result as { status:"complete"; receipt:Record<string,unknown> };
+    if (result.status === "handoff" && result.handoff && typeof result.handoff === "object") return result as { status:"handoff"; handoff:Record<string,unknown> };
+  } catch {
+    // Transport loss or invalid content does not prove that execution never
+    // committed. Preserve the caller's failed attempt; never retry here.
+  }
   return { status:"failed" as const, error:"worker-execution-failed", httpStatus:502 };
 }
