@@ -174,6 +174,11 @@ export function evaluateExactHeadMergeGate({
 export function classifyMergeRuleViolation(error) {
   const status = Number(error?.status ?? error?.response?.status ?? 0);
   const message = String(error?.message ?? error?.response?.data?.message ?? "");
+  // Concurrent protected merges are not completion evidence. Hold until GitHub's
+  // immutable PR/main readback confirms the result of the other merger.
+  if (status === 405 && /merge already in progress/i.test(message)) {
+    return Object.freeze({ status: "hold", reason: "merge-in-progress", creditCost: 0, paidFallback: false });
+  }
   if (status === 405 && /required status checks are expected/i.test(message)) {
     return Object.freeze({ status: "hold", reason: "required-checks-pending", creditCost: 0, paidFallback: false });
   }

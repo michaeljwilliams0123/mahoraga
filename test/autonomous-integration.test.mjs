@@ -292,3 +292,16 @@ test("merge rule violations that mean checks are expected are holds, not crashes
   assert.equal(classifyPullMergeState("unknown").status, "hold");
   assert.equal(classifyPullMergeState("clean").ok, true);
 });
+
+test("concurrent GitHub merge-in-progress is a nonterminal hold, not a failure or a forged merge receipt", () => {
+  for (const error of [
+    { status: 405, message: "Merge already in progress" },
+    { response: { status: 405, data: { message: "Merge already in progress" } } },
+  ]) {
+    const outcome = classifyMergeRuleViolation(error);
+    assert.deepEqual(outcome, { status: "hold", reason: "merge-in-progress", creditCost: 0, paidFallback: false });
+    assert.equal(Object.hasOwn(outcome, "mergedSha"), false);
+  }
+  assert.equal(classifyMergeRuleViolation({ status: 405, message: "Pull request is not mergeable" }).status, "blocked");
+  assert.equal(classifyMergeRuleViolation({ status: 409, message: "Head branch was modified" }).reason, "verified-head-advanced");
+});
