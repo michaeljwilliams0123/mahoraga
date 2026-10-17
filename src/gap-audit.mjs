@@ -254,6 +254,16 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     dependency: "Run npm run providers:probe for credential-state diagnostics. Admin-provisioned Workspace Agent credentials are separate from ChatGPT Plus/Codex authentication.",
   });
 
+  // One eligible deterministic improvement is directly backed by an absent test.
+  // Other runtime/provider gaps remain blocked or optional, not auto-admitted.
+  gap(open, !has("test/sovereign-candidate-path-safety.test.mjs"), {
+    id: "sovereign-candidate-path-safety",
+    priority: "medium",
+    state: "open",
+    summary: "Missing adversarial regression for sovereign candidate path isolation.",
+    dependency: "A bounded zero-credit test recipe is available in the candidate producer.",
+  });
+
   const priorityRank = new Map([["critical", 0], ["high", 1], ["medium", 2], ["low", 3]]);
   open.sort((left, right) => (priorityRank.get(left.priority) ?? 9) - (priorityRank.get(right.priority) ?? 9) || left.id.localeCompare(right.id));
   closed.sort((left, right) => (priorityRank.get(left.priority) ?? 9) - (priorityRank.get(right.priority) ?? 9) || left.id.localeCompare(right.id));

@@ -82,6 +82,12 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Desktop Worker process contract, fixed application allowlist, bounded focus action, and content-free receipts are implemented and tested.",
   });
+  const signedBrowserContractReady = manifest.browser?.signedSessionEnabled === true && worker("signed-chrome")?.enabled === true && has("src/signed-chrome-worker.mjs") && has("test/google-workspace-signed-chrome.test.mjs");
+  record(closed, signedBrowserContractReady, {
+    id: "signed-browser-session",
+    priority: "high",
+    summary: "Attended signed Chrome is enabled with deterministic health/open receipts and no remote debugging or profile export.",
+  });
   record(closed, has("src/microsoft-queue-worker.mjs") && has("test/microsoft-queue-worker.test.mjs"), {
     id: "microsoft-queue-readiness-contract",
     priority: "high",
@@ -177,10 +183,20 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     priority: "high",
     summary: "Native cloud and cloud browser exist only as core-routed, disabled-by-default licensed workers. Credit-free autonomy classifies them as metered so they cannot replace Zero-Codex.",
   });
+  record(closed, has("src/autonomous-integration.mjs") && has("test/autonomous-integration.test.mjs") && has(".github/workflows/autonomous-integration.yml"), {
+    id: "autonomous-integration-required-checks-hold",
+    priority: "high",
+    summary: "Exact-head autonomous merge holds at $0 when required Ubuntu/Windows Verify checks are still expected, instead of crashing the integration job.",
+  });
   record(closed, has("src/credit-free-operator.mjs") && has("test/credit-free-operator.test.mjs"), {
     id: "credit-free-github-operator",
     priority: "high",
-    summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, and metered inference fail closed. Chat is not the scheduler.",
+    summary: "Owner-initiated GitHub operators may inspect, repair, merge exact-head, and close superseded PRs at $0. Codex review, cycleId-only PRs, extra merge gates, metered inference, delete-ref, and host-mutating actions mixed with untrusted content fail closed. Chat is not the scheduler. Codespaces start is metered billed compute.",
+  });
+  record(closed, has("src/host-bound-gaps.mjs") && has("test/host-bound-gaps.test.mjs"), {
+    id: "host-bound-gap-hold",
+    priority: "high",
+    summary: "Host-only issues (Vercel duplicates, Destiny phone enrollment, Windows 4783 canary, signed identity, dormant probe, delete-ref, stale Destiny base) hold at $0 instead of being retried as repo-closeable work.",
   });
   record(closed, manifest.featureFlags?.openAIProvider === false, {
     id: "no-default-metered-openai-api",
@@ -195,7 +211,7 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     summary: "Desktop Worker contract is prepared but production activation is not yet proven.",
     dependency: "Run npm run providers:probe on the live attended Windows host, verify the Desktop readiness result, then explicitly activate the worker. The current interaction contract is intentionally limited to focusing exactly one allowlisted Chrome, Edge, Excel, Word, PowerPoint, or Visio window.",
   });
-  gap(open, manifest.browser?.signedSessionEnabled !== true, {
+  gap(open, !signedBrowserContractReady, {
     id: "signed-browser-session",
     priority: "high",
     state: "blocked",
@@ -236,6 +252,16 @@ export function buildGapAudit(manifest, { root = ROOT, fileExists = existsSync, 
     state: "optional",
     summary: "Workspace Agent cloud trigger is declared but disabled.",
     dependency: "Run npm run providers:probe for credential-state diagnostics. Admin-provisioned Workspace Agent credentials are separate from ChatGPT Plus/Codex authentication.",
+  });
+
+  // One eligible deterministic improvement is directly backed by an absent test.
+  // Other runtime/provider gaps remain blocked or optional, not auto-admitted.
+  gap(open, !has("test/sovereign-candidate-path-safety.test.mjs"), {
+    id: "sovereign-candidate-path-safety",
+    priority: "medium",
+    state: "open",
+    summary: "Missing adversarial regression for sovereign candidate path isolation.",
+    dependency: "A bounded zero-credit test recipe is available in the candidate producer.",
   });
 
   const priorityRank = new Map([["critical", 0], ["high", 1], ["medium", 2], ["low", 3]]);
