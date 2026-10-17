@@ -509,3 +509,14 @@ test("actionable issue recipe produces a bounded GitHub issue-linked PR body", (
     assert.throws(() => producerModule.candidatePullRequestBody({ ...recipe, sourceIssueNumber: bad }), /candidate-source-issue-invalid/);
   }
 });
+
+test("candidate producer and one-time smoke are serialized within the same GitHub run", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/sovereign-eight-hour-cycle.yml", import.meta.url), "utf8");
+  const block = workflow.split("\n  producer-smoke:\n")[1];
+  assert.ok(block, "the producer smoke job remains defined");
+  const preamble = block.split("\n    steps:\n")[0];
+  assert.match(preamble, /\n    needs: candidate-cycle\n/, "smoke must await candidate-cycle before mutating the same GitHub repository");
+  assert.match(preamble, /needs\.candidate-cycle\.result == 'success'/, "do not run an independent producer after an upstream failed cycle");
+  assert.match(workflow, /group: sovereign-four-hour-\$\{\{ github\.repository \}\}/, "retain cross-run serialization");
+  assert.match(workflow, /cancel-in-progress: false/, "retain pending-cycle continuity");
+});
