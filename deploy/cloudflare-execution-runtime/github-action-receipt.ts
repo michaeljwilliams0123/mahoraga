@@ -56,7 +56,10 @@ export function projectGitHubActionReceipt(action: string, transaction: unknown)
   }
   if (["issue-create", "issue-update", "pr-update", "comment-create", "comment-delete"].includes(action) &&
       t.action === action && positive(t.number) &&
-      (t.kind === "issue" || t.kind === "pull-request")) {
+      (t.kind === "issue" || t.kind === "pull-request") &&
+      (action === "pr-update" ? t.kind === "pull-request"
+        : action.startsWith("issue-") ? t.kind === "issue"
+        : positive(t.commentId))) {
     return { action, kind: action.startsWith("comment") ? "comment" : t.kind,
       number: t.number,
       ...(positive(t.commentId) ? { commentId: t.commentId } : {}),
@@ -77,6 +80,22 @@ export function readGitHubActionReceipt(json: string | null): GitHubActionReceip
   if ((item.number !== undefined && !positive(item.number)) || (item.commentId !== undefined && !positive(item.commentId)) ||
       (item.runId !== undefined && !positive(item.runId)) ||
       (item.headSha !== undefined && !commit(item.headSha)) || (item.mainSha !== undefined && !commit(item.mainSha))) return null;
+  // A well-formed scalar is insufficient: replay must retain the same
+  // action-specific guarantees as the original native response projection.
+  const validAction = (() => {
+    switch (item.action) {
+      case "status": return kind === "repository" && !!commit(item.mainSha) && item.outcome === "observed";
+      case "create": return kind === "pull-request" && positive(item.number) && !!commit(item.headSha) && item.outcome === "accepted";
+      case "merge": return kind === "pull-request" && positive(item.number) && !!commit(item.headSha) && !!commit(item.mainSha) && item.outcome === "success";
+      case "dispatch": return kind === "workflow" && !!commit(item.headSha) && item.outcome === "accepted";
+      case "checks": case "diagnose": return kind === "pull-request" && positive(item.number) && !!commit(item.headSha) && ["pending", "success", "failure"].includes(String(item.outcome));
+      case "issue-create": case "issue-update": return kind === "issue" && positive(item.number) && item.outcome === "accepted";
+      case "pr-update": return kind === "pull-request" && positive(item.number) && item.outcome === "accepted";
+      case "comment-create": case "comment-delete": return kind === "comment" && positive(item.number) && positive(item.commentId) && item.outcome === "accepted";
+      default: return false;
+    }
+  })();
+  if (!validAction) return null;
   const { action, outcome } = item;
   return { action, kind: kind as GitHubActionReceipt["kind"],
     ...(positive(item.number) ? { number: item.number } : {}),

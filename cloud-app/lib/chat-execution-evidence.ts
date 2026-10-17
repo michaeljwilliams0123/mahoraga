@@ -21,6 +21,22 @@ function projectGitHubReceipt(value: unknown) {
       typeof x.outcome !== "string" || !GITHUB_OUTCOMES.has(x.outcome) ||
       ["number", "commentId", "runId"].some(key => x[key] !== undefined && !positive(x[key])) ||
       ["headSha", "mainSha"].some(key => x[key] !== undefined && (typeof x[key] !== "string" || !/^[a-f0-9]{40}$/.test(x[key])))) return null;
+  // Revalidate action semantics at the UI boundary, including reconnected reads.
+  // An acknowledged dispatch cannot become a successful run or a merge without SHAs.
+  const validAction = (() => {
+    switch (x.action) {
+      case "status": return x.kind === "repository" && !!x.mainSha && x.outcome === "observed";
+      case "create": return x.kind === "pull-request" && positive(x.number) && !!x.headSha && x.outcome === "accepted";
+      case "merge": return x.kind === "pull-request" && positive(x.number) && !!x.headSha && !!x.mainSha && x.outcome === "success";
+      case "dispatch": return x.kind === "workflow" && !!x.headSha && x.outcome === "accepted";
+      case "checks": case "diagnose": return x.kind === "pull-request" && positive(x.number) && !!x.headSha && ["pending", "success", "failure"].includes(String(x.outcome));
+      case "issue-create": case "issue-update": return x.kind === "issue" && positive(x.number) && x.outcome === "accepted";
+      case "pr-update": return x.kind === "pull-request" && positive(x.number) && x.outcome === "accepted";
+      case "comment-create": case "comment-delete": return x.kind === "comment" && positive(x.number) && positive(x.commentId) && x.outcome === "accepted";
+      default: return false;
+    }
+  })();
+  if (!validAction) return null;
   return { action: x.action, kind: x.kind as "repository" | "pull-request" | "issue" | "workflow" | "comment",
     ...(positive(x.number) ? { number: x.number } : {}),
     ...(positive(x.commentId) ? { commentId: x.commentId } : {}),

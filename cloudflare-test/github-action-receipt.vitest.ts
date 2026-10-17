@@ -70,4 +70,45 @@ describe("bounded GitHub App receipts", () => {
     expect(JSON.stringify(readGitHubActionReceipt(JSON.stringify({ ...receipt, secret: "private" }))))
       .not.toContain("private");
   });
+
+  it("rejects stored receipts that cannot describe a native action result", () => {
+    for (const receipt of [
+      { action: "unknown", kind: "repository", outcome: "observed" },
+      { action: "merge", kind: "pull-request", number: 12, outcome: "success" },
+      { action: "create", kind: "issue", number: 12, headSha: shaB, outcome: "accepted" },
+      { action: "dispatch", kind: "workflow", headSha: shaB, outcome: "success" },
+      { action: "status", kind: "repository", mainSha: shaA, outcome: "success" },
+      { action: "checks", kind: "pull-request", headSha: shaB, outcome: "success" },
+      { action: "comment-create", kind: "comment", number: 12, outcome: "accepted" },
+      { action: "pr-update", kind: "issue", number: 12, outcome: "accepted" },
+    ]) expect(readGitHubActionReceipt(JSON.stringify(receipt))).toBeNull();
+  });
+
+  it("rejects misclassified mutations and comments without a result ID at creation", () => {
+    for (const action of ["issue-create", "issue-update", "pr-update", "comment-create", "comment-delete"]) {
+      expect(projectGitHubActionReceipt(action, {
+        ...repo, action, kind: action === "pr-update" ? "issue" : "pull-request", number: 12,
+      })).toBeNull();
+    }
+  });
+
+  it("preserves every supported action across persisted receipt reads", () => {
+    const transactions: Array<[string, Record<string, unknown>]> = [
+      ["status", { headSha: shaA }],
+      ["create", { number: 12, draft: true, state: "open", head: { sha: shaB } }],
+      ["merge", { number: 12, merged: true, mergeMethod: "squash", head: { sha: shaB }, main: { sha: shaA } }],
+      ["dispatch", { accepted: true, headSha: shaB }],
+      ...["checks", "diagnose"].flatMap(action => ["pending", "success", "failure"].map(state =>
+        [action, { number: 12, head: { sha: shaB }, state, run: { id: 19 } }] as [string, Record<string, unknown>])),
+      ...["issue-create", "issue-update", "pr-update"].map(action =>
+        [action, { action, kind: action === "pr-update" ? "pull-request" : "issue", number: 12 }] as [string, Record<string, unknown>]),
+      ...["comment-create", "comment-delete"].flatMap(action => ["issue", "pull-request"].map(kind =>
+        [action, { action, kind, number: 12, commentId: 91 }] as [string, Record<string, unknown>])),
+    ];
+    for (const [action, transaction] of transactions) {
+      const receipt = projectGitHubActionReceipt(action, { ...repo, ...transaction });
+      expect(receipt, action).not.toBeNull();
+      expect(readGitHubActionReceipt(JSON.stringify(receipt)), action).toEqual(receipt);
+    }
+  });
 });
