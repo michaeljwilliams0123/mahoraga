@@ -126,18 +126,6 @@ export type RuntimeGithubAppMergeReceipt = {
   base: { ref: "main"; sha: string };
   main: { ref: "main"; sha: string };
 };
-export type RuntimeGithubAppDirectMainProposal = {
-  expectedMainSha: string;
-  commitMessage: string;
-  files: Array<{ path: string; content: string }>;
-};
-export type RuntimeGithubAppDirectMainReceipt = {
-  provider: "github-app";
-  repository: "michaeljwilliams0123/mahoraga";
-  directMain: true;
-  previous: { ref: "main"; sha: string };
-  main: { ref: "main"; sha: string };
-};
 export type RuntimeTask = {
   id: string;
   conversationId: string;
@@ -526,9 +514,6 @@ export class RuntimeRelay {
   }
   async nativeGithubMerge(proposal: RuntimeGithubAppMergeProposal) {
     return this.call<RuntimeGithubAppMergeReceipt>("native-github-merge", { ...proposal });
-  }
-  async nativeGithubMainWrite(proposal: RuntimeGithubAppDirectMainProposal) {
-    return this.call<RuntimeGithubAppDirectMainReceipt>("native-github-main-write", { ...proposal });
   }
   async readiness() {
     const generation = this.authenticationGeneration;

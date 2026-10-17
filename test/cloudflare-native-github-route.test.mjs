@@ -69,14 +69,15 @@ test("native GitHub actions terminate in the Cloudflare execution runtime", asyn
   const [gatewayText, runtimeText, bindingsText, configText] = await Promise.all([
     readFile(gateway, "utf8"), readFile(runtime, "utf8"), readFile(bindings, "utf8"), readFile(config, "utf8"),
   ]);
-  for (const action of ["native-github-repository", "native-github-pull-request", "native-github-merge", "native-github-main-write"]) {
+  for (const action of ["native-github-repository", "native-github-pull-request", "native-github-merge"]) {
     assert.match(gatewayText, new RegExp(`NATIVE_ACTIONS[\\s\\S]*${action}`));
     assert.match(runtimeText, new RegExp(`input\\?\\.type === "${action}"`));
   }
   assert.match(runtimeText, /readMahoragaRepositoryViaGithubApp/);
   assert.match(runtimeText, /createMahoragaPullRequestViaGithubApp/);
   assert.match(runtimeText, /mergeMahoragaPullRequestViaGithubApp/);
-  assert.match(runtimeText, /createMahoragaDirectMainCommitViaGithubApp/);
+  assert.doesNotMatch(runtimeText, /native-github-main-write|createMahoragaDirectMainCommitViaGithubApp/);
+  assert.doesNotMatch(gatewayText, /native-github-main-write/);
   for (const secret of ["GITHUB_APP_ID", "GITHUB_INSTALLATION_ID", "GITHUB_APP_PRIVATE_KEY"]) {
     assert.match(bindingsText, new RegExp(`${secret}: string`));
     assert.match(configText, new RegExp(`"${secret}"`));

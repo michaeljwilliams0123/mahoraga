@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   createGithubAppJwt,
   dispatchMahoragaVerifyWorkflowViaGithubApp,
-  createMahoragaDirectMainCommitViaGithubApp,
   createMahoragaPullRequestViaGithubApp,
   githubAppConfigured,
   mergeMahoragaPullRequestViaGithubApp,
@@ -353,41 +352,6 @@ test("bounded Verify dispatch rejects stale or arbitrary refs before mutation", 
   await assert.rejects(() => dispatchMahoragaVerifyWorkflowViaGithubApp({ ref: "mahoraga/checks", expectedHeadSha: COMMIT_SHA }, {
     env, fetchImpl: async () => responses.shift(),
   }), /github-native-dispatch-stale-head/);
-});
-
-test("native direct-main write requires the exact current main SHA and verifies the new ref", async () => {
-  const env = await githubAppEnv();
-  const requests = [];
-  const responses = [
-    json({ token: "installation-token", expires_at: "2026-10-04T15:00:00Z" }, 201),
-    json({ object: { sha: BASE_SHA } }),
-    json({ tree: { sha: TREE_SHA } }),
-    json({ sha: "c".repeat(40) }, 201),
-    json({ sha: "d".repeat(40) }, 201),
-    json({ sha: COMMIT_SHA }, 201),
-    json({ ref: "refs/heads/main", object: { sha: COMMIT_SHA } }),
-    json({ ref: "refs/heads/main", object: { sha: COMMIT_SHA } }),
-  ];
-  const receipt = await createMahoragaDirectMainCommitViaGithubApp({
-    expectedMainSha: BASE_SHA,
-    commitMessage: "Record native direct-main canary",
-    files: [{ path: "docs/direct-main-canary.md", content: "verified\n" }],
-  }, {
-    env,
-    fetchImpl: async (url, options) => {
-      requests.push({ url, options, body: options.body ? JSON.parse(options.body) : null });
-      return responses.shift();
-    },
-  });
-  assert.equal(requests[4].body.base_tree, TREE_SHA);
-  assert.deepEqual(requests[6].body, { sha: COMMIT_SHA, force: false });
-  assert.deepEqual(receipt, {
-    provider: "github-app",
-    repository: "michaeljwilliams0123/mahoraga",
-    directMain: true,
-    previous: { ref: "main", sha: BASE_SHA },
-    main: { ref: "main", sha: COMMIT_SHA },
-  });
 });
 
 test("native GitHub App configuration fails closed when any credential component is absent", async () => {
