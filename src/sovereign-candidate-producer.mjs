@@ -12,6 +12,15 @@ const OPERATOR_STALE_BRANCH_REPORT = "scripts/sovereign-stale-branch-report.mjs"
 const ZERO_CREDIT_BOUNDARY_TEST = "test/zero-credit-boundary.test.mjs";
 const CYCLE_OUTCOME_LEDGER = "reports/sovereign-cycle-outcome.json";
 const CANDIDATE_RECEIPT_TEST = "test/sovereign-candidate-receipt.test.mjs";
+const CANDIDATE_PATH_SAFETY_TEST = "test/sovereign-candidate-path-safety.test.mjs";
+const ACTIONABLE_GAP_RECIPES = Object.freeze({
+  "sovereign-candidate-path-safety": Object.freeze({
+    id: "candidate-path-safety-regression",
+    title: "test: enforce sovereign candidate path isolation",
+    summary: "Add adversarial regression tests for paths, trust-plane writes, and traversal.",
+    changedFiles: Object.freeze([CANDIDATE_PATH_SAFETY_TEST]),
+  }),
+});
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
 const TRUST_PLANE_FILES = new Set([
   "AGENTS.md",
@@ -75,7 +84,6 @@ export function cycleLedgerPulseAction({ recordedRaw, cycleId, gapAudit = { open
 }
 
 export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(path.join(ROOT, relative)), readFile = null, cycleId = "", gapAudit = { open: [] } } = {}) {
-  void gapAudit;
   if (!fileExists(OPERATOR_SCAN_REPORT)) {
     return Object.freeze({
       id: "operator-scan-report",
@@ -141,7 +149,34 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       changedFiles: Object.freeze([CANDIDATE_RECEIPT_TEST]),
     });
   }
+  return selectActionableGapRecipe({ gapAudit, fileExists });
+}
+
+export function selectActionableGapRecipe({ gapAudit = { open: [] }, fileExists = (relative) => existsSync(path.join(ROOT, relative)) } = {}) {
+  const open = Array.isArray(gapAudit?.open) ? gapAudit.open : [];
+  for (const item of open) {
+    if (!item || (item.state !== "open" && item.state !== "unverified")) continue;
+    const recipe = Object.hasOwn(ACTIONABLE_GAP_RECIPES, item.id) ? ACTIONABLE_GAP_RECIPES[item.id] : null;
+    if (recipe && recipe.changedFiles.every((relative) => !fileExists(relative))) return recipe;
+  }
   return null;
+}
+
+export function renderCandidatePathSafetyTest() {
+  return [
+    'import test from "node:test";',
+    'import assert from "node:assert/strict";',
+    'import { assertSafeCandidatePaths } from "../src/sovereign-candidate-producer.mjs";',
+    '',
+    'test("sovereign candidate paths reject traversal and protected files", () => {',
+    '  assert.deepEqual(assertSafeCandidatePaths(["test/safe-regression.test.mjs"]), ["test/safe-regression.test.mjs"]);',
+    '  for (const unsafe of ["../src/escape.mjs", "src/../escape.mjs", "/etc/passwd", ".github/workflows/verify.yml", "AGENTS.md", "src/sovereign-candidate-producer.mjs", "test//empty.mjs"]) {',
+    '    assert.throws(() => assertSafeCandidatePaths([unsafe]));',
+    '  }',
+    '  assert.throws(() => assertSafeCandidatePaths([]));',
+    '});',
+    '',
+  ].join("\n");
 }
 
 export function renderCandidateReceiptRegressionTest() {
@@ -419,6 +454,8 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
       writeFileSync(path.join(root, ZERO_CREDIT_BOUNDARY_TEST), renderZeroCreditBoundaryTest(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "candidate-receipt-regression") {
       writeFileSync(path.join(root, CANDIDATE_RECEIPT_TEST), renderCandidateReceiptRegressionTest(), { encoding: "utf8", flag: "wx" });
+    } else if (enhancement.id === "candidate-path-safety-regression") {
+      writeFileSync(path.join(root, CANDIDATE_PATH_SAFETY_TEST), renderCandidatePathSafetyTest(), { encoding: "utf8", flag: "wx" });
     } else if (enhancement.id === "cycle-outcome-ledger") {
       mkdirSync(path.join(root, "reports"), { recursive: true });
       writeFileSync(path.join(root, CYCLE_OUTCOME_LEDGER), renderCycleOutcomeLedger({ cycleId, gapAudit, baseSha }), { encoding: "utf8" });
