@@ -10,6 +10,10 @@ const record = (value: unknown): JsonRecord | null => value !== null && typeof v
 const positiveId = (value: unknown): value is number => Number.isSafeInteger(value) && Number(value) > 0;
 const text = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= 160 && !/[\x00-\x1f\x7f]/.test(value);
 function fail(code: string): never { throw new Error(`executor-observation-${code}`); }
+function instant(value: unknown): number {
+ if (typeof value !== "string" || value.length > 40 || !/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?Z$/.test(value)) return NaN;
+ return Date.parse(value);
+}
 
 type ObservationInput = {
  runId: number;
@@ -35,6 +39,8 @@ export type PromotionExecutorObservation = Readonly<{
  jobName: string;
  jobStatus: string;
  jobConclusion: string | null;
+ jobStartedAt: string;
+ jobCompletedAt: string | null;
  runner: Readonly<{ id: number; name: string; groupId: number; groupName: string | null; labels: readonly string[] }>;
  collectionStartedAt: string;
  observedAt: string;
@@ -66,6 +72,7 @@ async function readJson(response: Response): Promise<JsonRecord> {
 
 function checkRun(value: JsonRecord, input: ObservationInput): void {
  if (value.id !== input.runId || value.run_attempt !== input.runAttempt || value.head_sha !== input.expectedSha || value.head_branch !== "main" || value.path !== WORKFLOW || record(value.repository)?.full_name !== REPOSITORY || record(value.head_repository)?.full_name !== REPOSITORY || !["workflow_run", "workflow_dispatch"].includes(String(value.event)) || !text(value.status) || (value.conclusion !== null && !text(value.conclusion))) fail("run-mismatch");
+ if (!["in_progress", "completed"].includes(String(value.status)) || (value.status === "in_progress" && value.conclusion !== null) || (value.status === "completed" && !text(value.conclusion))) fail("run-lifecycle-invalid");
 }
 
 /** A fresh API observation of scheduling metadata, never a substrate attestation or authority decision. */
@@ -100,13 +107,19 @@ export async function observePromotionExecutor(input: ObservationInput): Promise
  const after = await get(`${API}${input.runId}`);
  checkRun(after, input);
  if (before.event !== after.event) fail("run-mismatch");
+ if (after.status === "completed" && job.status !== "completed") fail("job-lifecycle-invalid");
+ if ((job.status === "in_progress" && (job.conclusion !== null || job.completed_at != null)) || (job.status === "completed" && !text(job.conclusion))) fail("job-lifecycle-invalid");
  const observedAt = now();
  if (!Number.isFinite(observedAt) || observedAt < startedAt || observedAt - startedAt > 10_000) fail("collection-expired");
+ const jobStartMs = instant(job.started_at);
+ const jobEndMs = job.status === "completed" ? instant(job.completed_at) : NaN;
+ if (!Number.isFinite(jobStartMs) || jobStartMs > observedAt + 30_000 || (job.status === "completed" && (!Number.isFinite(jobEndMs) || jobEndMs < jobStartMs || jobEndMs > observedAt + 30_000))) fail("job-timing-invalid");
  return Object.freeze({
   schemaVersion: 1, kind: "github-promotion-executor-observation", evidenceSource: "github-actions-rest",
   repositoryIdentity: REPOSITORY, workflowPath: WORKFLOW, sourceSha: input.expectedSha,
   runId: input.runId, runAttempt: input.runAttempt, runStatus: String(after.status), runConclusion: after.conclusion as string | null, jobId: input.jobId,
   jobName: job.name, jobStatus: String(job.status), jobConclusion: job.conclusion as string | null,
+  jobStartedAt: new Date(jobStartMs).toISOString(), jobCompletedAt: job.status === "completed" ? new Date(jobEndMs).toISOString() : null,
   runner: Object.freeze({ id: job.runner_id, name: job.runner_name, groupId: Number(job.runner_group_id), groupName: job.runner_group_name as string | null, labels: Object.freeze([...(job.labels as string[])]) }),
   collectionStartedAt: new Date(startedAt).toISOString(), observedAt: new Date(observedAt).toISOString(),
   substrateIdentity: "unattested", capabilityHealth: "unassessed", promotionAuthority: "unassessed",
