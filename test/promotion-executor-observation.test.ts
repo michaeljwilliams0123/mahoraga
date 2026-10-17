@@ -84,7 +84,7 @@ test("CLI uses existing token and emits only a sanitized observation or bounded 
 
 test("preserves failed transport execution as dissent without turning it into capability health or promotion authority", async () => {
  const failedRun = { ...run(), status: "completed", conclusion: "failure" };
- const failedJob = { ...job(), status: "completed", conclusion: "failure" };
+ const failedJob = { ...job(), status: "completed", conclusion: "failure", completed_at: "2026-10-15T11:59:30Z" };
  const receipt = await observePromotionExecutor({ ...input(), fetchImpl: api([failedRun, { total_count: 1, jobs: [failedJob] }, failedRun]) });
  assert.equal(receipt.runStatus, "completed");
  assert.equal(receipt.runConclusion, "failure");
