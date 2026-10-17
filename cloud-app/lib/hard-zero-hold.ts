@@ -11,7 +11,9 @@ export function projectHardZeroHold(receipt: {
   heldResumeAt?: string | null;
 } | null): HoldObservation {
   const empty = { heldUtcDay: null, heldResumeAt: null };
-  if (receipt?.nextAction !== "quota-hold-until-utc-reset" && receipt?.nextAction !== "resume-queued") {
+  if (receipt?.nextAction !== "quota-hold-until-utc-reset"
+    && receipt?.nextAction !== "quota-hold-reset-propagation"
+    && receipt?.nextAction !== "resume-queued") {
     return { status: "unobserved", ...empty };
   }
   const day = receipt.heldUtcDay;

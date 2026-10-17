@@ -38,6 +38,7 @@ export type SanitizedAcceptanceReceipt = {
 export type HardZeroQuotaAction =
   | "dispatch-hard-zero"
   | "quota-hold-until-utc-reset"
+  | "quota-hold-reset-propagation"
   | "resume-queued"
   | "refuse-paid-route";
 
@@ -48,6 +49,7 @@ export type HardZeroQuotaReceipt = {
   resumeAt?: string | null;
   heldUtcDay?: string | null;
   heldResumeAt?: string | null;
+  propagationReadyAt?: string | null;
   idempotencyKey?: string | null;
   creditCost?: number;
   paidFallback?: boolean;

@@ -290,6 +290,7 @@ Applied from current local-first agent practice. These are constraints, not a st
 - Unattended work uses GitHub Actions + the heartbeat, not a chat session.
 - Skill compounding stays identifier-only (method ids, hold/dispatch counts). No prompt or chat storage.
 - Quota exhaustion and missing local reasoners are legal waits. Upgrades and paid fallbacks are not.
+- Workers AI's documented 00:00 UTC reset is not proof the free pool is open. Observed lag through 2026-10-16 was up to 112.6 minutes. `quota-hold-reset-propagation` keeps the idempotency key until a same-day content-free ready receipt or 113 minutes. Workers Paid, Unified Billing, and hosted keys are not that wait.
 - Do not add extra Vercel projects or paid review bots to “speed up” autonomy.
 - Extra merge gates (hosted deploy checks, review bots) are contamination. The live-protection evaluator fails closed when required checks are not exactly Ubuntu + Windows.
 - A scheduled foundry/skill loop must exit 0 on empty plans. Crashing the two-hour steward because `schemaVersion` was omitted is a scheduler defect, not a reason to buy Codex review.

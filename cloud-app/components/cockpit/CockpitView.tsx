@@ -44,6 +44,7 @@ const EXPECTED_MODEL_ID = "@cf/zai-org/glm-4.7-flash";
 const HARD_ZERO_ACTIONS = new Set<HardZeroQuotaAction>([
   "dispatch-hard-zero",
   "quota-hold-until-utc-reset",
+  "quota-hold-reset-propagation",
   "resume-queued",
   "refuse-paid-route",
 ]);
@@ -118,6 +119,7 @@ function parseHardZeroQuota(health: Health | null): HardZeroQuotaReceipt | null 
 function hardZeroActionLabel(action: HardZeroQuotaAction | undefined) {
   if (action === "dispatch-hard-zero") return "Dispatch hard-zero";
   if (action === "quota-hold-until-utc-reset") return "Hold until UTC reset";
+  if (action === "quota-hold-reset-propagation") return "Hold for reset propagation";
   if (action === "resume-queued") return "Resume queued";
   if (action === "refuse-paid-route") return "Refuse paid route";
   return "Unobserved";
@@ -205,7 +207,7 @@ export function CockpitView({
   const holdProvenance = projectHardZeroHold(hardZeroQuota ?? null);
   const hardZeroAction = holdProvenance.status === "unverified" ? undefined : hardZeroQuota?.nextAction;
   const hardZeroLabel = holdProvenance.status === "unverified" ? "Hold provenance unverified" : hardZeroActionLabel(hardZeroAction);
-  const quotaHolding = hardZeroAction === "quota-hold-until-utc-reset";
+  const quotaHolding = hardZeroAction === "quota-hold-until-utc-reset" || hardZeroAction === "quota-hold-reset-propagation";
   const cognitionObserved = acceptance.providerCognitionVerified === true;
   const noRailwayVerified = acceptance.noRailwayFallbackVerified === true;
   const cognitionDetail = cognitionObserved
@@ -384,7 +386,7 @@ export function CockpitView({
           label="Hard-zero quota route"
           value={hardZeroLabel}
           detail={hardZeroQuota
-            ? `Next UTC reset ${hardZeroQuota.resumeAt ?? "unavailable"} · Held UTC day ${holdProvenance.heldUtcDay ?? "unverified"} · Held resume at ${holdProvenance.heldResumeAt ?? "unverified"} · Same idempotency key ${hardZeroQuota.idempotencyKey ?? "unavailable"} · creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)} · does not grant traffic authority`
+            ? `Next UTC reset ${hardZeroQuota.resumeAt ?? "unavailable"} · Propagation ready ${hardZeroQuota.propagationReadyAt ?? "not required"} · Held UTC day ${holdProvenance.heldUtcDay ?? "unverified"} · Held resume at ${holdProvenance.heldResumeAt ?? "unverified"} · Same idempotency key ${hardZeroQuota.idempotencyKey ?? "unavailable"} · creditCost ${hardZeroQuota.creditCost} · paidFallback ${String(hardZeroQuota.paidFallback)} · does not grant traffic authority`
             : "No verified hard-zero quota receipt · creditCost and paidFallback unverified · does not grant traffic authority"}
           tone={hardZeroAction === "dispatch-hard-zero" || hardZeroAction === "resume-queued" ? "good" : quotaHolding || hardZeroAction === "refuse-paid-route" ? "warn" : "neutral"}
         />

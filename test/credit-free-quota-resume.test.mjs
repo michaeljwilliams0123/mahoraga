@@ -6,6 +6,9 @@ import {
   INFERENCE_RESERVATION,
   MAHORAGA_INTERNAL_CEILING,
   QUOTA_HOLD_ACTION,
+  QUOTA_PROPAGATION_HOLD_ACTION,
+  RESET_PROPAGATION_HOLD_MS,
+  RESET_PROPAGATION_OBSERVED_MAX_MINUTES,
   RESUME_QUEUED_ACTION,
   WORKERS_AI_FREE_ALLOCATION,
   classifyHardZeroProvider,
@@ -116,7 +119,7 @@ test("queued work cannot resume before its persisted UTC reset boundary", () => 
   assert.equal(held.held[0].reason, "hard-zero-hold-boundary-not-reached");
 });
 
-test("queued work resumes after persisted UTC reset under the same idempotency key", () => {
+test("queued work resumes after a same-day content-free ready receipt", () => {
   const nextDay = new Date("2026-09-27T00:00:01.000Z");
   const queued = {
     idempotencyKey: "obj-late-answer",
@@ -124,6 +127,8 @@ test("queued work resumes after persisted UTC reset under the same idempotency k
     modelId: ADMITTED_HARD_ZERO_MODEL,
     heldUtcDay: "2026-09-26",
     heldResumeAt: "2026-09-27T00:00:00.000Z",
+    allocationObservedReady: true,
+    allocationReadyUtcDay: "2026-09-27",
   };
   const resumed = resumeQueuedHardZeroWork({
     ...FREE,
@@ -139,6 +144,51 @@ test("queued work resumes after persisted UTC reset under the same idempotency k
   assert.equal(resumed.admitted[0].nextAction, RESUME_QUEUED_ACTION);
   assert.equal(resumed.held.length, 1);
   assert.equal(resumed.held[0].reason, "hard-zero-duplicate-idempotency");
+  assert.equal(resumed.paidFallback, false);
+  assert.equal(resumed.creditCost, 0);
+});
+
+test("clock reset alone holds through the observed Workers AI propagation lag", () => {
+  assert.equal(RESET_PROPAGATION_OBSERVED_MAX_MINUTES, 113);
+  assert.equal(RESET_PROPAGATION_HOLD_MS, 113 * 60 * 1000);
+  const held = resumeQueuedHardZeroWork({
+    ...FREE,
+    now: new Date("2026-09-27T00:00:01.000Z"),
+    neuronsUsedToday: 0,
+    queue: [{
+      idempotencyKey: "obj-late-answer",
+      provider: ADMITTED_HARD_ZERO_PROVIDER,
+      modelId: ADMITTED_HARD_ZERO_MODEL,
+      heldUtcDay: "2026-09-26",
+      heldResumeAt: "2026-09-27T00:00:00.000Z",
+      allocationObservedReady: true,
+      allocationReadyUtcDay: "2026-09-26",
+    }],
+  });
+  assert.equal(held.nextAction, QUOTA_PROPAGATION_HOLD_ACTION);
+  assert.equal(held.admitted.length, 0);
+  assert.equal(held.held[0].reason, "hard-zero-reset-propagation-lag");
+  assert.equal(held.held[0].propagationReadyAt, "2026-09-27T01:53:00.000Z");
+  assert.equal(held.paidFallback, false);
+  assert.equal(held.creditCost, 0);
+});
+
+test("queued work resumes once the observed propagation window elapses without a paid route", () => {
+  const resumed = resumeQueuedHardZeroWork({
+    ...FREE,
+    now: new Date("2026-09-27T01:53:00.000Z"),
+    neuronsUsedToday: 0,
+    queue: [{
+      idempotencyKey: "obj-late-answer",
+      provider: ADMITTED_HARD_ZERO_PROVIDER,
+      modelId: ADMITTED_HARD_ZERO_MODEL,
+      heldUtcDay: "2026-09-26",
+      heldResumeAt: "2026-09-27T00:00:00.000Z",
+    }],
+  });
+  assert.equal(resumed.nextAction, RESUME_QUEUED_ACTION);
+  assert.equal(resumed.admitted.length, 1);
+  assert.equal(resumed.admitted[0].reason, "hard-zero-utc-resume-admissible");
   assert.equal(resumed.paidFallback, false);
 });
 

@@ -81,6 +81,8 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
   it("surfaces the hard-zero quota decision without implying promotion", () => {
     assert.match(types, /HardZeroQuotaReceipt/);
     assert.match(types, /quota-hold-until-utc-reset/);
+    assert.match(types, /quota-hold-reset-propagation/);
+    assert.match(types, /propagationReadyAt/);
     assert.match(types, /dispatch-hard-zero/);
     assert.match(types, /resume-queued/);
     assert.match(types, /refuse-paid-route/);
@@ -90,6 +92,8 @@ describe("7.0.0-alpha.2 cockpit Cloudflare acceptance evidence", () => {
     assert.match(cockpit, /creditCost/);
     assert.match(cockpit, /paidFallback/);
     assert.match(cockpit, /Hold until UTC reset/);
+    assert.match(cockpit, /Hold for reset propagation/);
+    assert.match(cockpit, /Propagation ready/);
     assert.match(cockpit, /Resume queued/);
     assert.match(cockpit, /Refuse paid route/);
     assert.match(cockpit, /Dispatch hard-zero/);

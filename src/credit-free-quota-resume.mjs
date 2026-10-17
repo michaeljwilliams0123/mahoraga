@@ -7,10 +7,14 @@ export const PROBE_RESERVATION = 4;
 export const ADMITTED_HARD_ZERO_PROVIDER = "cloudflare-workers-ai";
 export const ADMITTED_HARD_ZERO_MODEL = "@cf/zai-org/glm-4.7-flash";
 export const QUOTA_HOLD_ACTION = "quota-hold-until-utc-reset";
+export const QUOTA_PROPAGATION_HOLD_ACTION = "quota-hold-reset-propagation";
 export const RESUME_QUEUED_ACTION = "resume-queued";
+export const RESET_PROPAGATION_OBSERVED_MAX_MINUTES = 113;
+export const RESET_PROPAGATION_HOLD_MS = RESET_PROPAGATION_OBSERVED_MAX_MINUTES * 60 * 1000;
 export const HARD_ZERO_NEXT_ACTIONS = Object.freeze([
   "dispatch-hard-zero",
   QUOTA_HOLD_ACTION,
+  QUOTA_PROPAGATION_HOLD_ACTION,
   RESUME_QUEUED_ACTION,
   "hold-planned",
   "refuse-paid-route",
@@ -196,10 +200,32 @@ export function resumeQueuedHardZeroWork({
         }));
         continue;
       }
+      const propagation = evaluateResetPropagation({
+        heldResumeAt: provenance.heldResumeAt,
+        now,
+        allocationObservedReady: item?.allocationObservedReady === true,
+        allocationReadyUtcDay: item?.allocationReadyUtcDay,
+      });
+      if (propagation.ok !== true) {
+        held.push(Object.freeze({
+          ok: false,
+          status: "hold",
+          reason: propagation.reason,
+          nextAction: propagation.nextAction,
+          idempotencyKey: key,
+          heldUtcDay: provenance.heldUtcDay,
+          heldResumeAt: provenance.heldResumeAt,
+          propagationReadyAt: propagation.propagationReadyAt,
+          creditCost: 0,
+          paidFallback: false,
+        }));
+        continue;
+      }
       admitted.push(Object.freeze({
         ...decision,
         heldUtcDay: provenance.heldUtcDay,
         heldResumeAt: provenance.heldResumeAt,
+        propagationReadyAt: propagation.propagationReadyAt,
       }));
       used += Number(reservation);
       continue;
@@ -220,9 +246,11 @@ export function resumeQueuedHardZeroWork({
     ? "refuse-paid-route"
     : admitted.length
       ? RESUME_QUEUED_ACTION
-      : held.length
-        ? QUOTA_HOLD_ACTION
-        : RESUME_QUEUED_ACTION;
+      : held.length && held.every((item) => item.nextAction === QUOTA_PROPAGATION_HOLD_ACTION)
+        ? QUOTA_PROPAGATION_HOLD_ACTION
+        : held.length
+          ? QUOTA_HOLD_ACTION
+          : RESUME_QUEUED_ACTION;
 
   return Object.freeze({
     schemaVersion: 1,
@@ -269,6 +297,67 @@ export function maintainCreditFreeAutonomyWithQuota({
     ...base,
     workersAi: quota,
     nextAction,
+    creditCost: 0,
+    paidFallback: false,
+  });
+}
+
+function evaluateResetPropagation({
+  heldResumeAt,
+  now,
+  allocationObservedReady = false,
+  allocationReadyUtcDay = null,
+} = {}) {
+  const resumeMs = parseTime(heldResumeAt);
+  const nowMs = parseTime(now);
+  if (!Number.isFinite(resumeMs) || !Number.isFinite(nowMs)) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-reset-propagation-invalid",
+      nextAction: QUOTA_HOLD_ACTION,
+      propagationReadyAt: null,
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  const propagationReadyAt = new Date(resumeMs + RESET_PROPAGATION_HOLD_MS).toISOString();
+  if (nowMs < resumeMs) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-hold-boundary-not-reached",
+      nextAction: QUOTA_HOLD_ACTION,
+      propagationReadyAt,
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  const readyDay = String(allocationReadyUtcDay ?? "").trim();
+  const observedToday = allocationObservedReady === true && readyDay === utcDayKey(now);
+  if (observedToday) {
+    return Object.freeze({
+      ok: true,
+      reason: "hard-zero-reset-observed-ready",
+      nextAction: RESUME_QUEUED_ACTION,
+      propagationReadyAt,
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  if (nowMs < resumeMs + RESET_PROPAGATION_HOLD_MS) {
+    return Object.freeze({
+      ok: false,
+      reason: "hard-zero-reset-propagation-lag",
+      nextAction: QUOTA_PROPAGATION_HOLD_ACTION,
+      propagationReadyAt,
+      creditCost: 0,
+      paidFallback: false,
+    });
+  }
+  return Object.freeze({
+    ok: true,
+    reason: "hard-zero-reset-propagation-elapsed",
+    nextAction: RESUME_QUEUED_ACTION,
+    propagationReadyAt,
     creditCost: 0,
     paidFallback: false,
   });

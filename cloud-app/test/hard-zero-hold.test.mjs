@@ -26,6 +26,16 @@ test("malformed or missing provenance never represents a queued resume as verifi
   }
 });
 
+test("reset propagation is an observed hold and still not a paid resume", () => {
+  assert.deepEqual(projectHardZeroHold({
+    nextAction: "quota-hold-reset-propagation",
+    heldUtcDay: "2026-09-26",
+    heldResumeAt: "2026-09-27T00:00:00.000Z",
+  }), {
+    status: "observed", heldUtcDay: "2026-09-26", heldResumeAt: "2026-09-27T00:00:00.000Z",
+  });
+});
+
 test("a non-hold action cannot imply an observed hold", () => {
   assert.equal(projectHardZeroHold({ nextAction: "dispatch-hard-zero", heldUtcDay: "2026-09-26", heldResumeAt: "2026-09-27T00:00:00.000Z" }).status, "unobserved");
 });
