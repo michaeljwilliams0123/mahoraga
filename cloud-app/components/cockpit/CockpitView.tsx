@@ -145,8 +145,6 @@ export function CockpitView({
   runtimeCapabilities,
   relay = null,
   onRequestPairing,
-  onOpenOperations,
-  onOpenConnections,
 }: CockpitViewProps) {
   const routable = runtimeCapabilities.filter((capability) => capability.routable && capability.enabled !== false);
   const workers = new Set(runtimeCapabilities.flatMap((capability) => capability.workerIds));
@@ -530,12 +528,6 @@ export function CockpitView({
             <Link2 size={16} /> Pair runtime
           </button>
         )}
-        <button type="button" onClick={onOpenOperations}>
-          <Activity size={16} /> Operations
-        </button>
-        <button type="button" onClick={onOpenConnections}>
-          <Link2 size={16} /> Connections
-        </button>
       </div>
     </section>
   );

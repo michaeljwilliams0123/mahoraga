@@ -34,10 +34,14 @@ describe("singular control center contract", () => {
 
   it("keeps the final Control Center observational and core-mediated", () => {
     const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
+    const workspace = readFileSync(join(root, "components/workspace.tsx"), "utf8");
+    const types = readFileSync(join(root, "components/workspace/workspace-types.ts"), "utf8");
     assert.match(cockpit, /Control Center/);
     assert.match(cockpit, /runtimeCapabilities/);
     assert.match(cockpit, /automaticPaidFallback/);
-    assert.match(cockpit, /onOpenOperations/);
+    assert.doesNotMatch(cockpit, /onOpenOperations|onOpenConnections/);
+    assert.doesNotMatch(workspace, /onOpenOperations=|onOpenConnections=/);
+    assert.doesNotMatch(types, /onOpenOperations|onOpenConnections/);
     assert.doesNotMatch(cockpit, /CommandCockpit|LocalChatSidebar|127\.0\.0\.1:11434|api\.github\.com/);
   });
 

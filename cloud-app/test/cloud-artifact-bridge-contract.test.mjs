@@ -8,12 +8,8 @@ const read = (file) => readFile(new URL(file, root), "utf8");
 const dataModule = (source) => `data:text/javascript,${encodeURIComponent(source)}`;
 
 async function loadArtifactRoute() {
-  const source = await read("app/api/runtime/artifacts/route.ts");
+  const source = await read("lib/runtime-artifact-upload.ts");
   const gateway = `
-    export function authorizeOwnerMutation(request) {
-      if (request.headers.get("x-test-auth") === "ok") return { ownerId: "owner" };
-      const error = new Error("cloud-owner-auth-required"); error.status = 401; throw error;
-    }
     export async function coreArtifactRequest(input) {
       globalThis.__artifactCall = { ...input, bytes: input.bytes.byteLength };
       const body = globalThis.__artifactResponse ?? { artifact: { id: "art-abc123" } };
@@ -24,9 +20,17 @@ async function loadArtifactRoute() {
   `;
   const config = `export const MAX_FILE_BYTES = 4;`;
   const isolated = stripTypeScriptTypes(source
-    .replace('"@/lib/cloud-owner-gateway"', JSON.stringify(dataModule(gateway)))
-    .replace('"@/lib/runtime-config"', JSON.stringify(dataModule(config))));
-  return import(`${dataModule(isolated)}#${Date.now()}-${Math.random()}`);
+    .replace('"./cloud-owner-gateway"', JSON.stringify(dataModule(gateway)))
+    .replace('"./runtime-config"', JSON.stringify(dataModule(config))));
+  const module = await import(`${dataModule(isolated)}#${Date.now()}-${Math.random()}`);
+  return {
+    POST: module.createRuntimeArtifactUploadHandler((request) => {
+      if (request.headers.get("x-test-auth") === "ok") return { ownerId: "owner" };
+      const error = new Error("cloud-owner-auth-required");
+      error.status = 401;
+      throw error;
+    }),
+  };
 }
 
 function uploadRequest(bytes, headers = {}) {
@@ -77,14 +81,16 @@ test("artifact route forwards bounded bytes and fails closed on malformed core r
 });
 
 test("server-only artifact forwarding keeps the primary token out of the browser route", async () => {
-  const [route, gateway] = await Promise.all([
+  const [route, upload, gateway] = await Promise.all([
     read("app/api/runtime/artifacts/route.ts"),
+    read("lib/runtime-artifact-upload.ts"),
     read("lib/cloud-owner-gateway.ts"),
   ]);
-  assert.match(route, /authorizeOwnerMutation\(request\)/);
-  assert.match(route, /MAX_FILE_BYTES/);
-  assert.match(route, /coreArtifactRequest/);
+  assert.match(route, /createRuntimeArtifactUploadHandler\(authorizeOwnerMutation\)/);
+  assert.match(upload, /MAX_FILE_BYTES/);
+  assert.match(upload, /coreArtifactRequest/);
   assert.doesNotMatch(route, /MAHORAGA_PRIMARY_CODEX_TOKEN/);
+  assert.doesNotMatch(upload, /MAHORAGA_PRIMARY_CODEX_TOKEN/);
   assert.match(gateway, /MAHORAGA_PRIMARY_CODEX_TOKEN/);
   assert.match(gateway, /127\.0\.0\.1:4782\/api\/artifacts/);
   assert.match(gateway, /authorization: `Bearer \$\{token\}`/);
@@ -105,4 +111,21 @@ test("same-origin runtime uploads files and forwards artifact ids without wideni
   assert.match(workspace, /attachmentIds/);
   assert.match(workspace, /setFiles\(\[\]\)/);
   assert.doesNotMatch(workspace, /bounded core artifact bridge is not connected yet/);
+});
+
+test("direct and Pages artifact routes share one bounded upload implementation", async () => {
+  const [directRoute, pagesRoute, sharedUpload] = await Promise.all([
+    read("app/api/runtime/artifacts/route.ts"),
+    read("app/api/runtime/pages-bridge/artifacts/route.ts"),
+    read("lib/runtime-artifact-upload.ts"),
+  ]);
+
+  for (const route of [directRoute, pagesRoute]) {
+    assert.match(route, /createRuntimeArtifactUploadHandler/);
+    assert.doesNotMatch(route, /readBoundedBytes|coreArtifactRequest|MAX_FILE_BYTES|validReceipt/);
+  }
+  assert.match(sharedUpload, /readBoundedBytes/);
+  assert.match(sharedUpload, /coreArtifactRequest/);
+  assert.match(sharedUpload, /MAX_FILE_BYTES/);
+  assert.match(sharedUpload, /validReceipt/);
 });
