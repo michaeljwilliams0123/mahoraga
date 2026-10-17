@@ -33,7 +33,6 @@ concurrency:
 env:
   SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-
   SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-
-  SOVEREIGN_PRODUCER_SMOKE_TAG: sovereign-producer-smoke-v1
   # Any self-hosted workstation may expose a development-only loopback model.
   # Sovereign production cycles remain deterministic and must never inherit it.
   MAHORAGA_ZERO_CREDIT_MODEL_URL: ""
@@ -107,6 +106,13 @@ jobs:
           git fetch --tags --force --prune
 
           current_main="$(git rev-parse origin/main)"
+          checkout_sha="$(git rev-parse HEAD)"
+          echo "current_main=${checkout_sha}" >> "$GITHUB_OUTPUT"
+          if [[ "${checkout_sha}" != "${current_main}" ]]; then
+            echo "Checked-out source ${checkout_sha} is stale against current main ${current_main}; no candidate admitted."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" && -n "${RELEASED_SHA:-}" && "${RELEASED_SHA}" != "${current_main}" ]]; then
             echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; refusing to anchor stale production."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
@@ -260,6 +266,7 @@ jobs:
           fi
 
       - name: Retain bounded candidate receipt
+        id: candidate-receipt
         if: steps.cycle.outputs.status == 'candidate-ready'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
@@ -288,6 +295,32 @@ jobs:
             -f ref="refs/tags/${COMPLETE_TAG}" \
             -f sha="${head_sha}"
           echo "Marked anchored window complete as ${COMPLETE_TAG}."
+
+      - name: Build bounded candidate-cycle outcome
+        id: candidate-outcome
+        if: always() && steps.cadence.outcome == 'success'
+        shell: bash
+        env:
+          SOVEREIGN_EVIDENCE_KIND: candidate-cycle
+          SOVEREIGN_SOURCE_SHA: ${{ steps.cadence.outputs.current_main }}
+          SOVEREIGN_JOB_STATUS: ${{ job.status }}
+          SOVEREIGN_ADMITTED: ${{ steps.cadence.outputs.should_run }}
+          SOVEREIGN_WORKER_STATUS: ${{ steps.cycle.outputs.status }}
+          SOVEREIGN_ARTIFACT_STATUS: ${{ steps.candidate-receipt.outcome }}
+          SOVEREIGN_PREFLIGHT: ${{ steps.heartbeat.outputs.next_action }}
+          SOVEREIGN_WINDOW: ${{ steps.cadence.outputs.window_iso }}
+        run: |
+          node scripts/sovereign-workflow-evidence.mjs artifact > "${RUNNER_TEMP}/sovereign-candidate-outcome.json"
+          cat "${RUNNER_TEMP}/sovereign-candidate-outcome.json" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain bounded candidate-cycle outcome
+        if: always() && steps.candidate-outcome.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
+        with:
+          name: sovereign-outcome-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sovereign-candidate-outcome.json
+          if-no-files-found: error
+          retention-days: 7
 
   producer-smoke:
     permissions:
@@ -352,13 +385,17 @@ jobs:
           set -euo pipefail
           git fetch --tags --force --prune
           current_main="$(git rev-parse origin/main)"
-          if [[ "${RELEASED_SHA}" != "${current_main}" ]]; then
+          checkout_sha="$(git rev-parse HEAD)"
+          echo "released_sha=${RELEASED_SHA}" >> "$GITHUB_OUTPUT"
+          if [[ "${RELEASED_SHA}" != "${current_main}" || "${checkout_sha}" != "${RELEASED_SHA}" ]]; then
             echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; smoke is stale."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if git show-ref --tags --verify --quiet "refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}"; then
-            echo "Producer smoke already completed as ${SOVEREIGN_PRODUCER_SMOKE_TAG}."
+          smoke_tag="$(node scripts/sovereign-workflow-evidence.mjs smoke-tag "${RELEASED_SHA}")"
+          echo "smoke_tag=${smoke_tag}" >> "$GITHUB_OUTPUT"
+          if git show-ref --tags --verify --quiet "refs/tags/${smoke_tag}"; then
+            echo "Producer smoke already completed as ${smoke_tag}."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -371,7 +408,6 @@ jobs:
             sleep "${wait_seconds}"
           fi
           echo "smoke_at=${smoke_at}" >> "$GITHUB_OUTPUT"
-          echo "released_sha=${RELEASED_SHA}" >> "$GITHUB_OUTPUT"
           echo "should_run=true" >> "$GITHUB_OUTPUT"
 
       - name: Scan and produce bounded enhancement candidate
@@ -415,6 +451,7 @@ jobs:
           fi
 
       - name: Retain bounded producer-smoke receipt
+        id: producer-receipt
         if: steps.producer.outputs.status == 'candidate-ready'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
         with:
@@ -430,15 +467,40 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASED_SHA: ${{ steps.smoke.outputs.released_sha }}
+          SMOKE_TAG: ${{ steps.smoke.outputs.smoke_tag }}
         shell: bash
         run: |
           set -euo pipefail
           git fetch --tags --force
-          if git show-ref --tags --verify --quiet "refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}"; then
+          if git show-ref --tags --verify --quiet "refs/tags/${SMOKE_TAG}"; then
             echo "Producer smoke tag already exists."
             exit 0
           fi
           gh api -X POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/tags/${SOVEREIGN_PRODUCER_SMOKE_TAG}" \
+            -f ref="refs/tags/${SMOKE_TAG}" \
             -f sha="${RELEASED_SHA}"
-          echo "Marked producer smoke complete as ${SOVEREIGN_PRODUCER_SMOKE_TAG}."
+          echo "Marked producer smoke complete as ${SMOKE_TAG}."
+
+      - name: Build bounded producer-smoke outcome
+        id: smoke-outcome
+        if: always() && steps.smoke.outcome == 'success'
+        shell: bash
+        env:
+          SOVEREIGN_EVIDENCE_KIND: producer-smoke
+          SOVEREIGN_SOURCE_SHA: ${{ steps.smoke.outputs.released_sha }}
+          SOVEREIGN_JOB_STATUS: ${{ job.status }}
+          SOVEREIGN_ADMITTED: ${{ steps.smoke.outputs.should_run }}
+          SOVEREIGN_WORKER_STATUS: ${{ steps.producer.outputs.status }}
+          SOVEREIGN_ARTIFACT_STATUS: ${{ steps.producer-receipt.outcome }}
+        run: |
+          node scripts/sovereign-workflow-evidence.mjs artifact > "${RUNNER_TEMP}/sovereign-producer-outcome.json"
+          cat "${RUNNER_TEMP}/sovereign-producer-outcome.json" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Retain bounded producer-smoke outcome
+        if: always() && steps.smoke-outcome.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v4
+        with:
+          name: sovereign-producer-outcome-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/sovereign-producer-outcome.json
+          if-no-files-found: error
+          retention-days: 7
