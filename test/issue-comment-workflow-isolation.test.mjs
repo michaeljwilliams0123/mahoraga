@@ -24,12 +24,13 @@ test("cloud gateway remains owner-bound and explicitly dispatches desktop assign
     workflow(".github/workflows/cloud-task-gateway.yml"),
   ]);
 
-  assert.match(receiver, /assignment_id:/);
+  assert.doesNotMatch(gateway, /git push origin HEAD:main/);
   assert.match(receiver, /route_policy:/);
   assert.match(gateway, /issue_number:/);
   assert.match(gateway, /command:/);
   assert.match(gateway, /if:\s*github\.actor == github\.repository_owner/);
-  assert.match(gateway, /actions\.createWorkflowDispatch/);
-  assert.match(gateway, /workflow_id:\s*"workspace-agent-receiver\.yml"/);
-  assert.match(gateway, /inputs:\s*\{ assignment_id: process\.env\.ASSIGNMENT_ID \}/);
+  assert.match(gateway, /gh pr create --base main/);
+  assert.match(gateway, /Stage validated dispatch through protected pull request/);
+  assert.doesNotMatch(gateway, /actions\.createWorkflowDispatch|git push origin HEAD:main/);
+  assert.match(receiver, /branches: \[main\]/);
 });
