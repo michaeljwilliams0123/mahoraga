@@ -330,7 +330,7 @@ test("scheduler preserves worker JSON when node exits nonzero", () => {
 test("scheduler connects the GitHub-native producer and one-time ten-minute smoke", () => {
   assert.match(workflow, /pull-requests:\s*write/);
   assert.match(workflow, /MAHORAGA_CANDIDATE_PRODUCER:\s*github-native/);
-  assert.match(workflow, /sovereign-producer-smoke-v1/);
+  assert.match(workflow, /sovereign-workflow-evidence\.mjs smoke-tag/);
   assert.match(workflow, /createDeploymentAnchor/);
 });
 
