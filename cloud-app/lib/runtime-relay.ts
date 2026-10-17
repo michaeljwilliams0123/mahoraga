@@ -182,7 +182,7 @@ export type RuntimeOperationsSnapshot = {
   };
   repository: { branch: string; headSha: string | null; cleanState: string };
   workers: Array<{ id: string; state: string; capabilities: string[]; tone?: string }>;
-  tasks: { active: number; waiting: number; failed: number };
+  tasks: { active: number; waiting: number; failed: number; completed?: number };
   objectives: { active: number; waiting: number };
   repairs: { activeIncidents: number; lastRepairState: string };
   verification: { state: string; exactHeadSha: string | null };
