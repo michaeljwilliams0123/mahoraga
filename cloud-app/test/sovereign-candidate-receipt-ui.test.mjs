@@ -11,9 +11,12 @@ test("7.0.0-alpha.2 cockpit surfaces sovereign candidate receipt as observationa
   const card = readFileSync(join(root, "components/cockpit/SovereignCandidateReceiptCard.tsx"), "utf8");
   assert.match(cockpit, /SovereignCandidateReceiptCard/);
   assert.match(card, /Zero-credit · observational/);
-  assert.match(card, /#1136/);
-  assert.match(card, /creditCost=0/);
-  assert.match(card, /not execution readiness/);
+  assert.match(card, /#1143/);
+  assert.match(card, /source-SHA-scoped/);
+  assert.match(card, /sovereign-producer-smoke-v2/);
+  assert.match(card, /not-run/);
+  assert.match(card, /candidateProven=true only with validated producer result/);
+  assert.match(card, /never claim candidate creation/);
   assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
   assert.match(cockpit, /productName/);
   assert.match(card, /7\.0\.0-alpha\.2 is build provenance only/);
