@@ -17,6 +17,7 @@ const makeCycle = () => ({
     branch: "feature/sovereign-acceptance",
     pullRequestNumber: 1136,
     changedFilesDigest: "d".repeat(64),
+    sourceIssueNumber: 1145,
   },
   hiddenPayload: "never publish",
 });
@@ -44,6 +45,7 @@ test("CLI persists exact candidate receipt to the workflow upload path without e
     assert.equal(receipt.headSha, "c".repeat(40));
     assert.equal(receipt.pullRequestNumber, 1136);
     assert.equal(receipt.changedFilesDigest, "d".repeat(64));
+    assert.equal(receipt.sourceIssueNumber, 1145);
     assert.equal(receipt.creditCost, 0);
     assert.equal(receipt.paidFallback, false);
     assert.doesNotMatch(raw, /never publish|hiddenPayload/);
