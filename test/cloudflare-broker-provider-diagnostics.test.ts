@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createExecutionBroker, type BrokerEnv } from "../deploy/cloudflare-execution-broker/worker.ts";
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 const NOW = Date.parse("2026-10-10T18:00:00Z");
 const capability = () => ({
@@ -97,6 +102,13 @@ test("accepted read-only provider proof reports one eligible live route and no a
     state: "admitted", reasonCode: null,
     boundProviders: ["CLOUD_PROVIDER"], acceptedAttestations: 1, routableCapabilities: 1,
   });
+});
+
+test("failover inventory stays on the native broker capability surface", () => {
+  assert.equal(existsSync(path.join(root, "scripts/failover-challenge-preflight.ts")), false);
+  const documentation = readFileSync(path.join(root, "docs/EXECUTION-FAILOVER-CHALLENGE.md"), "utf8");
+  assert.match(documentation, /\/api\/capabilities/);
+  assert.doesNotMatch(documentation, /failover-challenge-preflight/);
 });
 
 

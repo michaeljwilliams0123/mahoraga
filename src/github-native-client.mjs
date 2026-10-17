@@ -473,6 +473,53 @@ function projectWorkItem(value, kind, normalized) {
     title: typeof value.title === "string" ? value.title.slice(0, 200) : "" });
 }
 
+/**
+ * Test the exact installation permissions behind native write/Verify capability
+ * claims. Mints one narrowly scoped test token at a time and immediately revokes
+ * it. Never executes a repository mutation or reveals credential material.
+ */
+export async function proveGithubAppNativeGrants({ env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}) {
+  const jwt = await createGithubAppJwt(env);
+  const installationId = String(env.GITHUB_INSTALLATION_ID).trim();
+  const probes = [
+    { name: "repository-write", permissions: { contents: "write", pull_requests: "write", metadata: "read" } },
+    { name: "verify-dispatch", permissions: { actions: "write", contents: "read", metadata: "read" } },
+  ];
+  const verified = [];
+  for (const probe of probes) {
+    let issued;
+    try {
+      issued = await rawRequest("POST", `/app/installations/${installationId}/access_tokens`,
+        { repositories: [REPO], permissions: probe.permissions }, {
+          authorization: `Bearer ${jwt}`, fetchImpl, timeoutMs,
+        });
+    } catch {
+      fail(`github-native-grant-${probe.name}-unavailable`, 403);
+    }
+    const token = typeof issued?.token === "string" ? issued.token.trim() : "";
+    try {
+      if (!token || typeof issued?.expires_at !== "string") fail("github-native-grant-response-invalid", 502);
+      const actual = issued?.permissions;
+      if (!actual || typeof actual !== "object" ||
+        Object.entries(probe.permissions).some(([name, level]) => actual[name] !== level)) {
+        fail(`github-native-grant-${probe.name}-mismatch`, 403);
+      }
+    } finally {
+      if (token) {
+        try {
+          await rawRequest("DELETE", "/installation/token", null, {
+            authorization: `Bearer ${token}`, fetchImpl, timeoutMs,
+          });
+        } catch {
+          fail(`github-native-grant-${probe.name}-revoke-failed`, 503);
+        }
+      }
+    }
+    verified.push(probe.name);
+  }
+  return Object.freeze({ status: "verified", repository: `${OWNER}/${REPO}`, capabilities: Object.freeze(verified) });
+}
+
 async function mintInstallationToken({ env = process.env, fetchImpl = globalThis.fetch, timeoutMs = 15_000 } = {}, permissions) {
   const jwt = await createGithubAppJwt(env);
   const installationId = String(env.GITHUB_INSTALLATION_ID).trim();
