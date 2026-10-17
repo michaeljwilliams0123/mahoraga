@@ -8,6 +8,7 @@ $ErrorActionPreference = 'Stop'
 $runtimeHome = Join-Path ([Environment]::GetFolderPath('UserProfile')) '.mahoraga-runtime'
 $stateRoot = Join-Path $runtimeHome 'state\candidate-4783'
 $convergenceRoot = Join-Path $runtimeHome 'convergence'
+$promotionHoldFile = Join-Path $convergenceRoot 'production-promotion-hold.json'
 $rollbackRoot = Join-Path $runtimeHome 'rollback'
 $relaySecretFile = Join-Path $runtimeHome 'secrets\relay-token.dpapi'
 $healthUrl = "http://127.0.0.1:$Port/api/status"
@@ -137,6 +138,14 @@ function Get-ProductionStatus {
     catch { return $null }
 }
 
+function Test-ProductionExactMain($Status, [string]$Commit) {
+    return ($Status -and $Status.product -eq 'Mahoraga' -and
+        [string]$Status.runtime.provenance.sourceCommit -eq $Commit -and
+        [string]$Status.runtime.provenance.authoritativeSourceCommit -eq $Commit -and
+        [string]$Status.runtime.provenance.state -eq 'current' -and
+        $Status.runtime.healthy -eq $true)
+}
+
 function Wait-ForProductionCommit([string]$Commit) {
     for ($attempt = 0; $attempt -lt 60; $attempt++) {
         Start-Sleep -Milliseconds 500
@@ -178,6 +187,54 @@ if ($LASTEXITCODE -ne 0 -or -not $remoteLine) { throw 'Unable to observe authori
 $targetCommit = Resolve-Commit (($remoteLine -split '\s+')[0]) 'authoritative'
 $trackingCommit = Resolve-Commit (& git -C $ControllerRoot rev-parse origin/main) 'tracking'
 if ($trackingCommit -ne $targetCommit) { throw 'Local tracking ref does not match authoritative main.' }
+
+# Promotion requires an independently verified native checkpoint/restore, which is
+# not available in this trust epoch. Persist the hold once and return before the
+# full verification gate, state migration, candidate stop, or bootstrap.
+$productionBeforePromotion = Get-ProductionStatus
+if (-not (Test-ProductionExactMain $productionBeforePromotion $targetCommit)) {
+    $currentProductionSource = if ($productionBeforePromotion -and $productionBeforePromotion.product -eq 'Mahoraga') {
+        [string]$productionBeforePromotion.runtime.provenance.sourceCommit
+    } else { $null }
+    $holdUnchanged = $false
+    if (Test-Path -LiteralPath $promotionHoldFile -PathType Leaf) {
+        try {
+            $previousHold = Get-Content -LiteralPath $promotionHoldFile -Raw | ConvertFrom-Json
+            $holdUnchanged = ($previousHold.state -eq 'production-promotion-held' -and
+                $previousHold.targetCommit -eq $targetCommit -and
+                $previousHold.fromCommit -eq $currentProductionSource -and
+                $previousHold.reason -eq 'trusted-native-restore-unavailable')
+        } catch {
+            throw 'The persisted production promotion hold is unreadable; refusing automated activation.'
+        }
+    }
+    if (-not $holdUnchanged) {
+        New-Item -ItemType Directory -Path $convergenceRoot -Force | Out-Null
+        @{
+            schemaVersion = 1
+            state = 'production-promotion-held'
+            targetCommit = $targetCommit
+            fromCommit = $currentProductionSource
+            reason = 'trusted-native-restore-unavailable'
+            productionPort = 4782
+            candidatePort = $Port
+        } | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $promotionHoldFile -Encoding utf8
+        Write-Receipt @{
+            state = 'production-promotion-held'
+            fromCommit = $currentProductionSource
+            attemptedCommit = $targetCommit
+            reason = 'trusted-native-restore-unavailable'
+            candidatePort = $Port
+            productionPort = 4782
+        }
+    }
+    Write-Output "Mahoraga promotion held for $targetCommit; native production checkpoint/restore remains unavailable."
+    exit 0
+}
+# A fresh exact-main production observation clears this specific non-destructive hold.
+if (Test-Path -LiteralPath $promotionHoldFile -PathType Leaf) {
+    Remove-Item -LiteralPath $promotionHoldFile
+}
 $currentControllerCommit = Resolve-Commit (& git -C $ControllerRoot rev-parse HEAD) 'controller'
 if ($currentControllerCommit -ne $targetCommit) {
     $pendingChanges = @(& git -C $ControllerRoot status --porcelain --untracked-files=all)
@@ -287,7 +344,16 @@ try {
     Ensure-ProductionCurrent $targetCommit | Out-Null
     Stop-VerifiedCandidate $targetCommit
     Write-Output "Mahoraga production converged from $sourceCommit to $targetCommit; candidate slot $Port returned to standby."
-} catch {
+ } catch {
+    # This is an intentional policy hold, not an activation failure: production
+    # was never replaced. Do not run an older binary on candidate-migrated state.
+    if ($_.Exception.Message -like 'production-promotion-held:*') {
+        $heldCandidate = Get-LiveStatus
+        if ($heldCandidate -and [string]$heldCandidate.runtime.provenance.sourceCommit -eq $targetCommit) {
+            Stop-VerifiedCandidate $targetCommit
+        }
+        throw
+    }
     $failedPid = Get-ListenerPid
     if ($failedPid) { Stop-Listener $failedPid }
     $rollbackProcess = Start-Candidate $rollbackWorktree $sourceCommit
