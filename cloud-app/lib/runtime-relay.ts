@@ -148,6 +148,7 @@ export type RuntimeTask = {
 };
 export type RuntimeExecutionReceipt = {
   sourceSHA?: string | null;
+  persistedResultObservation?: "matched" | "missing" | "mismatch" | "not-observed";
   workerId: string;
   providerId: string;
   costClass: string;
