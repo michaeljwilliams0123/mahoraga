@@ -84,7 +84,7 @@ test("CLI uses existing token and emits only a sanitized observation or bounded 
 
 test("preserves failed transport execution as dissent without turning it into capability health or promotion authority", async () => {
  const failedRun = { ...run(), status: "completed", conclusion: "failure" };
- const failedJob = { ...job(), status: "completed", conclusion: "failure" };
+ const failedJob = { ...job(), status: "completed", conclusion: "failure", completed_at: "2026-10-15T11:59:30Z" };
  const receipt = await observePromotionExecutor({ ...input(), fetchImpl: api([failedRun, { total_count: 1, jobs: [failedJob] }, failedRun]) });
  assert.equal(receipt.runStatus, "completed");
  assert.equal(receipt.runConclusion, "failure");
@@ -104,4 +104,33 @@ test("records unavailable runner group metadata explicitly without inventing a g
  const receipt = await observePromotionExecutor({ ...input(), fetchImpl: api([run(), { total_count: 1, jobs: [{ ...job(), runner_group_id: 0, runner_group_name: null }] }, run()]) });
  assert.equal(receipt.runner.groupId, 0);
  assert.equal(receipt.runner.groupName, null);
+});
+
+test("run and job lifecycle contradictions cannot be laundered as fresh observation", async () => {
+ const cases = [
+  [{ ...run(), status: "completed", conclusion: null }, { total_count: 1, jobs: [job()] }, run()],
+  [{ ...run(), status: "in_progress", conclusion: "success" }, { total_count: 1, jobs: [job()] }, run()],
+  [run(), { total_count: 1, jobs: [{ ...job(), status: "completed", conclusion: null }] }, run()],
+  [run(), { total_count: 1, jobs: [{ ...job(), status: "in_progress", conclusion: "success" }] }, run()],
+  [{ ...run(), status: "completed", conclusion: "success" }, { total_count: 1, jobs: [job()] }, { ...run(), status: "completed", conclusion: "success" }],
+ ];
+ for (const values of cases) await assert.rejects(observePromotionExecutor({ ...input(), fetchImpl: api(values) }), /executor-observation-(run|job)-(mismatch|identity-unavailable|lifecycle-invalid)/);
+});
+
+test("job timestamps must be consistent and cannot claim future execution", async () => {
+ const variants = [
+  { started_at: null },
+  { started_at: "not-an-instant" },
+  { started_at: "2026-10-15T12:10:00Z" },
+  { status: "completed", conclusion: "success", completed_at: null },
+  { status: "completed", conclusion: "success", completed_at: "2026-10-15T11:58:59Z" },
+  { status: "completed", conclusion: "success", completed_at: "2026-10-15T12:20:00Z" },
+  { status: "in_progress", conclusion: null, completed_at: "2026-10-15T11:59:30Z" },
+ ];
+ for (const patch of variants) {
+  await assert.rejects(observePromotionExecutor({ ...input(), fetchImpl: api([run(), { total_count: 1, jobs: [{ ...job(), ...patch }] }, run()]) }), /executor-observation-job-(timing|lifecycle)-invalid/);
+ }
+ const receipt = await observePromotionExecutor({ ...input(), fetchImpl: api(payloads()) });
+ assert.equal(receipt.jobStartedAt, "2026-10-15T11:59:00.000Z");
+ assert.equal(receipt.jobCompletedAt, null);
 });
