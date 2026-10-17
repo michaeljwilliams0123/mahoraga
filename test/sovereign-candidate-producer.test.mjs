@@ -443,3 +443,36 @@ test("publisher refuses stale main, path drift, and conflicting remote heads", a
   });
   await assert.rejects(conflict.publish(conflict.input), /candidate-existing-head-conflict/);
 });
+
+test("eligible gap becomes a bounded candidate without paid or protected writes", () => {
+  const candidate = producerModule.selectActionableGapRecipe({
+    gapAudit: { open: [{ id: "sovereign-candidate-path-safety", state: "open" }] },
+    fileExists: () => false,
+  });
+  assert.equal(candidate.id, "candidate-path-safety-regression");
+  assert.deepEqual(candidate.changedFiles, ["test/sovereign-candidate-path-safety.test.mjs"]);
+  producerModule.assertSafeCandidatePaths(candidate.changedFiles);
+  const generated = producerModule.renderCandidatePathSafetyTest();
+  assert.match(generated, /assertSafeCandidatePaths/);
+  assert.match(generated, /AGENTS\\.md/);
+  assert.doesNotMatch(generated, /OPENAI_API_KEY|sk-proj|npm install|git push/);
+  assert.equal(producerModule.selectActionableGapRecipe({
+    gapAudit: { open: [{ id: "sovereign-candidate-path-safety", state: "blocked" }] },
+    fileExists: () => false,
+  }), null);
+  assert.equal(producerModule.selectActionableGapRecipe({
+    gapAudit: { open: [{ id: "__proto__", state: "open" }] },
+    fileExists: () => false,
+  }), null);
+  assert.equal(producerModule.selectActionableGapRecipe({
+    gapAudit: { open: [{ id: "sovereign-candidate-path-safety", state: "open" }] },
+    fileExists: () => true,
+  }), null);
+});
+
+test("cycle completion fails closed if current main differs from evaluated SHA", () => {
+  assert.match(workflow, /evaluated_sha=/);
+  assert.match(workflow, /head_sha.*!=.*evaluated_sha/);
+  assert.match(workflow, /-f sha="\\$\\{evaluated_sha\\}"/);
+  assert.doesNotMatch(workflow, /-f sha="\\$\\{head_sha\\}"/);
+});
