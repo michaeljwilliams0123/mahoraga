@@ -137,6 +137,9 @@ export type RuntimeTask = {
 export type RuntimeExecutionReceipt = {
   sourceSHA?: string | null;
   persistedResultObservation?: "matched" | "missing" | "mismatch" | "not-observed";
+  githubActionReceipt?: { action: string; kind: "repository" | "pull-request" | "issue" | "workflow" | "comment";
+    number?: number; commentId?: number; headSha?: string; mainSha?: string; runId?: number;
+    outcome: "observed" | "accepted" | "pending" | "success" | "failure" };
   workerId: string;
   providerId: string;
   costClass: string;

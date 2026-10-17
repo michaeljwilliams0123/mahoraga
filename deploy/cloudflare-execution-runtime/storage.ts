@@ -1,5 +1,6 @@
 import type { EncryptedContentRecord, ConversationContentRole } from "./content-vault";
 import type { AssistantCostClass } from "./provider-policy";
+import { readGitHubActionReceipt, type GitHubActionReceipt } from "./github-action-receipt.ts";
 
 type ExecutionCostClass = AssistantCostClass | "deterministic";
 
@@ -29,6 +30,8 @@ export interface AssistantTurnRecord {
   responseDigest: string | null;
   /** Runtime source captured when this turn executed; absent on legacy writes. */
   sourceSHA?: string | null;
+  /** Bounded external GitHub App result persisted alongside the completed turn. */
+  githubReceipt?: GitHubActionReceipt | null;
   providerId: string | null;
   costClass: ExecutionCostClass | null;
   creditPolicy: AssistantCreditPolicy;
@@ -99,6 +102,7 @@ type TurnRow = Record<string, SqlStorageValue> & {
   request_digest: string;
   response_digest: string | null;
   source_sha: string | null;
+  github_receipt: string | null;
   provider_id: string | null;
   cost_class: ExecutionCostClass | null;
   credit_policy: AssistantCreditPolicy;
@@ -177,6 +181,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
         request_digest TEXT NOT NULL,
         response_digest TEXT,
         source_sha TEXT,
+        github_receipt TEXT,
         provider_id TEXT,
         cost_class TEXT,
         credit_policy TEXT NOT NULL CHECK (credit_policy IN ('zero-codex', 'licensed-approved')),
@@ -222,6 +227,9 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
     }
     if (!turnColumns.some((column) => column.name === "error_code")) {
       this.sql.exec("ALTER TABLE turns ADD COLUMN error_code TEXT");
+    }
+    if (!turnColumns.some((column) => column.name === "github_receipt")) {
+      this.sql.exec("ALTER TABLE turns ADD COLUMN github_receipt TEXT");
     }
   }
 
@@ -324,19 +332,21 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
   getTurn(id: string): AssistantTurnRecord | null {
     const row = this.sql
       .exec<TurnRow>(
-        `SELECT id, conversation_id, request_digest, response_digest, source_sha, provider_id, cost_class,
+        `SELECT id, conversation_id, request_digest, response_digest, source_sha, github_receipt, provider_id, cost_class,
                 credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
          FROM turns WHERE id = ?`,
         id,
       )
       .toArray()[0];
     if (row === undefined) return null;
+    const githubReceipt = readGitHubActionReceipt(row.github_receipt);
     return {
       id: row.id,
       conversationId: row.conversation_id,
       requestDigest: row.request_digest,
       responseDigest: row.response_digest,
       sourceSHA: row.source_sha,
+      ...(githubReceipt ? { githubReceipt } : {}),
       providerId: row.provider_id,
       costClass: row.cost_class,
       creditPolicy: row.credit_policy,
@@ -367,12 +377,13 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
   saveTurn(record: AssistantTurnRecord): void {
     this.sql.exec(
       `INSERT INTO turns (
-         id, conversation_id, request_digest, response_digest, source_sha, provider_id, cost_class,
+         id, conversation_id, request_digest, response_digest, source_sha, github_receipt, provider_id, cost_class,
          credit_policy, status, error_code, content_id_user, content_id_assistant, created_at, completed_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          -- Execution provenance is immutable, including unknown legacy sources.
          response_digest = excluded.response_digest,
+         github_receipt = excluded.github_receipt,
          provider_id = excluded.provider_id,
          cost_class = excluded.cost_class,
          credit_policy = excluded.credit_policy,
@@ -385,6 +396,7 @@ export class CloudflareDOSQLiteAdapter implements StorageAdapter {
       record.requestDigest,
       record.responseDigest,
       record.sourceSHA ?? null,
+      record.githubReceipt ? JSON.stringify(record.githubReceipt) : null,
       record.providerId,
       record.costClass,
       record.creditPolicy,

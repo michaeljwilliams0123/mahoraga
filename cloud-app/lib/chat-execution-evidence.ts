@@ -1,12 +1,34 @@
 export type ChatExecutionEvidence =
   | { status: "unavailable"; reason: "correlation-unavailable" | "task-not-completed" | "metadata-unavailable" }
   | { status: "reported"; taskId: string; workerId: string; providerId: string; costClass: string; creditPolicy: string; memoryState?: "indexed" | "pending"; sourceSHA?: string;
-      persistedResultObservation?: "matched" | "missing" | "mismatch" | "not-observed" };
+      persistedResultObservation?: "matched" | "missing" | "mismatch" | "not-observed";
+      githubActionReceipt?: { action: string; kind: "repository" | "pull-request" | "issue" | "workflow" | "comment";
+        number?: number; commentId?: number; headSha?: string; mainSha?: string; runId?: number;
+        outcome: "observed" | "accepted" | "pending" | "success" | "failure" } };
 
 const record = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
 const identifier = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(value);
 const COST_CLASSES = new Set(["deterministic", "cloud-open-weight", "local-open-weight", "zero-credit", "licensed-cloud", "metered-cloud"]);
 const CREDIT_POLICIES = new Set(["zero-codex", "licensed-approved"]);
+const GITHUB_ACTIONS = new Set(["status", "create", "merge", "dispatch", "checks", "diagnose", "issue-create", "issue-update", "pr-update", "comment-create", "comment-delete"]);
+const GITHUB_KINDS = new Set(["repository", "pull-request", "issue", "workflow", "comment"]);
+const GITHUB_OUTCOMES = new Set(["observed", "accepted", "pending", "success", "failure"]);
+const positive = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) > 0;
+function projectGitHubReceipt(value: unknown) {
+  const x = record(value);
+  if (!x || typeof x.action !== "string" || !GITHUB_ACTIONS.has(x.action) ||
+      typeof x.kind !== "string" || !GITHUB_KINDS.has(x.kind) ||
+      typeof x.outcome !== "string" || !GITHUB_OUTCOMES.has(x.outcome) ||
+      ["number", "commentId", "runId"].some(key => x[key] !== undefined && !positive(x[key])) ||
+      ["headSha", "mainSha"].some(key => x[key] !== undefined && (typeof x[key] !== "string" || !/^[a-f0-9]{40}$/.test(x[key])))) return null;
+  return { action: x.action, kind: x.kind as "repository" | "pull-request" | "issue" | "workflow" | "comment",
+    ...(positive(x.number) ? { number: x.number } : {}),
+    ...(positive(x.commentId) ? { commentId: x.commentId } : {}),
+    ...(positive(x.runId) ? { runId: x.runId } : {}),
+    ...(typeof x.headSha === "string" ? { headSha: x.headSha } : {}),
+    ...(typeof x.mainSha === "string" ? { mainSha: x.mainSha } : {}),
+    outcome: x.outcome as "observed" | "accepted" | "pending" | "success" | "failure" };
+}
 
 /** This is supplied task metadata, never independent execution or authority proof. */
 export function projectMessageExecution(message: unknown, tasks: unknown, conversationId: string): ChatExecutionEvidence {
@@ -30,7 +52,8 @@ export function projectMessageExecution(message: unknown, tasks: unknown, conver
     ...(typeof receipt.sourceSHA === "string" && /^[a-f0-9]{40}$/i.test(receipt.sourceSHA) ? { sourceSHA: receipt.sourceSHA } : {}),
     ...(receipt.memoryState === undefined ? {} : { memoryState: receipt.memoryState }),
     ...(["matched", "missing", "mismatch", "not-observed"].includes(String(receipt.persistedResultObservation))
-      ? { persistedResultObservation: receipt.persistedResultObservation as "matched" | "missing" | "mismatch" | "not-observed" } : {}) };
+      ? { persistedResultObservation: receipt.persistedResultObservation as "matched" | "missing" | "mismatch" | "not-observed" } : {}),
+    ...(projectGitHubReceipt(receipt.githubActionReceipt) ? { githubActionReceipt: projectGitHubReceipt(receipt.githubActionReceipt)! } : {}) };
 }
 
 /** Join the existing history/messages/tasks reads by IDs; never by order or text. */
