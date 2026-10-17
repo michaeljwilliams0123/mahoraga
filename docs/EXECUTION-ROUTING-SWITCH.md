@@ -42,7 +42,7 @@ workflows rather than purchasing a runner.
 
 | Mode | Public repository: Steward | Private repository: Steward | Sovereign candidate / smoke |
 | --- | --- | --- | --- |
-| `auto` or unset | Free standard hosted Ubuntu | Local Windows x64 **only if** `MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED=true`; otherwise skip | Existing machine-neutral local Windows zero-credit lane |
+| `auto` or unset | Free standard hosted Ubuntu | Local Windows x64 **only if** `MAHORAGA_PRIVATE_STEWARD_LOCAL_ENABLED=true`; otherwise skip | Free hosted Ubuntu when public; local Windows zero-credit runner when private |
 | `cloud` | Free standard hosted Ubuntu | Skip (no private hosted spending) | Skip; no cloud equivalent asserted |
 | `local` | Skip (the CLI also refuses choosing public-local) | Local Windows x64 **only if** separately owner-enabled; otherwise skip | Local Windows x64 **only when private** |
 | `hold` | Skip | Skip | Skip |

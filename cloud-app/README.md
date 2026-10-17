@@ -2,7 +2,7 @@
 
 `cloud-app/` is the **single browser UI source** for Mahoraga.
 
-GitHub `main` is the private code authority. `cloud-app/` is host-neutral. The
+GitHub `main` is the canonical code authority regardless of repository visibility. `cloud-app/` is host-neutral. The
 normal owner-facing production entry is the Access-protected Cloudflare owner gateway,
 which serves the exact-main workspace assets and same-origin runtime routes through
 bounded service bindings. GitHub Pages publishes a derived static mirror when enabled;

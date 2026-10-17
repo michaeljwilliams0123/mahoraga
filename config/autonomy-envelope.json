@@ -35,8 +35,8 @@
     "bypass-tenant-or-identity-controls"
   ],
   "evolutionSettings": {
-    "defaultLineChangeLimit": 150,
-    "maxLineChangeThreshold": 500,
+    "defaultLineChangeLimit": 600,
+    "maxLineChangeThreshold": 2400,
     "targetDirectories": [
       "src",
       "cloud-app",

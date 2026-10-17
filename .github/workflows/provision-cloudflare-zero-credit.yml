@@ -1,17 +1,19 @@
 name: Provision Cloudflare Zero-Credit Account
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/provision-cloudflare-zero-credit.yml
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type PROVISION_DISPOSABLE_FREE_ACCOUNT
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   provision:
+    if: github.actor == github.repository_owner && inputs.confirmation == 'PROVISION_DISPOSABLE_FREE_ACCOUNT'
     runs-on: ubuntu-latest
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

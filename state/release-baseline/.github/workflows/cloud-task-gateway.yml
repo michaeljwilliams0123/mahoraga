@@ -13,8 +13,8 @@ on:
         type: string
 
 permissions:
-  actions: write
-  contents: write
+  actions: read
+  contents: read
   issues: write
 
 concurrency:
@@ -28,11 +28,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Mint existing GitHub App PR publication token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ secrets.MAHORAGA_GITHUB_APP_ID }}
+          private-key: ${{ secrets.MAHORAGA_GITHUB_APP_PRIVATE_KEY }}
+          repositories: mahoraga
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Check out authoritative main
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: main
           fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Use Mahoraga Node runtime
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -97,45 +108,38 @@ jobs:
           node scripts/coordination.mjs validate
           node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
 
-      - name: Commit new dispatch to main
+      # PR handoff replaces direct-main mutations; native receiver acts only on merged main.
+      - name: Stage validated dispatch through protected pull request
         id: publish
         shell: bash
         env:
           ISSUE_NUMBER: ${{ inputs.issue_number }}
           MODE: ${{ steps.gateway.outputs.mode }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           set -euo pipefail
           git config user.name "Mahoraga Cloud Gateway"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- coordination/assignments coordination/cloud-tasks
           if ! git diff --cached --quiet; then
+            current_main="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha')"
+            test "$(git rev-parse HEAD)" = "$current_main" || {
+              echo "::error::main moved during dispatch; retry from exact current source."
+              exit 1
+            }
+            branch="feature/gateway-dispatch-${ISSUE_NUMBER}-${GITHUB_RUN_ID}"
+            git switch -c "$branch"
             git commit -m "[CONTROL] Dispatch ${MODE} from issue #${ISSUE_NUMBER}"
-            git pull --rebase origin main
             node scripts/coordination.mjs validate
             node scripts/codex-cloud-task.mjs dispatch-bundle > /dev/null
-            git push origin HEAD:main
+            git push origin "HEAD:refs/heads/${branch}"
+            pr_url="$(gh pr create --base main --head "$branch" --title "chore(gateway): stage bounded ${MODE} dispatch from issue #${ISSUE_NUMBER}" --body "Native protected dispatch handoff for issue #${ISSUE_NUMBER}. Receiver execution begins only after exact-head Verify and protected merge to main. No paid inference or direct-main mutation.")"
+            echo "pr_url=$pr_url" >> "$GITHUB_OUTPUT"
+            echo "state=awaiting-protected-merge" >> "$GITHUB_OUTPUT"
+          else
+            echo "state=already-recorded" >> "$GITHUB_OUTPUT"
           fi
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch desktop assignment to cloud receiver
-        id: workspace_receiver
-        if: steps.gateway.outputs.mode == 'desktop'
-        continue-on-error: true
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
-        env:
-          ASSIGNMENT_ID: ${{ steps.gateway.outputs.recordId }}
-        with:
-          script: |
-            const { owner, repo } = context.repo;
-            await github.rest.actions.createWorkflowDispatch({
-              owner,
-              repo,
-              workflow_id: "workspace-agent-receiver.yml",
-              ref: "main",
-              inputs: { assignment_id: process.env.ASSIGNMENT_ID },
-            });
-            core.setOutput("state", "dispatched");
-
       - name: Label and acknowledge accepted dispatch
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
@@ -146,6 +150,8 @@ jobs:
           CHANGED: ${{ steps.gateway.outputs.changed }}
           COMMIT: ${{ steps.publish.outputs.commit }}
           ATTACHMENT_COUNT: ${{ steps.gateway.outputs.attachmentReferenceCount }}
+          PR_URL: ${{ steps.publish.outputs.pr_url }}
+          PUBLICATION_STATE: ${{ steps.publish.outputs.state }}
           RECEIVER_STATE: ${{ steps.workspace_receiver.outputs.state }}
           RECEIVER_OUTCOME: ${{ steps.workspace_receiver.outcome }}
         with:
@@ -154,7 +160,7 @@ jobs:
             const issue_number = Number(process.env.ISSUE_NUMBER);
             const mode = process.env.MODE;
             const labels = [
-              { name: "mahoraga:dispatched", color: "0e8a16", description: "Owner-approved Mahoraga dispatch" },
+              { name: "mahoraga:queued", color: "0e8a16", description: "Bounded dispatch waiting for protected PR" },
               mode === "codex"
                 ? { name: "lane:codex-cloud", color: "1d76db", description: "Explicit Codex cloud execution lane" }
                 : { name: "lane:desktop", color: "d876e3", description: "Outbound desktop Codex execution lane" },
@@ -171,18 +177,13 @@ jobs:
             const attachments = Number(process.env.ATTACHMENT_COUNT) > 0
               ? ` ${process.env.ATTACHMENT_COUNT} attachment reference(s) remain in this source issue and were not copied into the coordination record.`
               : "";
-            const allowedReceiverStates = new Set(["dispatched"]);
-            const receiverState = process.env.RECEIVER_OUTCOME === "failure"
-              ? "delivery-failed"
-              : allowedReceiverStates.has(process.env.RECEIVER_STATE)
-                ? process.env.RECEIVER_STATE
-                : "not-requested";
-            const receiver = mode === "desktop" ? ` Cloud receiver: **${receiverState}**.` : "";
+            const receiver = mode === "desktop" ? " Receiver will consume the assignment after the protected merge." : "";
+            const pr = process.env.PR_URL ? ` Protected PR: ${process.env.PR_URL}.` : "";
             await github.rest.issues.createComment({
               owner,
               repo,
               issue_number,
-              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`.${receiver}${attachments}\n\nDeterministic validation is complete. Model execution occurs only in the explicitly approved lane.`,
+              body: `Mahoraga ${state} the bounded **${mode}** dispatch \`${process.env.RECORD_ID}\` at \`${process.env.COMMIT.slice(0, 12)}\`. State: **${process.env.PUBLICATION_STATE}**.${pr}${receiver}${attachments}\n\nDeterministic validation is complete. Model execution is not activated until protected merge.`,
             });
 
       - name: Report rejected dispatch without echoing issue content
@@ -200,9 +201,3 @@ jobs:
               issue_number,
               body: `Mahoraga rejected this dispatch before model execution. No execution record was activated. Review the bounded workflow evidence: ${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
             });
-
-      - name: Fail after reporting cloud receiver delivery error
-        if: steps.workspace_receiver.outcome == 'failure'
-        run: |
-          echo "Configured Workspace Agent receiver did not accept the bounded assignment." >&2
-          exit 1

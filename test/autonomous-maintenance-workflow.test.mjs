@@ -11,7 +11,7 @@ async function workflow(name) {
 test("scheduled candidate cycle preserves a four-hour durable cadence without installing root dependencies", async () => {
   const source = await workflow("sovereign-eight-hour-cycle.yml");
   assert.match(source, /name: Sovereign Four Hour Candidate Cycle/);
-  assert.match(source, /cron: '7,22,37,52 \* \* \* \*'/);
+  assert.match(source, /cron: '17 \* \* \* \*'/);
   assert.match(source, /Publish Staged Mahoraga Update/);
   assert.match(source, /SOVEREIGN_ANCHOR_PREFIX: sovereign-cycle-anchor-v2-/);
   assert.match(source, /SOVEREIGN_COMPLETE_PREFIX: sovereign-cycle-complete-v2-/);

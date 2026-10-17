@@ -7,7 +7,7 @@ on:
     types:
       - completed
   schedule:
-    - cron: '7,22,37,52 * * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       branch:

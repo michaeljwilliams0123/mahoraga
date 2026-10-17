@@ -68,7 +68,10 @@ test("cloud gateway workflow is owner-only, explicitly dispatched, and model-fre
   assert.match(workflow, /--event "\$EVENT_FILE"/);
   assert.match(workflow, /node scripts\/coordination\.mjs validate/);
   assert.match(workflow, /node scripts\/codex-cloud-task\.mjs dispatch-bundle/);
-  assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex exec|\$\{\{\s*secrets\./);
+  assert.doesNotMatch(workflow, /OPENAI_API_KEY|codex exec/);
+  assert.match(workflow, /MAHORAGA_GITHUB_APP_PRIVATE_KEY/);
+  assert.match(workflow, /gh pr create --base main/);
+  assert.doesNotMatch(workflow, /git push origin HEAD:main/);
 });
 
 test("terminal runtime work cannot silently return the chat to idle without a rendered reply", async () => {
