@@ -12,6 +12,8 @@ test("7.0.0-alpha.2 cockpit surfaces sovereign candidate receipt as observationa
   assert.match(cockpit, /SovereignCandidateReceiptCard/);
   assert.match(card, /Zero-credit · observational/);
   assert.match(card, /#1136/);
+  assert.match(card, /#1155/);
+  assert.match(card, /sourceIssueNumber/);
   assert.match(card, /creditCost=0/);
   assert.match(card, /not execution readiness/);
   assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
