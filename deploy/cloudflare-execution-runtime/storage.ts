@@ -1,6 +1,6 @@
 import type { EncryptedContentRecord, ConversationContentRole } from "./content-vault";
 import type { AssistantCostClass } from "./provider-policy";
-import { readGitHubActionReceipt, type GitHubActionReceipt } from "./github-action-receipt";
+import { readGitHubActionReceipt, type GitHubActionReceipt } from "./github-action-receipt.ts";
 
 type ExecutionCostClass = AssistantCostClass | "deterministic";
 

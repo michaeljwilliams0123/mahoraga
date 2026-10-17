@@ -4,7 +4,7 @@ import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, pr
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
 import { observePersistedTurnResult } from "./turn-storage-observation";
-import { projectGitHubActionReceipt } from "./github-action-receipt";
+import { projectGitHubActionReceipt } from "./github-action-receipt.ts";
 // Canonical deterministic cognition is shared with the local cognitive worker.
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
 import { simulateCounterfactual } from "../../src/cognitive-world-model.mjs";
