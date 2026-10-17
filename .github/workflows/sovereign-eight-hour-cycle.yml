@@ -1,11 +1,6 @@
 name: Sovereign Four Hour Candidate Cycle
 
 on:
-  workflow_run:
-    workflows:
-      - Publish Staged Mahoraga Update
-    types:
-      - completed
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
@@ -54,10 +49,7 @@ jobs:
          vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
          vars.MAHORAGA_EXECUTION_ROUTE == 'local'))) &&
       (github.event_name == 'schedule' ||
-       (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123') ||
-       (github.event_name == 'workflow_run' &&
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'))
+       (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123'))
     runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 40
     steps:
@@ -97,8 +89,6 @@ jobs:
         id: cadence
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASED_AT: ${{ github.event.workflow_run.updated_at }}
-          RELEASED_SHA: ${{ github.event.workflow_run.head_sha }}
           FORCE_RUN: ${{ github.event.inputs.force || 'false' }}
         shell: bash
         run: |
@@ -113,18 +103,14 @@ jobs:
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_run" && -n "${RELEASED_SHA:-}" && "${RELEASED_SHA}" != "${current_main}" ]]; then
-            echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; refusing to anchor stale production."
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
           anchor_tag="$(git tag --list "${SOVEREIGN_ANCHOR_PREFIX}*" --sort=-refname | head -n 1)"
           created_anchor=false
 
           if [[ -z "${anchor_tag}" ]]; then
-            if [[ "${GITHUB_EVENT_NAME}" != "workflow_run" || -z "${RELEASED_AT:-}" ]]; then
-              echo "No durable cadence anchor exists yet; heartbeat exits without work."
+            release_evidence="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs?branch=main&status=success&per_page=100" | node scripts/sovereign-release-evidence.mjs "${current_main}")"
+            RELEASED_AT="$(node -e 'const r=JSON.parse(process.argv[1]); if(r.status==="verified-release") process.stdout.write(r.releasedAt);' "${release_evidence}")"
+            if [[ -z "${RELEASED_AT}" ]]; then
+              echo "No successful exact-main staged release is confirmed; cadence anchor remains uncreated."
               echo "should_run=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
@@ -337,9 +323,8 @@ jobs:
         (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
          vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
          vars.MAHORAGA_EXECUTION_ROUTE == 'local'))) &&
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && github.actor == 'michaeljwilliams0123'))
     runs-on: ${{ fromJSON(github.event.repository.private && '["self-hosted","windows","x64","mahoraga","zero-credit"]' || '"ubuntu-latest"') }}
     timeout-minutes: 25
     steps:
@@ -378,20 +363,20 @@ jobs:
       - name: Arm one-time producer smoke ten minutes after deployment
         id: smoke
         env:
-          RELEASED_AT: ${{ github.event.workflow_run.updated_at }}
-          RELEASED_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           git fetch --tags --force --prune
           current_main="$(git rev-parse origin/main)"
           checkout_sha="$(git rev-parse HEAD)"
-          echo "released_sha=${RELEASED_SHA}" >> "$GITHUB_OUTPUT"
-          if [[ "${RELEASED_SHA}" != "${current_main}" || "${checkout_sha}" != "${RELEASED_SHA}" ]]; then
-            echo "Released SHA ${RELEASED_SHA} is no longer current main ${current_main}; smoke is stale."
+          echo "released_sha=${checkout_sha}" >> "$GITHUB_OUTPUT"
+          if [[ "${checkout_sha}" != "${current_main}" ]]; then
+            echo "Checked-out source ${checkout_sha} is not authoritative main ${current_main}; smoke is stale."
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          RELEASED_SHA="${current_main}"
           smoke_tag="$(node scripts/sovereign-workflow-evidence.mjs smoke-tag "${RELEASED_SHA}")"
           echo "smoke_tag=${smoke_tag}" >> "$GITHUB_OUTPUT"
           if git show-ref --tags --verify --quiet "refs/tags/${smoke_tag}"; then
@@ -399,6 +384,14 @@ jobs:
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          release_evidence="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs?branch=main&status=success&per_page=100" | node scripts/sovereign-release-evidence.mjs "${RELEASED_SHA}")"
+          RELEASED_AT="$(node -e 'const r=JSON.parse(process.argv[1]); if(r.status==="verified-release") process.stdout.write(r.releasedAt);' "${release_evidence}")"
+          if [[ -z "${RELEASED_AT}" ]]; then
+            echo "No successful exact-main staged release; producer smoke remains held without a paid route."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Release accepted for smoke: ${RELEASED_SHA}; ${release_evidence}" >> "$GITHUB_STEP_SUMMARY"
           smoke_at="$(node --input-type=module -e 'import { createDeploymentAnchor } from "./src/sovereign-cycle-clock.mjs"; console.log(createDeploymentAnchor(process.argv[1]));' "${RELEASED_AT}")"
           smoke_epoch="$(node --input-type=module -e 'import { getAnchorEpoch } from "./src/sovereign-cycle-clock.mjs"; console.log(getAnchorEpoch(process.argv[1]));' "${smoke_at}")"
           now_epoch="$(date -u +%s)"
