@@ -1,1 +1,1 @@
-PLACEHOLDER
+$(cat /tmp/CockpitView.tsx)
