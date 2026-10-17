@@ -2,9 +2,9 @@ export function SovereignCandidateReceiptCard() {
   return (
     <article className="eclipse-status-card neutral" data-testid="sovereign-candidate-receipt">
       <span>Sovereign candidate receipt</span>
-      <strong>Zero-credit · observational</strong>
+      <strong>Zero-credit · exact-source · observational</strong>
       <p>
-        Merge #1136 (001c8aa8) admits real zero-credit candidate via repository-scoped GitHub App token (contents:write + pull-requests:write only). Content-free 7-day artifact receipt projects cycleId, window, base/head SHA, PR number, branch, changed-files digest, creditCost=0, paidFallback=false. Draft PRs; Verify uses job github.token only. One-shot when test/sovereign-candidate-receipt.test.mjs absent (issue #786); not execution readiness, cognition readiness, or traffic authority. Product remains Mahoraga; 7.0.0-alpha.2 is build provenance only.
+        Merge #1152 (0fff9e2) restores zero-credit candidate execution and exact-source completion: stops obsolete Vercel quota comments, admits allowlisted evidence-backed path-safety regression candidate ahead of ledger-only refreshes, refuses completed-window tags when main differs from evaluated SHA (anchors tags to evaluated SHA). Protected checks, paid-route refusal, GitHub App scope preserved. Content-free receipt; creditCost=0; paidFallback=false. Not execution readiness, cognition readiness, or traffic authority. Product remains Mahoraga; 7.0.0-alpha.2 is build provenance only.
       </p>
     </article>
   );
