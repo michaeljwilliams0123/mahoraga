@@ -494,3 +494,18 @@ test("actionable work outranks a changed gap-ledger pulse in the same cycle", ()
   assert.equal(enhancement.id, "candidate-path-safety-regression");
   assert.deepEqual(enhancement.changedFiles, ["test/sovereign-candidate-path-safety.test.mjs"]);
 });
+
+test("actionable issue recipe produces a bounded GitHub issue-linked PR body", () => {
+  const recipe = producerModule.selectActionableGapRecipe({
+    gapAudit: { open: [{ id: "sovereign-candidate-path-safety", state: "open" }] },
+    fileExists: () => false,
+  });
+  assert.equal(recipe.sourceIssueNumber, 1145);
+  const body = producerModule.candidatePullRequestBody(recipe);
+  assert.match(body, /Refs #1145/);
+  assert.match(body, /Produced by Mahoraga sovereign zero-credit candidate cycle/);
+  assert.doesNotMatch(body, /Closes #1145|OPENAI_API_KEY|sk-proj/);
+  for (const bad of [0, -1, "1145", "1145\nmalicious", 10_000_000]) {
+    assert.throws(() => producerModule.candidatePullRequestBody({ ...recipe, sourceIssueNumber: bad }), /candidate-source-issue-invalid/);
+  }
+});

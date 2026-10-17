@@ -33,7 +33,13 @@ export function validateCandidateReceipt(value) {
     ? value.changedFilesDigest
     : null;
   if (!changedFilesDigest) throw new TypeError("candidate changed-files digest is invalid");
-  return Object.freeze({ baseSha, headSha, branch, pullRequestNumber, changedFilesDigest });
+  const sourceIssueNumber = value.sourceIssueNumber;
+  if (sourceIssueNumber !== undefined && (!Number.isSafeInteger(sourceIssueNumber) || sourceIssueNumber < 1 || sourceIssueNumber > 9_999_999)) {
+    throw new TypeError("candidate source issue is invalid");
+  }
+  return Object.freeze({ baseSha, headSha, branch, pullRequestNumber, changedFilesDigest,
+    ...(sourceIssueNumber === undefined ? {} : { sourceIssueNumber }),
+  });
 }
 
 export async function runCloudCycle({ repositoryIdentity, branch = "main", providers = [], requiresGeneration = true, cloudModeEnabled = true, client, providerSelector = selectZeroCreditProvider, candidateProducer = null, now = new Date(), anchorAtUtc = null, creditFree = {} } = {}) {
