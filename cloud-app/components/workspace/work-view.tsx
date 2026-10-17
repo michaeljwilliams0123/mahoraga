@@ -54,7 +54,7 @@ export function WorkView({ coreReady, relay, onRequestPairing, onRunQuickAction 
         <p role="status">Reading authenticated work evidence…</p>
       ) : (
         <div className="work-grid">
-          <article><Activity size={20} /><span>Active</span><strong>{snapshot?.tasks.active ?? 0}</strong><small>tasks in motion; includes queued retries</small></article>
+          <article><Activity size={20} /><span>{cloudOnly ? "Pending turns" : "Active"}</span><strong>{snapshot.tasks.active}</strong><small>{cloudOnly ? "Persisted PENDING records; not proof of a running worker" : "tasks in motion; includes queued retries"}</small></article>
           <article><Sparkles size={20} /><span>{cloudOnly ? "Completed" : "Waiting"}</span><strong>{cloudOnly ? snapshot.tasks.completed ?? "Unknown" : snapshot.tasks.waiting}</strong><small>{cloudOnly ? "Persisted owner-scoped cloud turns" : "waiting or waiting for user input"}</small></article>
           <article><CircleAlert size={20} /><span>Failed</span><strong>{snapshot?.tasks.failed ?? 0}</strong><small>terminal; lease-expired exhausted is not claimable</small></article>
           <article><GitBranch size={20} /><span>{cloudOnly ? "Deployed source" : "Repository"}</span><strong>{cloudOnly ? "Provenance only" : snapshot.repository.cleanState}</strong><small>{snapshot.repository.headSha?.slice(0, 8) ?? "head unavailable"}</small></article>

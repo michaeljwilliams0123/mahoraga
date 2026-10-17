@@ -49,3 +49,10 @@ test("Build/Ship requires an actual admitted zero-credit development worker, not
   assert.equal(canRunZeroCreditDevelopmentAction(true,[route("build.execute","cloud-open-weight")]),true);
   assert.equal(canRunZeroCreditDevelopmentAction(false,[route("build.execute","cloud-open-weight")]),false);
 });
+
+test("cloud Work calls PENDING a persisted turn, not a running worker",()=>{
+  const work=readFileSync(new URL("../cloud-app/components/workspace/work-view.tsx",import.meta.url),"utf8");
+  assert.match(work,/Pending turns/);
+  assert.match(work,/not proof of a running worker/);
+  assert.match(work,/Cloudflare turn counts only/);
+});
