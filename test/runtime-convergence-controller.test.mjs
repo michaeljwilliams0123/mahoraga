@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import { ROOT } from "../src/config.mjs";
 
@@ -8,7 +8,7 @@ async function source(relative) {
   return readFile(path.join(ROOT, relative), "utf8");
 }
 
-test("Windows convergence controller periodically promotes verified main without model calls", async () => {
+test("Windows convergence controller evaluates verified main without model calls", async () => {
   const [controller, installer, startupInstaller] = await Promise.all([
     source("scripts/runtime-convergence.ps1"),
     source("scripts/install-runtime-convergence.ps1"),
@@ -122,15 +122,15 @@ test("Windows convergence stop helper never shadows PowerShell automatic PID", a
   assert.match(controller, /function\s+Stop-Listener\s*\(\s*\[int\]\s*\$ProcessId\s*\)/i);
 });
 
-test("Windows convergence promotes a verified current 4783 candidate into canonical 4782", async () => {
+test("Windows convergence accepts current production and holds an unsafe replacement", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.match(controller, /\$productionHealthUrl\s*=\s*["']http:\/\/127\.0\.0\.1:4782\/api\/status["']/i);
   assert.match(controller, /function\s+Ensure-ProductionCurrent\s*\(\s*\[string\]\s*\$ExpectedCommit\s*\)/i);
-  assert.match(controller, /start-production\.ps1/i);
   assert.match(controller, /production\.runtime\.provenance\.sourceCommit/i);
   assert.match(controller, /production\.runtime\.provenance\.authoritativeSourceCommit/i);
   assert.match(controller, /production\.runtime\.provenance\.state/i);
-  assert.match(controller, /state\s*=\s*["']production-promoted["']/i);
+  assert.match(controller, /state\s*=\s*["']production-promotion-held["']/i);
+  assert.doesNotMatch(controller, /start-production\.ps1/i);
   assert.match(
     controller,
     /if\s*\(\$sourceCommit\s+-eq\s+\$targetCommit\)\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?exit\s+0/i,
@@ -146,9 +146,99 @@ test("convergence leaves 4783 stopped when canonical 4782 is already current", a
   );
 });
 
-test("successful convergence promotes 4782 and tears down 4783 before exit", async () => {
+test("convergence tears down an exact-main candidate after production acceptance or hold", async () => {
   const controller = await source("scripts/runtime-convergence.ps1");
   assert.match(controller, /function\s+Stop-VerifiedCandidate/i);
-  assert.match(controller, /Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?Stop-VerifiedCandidate\s+\$targetCommit/i);
+  assert.match(controller, /try\s*\{[\s\S]*?Ensure-ProductionCurrent\s+\$targetCommit[\s\S]*?finally\s*\{[\s\S]*?Stop-VerifiedCandidate\s+\$targetCommit/i);
   assert.match(controller, /state\s*=\s*["']candidate-stopped["']/i);
+});
+
+
+test("production hold is persisted before verification and never enters old-binary rollback", async () => {
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const hold = controller.indexOf("# Promotion requires an independently verified native checkpoint/restore");
+  const verify = controller.indexOf("Invoke-VerificationGate", controller.indexOf("reset --hard $targetCommit"));
+  const sourceReset = controller.indexOf("reset --hard $targetCommit");
+  assert.ok(hold > 0 && hold < sourceReset && hold < verify);
+  assert.match(controller.slice(hold, sourceReset), /production-promotion-hold\.json|\$promotionHoldFile/);
+  assert.match(controller.slice(hold, sourceReset), /\$holdUnchanged/);
+  assert.match(controller.slice(hold, sourceReset), /exit 0/);
+  const catchStart = controller.lastIndexOf("} catch {");
+  const catchBody = controller.slice(catchStart);
+  const branch = catchBody.indexOf("if ($_.Exception.Message -like 'production-promotion-held:*')");
+  const rollback = catchBody.indexOf("Start-Candidate $rollbackWorktree $sourceCommit");
+  assert.ok(branch >= 0 && rollback > branch, "intentional hold must bypass rollback");
+  assert.match(catchBody.slice(branch, rollback), /Stop-VerifiedCandidate \$targetCommit/);
+});
+
+test("Windows one-minute hold is idempotent, updates on main change, and lifts when production is exact", async (t) => {
+  if (process.platform !== "win32") return t.skip("PowerShell fixture only runs on Windows");
+  const { mkdtemp, readdir, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const temp = await mkdtemp(path.join(tmpdir(), "mahoraga-promotion-hold-"));
+  const controller = await source("scripts/runtime-convergence.ps1");
+  const start = controller.indexOf("# Promotion requires an independently verified native checkpoint/restore");
+  const end = controller.indexOf("$currentControllerCommit = Resolve-Commit", start);
+  assert.ok(start > -1 && end > start);
+  const guard = controller.slice(start, end);
+  const sha1 = "a".repeat(40), sha2 = "b".repeat(40), old = "c".repeat(40);
+  const psPath = temp.replaceAll("'", "''");
+  const invoke = (target, exact) => {
+    const script = [
+      "$ErrorActionPreference = 'Stop'",
+      "$convergenceRoot = '" + psPath + "'",
+      "$promotionHoldFile = Join-Path $convergenceRoot 'production-promotion-hold.json'",
+      "$targetCommit = '" + target + "'",
+      "$Port = 4783",
+      "function Get-ProductionStatus { return [pscustomobject]@{ product='Mahoraga'; runtime=[pscustomobject]@{healthy=$true; provenance=[pscustomobject]@{sourceCommit='" + old + "';authoritativeSourceCommit='" + old + "';state='current'}} } }",
+      "function Test-ProductionExactMain($Status, [string]$Commit) { return " + (exact ? "$true" : "$false") + " }",
+      "function Write-Receipt([hashtable]$Body) { Add-Content -LiteralPath (Join-Path $convergenceRoot 'writes.txt') -Value $Body.state }",
+      guard,
+      "Write-Output 'CONTINUES_AFTER_HOLD'"
+    ].join("\n");
+    return spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-EncodedCommand",
+      Buffer.from(script, "utf16le").toString("base64")], { encoding: "utf8", timeout: 15000 });
+  };
+  try {
+    const first = invoke(sha1, false);
+    assert.equal(first.status, 0, first.stderr);
+    assert.match(first.stdout, /promotion held/);
+    let files = await readdir(temp);
+    assert.ok(files.includes("production-promotion-hold.json"));
+    const { readFile } = await import("node:fs/promises");
+    assert.equal((await readFile(path.join(temp, "writes.txt"), "utf8")).trim(), "production-promotion-held");
+    const second = invoke(sha1, false);
+    assert.equal(second.status, 0, second.stderr);
+    assert.equal((await readFile(path.join(temp, "writes.txt"), "utf8")).trim().split(/\r?\n/).length, 1);
+    const moved = invoke(sha2, false);
+    assert.equal(moved.status, 0, moved.stderr);
+    assert.equal((await readFile(path.join(temp, "writes.txt"), "utf8")).trim().split(/\r?\n/).length, 2);
+    const accepted = invoke(sha2, true);
+    assert.equal(accepted.status, 0, accepted.stderr);
+    assert.match(accepted.stdout, /CONTINUES_AFTER_HOLD/);
+    files = await readdir(temp);
+    assert.equal(files.includes("production-promotion-hold.json"), false);
+  } finally {
+    await rm(temp, { force: true, recursive: true });
+  }
+});
+
+test("Windows activation stays in the native controller and holds before an unprotected production replacement", async () => {
+  const [controller, launcher] = await Promise.all([
+    source("scripts/runtime-convergence.ps1"),
+    source("scripts/start-production.ps1"),
+  ]);
+  await assert.rejects(
+    access(path.join(ROOT, "src/windows-production-coordinator.ts")),
+    /ENOENT/,
+  );
+
+  const promotion = controller.match(/function Ensure-ProductionCurrent[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(promotion, /production-promotion-held:trusted-native-restore-unavailable/i);
+  assert.doesNotMatch(promotion, /start-production\.ps1/i);
+
+  const replacement = launcher.match(/if \(\$existing -and \$existing\.product -eq 'Mahoraga'\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+  assert.match(replacement, /production-replacement-held:trusted-native-restore-unavailable/i);
+  assert.doesNotMatch(replacement, /stop-production\.ps1/i);
 });
