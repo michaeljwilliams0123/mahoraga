@@ -19,6 +19,7 @@ const ACTIONABLE_GAP_RECIPES = Object.freeze({
     title: "test: enforce sovereign candidate path isolation",
     summary: "Add adversarial regression tests for paths, trust-plane writes, and traversal.",
     changedFiles: Object.freeze([CANDIDATE_PATH_SAFETY_TEST]),
+    sourceIssueNumber: 1145,
   }),
 });
 const TRUST_PLANE_PREFIXES = [".github/", ".githooks/"];
@@ -444,7 +445,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
     if (existing) {
       const { pr, created } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha: existing.headSha, enhancement, existingPrs: existing.prs, root, runCommand });
       if (!created) dispatchVerify({ repositoryIdentity, branchName, headSha: existing.headSha, root, runCommand, token: verifyDispatchToken });
-      return candidateReceipt({ baseSha, headSha: existing.headSha, branchName, pr, changedFiles: existing.changedFiles });
+      return candidateReceipt({ baseSha, headSha: existing.headSha, branchName, pr, changedFiles: existing.changedFiles, enhancement });
     }
 
     command(runCommand, "git", ["checkout", "-b", branchName, baseSha], root);
@@ -480,7 +481,7 @@ export function createGitHubNativeCandidateProducer({ root = ROOT, runCommand = 
 
     command(runCommand, "git", ["push", "origin", `HEAD:refs/heads/${branchName}`], root);
     const { pr } = ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs: [], root, runCommand });
-    return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles });
+    return candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles, enhancement });
   };
 }
 
@@ -502,11 +503,17 @@ function existingCandidateContext({ repositoryIdentity, branchName, baseSha, enh
   return Object.freeze({ headSha, changedFiles, prs });
 }
 
+export function candidatePullRequestBody(enhancement) {
+  const sourceIssueNumber = enhancement?.sourceIssueNumber;
+  if (sourceIssueNumber !== undefined && (!Number.isSafeInteger(sourceIssueNumber) || sourceIssueNumber < 1 || sourceIssueNumber > 9_999_999)) throw codedError("candidate-source-issue-invalid");
+  return `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.${sourceIssueNumber === undefined ? "" : `\n\nRefs #${sourceIssueNumber}`}`;
+}
+
 function ensurePullRequest({ repositoryIdentity, branchName, baseSha, headSha, enhancement, existingPrs, root, runCommand }) {
   const decision = decideExistingCandidateHandoff(existingPrs);
   if (decision === "create-pr") {
     try {
-      command(runCommand, "gh", ["pr", "create", "--draft", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", `${enhancement.summary}\n\nProduced by Mahoraga sovereign zero-credit candidate cycle.`], root);
+      command(runCommand, "gh", ["pr", "create", "--draft", "--repo", repositoryIdentity, "--base", "main", "--head", branchName, "--title", enhancement.title, "--body", candidatePullRequestBody(enhancement)], root);
     } catch (error) {
       const classified = classifyPullRequestCreationFailure(error);
       throw codedError(classified.code, classified);
@@ -555,13 +562,14 @@ function dispatchVerify({ repositoryIdentity, branchName, headSha, root, runComm
   }
 }
 
-function candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles }) {
+function candidateReceipt({ baseSha, headSha, branchName, pr, changedFiles, enhancement }) {
   return Object.freeze({
     baseSha,
     headSha,
     branch: branchName,
     pullRequestNumber: pr.number,
     changedFilesDigest: candidateChangedFilesDigest(changedFiles),
+    ...(enhancement?.sourceIssueNumber === undefined ? {} : { sourceIssueNumber: enhancement.sourceIssueNumber }),
   });
 }
 
