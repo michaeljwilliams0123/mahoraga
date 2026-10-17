@@ -129,7 +129,7 @@ test("repository declares one canonical workspace source without reviving legacy
   assert.match(rootReadme, /Access-protected Cloudflare owner gateway is the normal owner-facing browser presentation/i);
   assert.match(rootReadme, /GitHub Pages remains a derived mirror/i);
   assert.match(rootReadme, /Runtime execution authority remains separately gated by fresh runtime\/provider\/owner evidence/i);
-  assert.match(rootReadme, /GitHub `main` is the private code authority/i);
+  assert.match(rootReadme, /GitHub `main` is the canonical code authority/i);
 });
 
 
