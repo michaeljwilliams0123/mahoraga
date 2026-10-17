@@ -124,6 +124,10 @@ export function scanForSafeEnhancement({ fileExists = (relative) => existsSync(p
       changedFiles: Object.freeze([CYCLE_OUTCOME_LEDGER]),
     });
   }
+  // Prefer an executable, evidence-backed regression over a ledger-only PR.
+  const actionable = selectActionableGapRecipe({ gapAudit, fileExists });
+  if (actionable) return actionable;
+
   if (typeof cycleId === "string" && /^[a-f0-9]{64}$/.test(cycleId) && typeof readFile === "function") {
     const pulse = cycleLedgerPulseAction({
       recordedRaw: readFile(CYCLE_OUTCOME_LEDGER),
