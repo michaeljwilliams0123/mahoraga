@@ -102,6 +102,40 @@ describe("native assistant bridge", () => {
     }
   });
 
+  it("replays a recorded GitHub App result on the same owner task without another external call", async () => {
+    const conversationId = "github-admin-receipt-replay";
+    const key = "github-admin-receipt-replay-key";
+    const message = "/repo admin status";
+    const hash = async (value: string) => Array.from(new Uint8Array(
+      await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))
+    ), byte => byte.toString(16).padStart(2, "0")).join("");
+    const ownerHash = await hash(owner);
+    const id = await hash(ownerHash + "\n" + key);
+    const requestDigest = await hash(ownerHash + "\n" + conversationId + "\n" + message);
+    const githubReceipt = { action: "status", kind: "repository" as const,
+      mainSha: env.TARGET_SHA, outcome: "observed" as const };
+    await post("tasks", { conversationId });
+    await runInDurableObject<ExecutionDurableObject, void>(stub, instance => {
+      instance.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: 1, updatedAt: 2 });
+      instance.storage.saveTurn({ id, conversationId, requestDigest, responseDigest: null,
+        sourceSHA: env.TARGET_SHA, providerId: "mahoraga-native-github-admin-status",
+        costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS",
+        githubReceipt, errorCode: null, contentIdUser: "test-user", contentIdAssistant: "test-answer",
+        createdAt: 1, completedAt: 2 });
+    });
+    for (let attempt=0; attempt<2;attempt++) {
+      const response = await post("chat", { conversationId, content: message, mode: "ask",
+        creditPolicy: "zero-codex", idempotencyKey: key });
+      expect(response.status).toBe(200);
+      const json = await response.json() as { executionReceipt: { githubActionReceipt: unknown } };
+      expect(json.executionReceipt.githubActionReceipt).toEqual(githubReceipt);
+    }
+    const tasks = await (await post("tasks", { conversationId })).json() as {
+      tasks: Array<{ executionReceipt: { githubActionReceipt: unknown } }>;
+    };
+    expect(tasks.tasks[0]?.executionReceipt.githubActionReceipt).toEqual(githubReceipt);
+  });
+
   it.each([
     ["assistant", "Earlier question", "cloudflare-workers-ai", "SUCCESS"],
     ["inspect", "/repo inspect", "mahoraga-native-github-inspect", "SUCCESS"],

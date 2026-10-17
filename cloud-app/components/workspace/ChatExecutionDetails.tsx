@@ -14,6 +14,13 @@ export function ChatExecutionDetails({ evidence }: { evidence?: ChatExecutionEvi
       <dt>Cost class</dt><dd>{reported.costClass}</dd>
       <dt>Credit policy</dt><dd>{reported.creditPolicy}</dd>
       {reported.persistedResultObservation && <><dt>Runtime-stored answer record</dt><dd>{reported.persistedResultObservation === "matched" ? "Matched encrypted record (runtime reported)" : reported.persistedResultObservation === "missing" ? "Missing" : reported.persistedResultObservation === "mismatch" ? "Record mismatch" : "Not observed"}</dd></>}
+      {reported.githubActionReceipt && <><dt>GitHub App result (runtime reported)</dt><dd>
+        {reported.githubActionReceipt.action} — {reported.githubActionReceipt.outcome}
+        {reported.githubActionReceipt.number ? ` #${reported.githubActionReceipt.number}` : ""}
+        {reported.githubActionReceipt.runId ? ` · workflow run #${reported.githubActionReceipt.runId}` : ""}
+        {reported.githubActionReceipt.headSha ? ` · head ${reported.githubActionReceipt.headSha}` : ""}
+        {reported.githubActionReceipt.mainSha ? ` · main ${reported.githubActionReceipt.mainSha}` : ""}
+      </dd></>}
       {reported.memoryState && <><dt>Memory index</dt><dd>{reported.memoryState}</dd></>}
     </dl>}
     <p>Independent execution verification: not supplied.</p>

@@ -4,6 +4,7 @@ import { ASSISTANT_MODEL_ID, ASSISTANT_PROVIDER_ID, invokeZeroCreditProvider, pr
 import { probeZeroCreditProvider, providerAdmissionDiagnostics, providerStateForGap, providerStateFromProbe } from "./provider-admission";
 import { CloudflareDOSQLiteAdapter, type ProviderStateRecord, type StorageAdapter, type StorageReceipt } from "./storage";
 import { observePersistedTurnResult } from "./turn-storage-observation";
+import { projectGitHubActionReceipt } from "./github-action-receipt";
 // Canonical deterministic cognition is shared with the local cognitive worker.
 // @ts-expect-error The canonical repository modules are JavaScript and intentionally remain runtime-neutral.
 import { simulateCounterfactual } from "../../src/cognitive-world-model.mjs";
@@ -520,7 +521,8 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     if (!conversation || conversation.ownerIdHash !== ownerHash) return json({ error: "conversation-unavailable" }, 404);
     const turns = this.storage.listTurns(conversationId);
     if (input?.type === "tasks") return json({ tasks: turns.map((turn) => ({ id: turn.id, conversationId, status: turn.status === "SUCCESS" ? "completed" : turn.status === "FAILED" ? "failed" : "waiting", capability: cognitiveCapability(turn.providerId), errorCode: turn.errorCode, executionReceipt: { workerId: "execution-runtime-do", providerId: turn.providerId, costClass: turn.costClass, creditPolicy: turn.creditPolicy, sourceSHA: turn.sourceSHA ?? null,
-      persistedResultObservation: observePersistedTurnResult(turn, (contentId) => this.storage.getContentRecord(contentId)) } })) });
+      persistedResultObservation: observePersistedTurnResult(turn, (contentId) => this.storage.getContentRecord(contentId)),
+      ...(turn.status === "SUCCESS" && turn.githubReceipt ? { githubActionReceipt: turn.githubReceipt } : {}) } })) });
     if (input?.type === "messages") return json({ messages: turns.flatMap((turn) => (turn.status === "SUCCESS" || turn.status === "FAILED") && turn.contentIdAssistant ? [{ id: turn.contentIdUser, taskId: turn.id, role: "user", contentReference: turn.contentIdUser }, { id: turn.contentIdAssistant, taskId: turn.id, role: "assistant", contentReference: turn.contentIdAssistant }] : []) });
     if (input?.type === "message-content") {
       const contentId = payload.contentReference;
@@ -599,7 +601,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     const capability = command.action === "status" || command.action === "checks" || command.action === "diagnose" ? "repository.inspect" : command.action === "dispatch" ? "workflow.dispatch" : "repository.write";
     const receipt = { workerId: "execution-runtime-do", providerId, costClass: "deterministic", creditPolicy: "zero-codex", sourceSHA, readOnly: command.action === "status" || command.action === "checks" || command.action === "diagnose" };
     const result = { conversation: { id: conversationId }, task: { id: turnId, conversationId, status: "completed", capability }, objective: null, decision: { mode: "ask", execution: "task", capability }, executionReceipt: receipt };
-    if (prior?.status === "SUCCESS") return json(result);
+    if (prior?.status === "SUCCESS") return json({ ...result, executionReceipt: { ...receipt, ...(prior.githubReceipt ? { githubActionReceipt: prior.githubReceipt } : {}) } });
     if (prior?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: prior.errorCode ?? "repository-admin-failed" } });
     const holder = crypto.randomUUID();
     if (!this.storage.acquireLease("turn:" + turnId, holder, LEASE_TTL_MS)) return json({ error: "concurrent-turn-in-progress" }, 409);
@@ -608,7 +610,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
     try {
       const raced = this.storage.getTurn(turnId);
       if (raced) { sourceSHA = raced.sourceSHA ?? null; receipt.sourceSHA = sourceSHA; }
-      if (raced?.status === "SUCCESS") return json(result);
+      if (raced?.status === "SUCCESS") return json({ ...result, executionReceipt: { ...receipt, ...(raced.githubReceipt ? { githubActionReceipt: raced.githubReceipt } : {}) } });
       if (raced?.status === "FAILED") return json({ ...result, task: { ...result.task, status: "failed", errorCode: raced.errorCode ?? "repository-admin-failed" } });
       const reconcileOnly = raced?.status === "PENDING";
       userId = raced?.contentIdUser ?? userId;
@@ -632,6 +634,7 @@ export class ExecutionDurableObject extends DurableObject<Env> {
               : command.action === "checks" || command.action === "diagnose"
                 ? await readMahoragaPullRequestChecksViaGithubApp(command.proposal, { env: this.env })
                 : await mutateMahoragaRepositoryViaGithubApp(command.action, command.proposal, { env: this.env, mutationId: turnId, reconcileOnly });
+      const githubReceipt = projectGitHubActionReceipt(command.action, transaction);
       const answer = [
         "Repository administration — live GitHub App",
         "Action: " + command.action,
@@ -648,9 +651,9 @@ export class ExecutionDurableObject extends DurableObject<Env> {
       this.storage.executeTransaction(() => {
         this.storage.saveConversation({ id: conversationId, ownerIdHash: ownerHash, createdAt: existingConversation?.createdAt ?? turnCreatedAt, updatedAt: now });
         this.storage.saveContentRecord(assistantContent);
-        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
+        this.storage.saveTurn({ sourceSHA, id: turnId, conversationId, requestDigest, responseDigest: assistantContent.contentHash, providerId, costClass: "deterministic", creditPolicy: "zero-codex", status: "SUCCESS", errorCode: null, githubReceipt, contentIdUser: userId, contentIdAssistant: assistantId, createdAt: turnCreatedAt, completedAt: now });
       });
-      return json(result);
+      return json({ ...result, executionReceipt: { ...receipt, ...(githubReceipt ? { githubActionReceipt: githubReceipt } : {}) } });
     } catch (error) {
       const errorCode = githubErrorCode(error);
       if (errorCode === "github-native-mutation-outcome-unknown") {
