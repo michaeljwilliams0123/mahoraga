@@ -129,9 +129,11 @@ test("GitHub receiver is read-only, explicitly dispatched, pinned, and secret-ba
   assert.match(gateway, /workflow_dispatch:/);
   assert.match(gateway, /github\.actor == github\.repository_owner/);
   assert.doesNotMatch(gateway, /^\s*issue_comment\s*:/m);
-  assert.match(gateway, /steps\.gateway\.outputs\.mode == 'desktop'/);
-  assert.match(gateway, /actions\.createWorkflowDispatch/);
-  assert.match(gateway, /workflow_id: "workspace-agent-receiver\.yml"/);
+  assert.match(gateway, /Stage validated dispatch through protected pull request/);
+  assert.doesNotMatch(gateway, /actions\.createWorkflowDispatch/);
+  assert.match(gateway, /Receiver will consume the assignment after the protected merge/);
   assert.doesNotMatch(gateway, /secrets\.AGENT_ACCESS_TOKEN|secrets\.WORKSPACE_AGENT_TRIGGER_ID/);
-  assert.match(gateway, /steps\.workspace_receiver\.outcome == 'failure'/);
+  assert.doesNotMatch(gateway, /- name: Dispatch desktop assignment to cloud receiver/);
+  assert.match(gateway, /gh pr create --base main/);
+  assert.doesNotMatch(gateway, /git push origin HEAD:main/);
 });

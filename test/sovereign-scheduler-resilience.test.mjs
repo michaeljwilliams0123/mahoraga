@@ -9,7 +9,7 @@ test("sovereign scheduler uses heartbeat wakeups around a durable anchored clock
 
   assert.match(source, /workflow_run:/);
   assert.match(source, /Publish Staged Mahoraga Update/);
-  assert.match(source, /cron: '7,22,37,52 \* \* \* \*'/);
+  assert.match(source, /cron: '17 \* \* \* \*'/);
   assert.doesNotMatch(source, /cron: '17 \*\/4 \* \* \*'/);
   assert.doesNotMatch(source, /cron: '47 \*\/4 \* \* \*'/);
   assert.match(source, /contents: write/);

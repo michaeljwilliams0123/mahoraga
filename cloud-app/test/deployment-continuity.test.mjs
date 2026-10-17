@@ -33,10 +33,10 @@ test("deployment continuity keeps private main authoritative while browser hosti
     readApp("README.md"),
   ]);
 
-  assert.match(readme, /GitHub `main` is the private code authority/i);
+  assert.match(readme, /GitHub `main` is the canonical code authority/i);
   assert.match(readme, /normal owner-facing browser presentation/i);
   assert.match(readme, /GitHub Pages mirror/i);
-  assert.match(cloudReadme, /GitHub `main` is the private code authority/i);
+  assert.match(cloudReadme, /GitHub `main` is the canonical code authority/i);
   assert.match(cloudReadme, /`cloud-app\/` is host-neutral/i);
   assert.match(cloudReadme, /normal owner-facing production entry is the Access-protected Cloudflare owner gateway/i);
   assert.match(cloudReadme, /GitHub Pages publishes a derived static mirror/i);

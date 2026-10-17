@@ -219,13 +219,16 @@ export async function buildGithubAudit({ root = ROOT, listTrackedFiles = tracked
     && /workflow_dispatch:\s*[\s\S]*issue_number:\s*[\s\S]*command:/.test(cloudTaskGateway)
     && /if:\s*github\.actor == github\.repository_owner/.test(cloudTaskGateway)
     && !/issue_comment\s*:/.test(cloudTaskGateway)
-    && /actions:\s*write/.test(cloudTaskGateway)
-    && /actions\.createWorkflowDispatch/.test(cloudTaskGateway)
-    && /workflow_id:\s*"workspace-agent-receiver\.yml"/.test(cloudTaskGateway)
-    && /inputs:\s*\{ assignment_id: process\.env\.ASSIGNMENT_ID \}/.test(cloudTaskGateway)
-    && /steps\.gateway\.outputs\.mode == 'desktop'/.test(cloudTaskGateway)
-    && /continue-on-error:\s*true/.test(cloudTaskGateway)
-    && /steps\.workspace_receiver\.outcome == 'failure'/.test(cloudTaskGateway)
+    && /Mint existing GitHub App PR publication token/.test(cloudTaskGateway)
+    && /permission-contents:\s*write/.test(cloudTaskGateway)
+    && /permission-pull-requests:\s*write/.test(cloudTaskGateway)
+    && /token:\s*\$\{\{ steps\.app-token\.outputs\.token \}\}/.test(cloudTaskGateway)
+    && /Stage validated dispatch through protected pull request/.test(cloudTaskGateway)
+    && /gh pr create --base main/.test(cloudTaskGateway)
+    && /current_main=/.test(cloudTaskGateway)
+    && /git push origin "HEAD:refs\/heads\/\$\{branch\}"/.test(cloudTaskGateway)
+    && !/git push origin HEAD:main/.test(cloudTaskGateway)
+    && !/actions\.createWorkflowDispatch/.test(cloudTaskGateway)
     && !/secrets\.AGENT_ACCESS_TOKEN|secrets\.WORKSPACE_AGENT_TRIGGER_ID/.test(cloudTaskGateway);
   add(
     "workspace-agent-receiver",

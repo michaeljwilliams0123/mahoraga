@@ -14,7 +14,9 @@ The area map in `.github/CODEOWNERS` makes review intent explicit. It does not d
 - `src/` — supervisor/runtime/workers/routing/policy/provider integration.
 - `scripts/` — maintenance, dispatch, validation, release-baseline tooling.
 - `test/` — deterministic validation and regression coverage.
-- `web/` and `cloud/` — Control Center and cloud workspace surfaces.
+- `cloud-app/` — sole deployable browser workspace and canonical UI source.
+- `operator-deck/` — non-deployable TypeScript control-library reference.
+- `deploy/` — Cloudflare runtime, broker, and deployment definitions.
 - `relay/` — bounded relay implementation and packaging.
 - `docs/` — current architecture, operating, and integration documentation.
 - `state/release-baseline/` — recovery baseline copies of essential release files.
