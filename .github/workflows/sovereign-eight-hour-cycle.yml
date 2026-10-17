@@ -302,12 +302,17 @@ jobs:
           retention-days: 7
 
   producer-smoke:
+    # Both jobs can mint the same feature/sovereign-* PR. A workflow-level
+    # concurrency group serializes runs, not sibling jobs within one run.
+    # Do not race their branch creation or use stale candidate receipts.
+    needs: candidate-cycle
     permissions:
       actions: write
       contents: write
       pull-requests: write
     # Private runs use existing local capacity; public runs use free hosted Ubuntu.
     if: >-
+      needs.candidate-cycle.result == 'success' &&
       ((github.event.repository.private == false &&
         (vars.MAHORAGA_EXECUTION_ROUTE == '' ||
          vars.MAHORAGA_EXECUTION_ROUTE == 'auto' ||
@@ -458,6 +463,12 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --tags --force
+          git fetch origin main --force
+          current_main="$(git rev-parse origin/main)"
+          if [[ "${current_main}" != "${RELEASED_SHA}" ]]; then
+            echo "Main advanced from evaluated ${RELEASED_SHA} to ${current_main}; refusing stale smoke completion stamp." >&2
+            exit 1
+          fi
           if git show-ref --tags --verify --quiet "refs/tags/${SMOKE_TAG}"; then
             echo "Producer smoke tag already exists."
             exit 0
