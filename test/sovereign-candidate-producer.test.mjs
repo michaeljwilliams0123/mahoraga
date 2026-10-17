@@ -520,3 +520,12 @@ test("candidate producer and one-time smoke are serialized within the same GitHu
   assert.match(workflow, /group: sovereign-four-hour-\$\{\{ github\.repository \}\}/, "retain cross-run serialization");
   assert.match(workflow, /cancel-in-progress: false/, "retain pending-cycle continuity");
 });
+
+test("producer smoke cannot mark an older source SHA as complete after main advances", async () => {
+  const workflow = await readFile(new URL("../.github/workflows/sovereign-eight-hour-cycle.yml", import.meta.url), "utf8");
+  const marker = workflow.split("      - name: Mark producer smoke complete")[1]?.split("      - name: Build bounded producer-smoke outcome")[0] ?? "";
+  assert.ok(marker, "the durable smoke tag marker must remain present");
+  assert.match(marker, /git fetch origin main --force/, "fresh current main must be observed before writing the tag");
+  assert.match(marker, /if \[\[ "\$\{current_main\}" != "\$\{RELEASED_SHA\}" \]\]; then/, "abort the stale release stamp");
+  assert.match(marker, /-f sha="\$\{RELEASED_SHA\}"/, "tag the evaluated source only after source parity check");
+});
