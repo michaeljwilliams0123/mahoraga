@@ -10,8 +10,9 @@ test("7.0.0-alpha.2 cockpit surfaces sovereign candidate receipt as observationa
   const cockpit = readFileSync(join(root, "components/cockpit/CockpitView.tsx"), "utf8");
   const card = readFileSync(join(root, "components/cockpit/SovereignCandidateReceiptCard.tsx"), "utf8");
   assert.match(cockpit, /SovereignCandidateReceiptCard/);
-  assert.match(card, /Zero-credit · observational/);
-  assert.match(card, /#1136/);
+  assert.match(card, /Zero-credit · exact-source · observational/);
+  assert.match(card, /#1152/);
+  assert.match(card, /0fff9e2/);
   assert.match(card, /creditCost=0/);
   assert.match(card, /not execution readiness/);
   assert.doesNotMatch(cockpit, /<h2>7\.0\.0-alpha\.2/);
