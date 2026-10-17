@@ -476,3 +476,21 @@ test("cycle completion fails closed if current main differs from evaluated SHA",
   assert.ok(workflow.includes('-f sha="${evaluated_sha}"'));
   assert.ok(!workflow.includes('-f sha="${head_sha}"'));
 });
+
+test("actionable work outranks a changed gap-ledger pulse in the same cycle", () => {
+  const actionableGap = { open: [{ id: "sovereign-candidate-path-safety", state: "open" }] };
+  const enhancement = producerModule.scanForSafeEnhancement({
+    fileExists: (relative) => relative !== "test/sovereign-candidate-path-safety.test.mjs",
+    readFile: () => JSON.stringify({
+      schemaVersion: 1,
+      cycleId: CYCLE_A,
+      counts: { open: 0, blocked: 0, actionable: 0 },
+      blockedGapIds: [],
+      actionableGapIds: [],
+    }),
+    cycleId: CYCLE_B,
+    gapAudit: actionableGap,
+  });
+  assert.equal(enhancement.id, "candidate-path-safety-regression");
+  assert.deepEqual(enhancement.changedFiles, ["test/sovereign-candidate-path-safety.test.mjs"]);
+});
